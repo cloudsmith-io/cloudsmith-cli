@@ -1,0 +1,9 @@
+# Development dependencies
+bumpversion==0.5.3
+flake8==3.5.0,<4.0.0
+flake8-docstrings>=1.1.0,<2.0.0
+flake8-quotes==0.12.0
+pip-tools>=1.10.2,<2.0.0
+pypandoc>=1.3.3,<2.0.0
+pylint==1.6.5  # >1.7 is *slow* atm
+setuptools==37.0

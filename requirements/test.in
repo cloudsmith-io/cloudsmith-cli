@@ -1,0 +1,3 @@
+# Test dependencies
+nose==1.3.7
+tox==2.9.1
