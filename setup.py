@@ -1,0 +1,105 @@
+"""Cloudsmith Command Line Interface (CLI)."""
+from __future__ import absolute_import, print_function, unicode_literals
+from setuptools import find_packages, setup
+import os
+
+
+
+def get_root_path():
+    """Get the root path for the application."""
+    root_path = __file__
+    return os.path.dirname(os.path.realpath(root_path))
+
+
+def read(path, root_path=None):
+    """Read the specific file into a string in its entirety."""
+    try:
+        root_path = root_path or get_root_path()
+        real_path = os.path.realpath(os.path.join(root_path, path))
+        with open(real_path) as fp:
+            return fp.read().strip()
+    except IOError:
+        return ''
+
+
+def parse_requirements(path):
+    from nose.tools import set_trace; set_trace()
+    content = read(path, root_path=None)
+
+    for line_number, line in enumerate(content.splitlines(), 1):
+        candidate = line.strip()
+
+        if candidate.startswith('#'):
+            continue
+        if candidate.startswith('-r'):
+            filepath = os.path.dirname(path)
+            for item in parse_requirements(
+                    candidate[2:].strip(), root_path=filepath):
+                yield item
+        else:
+            yield candidate
+
+
+def get_long_description():
+    """Grok the readme, turn it into whine (rst)."""
+    root_path = get_root_path()
+    readme_path = os.path.join(root_path, 'README.md')
+
+    try:
+        import pypandoc
+        return pypandoc.convert(readme_path, 'rst')
+    except ImportError:
+        return read(readme_path)
+
+
+setup(
+    name='cloudsmith',
+    version=read('VERSION'),
+    url='https://github.com/cloudsmith-io/cloudsmith-cli',
+    license='Apache License 2.0',
+    author='Cloudsmith Ltd',
+    author_email='support@cloudsmith.io',
+    description="Cloudsmithh Command-Line Interface (CLI)",
+    long_description=get_long_description(),
+    packages=find_packages(exclude=['tests']),
+    include_package_data=True,
+    zip_safe=False,
+    platforms='any',
+    install_requires=[
+        'click>=6.7',
+        'click-configfile>=0.2.3',
+        'click-didyoumean>=0.0.3',
+        'click-spinner>=0.1.7',
+        'colorama>=0.3.9',
+        'requests>=2.18.4',
+        'semver>=2.7.9',
+        'simplejson>=3.12.0',
+        'six>=1.11.0'
+    ],
+    entry_points={
+        'console_scripts': [
+            'cloudsmith=cloudsmith_cli.cli.commands:main',
+        ],
+    },
+    classifiers=[
+        # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
+        # 'Development Status :: 1 - Planning',
+        # 'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
+        # 'Development Status :: 4 - Beta',
+        # 'Development Status :: 5 - Production/Stable',
+        # 'Development Status :: 6 - Mature',
+        # 'Development Status :: 7 - Inactive',
+        'Environment :: Console',
+        'Intended Audience :: Developers',
+        'Intended Audience :: System Administrators',
+        'License :: OSI Approved :: Apache License 2.0',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 3',
+        'Topic :: Internet',
+        'Topic :: System :: Systems Administration',
+        'Topic :: Utilities',
+    ]
+)

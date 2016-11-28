@@ -1,0 +1,25 @@
+# Python bytecode:
+*.py[co]
+
+# Packaging files:
+*.egg*
+
+# SQLite3 database files:
+*.db
+
+# Logs:
+*.log
+
+# Backup files
+*.bak
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Transient
+.coverage
+node_modules/
+reports/
+.venv
