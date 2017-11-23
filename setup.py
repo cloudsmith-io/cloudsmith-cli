@@ -22,24 +22,6 @@ def read(path, root_path=None):
         return ''
 
 
-def parse_requirements(path):
-    from nose.tools import set_trace; set_trace()
-    content = read(path, root_path=None)
-
-    for line_number, line in enumerate(content.splitlines(), 1):
-        candidate = line.strip()
-
-        if candidate.startswith('#'):
-            continue
-        if candidate.startswith('-r'):
-            filepath = os.path.dirname(path)
-            for item in parse_requirements(
-                    candidate[2:].strip(), root_path=filepath):
-                yield item
-        else:
-            yield candidate
-
-
 def get_long_description():
     """Grok the readme, turn it into whine (rst)."""
     root_path = get_root_path()
@@ -53,7 +35,7 @@ def get_long_description():
 
 
 setup(
-    name='cloudsmith',
+    name='cloudsmith-cli',
     version=read('VERSION'),
     url='https://github.com/cloudsmith-io/cloudsmith-cli',
     license='Apache License 2.0',
@@ -70,17 +52,22 @@ setup(
         'click-configfile>=0.2.3',
         'click-didyoumean>=0.0.3',
         'click-spinner>=0.1.7',
+        'cloudsmith-api==0.20.6',
         'colorama>=0.3.9',
         'requests>=2.18.4',
         'semver>=2.7.9',
         'simplejson>=3.12.0',
         'six>=1.11.0'
     ],
+    dependency_links=[
+        'https://dl.cloudsmith.io/public/cloudsmith/api/python/cloudsmith_api-0.20.6-py2-none-any.whl'
+    ],
     entry_points={
         'console_scripts': [
             'cloudsmith=cloudsmith_cli.cli.commands:main',
         ],
     },
+    keywords='cloudsmith cli devops',
     classifiers=[
         # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
         # 'Development Status :: 1 - Planning',
