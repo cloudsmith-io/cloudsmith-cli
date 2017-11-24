@@ -14,7 +14,7 @@ def validate_slashes(ctx, param, value, minimum=2, maximum=None, form=None):
     if value:
         if len(value) < minimum:
             value = None
-        if maximum and len(value) > maximum:
+        elif maximum and len(value) > maximum:
             value = None
 
     if not value:
