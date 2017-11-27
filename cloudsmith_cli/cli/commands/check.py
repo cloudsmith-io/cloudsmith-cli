@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
+import cloudsmith_api
 from click_spinner import spinner
 import semver
 from ...core.api.status import get_status
@@ -27,13 +28,21 @@ def check(ctx, opts):
 
     click.secho("OK", fg='green')
 
+    config = cloudsmith_api.Configuration()
+
+    click.echo()
     click.echo(
-        "The service status is: %(status)s" % {
+        "The service endpoint is: %(endpoint)s" % {
+            'endpoint': click.style(config.host, bold=True)
+        }
+    )
+    click.echo(
+        "The service status is:   %(status)s" % {
             'status': click.style(status, bold=True)
         }
     )
     click.echo(
-        "The service version is: %(version)s " % {
+        "The service version is:  %(version)s " % {
             'version': click.style(version, bold=True)
         }, nl=False
     )
