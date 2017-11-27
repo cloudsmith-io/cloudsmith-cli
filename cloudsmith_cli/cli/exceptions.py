@@ -8,8 +8,7 @@ from ..core.api.exceptions import ApiException
 
 
 @contextlib.contextmanager
-def handle_api_exceptions(
-        ctx, opts=None, exit_code=1, context_msg=None, nl=False):
+def handle_api_exceptions(ctx, opts, exit_code=1, context_msg=None, nl=False):
     """Context manager that handles API exceptions."""
     try:
         yield
@@ -57,9 +56,7 @@ def handle_api_exceptions(
                     }
                 )
 
-        debug = opts.get('DEBUG', False)
-        verbose = opts.get('VERBOSE') or debug
-        if verbose and not debug:
+        if opts.verbose and not opts.debug:
             if exc.headers:
                 click.echo()
                 click.echo("Headers in Reply:")
