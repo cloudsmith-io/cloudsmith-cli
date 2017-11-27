@@ -113,7 +113,7 @@ class Options(object):
         values = config.get('default', {})
         self._load_config_from_dict(values)
 
-        if profile:
+        if profile and profile != 'default':
             values = config.get('profile:%s' % profile, {})
             self._load_config_from_dict(values)
 
