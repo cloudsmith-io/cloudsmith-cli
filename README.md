@@ -2,6 +2,7 @@
 
 The [Cloudsmith](https://cloudsmith.io) Command Line Interface (CLI) is a Py2/Py3 text-based interface to the [API](https://api.cloudsmith.io). This allows users, machines and other services to access and integrate smoothly with Cloudsmith without requiring explicit plugins or tools.
 
+
 ## Features
 
 The CLI currently supports the following commands:
@@ -9,12 +10,14 @@ The CLI currently supports the following commands:
 - `check`:  Check the status/version of the service.
 - `delete`: Delete a package from a repository.
 - `docs`:   Launch the help website in your browser.
+- `help`:   Display the help message and exit.
 - `push`:   Push/upload a new package to a repository.
 - `status`: Get the synchronisation status for a package.
 - `token`:  Retrieve your API authentication token/key.
 - `whoami`: Retrieve your current authentication status.
 
-# Installation
+
+## Installation
 
 You can install the latest CLI application from:
 
@@ -32,6 +35,7 @@ Or you can get the latest pre-release version from Cloudsmith:
 ```
 pip install cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
 ```
+
 
 ## Configuration
 
@@ -71,6 +75,7 @@ See the [default example](https://raw.githubusercontent.com/cloudsmith-io/clouds
 You can specify the following configuration options:
 
 - `api_key`: The API key for authenticating with the API.
+
 
 ## Examples
 
@@ -145,9 +150,18 @@ Assuming you have a package filename **assets.zip**, representing **packaged ass
 cloudsmith push raw assets.zip
 ```
 
+### Upload multiple Debian Packages
+
+You can also upload multiple packages in one go (all of the same distribution):
+
+```
+cloudsmith push deb lskillen/test/ubuntu/xenial libxml2-2.9.1-2.x86_64.deb libxml2-2.9.2-2.x86_64.deb libxml2-2.9.3-2.x86_64.deb
+```
+
 ## Contributing
 
 Yes! Please do contribute, this is why we love open source.  Please see `CONTRIBUTING.md` for contribution guidelines when making code changes or raising issues for bug reports, ideas, discussions and/or questions (i.e. help required).
+
 
 ## Releasing
 
@@ -158,6 +172,7 @@ $ bumpversion <major|minor|revision>
 ```
 
 A tag will automatically created along with the version bump commit.
+
 
 ## License
 
@@ -173,6 +188,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 
 ## EOF
 

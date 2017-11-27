@@ -1,6 +1,7 @@
 """CLI - Exceptions."""
 from __future__ import absolute_import, print_function, unicode_literals
 import contextlib
+import sys
 
 import click
 import six
@@ -8,7 +9,9 @@ from ..core.api.exceptions import ApiException
 
 
 @contextlib.contextmanager
-def handle_api_exceptions(ctx, opts, exit_code=1, context_msg=None, nl=False):
+def handle_api_exceptions(
+        ctx, opts, exit_code=1, context_msg=None, nl=False,
+        exit_on_error=True, reraise_on_error=False):
     """Context manager that handles API exceptions."""
     try:
         yield
@@ -68,4 +71,8 @@ def handle_api_exceptions(ctx, opts, exit_code=1, context_msg=None, nl=False):
                         }
                     )
 
-        ctx.exit(exit_code)
+        if reraise_on_error:
+            six.reraise(*sys.exc_info())
+
+        if exit_on_error:
+            ctx.exit(exc.status)
