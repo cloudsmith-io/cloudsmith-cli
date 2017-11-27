@@ -19,6 +19,6 @@ def initialise_api(
 def set_api_key(config, key):
     """Configure a new API key."""
     if not key and 'X-Api-Key' in config.api_key:
-        del config.api['X-Api-Key']
+        del config.api_key['X-Api-Key']
     else:
         config.api_key['X-Api-Key'] = key

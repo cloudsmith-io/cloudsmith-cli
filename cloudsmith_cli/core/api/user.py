@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
 from .exceptions import catch_raise_api_exception
+from .init import set_api_key
 
 
 def get_user_api():
@@ -17,6 +18,10 @@ def get_user_api():
 def get_user_token(login, password):
     """Retrieve user token from the API (via authentication)."""
     client = get_user_api()
+
+    # Never use API key for the token endpoint
+    config = cloudsmith_api.Configuration()
+    set_api_key(config, None)
 
     with catch_raise_api_exception():
         data = client.user_token_create(

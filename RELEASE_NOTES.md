@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - **Added** `help` command for those who need more than `-h` and `--help`.
 - **Changed** environment variables to use a `CLOUDSMITH_` prefix.
 - **Fixed** validation for `push` commands that require a distribution.
+- **Fixed** token endpoint failing because API key overrides login/password.
 
 ## [0.1.0] - 2017-11-23
 
