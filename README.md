@@ -95,7 +95,7 @@ Retrieving API token for 'you@example.com' ... OK
 Your API token is: 1234567890abcdef1234567890abcdef
 ```
 
-You can then put this into your `credentials.ini`, use it as an environment variable `API_KEY=your_key_here` or pass it to the CLI using the `-k your_key_here` flag.
+You can then put this into your `credentials.ini`, use it as an environment variable `CLOUDSMITH_API_KEY=your_key_here` or pass it to the CLI using the `-k your_key_here` flag.
 
 ### Upload a Debian Package
 
