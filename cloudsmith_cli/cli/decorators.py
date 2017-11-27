@@ -81,13 +81,13 @@ def common_api_auth_options(f):
 def initialise_api(f):
     """Initialise the Cloudsmith API for use."""
     @click.option(
-        '-H', '--api-host', envvar='CLOUDSMITH_API_HOST',
+        '--api-host', envvar='CLOUDSMITH_API_HOST',
         help="The API host to connect to.")
     @click.option(
-        '-P', '--api-proxy', envvar='CLOUDSMITH_API_PROXY',
+        '--api-proxy', envvar='CLOUDSMITH_API_PROXY',
         help="The API proxy to connect through.")
     @click.option(
-        '-U', '--api-user-agent', envvar='CLOUDSMITH_API_USER_AGENT',
+        '--api-user-agent', envvar='CLOUDSMITH_API_USER_AGENT',
         help="The user agent to use for requests.")
     @click.pass_context
     @functools.wraps(f)
