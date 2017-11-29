@@ -22,12 +22,14 @@ matrix:
 install:
   - pip install --upgrade pip setuptools wheel
   - pip install tox codecov
+  - pip install codacy-coverage
 
 script:
   - tox
 
 after_success:
   - codecov
+  - python-codacy-coverage -r coverage.xml
 
 notifications:
   email:
