@@ -19,9 +19,14 @@ build/
 *.egg-info/
 
 # Transient
-.coverage
 node_modules/
 reports/
+
+# Virtualenv/Tox
 .venv
 .tox
+
+# Coverage
+.coverage
+coverage.xml
 cover/
