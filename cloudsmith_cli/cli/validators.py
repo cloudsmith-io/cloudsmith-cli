@@ -20,13 +20,13 @@ def validate_slashes(ctx, param, value, minimum=2, maximum=None, form=None):
     if not value:
         form = form or '/'.join('VALUE' for _ in range(minimum))
         raise click.BadParameter(
-            "Must be in the form of %(form)s" % {'form': form},
+            'Must be in the form of %(form)s' % {'form': form},
             param=param)
 
     value = [v.strip() for v in value]
     if not all(value):
         raise click.BadParameter(
-            "Individual values cannot be blank",
+            'Individual values cannot be blank',
             param=param)
 
     return value

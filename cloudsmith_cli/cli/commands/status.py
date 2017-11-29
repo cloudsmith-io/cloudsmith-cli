@@ -33,25 +33,25 @@ def status(ctx, opts, owner_repo_package):
     owner, repo, slug = owner_repo_package
 
     click.echo(
-        "Getting status of '%(package)s' in '%(owner)s/%(repo)s' ... " % {
+        'Getting status of %(package)s in %(owner)s/%(repo)s ... ' % {
             'owner': click.style(owner, bold=True),
             'repo': click.style(repo, bold=True),
             'package': click.style(slug, bold=True)
         }, nl=False
     )
 
-    context_msg = "Failed to get status of package!"
+    context_msg = 'Failed to get status of package!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             res = get_package_status(owner, repo, slug)
             completed, failed, progress, status_str, stage_str = res
 
-    click.secho("OK", fg='green')
+    click.secho('OK', fg='green')
 
     if not stage_str:
         status = status_str
     else:
-        status = "%(status)s / %(stage)s" % {
+        status = '%(status)s / %(stage)s' % {
             'status': status_str,
             'stage': stage_str
         }
@@ -64,7 +64,7 @@ def status(ctx, opts, owner_repo_package):
         status_colour = 'magenta'
 
     click.secho(
-        "The package status is: %(status)s" % {
+        'The package status is: %(status)s' % {
             'status': click.style(status, fg=status_colour)
         }
     )

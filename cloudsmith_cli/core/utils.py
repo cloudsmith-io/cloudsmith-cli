@@ -9,12 +9,12 @@ import click
 
 def get_help_website():
     """Get the URL for the help website."""
-    return "https://help.cloudsmith.io/docs/cli/"
+    return 'https://help.cloudsmith.io/docs/cli/'
 
 
 def get_github_website():
     """Get the URL for the GitHub project."""
-    return "https://github.com/cloudsmith-io/cloudsmith-cli"
+    return 'https://github.com/cloudsmith-io/cloudsmith-cli'
 
 
 def get_root_path():

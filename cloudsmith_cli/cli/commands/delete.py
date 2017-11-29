@@ -17,7 +17,7 @@ from ..exceptions import handle_api_exceptions
     callback=validators.validate_owner_repo_package)
 @click.option(
     '-y', '--yes', default=False, is_flag=True,
-    help="Assume yes as default answer to questions.")
+    help='Assume yes as default answer to questions.')
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -42,17 +42,17 @@ def delete(ctx, opts, owner_repo_package, yes):
     }
 
     if not yes and not click.confirm(
-            "Are you sure you want to delete '%(package)s' from "
-            "'%(owner)s/%(repo)s'?" % args):
-        click.secho("OK! Phew, close call. :-)", fg='yellow')
+            'Are you sure you want to delete %(package)s from '
+            '%(owner)s/%(repo)s?' % args):
+        click.secho('OK! Phew, close call. :-)', fg='yellow')
         return
 
     click.echo(
-        "Deleting '%(package)s' from '%(owner)s/%(repo)s' ... " % args,
+        'Deleting %(package)s from %(owner)s/%(repo)s ... ' % args,
         nl=False
     )
 
-    context_msg = "Failed to delete the package!"
+    context_msg = 'Failed to delete the package!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             delete_package(
@@ -61,4 +61,4 @@ def delete(ctx, opts, owner_repo_package, yes):
                 slug=slug
             )
 
-    click.secho("OK", fg='green')
+    click.secho('OK', fg='green')

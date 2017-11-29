@@ -1,4 +1,4 @@
-"""Cloudsmith CLI - Main command."""
+"""API - Exceptions."""
 from __future__ import absolute_import, print_function, unicode_literals
 
 import contextlib
@@ -9,18 +9,22 @@ from six.moves import http_client
 
 try:
     import simplejson as json
-except:
+except ImportError:
     import json
-
 
 
 class ApiException(Exception):
     """Exception raised by the Cloudsmith API."""
+
     def __init__(self, status, detail=None, headers=None, body=None,
                  fields=None):
+        """Create a new APIException."""
         self.status = status
-        self.status_description = (
-            http_client.responses.get(status, "Unknown Status"))
+        if status == 422:
+            self.status_description = 'Unprocessable Entity'
+        else:
+            self.status_description = (
+                http_client.responses.get(status, 'Unknown Status'))
         self.detail = detail
         self.headers = headers or {}
         self.body = body

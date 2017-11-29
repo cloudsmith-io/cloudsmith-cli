@@ -81,7 +81,7 @@ def get_package_formats():
 
         for k, v in six.iteritems(cls.swagger_types):
             attr = getattr(cls, k)
-            docs = attr.__doc__.strip().split("\n")
+            docs = attr.__doc__.strip().split('\n')
             doc = (docs[1] if docs[1] else docs[0]).strip()
 
             try:

@@ -5,7 +5,6 @@ from setuptools import find_packages, setup
 import os
 
 
-
 def get_root_path():
     """Get the root path for the application."""
     root_path = __file__
@@ -42,7 +41,7 @@ setup(
     license='Apache License 2.0',
     author='Cloudsmith Ltd',
     author_email='support@cloudsmith.io',
-    description="Cloudsmith Command-Line Interface (CLI)",
+    description='Cloudsmith Command-Line Interface (CLI)',
     long_description=get_long_description(),
     packages=find_packages(exclude=['tests']),
     package_data={

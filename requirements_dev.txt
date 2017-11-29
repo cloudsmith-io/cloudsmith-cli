@@ -1,2 +1,1 @@
--r requirements_test.txt
 -r requirements/development.txt

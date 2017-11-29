@@ -9,4 +9,4 @@ from . import help  # noqa
 from . import push  # noqa
 from . import status  # noqa
 from . import token  # noqa
-from . import whoami # nowa
+from . import whoami  # noqa

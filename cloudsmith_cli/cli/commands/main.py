@@ -15,14 +15,14 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 def print_version():
     """Print the environment versions."""
-    click.echo("Versions:")
+    click.echo('Versions:')
     click.secho(
-        "CLI Package Version: %(version)s" % {
+        'CLI Package Version: %(version)s' % {
             'version': click.style(get_cli_version(), bold=True)
         }
     )
     click.secho(
-        "API Package Version: %(version)s" % {
+        'API Package Version: %(version)s' % {
             'version': click.style(get_api_version(), bold=True)
         }
     )
@@ -32,6 +32,7 @@ def print_version():
     cls=DYMGroup,
     context_settings=CONTEXT_SETTINGS,
     invoke_without_command=True,
+    help='The Cloudsmith CLI - Helping you to level up your DevOps!',
     epilog="""
 For more help, see the docs: %(help_website)s
 
@@ -42,12 +43,12 @@ For issues/contributing: %(github_website)s
     })
 @click.option(
     '-V', '--version',
-    help="Show the version numbers for the API and CLI.",
+    help='Show the version numbers for the API and CLI.',
     is_flag=True, is_eager=True)
 @decorators.common_cli_config_options
 @click.pass_context
 def main(ctx, opts, version):
-    """The Cloudsmith CLI - Helping you to level up your DevOps. :-)"""
+    """Handle entrypoint to CLI."""
     if version:
         print_version()
     elif ctx.invoked_subcommand is None:

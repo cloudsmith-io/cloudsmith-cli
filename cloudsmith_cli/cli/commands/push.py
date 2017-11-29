@@ -27,12 +27,12 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     basename = os.path.basename(filename)
 
     click.echo(
-        "Requesting file upload for '%(filename)s' ... " % {
+        'Requesting file upload for %(filename)s ... ' % {
             'filename': click.style(basename, bold=True)
         }, nl=False
     )
 
-    context_msg = "Failed to request file upload!"
+    context_msg = 'Failed to request file upload!'
     with handle_api_exceptions(
             ctx, opts=opts, context_msg=context_msg,
             reraise_on_error=skip_errors):
@@ -43,13 +43,13 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
                 filepath=filename
             )
 
-    click.secho("OK", fg='green')
+    click.secho('OK', fg='green')
 
-    context_msg = "Failed to upload file!"
+    context_msg = 'Failed to upload file!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         filesize = utils.get_file_size(filepath=filename)
 
-        label = "Uploading '%(filename)s':" % {
+        label = 'Uploading %(filename)s:' % {
             'filename': click.style(basename, bold=True)
         }
 
@@ -79,7 +79,7 @@ def create_package(
     """Create a new package via the API."""
     click.echo()
     click.echo(
-        "Creating a new %(package_type)s package ... " % {
+        'Creating a new %(package_type)s package ... ' % {
             'package_type': click.style(package_type, bold=True)
         }, nl=False
     )
@@ -88,7 +88,7 @@ def create_package(
     if kwargs:
         payload.update(kwargs)
 
-    context_msg = "Failed to create package!"
+    context_msg = 'Failed to create package!'
     with handle_api_exceptions(
             ctx, opts=opts, context_msg=context_msg,
             reraise_on_error=skip_errors):
@@ -100,10 +100,10 @@ def create_package(
                 payload=payload
             )
 
-    click.secho("OK", fg='green')
+    click.secho('OK', fg='green')
 
     click.echo(
-        "Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)" % {
+        'Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)' % {
             'owner': click.style(owner, fg='magenta'),
             'repo': click.style(repo, fg='blue'),
             'slug': click.style(slug, fg='green'),
@@ -119,8 +119,8 @@ def wait_for_package_sync(
     """Wait for a package to synchronise (or fail)."""
     click.echo()
     completed = False
-    label = "Synchronising '%(package)s':" % {
-        'package': slug
+    label = 'Synchronising %(package)s:' % {
+        'package': click.style(slug, bold=True)
     }
 
     fill_char = click.style('#', fg='green')
@@ -131,12 +131,12 @@ def wait_for_package_sync(
     def display_status(current):
         if not stage_str:
             return status_str
-        return "%(status)s / %(stage)s" % {
+        return '%(status)s / %(stage)s' % {
             'status': status_str,
             'stage': stage_str
         }
 
-    context_msg = "Failed to synchronise file!"
+    context_msg = 'Failed to synchronise file!'
     with handle_api_exceptions(
             ctx, opts=opts, context_msg=context_msg,
             reraise_on_error=skip_errors):
@@ -156,11 +156,9 @@ def wait_for_package_sync(
                 time.sleep(wait_interval)
 
     if completed:
-        click.secho("Package synchronised successfully!", fg='green')
+        click.secho('Package synchronised successfully!', fg='green')
     else:
-        click.secho("Package failed to synchronise!", fg='red')
-        click.echo("Please see the frontend for additional errors (we'll ")
-        click.echo("expose more information to the CLI here later.)")
+        click.secho('Package failed to synchronise!', fg='red')
 
 
 def upload_files_and_create_package(
@@ -223,7 +221,7 @@ def push(ctx):
 
 
 # Hacky territory - Dynamically generate a handler for each of the package
-# formats, until we have slightly more clever "guess type" handling. :-)
+# formats, until we have slightly more clever 'guess type' handling. :-)
 PUSH_HANDLERS = {}  # For keeping references to the handlers
 PUSH_CONTEXT = get_package_formats()
 
@@ -240,7 +238,7 @@ for key, parameters in six.iteritems(PUSH_CONTEXT):
 
     has_additional_params = len(kwargs) > 0
 
-    help_text=(
+    help_text = (
         """
         Push/upload a new %(type)s package upstream.
         """ % {
@@ -300,27 +298,28 @@ for key, parameters in six.iteritems(PUSH_CONTEXT):
         ))
     @click.option(
         '-n', '--dry-run', default=False, is_flag=True,
-        help="Execute in dry run mode (don't upload anything.)")
+        help='Execute in dry run mode (don\'t upload anything.)')
     @click.option(
         '-W', '--no-wait-for-sync', default=False, is_flag=True,
-        help="Wait for synchronisation to complete before exiting.")
+        help='Wait for synchronisation to complete before exiting.')
     @click.option(
         '-I', '--wait-interval', default=5.0, type=float, show_default=True,
-        help="The time in seconds to wait between checking operations.")
+        help='The time in seconds to wait between checking operations.')
     @click.option(
         '-s', '--skip-errors', default=False, is_flag=True,
-        help="Skip errors when uploading multiple files.")
+        help='Skip errors when uploading multiple files.')
     @decorators.common_cli_config_options
     @decorators.common_cli_output_options
     @decorators.common_api_auth_options
     @decorators.initialise_api
     @click.pass_context
     def push_handler(ctx, *args, **kwargs):
+        """Handle upload for a specific package format."""
         if kwargs['dry_run']:
             # FIXME: Too lazy to remove the option, not lazy enough to display
             # a warning. This is a note to self to actually implement it.
             click.secho(
-                "Sorry, dry run mode isn't supported yet (coming soon!)",
+                'Sorry, dry run mode isn\'t supported yet (coming soon!)',
                 fg='yellow')
             ctx.exit(1)
 
@@ -344,7 +343,7 @@ for key, parameters in six.iteritems(PUSH_CONTEXT):
                 upload_files_and_create_package(ctx, *args, **kwargs)
             except ApiException:
                 assert(kwargs.get('skip_errors'))
-                click.secho("Skipping error and moving on.", fg='yellow')
+                click.secho('Skipping error and moving on.', fg='yellow')
 
             click.echo()
 
@@ -352,13 +351,13 @@ for key, parameters in six.iteritems(PUSH_CONTEXT):
     for k, info in six.iteritems(kwargs):
         if k.endswith('_file'):
             # Treat parameters that end with _file as uploadable filepaths.
-            option_type=ExpandPath(
+            option_type = ExpandPath(
                 dir_okay=False, exists=True, writable=False, resolve_path=True
             )
         else:
-            option_type=str
+            option_type = str
 
-        option_name = "--%(key)s" % {'key': k.replace('_', '-')}
+        option_name = '--%(key)s' % {'key': k.replace('_', '-')}
         decorator = click.option(
             option_name, type=option_type, required=info['required'],
             help=info['help']

@@ -18,15 +18,15 @@ def common_cli_config_options(f):
         '-C', '--config-file', type=click.Path(
             dir_okay=False, exists=True, writable=False, resolve_path=True
         ),
-        help="The path to your config.ini file.")
+        help='The path to your config.ini file.')
     @click.option(
         '--credentials-file', type=click.Path(
             dir_okay=False, exists=True, writable=False, resolve_path=True
         ),
-        help="The path to your credentials.ini file.")
+        help='The path to your credentials.ini file.')
     @click.option(
         '-P', '--profile', default=None, envvar='CLOUDSMITH_PROFILE',
-        help="The name of the profile to use for configuration.")
+        help='The name of the profile to use for configuration.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -45,14 +45,14 @@ def common_cli_output_options(f):
     """Add common CLI output options to commands."""
     @click.option(
         '-d', '--debug', default=False, is_flag=True,
-        help="Produce debug output during processing.")
+        help='Produce debug output during processing.')
     @click.option(
         '-F', '--output-format', default='normal',
         type=click.Choice(['normal', 'json', 'raw_json']),
-        help="Determines how output is formatted.")
+        help='Determines how output is formatted.')
     @click.option(
         '-v', '--verbose', is_flag=True, default=False,
-        help="Produce more output during processing.")
+        help='Produce more output during processing.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -69,7 +69,7 @@ def common_api_auth_options(f):
     """Add common API authentication options to commands."""
     @click.option(
         '-k', '--api-key', hide_input=True, envvar='CLOUDSMITH_API_KEY',
-        help="The API key for authenticating with the API.")
+        help='The API key for authenticating with the API.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -84,13 +84,13 @@ def initialise_api(f):
     """Initialise the Cloudsmith API for use."""
     @click.option(
         '--api-host', envvar='CLOUDSMITH_API_HOST',
-        help="The API host to connect to.")
+        help='The API host to connect to.')
     @click.option(
         '--api-proxy', envvar='CLOUDSMITH_API_PROXY',
-        help="The API proxy to connect through.")
+        help='The API proxy to connect through.')
     @click.option(
         '--api-user-agent', envvar='CLOUDSMITH_API_USER_AGENT',
-        help="The user agent to use for requests.")
+        help='The user agent to use for requests.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):

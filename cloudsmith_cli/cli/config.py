@@ -13,21 +13,24 @@ from . import utils
 class ConfigSchema(object):
     """Schema for standard configuration."""
 
-    @matches_section("default")
+    @matches_section('default')
     class Default(SectionSchema):
+        """Default configuration schema."""
+
         api_host = Param(type=str)
         api_proxy = Param(type=str)
         api_user_agent = Param(type=str)
 
-    @matches_section("profile:*")
+    @matches_section('profile:*')
     class Profile(Default):
-        pass
+        """Profile-specifi configuration schema."""
 
 
 class ConfigReader(ConfigFileReader):
     """Reader for standard configuration."""
+
     config_files = [
-        "config.ini"
+        'config.ini'
     ]
     config_section_schemas = [
         ConfigSchema.Default,
@@ -39,6 +42,7 @@ class ConfigReader(ConfigFileReader):
 
     @classmethod
     def get_storage_name_for(cls, section_name):
+        """Get storage name for a configuration section."""
         if not section_name or section_name == 'default':
             return 'default'
         else:
@@ -48,19 +52,22 @@ class ConfigReader(ConfigFileReader):
 class CredentialsSchema(object):
     """Schema for credentials configuration."""
 
-    @matches_section("default")
+    @matches_section('default')
     class Default(SectionSchema):
+        """Default configuration schema."""
+
         api_key = Param(type=str)
 
-    @matches_section("profile:*")
+    @matches_section('profile:*')
     class Profile(Default):
-        pass
+        """Profile-specifi configuration schema."""
 
 
 class CredentialsReader(ConfigFileReader):
     """Reader for credentials configuration."""
+
     config_files = [
-        "credentials.ini"
+        'credentials.ini'
     ]
     config_section_schemas = [
         CredentialsSchema.Default,
@@ -72,6 +79,7 @@ class CredentialsReader(ConfigFileReader):
 
     @classmethod
     def get_storage_name_for(cls, section_name):
+        """Get storage name for a configuration section."""
         if not section_name or section_name == 'default':
             return 'default'
         else:
@@ -79,6 +87,8 @@ class CredentialsReader(ConfigFileReader):
 
 
 class Options(object):
+    """Options object that holds config for the application."""
+
     DEFAULTS = {
         'api_config': None,
         'api_key': None,
@@ -91,6 +101,7 @@ class Options(object):
     }
 
     def __init__(self, *args, **kwargs):
+        """Initialise a new Options object."""
         super(Options, self).__init__(*args, **kwargs)
         opts = self.DEFAULTS.copy()
         opts.update(kwargs)
@@ -127,6 +138,7 @@ class Options(object):
             setattr(self, k, v)
 
     def __setattr__(self, name, value):
+        """Set a configuration value; prevents values being unset."""
         if name in self.DEFAULTS:
             # Prevent clears if value was set
             try:
@@ -140,10 +152,12 @@ class Options(object):
 
     @property
     def api_user_agent(self):
+        """Get value for API user agent."""
         return utils.make_user_agent(prefix=self._user_agent)
 
     @api_user_agent.setter
     def api_user_agent(self, value):
+        """Set value for API user agent."""
         self._user_agent = value
 
 
