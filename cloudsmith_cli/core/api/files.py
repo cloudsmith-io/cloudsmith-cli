@@ -22,9 +22,28 @@ def get_files_api():
     return client
 
 
-def request_file_upload(owner, repo, filepath):
+def validate_request_file_upload(owner, repo, filepath, md5_checksum=None):
+    """Validate parameters for requesting a file upload."""
+    client = get_files_api()
+    md5_checksum = md5_checksum or calculate_file_md5(filepath)
+
+    with catch_raise_api_exception():
+        client.files_validate(
+            owner=owner,
+            repo=repo,
+            data={
+                'filename': os.path.basename(filepath),
+                'md5_checksum': md5_checksum
+            }
+        )
+
+    return md5_checksum
+
+
+def request_file_upload(owner, repo, filepath, md5_checksum=None):
     """Request a new package file upload (for creating packages)."""
     client = get_files_api()
+    md5_checksum = md5_checksum or calculate_file_md5(filepath)
 
     with catch_raise_api_exception():
         data = client.files_create(
@@ -32,7 +51,7 @@ def request_file_upload(owner, repo, filepath):
             repo=repo,
             data={
                 'filename': os.path.basename(filepath),
-                'md5_checksum': calculate_file_md5(filepath)
+                'md5_checksum': md5_checksum
             }
         )
 

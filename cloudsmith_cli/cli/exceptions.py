@@ -1,6 +1,7 @@
 """CLI - Exceptions."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import collections
 import contextlib
 import sys
 
@@ -34,31 +35,30 @@ def handle_api_exceptions(
             }, fg='red'
         )
 
-        if exc.detail:
+        detail, fields = get_details(exc)
+        if detail or fields:
             click.echo()
-            click.secho(
-                'Reason: %(detail)s' % {
-                    'detail': exc.detail
-                }, bold=True
-            )
 
-        if exc.fields:
-            if not exc.detail:
-                click.echo()
-
-            for k, v in six.iteritems(exc.fields):
-                if k == 'non_field_errors':
-                    k = 'Validation'
+            if detail:
                 click.secho(
-                    '%(field)s: %(message)s' % {
-                        'field': click.style(k, bold=True),
-                        'message': click.style(' '.join(v), fg='red')
-                    }
+                    'Detail: %(detail)s' % {
+                        'detail': click.style(detail, fg='red', bold=False)
+                    }, bold=True
                 )
+
+            if fields:
+                for k, v in six.iteritems(fields):
+                    field = '%s Field' % k.capitalize()
+                    click.secho(
+                        '%(field)s: %(message)s' % {
+                            'field': click.style(field, bold=True),
+                            'message': click.style(v, fg='red')
+                        }
+                    )
 
         hint = get_error_hint(ctx, opts, exc)
         if hint:
-            click.secho(
+            click.echo(
                 'Hint: %(hint)s' % {
                     'hint': click.style(hint, fg='yellow')
                 }
@@ -81,6 +81,36 @@ def handle_api_exceptions(
 
         if exit_on_error:
             ctx.exit(exc.status)
+
+
+def get_details(exc):
+    """Get the details from the exception."""
+    detail = None
+    fields = collections.OrderedDict()
+
+    if exc.detail:
+        detail = exc.detail
+
+    if exc.fields:
+        for k, v in six.iteritems(exc.fields):
+            try:
+                field_detail = v['detail']
+            except (TypeError, KeyError):
+                field_detail = v
+
+            if isinstance(field_detail, (list, tuple)):
+                field_detail = ' '.join(field_detail)
+
+            if k == 'non_field_errors':
+                if detail:
+                    detail += ' ' + field_detail
+                else:
+                    detail = field_detail
+                continue
+
+            fields[k] = field_detail
+
+    return detail, fields
 
 
 def get_error_hint(ctx, opts, exc):

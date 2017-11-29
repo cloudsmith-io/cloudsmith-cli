@@ -49,5 +49,5 @@ def validate_owner_repo_package(ctx, param, value):
 def validate_owner_repo_distro(ctx, param, value):
     """Ensure that owner/repo/distro/version is formatted correctly."""
     # pylint: disable=unused-argument
-    form = 'OWNER/REPO/DISTRO[/VERSION]'
+    form = 'OWNER/REPO/DISTRO[/RELEASE]'
     return validate_slashes(param, value, minimum=3, maximum=4, form=form)

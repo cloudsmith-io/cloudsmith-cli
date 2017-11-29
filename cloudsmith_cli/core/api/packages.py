@@ -19,7 +19,19 @@ def get_packages_api():
     return client
 
 
-def create_package(package_format, owner, repo, payload):
+def make_create_payload(**kwargs):
+    """Create payload for upload/check-upload operations."""
+    # Remove empty arguments
+    for k, v in kwargs.items():
+        if not v:
+            del kwargs[k]
+
+    payload = {}
+    payload.update(kwargs)
+    return payload
+
+
+def create_package(package_format, owner, repo, **kwargs):
     """Create a new package in a repository."""
     client = get_packages_api()
 
@@ -28,10 +40,25 @@ def create_package(package_format, owner, repo, payload):
         data = upload(
             owner=owner,
             repo=repo,
-            data=payload
+            data=make_create_payload(**kwargs)
         )
 
     return data.slug_perm, data.slug
+
+
+def validate_create_package(package_format, owner, repo, **kwargs):
+    """Validate parameters for creating a package."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        check = getattr(client, 'packages_validate_upload_%s' % package_format)
+        check(
+            owner=owner,
+            repo=repo,
+            data=make_create_payload(**kwargs)
+        )
+
+    return True
 
 
 def delete_package(owner, repo, slug):
@@ -44,6 +71,8 @@ def delete_package(owner, repo, slug):
             repo=repo,
             slug=slug
         )
+
+    return True
 
 
 def get_package_status(owner, repo, slug):

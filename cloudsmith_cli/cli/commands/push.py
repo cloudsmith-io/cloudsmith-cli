@@ -14,14 +14,42 @@ from .. import decorators, validators
 from ...core import utils
 from ...core.api.exceptions import ApiException
 from ...core.api.files import upload_file as api_upload_file
-from ...core.api.files import request_file_upload
+from ...core.api.files import request_file_upload, validate_request_file_upload
 from ...core.api.packages import create_package as api_create_package
+from ...core.api.packages import \
+    validate_create_package as api_validate_create_package
 from ...core.api.packages import get_package_formats, get_package_status
 from ..exceptions import handle_api_exceptions
 from ..types import ExpandPath
 
 
-def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
+def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
+    """Validate parameters for requesting a file upload."""
+    filename = click.format_filename(filepath)
+    basename = os.path.basename(filename)
+
+    click.echo(
+        'Checking %(filename)s file upload parameters ... ' % {
+            'filename': click.style(basename, bold=True)
+        }, nl=False
+    )
+
+    context_msg = 'Failed to validate upload parameters!'
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
+                               reraise_on_error=skip_errors):
+        with spinner():
+            md5_checksum = validate_request_file_upload(
+                owner=owner,
+                repo=repo,
+                filepath=filename
+            )
+
+    click.secho('OK', fg='green')
+
+    return md5_checksum
+
+
+def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     """Upload a package file via the API."""
     filename = click.format_filename(filepath)
     basename = os.path.basename(filename)
@@ -39,7 +67,8 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
             identifier, upload_url, upload_fields = request_file_upload(
                 owner=owner,
                 repo=repo,
-                filepath=filename
+                filepath=filename,
+                md5_checksum=md5_checksum
             )
 
     click.secho('OK', fg='green')
@@ -68,20 +97,38 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     return identifier
 
 
+def validate_create_package(
+        ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
+    """Check new package parameters via the API."""
+    click.echo(
+        'Checking %(package_type)s package upload parameters ... ' % {
+            'package_type': click.style(package_type, bold=True)
+        }, nl=False
+    )
+
+    context_msg = 'Failed to validate upload parameters!'
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
+                               reraise_on_error=skip_errors):
+        with spinner():
+            api_validate_create_package(
+                package_format=package_type,
+                owner=owner,
+                repo=repo,
+                **kwargs
+            )
+
+    click.secho('OK', fg='green')
+    return True
+
+
 def create_package(
-        ctx, opts, owner, repo, package_file_id, package_type,
-        skip_errors, **kwargs):
+        ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     """Create a new package via the API."""
-    click.echo()
     click.echo(
         'Creating a new %(package_type)s package ... ' % {
             'package_type': click.style(package_type, bold=True)
         }, nl=False
     )
-
-    payload = {'package_file': package_file_id}
-    if kwargs:
-        payload.update(kwargs)
 
     context_msg = 'Failed to create package!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
@@ -91,7 +138,7 @@ def create_package(
                 package_format=package_type,
                 owner=owner,
                 repo=repo,
-                payload=payload
+                **kwargs
             )
 
     click.secho('OK', fg='green')
@@ -152,45 +199,56 @@ def wait_for_package_sync(
     if completed:
         click.secho('Package synchronised successfully!', fg='green')
     else:
-        click.secho('Package failed to synchronise!', fg='red')
+        click.secho(
+            'Package failed to synchronise during stage: %(stage)s' % {
+                'stage': stage_str or 'Unknown',
+            }, fg='red'
+        )
 
 
 def upload_files_and_create_package(
-        ctx, opts, package_type, package_file, owner_repo, dry_run,
+        ctx, opts, package_type, owner_repo, dry_run,
         no_wait_for_sync, wait_interval, skip_errors, **kwargs):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
     owner, repo = owner_repo
 
-    # 1. Validate the arguments prior to uploading
-    # pylint: disable=fixme
-    # FIXME: We haven't added the check endpoint in the API yet (soon)
-
-    # 2. Upload the primary package file and store the id
-    package_file_id = upload_file(
-        ctx=ctx, opts=opts, owner=owner, repo=repo, filepath=package_file,
-        skip_errors=skip_errors
+    # 1. Validate package create parameters
+    validate_create_package(
+        ctx=ctx, opts=opts, owner=owner, repo=repo,
+        package_type=package_type, skip_errors=skip_errors, **kwargs
     )
 
-    # 3. Clean additional arguments, upload any that look like files
+    # 2. Validate file upload parameters
+    md5_checksums = {}
     for k, v in kwargs.items():
-        if not v:
-            del kwargs[k]
+        if not v or not k.endswith('_file'):
             continue
 
-        if not k.endswith('_file'):
+        md5_checksums[k] = validate_upload_file(
+            ctx=ctx, opts=opts, owner=owner, repo=repo, filepath=v,
+            skip_errors=skip_errors
+        )
+
+    if dry_run:
+        click.echo()
+        click.secho('You requested a dry run so skipping upload.', fg='yellow')
+        return
+
+    # 3. Upload any arguments that look like files
+    for k, v in kwargs.items():
+        if not v or not k.endswith('_file'):
             continue
 
         kwargs[k] = upload_file(
             ctx=ctx, opts=opts, owner=owner, repo=repo, filepath=v,
-            skip_errors=skip_errors
+            skip_errors=skip_errors, md5_checksum=md5_checksums[k]
         )
 
     # 4. Create the package with package files and additional arguments
     _, slug = create_package(
         ctx=ctx, opts=opts, owner=owner, repo=repo,
-        package_file_id=package_file_id, package_type=package_type,
-        skip_errors=skip_errors, **kwargs
+        package_type=package_type, skip_errors=skip_errors, **kwargs
     )
 
     if no_wait_for_sync:
@@ -250,10 +308,10 @@ def create_push_handlers():
             target_callback = validators.validate_owner_repo_distro
             help_text += """
 
-            OWNER/REPO/DISTRO[/VERSION]: Specify the OWNER namespace (i.e.
-            user or org), the REPO name where the package file will be
-            uploaded to, and the DISTRO and VERSION (for DISTRO) the package
-            is for. All separated by a slash.
+            OWNER/REPO/DISTRO[/RELEASE]: Specify the OWNER namespace (i.e.
+            user or org), the REPO name where the package file will be uploaded
+            to, and the DISTRO and RELEASE the package is for. All separated by
+            a slash.
 
             Example: 'your-org/awesome-repo/ubuntu/xenial'.
             """
@@ -303,16 +361,6 @@ def create_push_handlers():
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
-            if kwargs['dry_run']:
-                # pylint: disable=fixme
-                # FIXME: Too lazy to remove the option, not lazy enough to
-                # display a warning. This is a note to self to actually
-                # implement it.
-                click.secho(
-                    'Sorry, dry run mode isn\'t supported yet (coming soon!)',
-                    fg='yellow')
-                ctx.exit(1)
-
             parameters = context.get(ctx.info_name)
             kwargs['package_type'] = ctx.info_name
 
@@ -330,6 +378,7 @@ def create_push_handlers():
                 kwargs['package_file'] = package_file
 
                 try:
+                    click.echo()
                     upload_files_and_create_package(ctx, *args, **kwargs)
                 except ApiException:
                     click.secho('Skipping error and moving on.', fg='yellow')
