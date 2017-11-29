@@ -1,10 +1,12 @@
 """CLI - Configuration."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-from click_configfile import ConfigFileReader, Param, SectionSchema
-from click_configfile import matches_section
 import click
 import six
+from click_configfile import (
+    ConfigFileReader, Param, SectionSchema, matches_section
+)
+
 from . import utils
 
 

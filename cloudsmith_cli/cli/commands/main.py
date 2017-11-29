@@ -3,10 +3,11 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 from click_didyoumean import DYMGroup
-from ...core.version import get_version as get_cli_version
-from ...core.api.version import get_version as get_api_version
-from ...core.utils import get_help_website, get_github_website
+
 from .. import decorators
+from ...core.api.version import get_version as get_api_version
+from ...core.utils import get_github_website, get_help_website
+from ...core.version import get_version as get_cli_version
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])

@@ -3,13 +3,14 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 import cloudsmith_api
-from click_spinner import spinner
 import semver
+from click_spinner import spinner
+
+from . import main
+from .. import decorators
 from ...core.api.status import get_status
 from ...core.api.version import get_version as get_api_version_info
-from .. import decorators
 from ..exceptions import handle_api_exceptions
-from . import main
 
 
 @main.command()

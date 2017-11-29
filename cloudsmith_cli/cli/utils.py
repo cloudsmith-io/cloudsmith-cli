@@ -1,9 +1,10 @@
 """CLI - Utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
+
 import platform
 
-from ..core.version import get_version as get_cli_version
 from ..core.api.version import get_version as get_api_version
+from ..core.version import get_version as get_cli_version
 
 
 def make_user_agent(prefix=None):

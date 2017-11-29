@@ -9,7 +9,7 @@ init-hook=import sys; sys.setrecursionlimit(10000)
 
 # Add files or directories to the blacklist. They should be base names, not
 # paths.
-ignore=migrations
+ignore=.svn,CVS,.bzr,.hg,.git,__pycache,.venv,migrations,settings,tests,.tox
 
 # Pickle collected data for later comparisons.
 persistent=yes
@@ -294,7 +294,7 @@ ignore-mixin-members=yes
 # List of module names for which member attributes should not be checked
 # (useful for modules/projects where namespaces are manipulated during runtime
 # and thus existing member attributes cannot be deduced by static analysis
-ignored-modules=sh,_MovedItems,django.utils.six.moves
+ignored-modules=sh,_MovedItems
 
 # List of classes names for which member attributes should not be checked
 # (useful for classes with attributes dynamically set).
@@ -303,7 +303,7 @@ ignored-classes=SQLObject,WSGIRequest
 # List of members which are set dynamically and missed by pylint inference
 # system, and so shouldn't trigger E0201 when accessed. Python regular
 # expressions are accepted.
-generated-members=objects,DoesNotExist,id,pk,_meta,base_fields,context
+generated-members=
 
 # List of method names used to declare (i.e. assign) instance attributes
 defining-attr-methods=__init__,__new__,setUp

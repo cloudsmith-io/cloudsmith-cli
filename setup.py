@@ -1,5 +1,6 @@
 """Cloudsmith Command Line Interface (CLI)."""
-from __future__ import absolute_import, print_function, unicode_literals
+from __future__ import absolute_import, print_function
+
 from setuptools import find_packages, setup
 import os
 
@@ -45,7 +46,7 @@ setup(
     long_description=get_long_description(),
     packages=find_packages(exclude=['tests']),
     package_data={
-        b'cloudsmith_cli': ['cloudsmith_cli/data/*'],
+        'cloudsmith_cli': ['cloudsmith_cli/data/*'],
     },
     include_package_data=True,
     zip_safe=False,

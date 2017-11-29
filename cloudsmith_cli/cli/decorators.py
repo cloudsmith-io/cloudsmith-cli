@@ -1,10 +1,12 @@
 """CLI - Decorators."""
 from __future__ import absolute_import, print_function, unicode_literals
+
 import functools
 
 import click
-from ..core.api.init import initialise_api as _initialise_api
+
 from . import config
+from ..core.api.init import initialise_api as _initialise_api
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])

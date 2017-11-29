@@ -1,10 +1,12 @@
 """CLI - Exceptions."""
 from __future__ import absolute_import, print_function, unicode_literals
+
 import contextlib
 import sys
 
 import click
 import six
+
 from ..core.api.exceptions import ApiException
 
 

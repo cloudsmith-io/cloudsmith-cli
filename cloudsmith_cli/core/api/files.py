@@ -1,13 +1,15 @@
 """API - Files endpoints."""
 from __future__ import absolute_import, print_function, unicode_literals
+
 import os
 
 import click
 import cloudsmith_api
 import requests
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
+
 from ..utils import calculate_file_md5
-from .exceptions import catch_raise_api_exception, ApiException
+from .exceptions import ApiException, catch_raise_api_exception
 
 
 def get_files_api():

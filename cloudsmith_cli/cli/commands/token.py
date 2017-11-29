@@ -3,10 +3,11 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 from click_spinner import spinner
-from ...core.api.user import get_user_token
-from .. import decorators
-from ..exceptions import handle_api_exceptions
+
 from . import main
+from .. import decorators
+from ...core.api.user import get_user_token
+from ..exceptions import handle_api_exceptions
 
 
 def validate_login(ctx, param, value):

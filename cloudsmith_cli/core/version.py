@@ -2,8 +2,8 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import semver
-from . import utils
 
+from . import utils
 
 
 def get_version():

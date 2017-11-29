@@ -1,18 +1,17 @@
 """Cloudsmith CLI - Main command."""
 from __future__ import absolute_import, print_function, unicode_literals
+
 import contextlib
 
-try:
-    from httplib import responses
-except ImportError:
-    from http import responses
+from cloudsmith_api.rest import ApiException as _ApiException
+from six.moves import http_client
+
 
 try:
     import simplejson as json
 except:
     import json
 
-from cloudsmith_api.rest import ApiException as _ApiException
 
 
 class ApiException(Exception):
@@ -20,7 +19,8 @@ class ApiException(Exception):
     def __init__(self, status, detail=None, headers=None, body=None,
                  fields=None):
         self.status = status
-        self.status_description = responses.get(status, "Unknown Status")
+        self.status_description = (
+            http_client.responses.get(status, "Unknown Status"))
         self.detail = detail
         self.headers = headers or {}
         self.body = body
