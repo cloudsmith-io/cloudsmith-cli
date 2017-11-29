@@ -153,7 +153,7 @@ notes=FIXME,HACK,XXX,TODO,BUG
 bad-functions=input
 
 # Good variable names which should always be accepted, separated by a comma
-good-names=f,fp,i,j,k,v,x,y,z,ex,ns,Run,_,qs,pk,tb,dt,os
+good-names=f,fp,i,j,k,v,x,y,z,ex,ns,_,__,___,qs,pk,tb,dt,os,nl
 
 # Bad variable names which should always be refused, separated by a comma
 bad-names=foo,bar,baz,toto,tutu,tata,moar

@@ -12,7 +12,7 @@ from ..core.api.exceptions import ApiException
 
 @contextlib.contextmanager
 def handle_api_exceptions(
-        ctx, opts, exit_code=1, context_msg=None, nl=False,
+        ctx, opts, context_msg=None, nl=False,
         exit_on_error=True, reraise_on_error=False):
     """Context manager that handles API exceptions."""
     # flake8: ignore=C901
