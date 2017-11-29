@@ -3,27 +3,24 @@ dist: trusty
 sudo: false
 language: python
 
-python:
-  - "3.5"
-
 env:
   - TOXENV=py27
   - TOXENV=py35
   - TOXENV=flake8
+  - TOXENV=pylint
+  - TOXENV=isort
 
 matrix:
   fast_finish: true
-  include:
-    - python: "2.7"
-      env: TOXENV=py27
-    - python: "3.5"
-      env: TOXENV=py35
 
 install:
   - pip install --upgrade pip setuptools wheel
 
 script:
   - tox
+
+after_success:
+  - codecov
 
 notifications:
   email:
