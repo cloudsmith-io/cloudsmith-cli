@@ -15,6 +15,7 @@ matrix:
 
 install:
   - pip install --upgrade pip setuptools wheel
+  - pip install tox codecov
 
 script:
   - tox
