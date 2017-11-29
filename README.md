@@ -1,6 +1,6 @@
 # Cloudsmith Command Line Interface (CLI)
 
-[![PyPI](https://img.shields.io/pypi/v/cloudsmith-cli.svg)](https://img.shields.io/pypi/v/cloudsmith-cli.svg)
+[![PyPI](https://img.shields.io/pypi/v/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![Travis](https://travis-ci.org/cloudsmith-io/cloudsmith-cli.svg?branch=master)](https://travis-ci.org/cloudsmith-io/cloudsmith-cli)
 [![Codecov](https://codecov.io/gh/cloudsmith-io/cloudsmith-cli/branch/master/graph/badge.svg?branch=master)](https://codecov.io/gh/cloudsmith-io/cloudsmith-cli)
 
