@@ -61,8 +61,8 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
 
     headers = {'content-type': monitor.content_type}
 
-    if config.user_agent:
-        headers['user-agent'] = config.user_agent
+    client = get_files_api()
+    headers['user-agent'] = client.api_client.user_agent
 
     resp = requests.post(
         upload_url, data=monitor,
