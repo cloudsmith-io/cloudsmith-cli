@@ -13,8 +13,9 @@ def get_packages_api():
     """Get the packages API client."""
     config = cloudsmith_api.Configuration()
     client = cloudsmith_api.PackagesApi()
-    if config.user_agent:
-        client.api_client.user_agent = config.user_agent
+    user_agent = getattr(config, 'user_agent', None)
+    if user_agent:
+        client.api_client.user_agent = user_agent
     return client
 
 
@@ -56,6 +57,8 @@ def get_package_status(owner, repo, slug):
             slug=slug
         )
 
+    # pylint: disable=no-member
+    # Pylint detects the returned value as a tuple
     return (
         data.is_sync_completed, data.is_sync_failed, data.sync_progress,
         data.status_str, data.stage_str
@@ -64,10 +67,12 @@ def get_package_status(owner, repo, slug):
 
 def get_package_formats():
     """Get the list of available package formats and parameters."""
+    # pylint: disable=fixme
     # HACK: This obviously isn't great, and it is subject to change as
     # the API changes, but it'll do for now as a interim method of
     # introspection to get the parameters we need.
     def get_parameters(cls):
+        """Build parameters for a package format."""
         params = {}
 
         # Create a dummy instance so we can check if a parameter is required.

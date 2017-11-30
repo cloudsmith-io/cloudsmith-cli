@@ -11,8 +11,9 @@ def get_user_api():
     """Get the user API client."""
     config = cloudsmith_api.Configuration()
     client = cloudsmith_api.UserApi()
-    if config.user_agent:
-        client.api_client.user_agent = config.user_agent
+    user_agent = getattr(config, 'user_agent', None)
+    if user_agent:
+        client.api_client.user_agent = user_agent
     return client
 
 

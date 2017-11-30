@@ -5,7 +5,7 @@ from .main import main  # noqa
 from . import check  # noqa
 from . import delete  # noqa
 from . import docs  # noqa
-from . import help  # noqa
+from . import help_  # noqa
 from . import push  # noqa
 from . import status  # noqa
 from . import token  # noqa

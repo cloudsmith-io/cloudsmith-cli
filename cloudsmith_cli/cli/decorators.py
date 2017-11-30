@@ -30,6 +30,7 @@ def common_cli_config_options(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
         profile = kwargs.pop('profile')
         config_file = kwargs.pop('config_file')
@@ -56,6 +57,7 @@ def common_cli_output_options(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
         opts.debug = kwargs.pop('debug')
         opts.output = kwargs.pop('output_format')
@@ -73,6 +75,7 @@ def common_api_auth_options(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
         opts.api_key = kwargs.pop('api_key')
         kwargs['opts'] = opts
@@ -94,6 +97,7 @@ def initialise_api(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
         opts.api_host = kwargs.pop('api_host')
         opts.api_proxy = kwargs.pop('api_proxy')

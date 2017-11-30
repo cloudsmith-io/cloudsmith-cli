@@ -44,14 +44,14 @@ def status(ctx, opts, owner_repo_package):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             res = get_package_status(owner, repo, slug)
-            completed, failed, progress, status_str, stage_str = res
+            completed, failed, _, status_str, stage_str = res
 
     click.secho('OK', fg='green')
 
     if not stage_str:
-        status = status_str
+        package_status = status_str
     else:
-        status = '%(status)s / %(stage)s' % {
+        package_status = '%(status)s / %(stage)s' % {
             'status': status_str,
             'stage': stage_str
         }
@@ -65,6 +65,6 @@ def status(ctx, opts, owner_repo_package):
 
     click.secho(
         'The package status is: %(status)s' % {
-            'status': click.style(status, fg=status_colour)
+            'status': click.style(package_status, fg=status_colour)
         }
     )

@@ -19,6 +19,7 @@ class ApiException(Exception):
     def __init__(self, status, detail=None, headers=None, body=None,
                  fields=None):
         """Create a new APIException."""
+        super(ApiException, self).__init__()
         self.status = status
         if status == 422:
             self.status_description = 'Unprocessable Entity'
@@ -40,6 +41,7 @@ def catch_raise_api_exception():
         detail = None
         if exc.body:
             try:
+                # pylint: disable=no-member
                 data = json.loads(exc.body)
                 detail = data.get('detail', None)
                 fields = data.get('fields', None)

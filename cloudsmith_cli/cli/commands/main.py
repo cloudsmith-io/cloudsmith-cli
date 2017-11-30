@@ -49,6 +49,7 @@ For issues/contributing: %(github_website)s
 @click.pass_context
 def main(ctx, opts, version):
     """Handle entrypoint to CLI."""
+    # pylint: disable=unused-argument
     if version:
         print_version()
     elif ctx.invoked_subcommand is None:

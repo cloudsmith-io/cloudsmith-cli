@@ -10,8 +10,9 @@ def get_status_api():
     """Get the status API client."""
     config = cloudsmith_api.Configuration()
     client = cloudsmith_api.StatusApi()
-    if config.user_agent:
-        client.api_client.user_agent = config.user_agent
+    user_agent = getattr(config, 'user_agent', None)
+    if user_agent:
+        client.api_client.user_agent = user_agent
     return client
 
 

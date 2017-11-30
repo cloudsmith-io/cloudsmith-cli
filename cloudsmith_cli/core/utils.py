@@ -38,19 +38,20 @@ def read_file(*path):
 
 def calculate_file_md5(filepath, blocksize=2**20):
     """Calculate an MD5 hash for a file."""
-    m = hashlib.md5()
+    checksum = hashlib.md5()
 
     with click.open_file(filepath, 'rb') as f:
         def update_chunk():
+            """Add chunk to checksum."""
             buf = f.read(blocksize)
             if buf:
-                m.update(buf)
+                checksum.update(buf)
             return bool(buf)
 
         while update_chunk():
             pass
 
-    return m.hexdigest()
+    return checksum.hexdigest()
 
 
 def get_file_size(filepath):

@@ -13,4 +13,5 @@ from ...core.utils import get_help_website
 @click.pass_context
 def docs(ctx, opts):
     """Launch the help website in your browser."""
+    # pylint: disable=unused-argument
     click.launch(get_help_website())

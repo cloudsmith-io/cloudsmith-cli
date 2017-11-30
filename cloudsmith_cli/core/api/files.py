@@ -16,8 +16,9 @@ def get_files_api():
     """Get the files API client."""
     config = cloudsmith_api.Configuration()
     client = cloudsmith_api.FilesApi()
-    if config.user_agent:
-        client.api_client.user_agent = config.user_agent
+    user_agent = getattr(config, 'user_agent', None)
+    if user_agent:
+        client.api_client.user_agent = user_agent
     return client
 
 
@@ -35,11 +36,12 @@ def request_file_upload(owner, repo, filepath):
             }
         )
 
+    # pylint: disable=no-member
+    # Pylint detects the returned value as a tuple
     return data.identifier, data.upload_url, data.upload_fields
 
 
-def upload_file(identifier, upload_url, upload_fields, filepath,
-                callback=None):
+def upload_file(upload_url, upload_fields, filepath, callback=None):
     """Upload a pre-signed file to Cloudsmith."""
     upload_fields = upload_fields.items()
     upload_fields.append(

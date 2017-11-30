@@ -89,23 +89,11 @@ class CredentialsReader(ConfigFileReader):
 class Options(object):
     """Options object that holds config for the application."""
 
-    DEFAULTS = {
-        'api_config': None,
-        'api_key': None,
-        'api_host': None,
-        'api_proxy': None,
-        'api_user_agent': None,
-        'debug': False,
-        'output': None,
-        'verbose': False
-    }
-
     def __init__(self, *args, **kwargs):
         """Initialise a new Options object."""
         super(Options, self).__init__(*args, **kwargs)
-        opts = self.DEFAULTS.copy()
-        opts.update(kwargs)
-        for k, v in six.iteritems(opts):
+        self.opts = {}
+        for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
 
     def load_config_file(self, path, profile=None):
@@ -137,28 +125,102 @@ class Options(object):
                 continue
             setattr(self, k, v)
 
-    def __setattr__(self, name, value):
-        """Set a configuration value; prevents values being unset."""
-        if name in self.DEFAULTS:
+    @property
+    def api_config(self):
+        """Get value for API config dictionary."""
+        return self._get_option('api_config')
+
+    @api_config.setter
+    def api_config(self, value):
+        """Set value for API config dictionary."""
+        self._set_option('api_config', value)
+
+    @property
+    def api_host(self):
+        """Get value for API host."""
+        return self._get_option('api_host')
+
+    @api_host.setter
+    def api_host(self, value):
+        """Set value for API host."""
+        self._set_option('api_host', value)
+
+    @property
+    def api_key(self):
+        """Get value for API key."""
+        return self._get_option('api_key')
+
+    @api_key.setter
+    def api_key(self, value):
+        """Set value for API key."""
+        self._set_option('api_key', value)
+
+    @property
+    def api_proxy(self):
+        """Get value for API proxy."""
+        return self._get_option('api_proxy')
+
+    @api_proxy.setter
+    def api_proxy(self, value):
+        """Set value for API proxy."""
+        self._set_option('api_proxy', value)
+
+    @property
+    def api_user_agent(self):
+        """Get value for API user agent."""
+        return utils.make_user_agent(prefix=self._get_option('api_user_agent'))
+
+    @api_user_agent.setter
+    def api_user_agent(self, value):
+        """Set value for API user agent."""
+        self._set_option('api_user_agent', value)
+
+    @property
+    def debug(self):
+        """Get value for debug flag."""
+        return self._get_option('debug', default=False)
+
+    @debug.setter
+    def debug(self, value):
+        """Set value for debug flag."""
+        self._set_option('debug', bool(value))
+
+    @property
+    def output(self):
+        """Get value for output format."""
+        return self._get_option('output')
+
+    @output.setter
+    def output(self, value):
+        """Set value for output format."""
+        self._set_option('output', value)
+
+    @property
+    def verbose(self):
+        """Get value for verbose flag."""
+        return self._get_option('verbose', default=False)
+
+    @verbose.setter
+    def verbose(self, value):
+        """Set value for verbose flag."""
+        self._set_option('verbose', bool(value))
+
+    def _get_option(self, name, default=None):
+        """Get value for an option."""
+        return self.opts.get(name, default)
+
+    def _set_option(self, name, value, allow_clear=False):
+        """Set value for an option."""
+        if not allow_clear:
             # Prevent clears if value was set
             try:
-                current_value = getattr(self, name)
+                current_value = self._get_option(name)
                 if value is None and current_value is not None:
                     return
             except AttributeError:
                 pass
 
-        super(Options, self).__setattr__(name, value)
-
-    @property
-    def api_user_agent(self):
-        """Get value for API user agent."""
-        return utils.make_user_agent(prefix=self._user_agent)
-
-    @api_user_agent.setter
-    def api_user_agent(self, value):
-        """Set value for API user agent."""
-        self._user_agent = value
+        self.opts[name] = value
 
 
 def get_or_create_options(ctx):

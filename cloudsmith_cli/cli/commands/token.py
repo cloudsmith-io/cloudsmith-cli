@@ -12,6 +12,7 @@ from ..exceptions import handle_api_exceptions
 
 def validate_login(ctx, param, value):
     """Ensure that login is not blank."""
+    # pylint: disable=unused-argument
     value = value.strip()
     if not value:
         raise click.BadParameter(
@@ -41,7 +42,7 @@ def token(ctx, opts, login, password):
     context_msg = 'Failed to retrieve the API token!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
-            token = get_user_token(
+            api_token = get_user_token(
                 login=login,
                 password=password
             )
@@ -50,6 +51,6 @@ def token(ctx, opts, login, password):
 
     click.echo(
         'Your API token is: %(token)s' % {
-            'token': click.style(token, bold=True)
+            'token': click.style(api_token, bold=True)
         }
     )

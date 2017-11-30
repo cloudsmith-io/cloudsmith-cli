@@ -6,8 +6,8 @@ import click
 from . import main
 
 
-@main.command()
+@main.command(name='help')
 @click.pass_context
-def help(ctx):
+def help_(ctx):
     """Show this message and exit."""
     click.echo(ctx.parent.get_help())
