@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - **Added** service endpoint to `check` command output.
 - **Added** ability to upload multiple package files at once.
 - **Added* tox-based testing for Python2.x and Python3.x.
+- **Added** pre-flight checks to push/upload command.
 - **Changed** environment variables to use a `CLOUDSMITH_` prefix.
 - **Fixed** validation for `push` commands that require a distribution.
 - **Fixed** token endpoint failing because API key overrides login/password.
