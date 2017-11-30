@@ -18,6 +18,7 @@ The CLI currently supports the following commands:
 - `delete`: Delete a package from a repository.
 - `docs`:   Launch the help website in your browser.
 - `help`:   Display the help message and exit.
+- `list`:   List distributions, packages and repos.
 - `push`:   Push/upload a new package to a repository.
 - `status`: Get the synchronisation status for a package.
 - `token`:  Retrieve your API authentication token/key.

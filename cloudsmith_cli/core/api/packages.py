@@ -137,3 +137,16 @@ def get_package_formats():
         for key, cls in inspect.getmembers(cloudsmith_api.models)
         if key.startswith('PackagesUpload')
     }
+
+
+def get_package_format_names(predicate=None):
+    """Get names for available package formats."""
+    return [
+        k for k, v in six.iteritems(get_package_formats())
+        if not predicate or predicate(k, v)
+    ]
+
+
+def get_package_format_names_with_distros():
+    """Get names for package formats that support distributions."""
+    return get_package_format_names(lambda k, v: 'distribution' in v)

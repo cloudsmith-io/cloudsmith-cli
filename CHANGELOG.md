@@ -18,6 +18,7 @@ Phase 2 release.
 - Support for uploading multiple package files at once.
 - Tox-based testing for Python2.x and Python3.x.
 - Pre-flight checks to push/upload command.
+- The `list` command with support for listing distributions.
 
 ### Changed
 
