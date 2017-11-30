@@ -1,7 +1,7 @@
 [MASTER]
 
 # Specify a configuration file.
-#rcfile = 
+#rcfile =
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
@@ -16,7 +16,7 @@ persistent = yes
 
 # List of plugins (as comma separated values of python modules names) to load,
 # usually to register additional checkers.
-load-plugins = 
+load-plugins =
 
 # Use multiple processes to speed up Pylint.
 jobs = 2
@@ -28,7 +28,7 @@ unsafe-load-any-extension = no
 # A comma-separated list of package or module names from where C extensions may
 # be loaded. Extensions are loading into the active Python interpreter and may
 # run arbitrary code
-extension-pkg-whitelist = 
+extension-pkg-whitelist =
 
 # Allow optimization of some AST trees. This will activate a peephole AST
 # optimizer, which will apply various small optimizations. For instance, it can
@@ -43,12 +43,12 @@ optimize-ast = yes
 
 # Only show warnings with the listed confidence levels. Leave empty to show
 # all. Valid levels: HIGH, INFERENCE, INFERENCE_FAILURE, UNDEFINED
-confidence = 
+confidence =
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
 # multiple time. See also the "--disable" option for examples.
-#enable = 
+#enable =
 
 # Disable the message, report, category or checker with the given id(s). You
 # can either give multiple identifiers separated by comma (,) or put this
@@ -87,7 +87,7 @@ evaluation = 10.0 - ((float(5 * error + warning + refactor + convention) / state
 
 # Template used to display messages. This is a python new-style format string
 # used to format the message information. See doc for all details
-#msg-template = 
+#msg-template =
 
 
 [SPELLING]
