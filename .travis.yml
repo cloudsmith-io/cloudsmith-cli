@@ -1,4 +1,3 @@
-# https://travis-ci.org/cloudsmith-io/cloudsmith-cli
 dist: trusty
 sudo: false
 language: python
@@ -6,18 +5,18 @@ language: python
 matrix:
   fast_finish: true
   include:
-    - python: 2.7
-      env:
-        - TOXENV=py27
-    - python: 3.5
-      env:
-        - TOXENV=py35
-    - env:
-        - TOXENV=flake8
-    - env:
-        - TOXENV=pylint
-    - env:
-        - TOXENV=isort
+  - python: 2.7
+    env:
+    - TOXENV=py27
+  - python: 3.5
+    env:
+    - TOXENV=py35
+  - env:
+    - TOXENV=flake8
+  - env:
+    - TOXENV=pylint
+  - env:
+    - TOXENV=isort
 
 install:
   - pip install --upgrade pip setuptools wheel
@@ -35,3 +34,5 @@ notifications:
   email:
     on_failure: always
     on_success: change
+  slack:
+    secure: qm4pgQYyTwTAkH0jTJxwMnvkWDhXEbulGRZUbMZbq2kvDAgnfWmusuvWNw0iGl9ArWpzgJxKKg1+hElKSuLgtTo4YGn78LoqhRTdZdNOSr+4/C8JRFeBZJMJUUqVzqWWdojuX5HogEjR6SmH+sr5KQkGJKaFanWNETQ8aaRSj1omt0dcLRoFQVNd2CXwo6qwRY/8r+a5sLBtOwSY/wtoTnBT6ebtNWctsyYmBClbJsUXlXlwRK7npDFz6S2f+6/0yiXoACz5XZLkwghMsX465rSMep9LVcFARAyZide2b+nkSqPdyFje4T7APhEWNCtXHg1AJSHw3KsQEXmnifJFdgRfTu8v7vM1dnBlTdXaRpavHJOVS0TEIvKdd5vmemNMPVVVMbTcQXwxSkl8oSacGjO8vbK91WGTJI3psoUKp7EP0MYeq9TAZpoZJHpemPg7H5fZdA5UyBFROaU7gsNb96JUDuGQAm+7AmrYx1YFqTjFioHtVF1XPs4elgkHEu1+D6kq9doKMQ+M38yIj1KkRtLjuEFKZ286joeoCrisPaFgsPsAHG46q1pqtIoXjQZKAwIvMbB1K7OuK5KO4oY+ppOZPZi56HLVh6oLzK4T6JA64JBIUo77dzOFO0hy/0riH6iEaOpG4hkt4f1sVBpGyTQxTpY/6Yzf8gQ2oJUvo3M=
