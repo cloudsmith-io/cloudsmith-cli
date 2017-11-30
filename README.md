@@ -154,7 +154,7 @@ cloudsmith push maven lskillen/test validation-api-1.0.0.GA.jar --pom-file=valid
 Assuming you have a package filename **assets.zip**, representing **packaged assets**:
 
 ```
-cloudsmith push raw assets.zip
+cloudsmith push raw lskillen/test assets.zip
 ```
 
 ### Upload multiple Debian Packages
