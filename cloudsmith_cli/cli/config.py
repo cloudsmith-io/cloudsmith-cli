@@ -121,7 +121,7 @@ class Options(object):
     def _load_config_from_dict(self, values):
         """Load configuration from a dictionary."""
         for k, v in six.iteritems(values):
-            if not v:
+            if v is None:
                 continue
             setattr(self, k, v)
 
