@@ -33,9 +33,8 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     )
 
     context_msg = 'Failed to request file upload!'
-    with handle_api_exceptions(\
-            ctx, opts=opts, context_msg=context_msg,\
-            reraise_on_error=skip_errors):
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
+                               reraise_on_error=skip_errors):
         with spinner():
             identifier, upload_url, upload_fields = request_file_upload(
                 owner=owner,
@@ -53,10 +52,9 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors):
             'filename': click.style(basename, bold=True)
         }
 
-        with click.progressbar(\
-                length=filesize, label=label,\
-                fill_char=click.style('#', fg='green'),\
-                empty_char=click.style('-', fg='red')) as pb:
+        with click.progressbar(length=filesize, label=label,
+                               fill_char=click.style('#', fg='green'),
+                               empty_char=click.style('-', fg='red')) as pb:
             def progress_callback(monitor):
                 pb.update(monitor.bytes_read)
 
@@ -86,9 +84,8 @@ def create_package(
         payload.update(kwargs)
 
     context_msg = 'Failed to create package!'
-    with handle_api_exceptions(\
-            ctx, opts=opts, context_msg=context_msg,\
-            reraise_on_error=skip_errors):
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
+                               reraise_on_error=skip_errors):
         with spinner():
             slug_perm, slug = api_create_package(
                 package_format=package_type,
@@ -134,15 +131,13 @@ def wait_for_package_sync(
         }
 
     context_msg = 'Failed to synchronise file!'
-    with handle_api_exceptions(\
-            ctx, opts=opts, context_msg=context_msg,\
-            reraise_on_error=skip_errors):
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
+                               reraise_on_error=skip_errors):
         last_progress = 0
-        with click.progressbar(\
-                length=100, label=label,\
-                fill_char=click.style('#', fg='green'),\
-                empty_char=click.style('-', fg='red'),\
-                item_show_func=display_status) as pb:
+        with click.progressbar(length=100, label=label,
+                               fill_char=click.style('#', fg='green'),
+                               empty_char=click.style('-', fg='red'),
+                               item_show_func=display_status) as pb:
             while True:
                 res = get_package_status(owner, repo, slug)
                 completed, failed, progress, status_str, stage_str = res
@@ -241,13 +236,13 @@ def create_push_handlers():
         if has_additional_params:
             help_text += """
 
-            - PACKAGE_FILE: The main file to create the package from.
+            PACKAGE_FILE: The main file to create the package from.
             """
         else:
             help_text += """
 
-            - PACKAGE_FILE: Any number of files to create packages from. Each file
-            will result in a separate package.
+            PACKAGE_FILE: Any number of files to create packages from. Each
+            file will result in a separate package.
             """
 
         if has_distribution_param:
@@ -255,10 +250,10 @@ def create_push_handlers():
             target_callback = validators.validate_owner_repo_distro
             help_text += """
 
-            - OWNER/REPO/DISTRO[/VERSION]: Specify the OWNER namespace (i.e. user
-            or org), the REPO name where the package file will be uploaded to,
-            and the DISTRO and VERSION (for DISTRO) the package is for. All
-            separated by a slash.
+            OWNER/REPO/DISTRO[/VERSION]: Specify the OWNER namespace (i.e.
+            user or org), the REPO name where the package file will be
+            uploaded to, and the DISTRO and VERSION (for DISTRO) the package
+            is for. All separated by a slash.
 
             Example: 'your-org/awesome-repo/ubuntu/xenial'.
             """
@@ -267,7 +262,7 @@ def create_push_handlers():
             target_callback = validators.validate_owner_repo
             help_text += """
 
-            - OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the
+            OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the
             REPO name where the package file will be uploaded to. All separated
             by a slash.
 
@@ -295,7 +290,8 @@ def create_push_handlers():
             '-W', '--no-wait-for-sync', default=False, is_flag=True,
             help='Wait for synchronisation to complete before exiting.')
         @click.option(
-            '-I', '--wait-interval', default=5.0, type=float, show_default=True,
+            '-I', '--wait-interval', default=5.0, type=float,
+            show_default=True,
             help='The time in seconds to wait between checking operations.')
         @click.option(
             '-s', '--skip-errors', default=False, is_flag=True,

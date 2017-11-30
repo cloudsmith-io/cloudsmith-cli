@@ -9,7 +9,7 @@ init-hook = import sys; sys.setrecursionlimit(10000)
 
 # Add files or directories to the blacklist. They should be base names, not
 # paths.
-ignore = .svn,CVS,.bzr,.hg,.git,__pycache,.venv,migrations,settings,tests,.tox
+ignore = .svn,CVS,.bzr,.hg,.git,__pycache,.venv,migrations,settings,tests,.tox,build
 
 # Pickle collected data for later comparisons.
 persistent = yes
