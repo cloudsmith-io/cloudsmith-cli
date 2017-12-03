@@ -27,11 +27,8 @@ def get_long_description():
     root_path = get_root_path()
     readme_path = os.path.join(root_path, 'README.md')
 
-    try:
-        import pypandoc
-        return pypandoc.convert(readme_path, 'rst')
-    except ImportError:
-        return read(readme_path)
+    import pypandoc
+    return pypandoc.convert(readme_path, 'rst')
 
 
 setup(
