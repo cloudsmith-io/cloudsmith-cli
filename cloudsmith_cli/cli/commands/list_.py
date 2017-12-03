@@ -64,6 +64,7 @@ def distros(ctx, opts, package_format):
             for release in distro.versions
             if release
         )
+        release_name_max = max(release_name_max, len('Release Name'))
 
     # pylint: disable=fixme
     # TODO(ls): Add in custom sorting and filtering.
@@ -161,16 +162,19 @@ def packages(ctx, opts, owner_repo):
             len(_get_package_name(package))
             for package in packages_
         )
+        package_name_max = max(package_name_max, len('Name'))
 
         package_status_max = max(
             len(_get_package_status(package))
             for package in packages_
         )
+        package_status_max = max(package_status_max, len('Status'))
 
         package_version_max = max(
             len(_get_package_version(package))
             for package in packages_ if package['version']
         )
+        package_version_max = max(package_version_max, len('Version'))
 
         # pylint: disable=fixme
         # FIXME(ls): Add a utility for printing out tables?
@@ -254,9 +258,11 @@ def repos(ctx, opts, owner):
     if repos_:
         click.echo()
         repo_name_max = max(len(repo['name']) for repo in repos_)
+        repo_name_max = max(repo_name_max, len('Name'))
         repo_type_max = max(
             len(repo['repository_type_str']) for repo in repos_
         )
+        repo_type_max = max(repo_type_max, len('Type'))
 
         click.secho(
             '%(name)s | %(type)s | %(slug)s' % {
