@@ -6,6 +6,11 @@ addons:
   apt_packages:
     - pandoc
 
+cache:
+   directories:
+     - $HOME/.cache/pip
+     - $TRAVIS_BUILD_DIR/.tox
+
 matrix:
   fast_finish: true
   include:
