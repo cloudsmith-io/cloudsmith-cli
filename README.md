@@ -9,7 +9,7 @@
 
 The [Cloudsmith](https://cloudsmith.io) Command Line Interface (CLI) is a Py2/Py3 text-based interface to the [API](https://api.cloudsmith.io). This allows users, machines and other services to access and integrate smoothly with Cloudsmith without requiring explicit plugins or tools. Be awesome. [Automate Everything](https://corp.cloudsmith.io/tao/).
 
-The following GIF demonstrates a small slice of the CLI - [View the full video on YouTube](https://youtu.be/8nlstYU9J5M):
+The following (slightly out of date) GIF demonstrates a small slice of the CLI - [View the full video on YouTube](https://youtu.be/8nlstYU9J5M):
 
 [![CLI Demonstration](https://user-images.githubusercontent.com/2248287/33522274-c88416be-d7e0-11e7-86ab-518c53d6bf61.gif)](https://youtu.be/8nlstYU9J5M)
 
