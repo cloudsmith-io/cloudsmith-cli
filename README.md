@@ -30,7 +30,7 @@ The CLI currently supports the following commands (and sub-commands):
 - `list`:   List distributions, packages and repos.
   - `distros`:  List available distributions.
   - `packages`: List packages for a repository.
-  - `repos':    List repositories for a namespace (owner).
+  - `repos`:    List repositories for a namespace (owner).
 - `push`:   Push/upload a new package to a repository.
   - `deb`:     Push/upload a new Deb package upstream.
   - `maven`:   Push/upload a new Maven package upstream.
