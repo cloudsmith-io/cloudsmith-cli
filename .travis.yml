@@ -26,7 +26,7 @@ matrix:
 
 install:
   - pip install --upgrade pip setuptools wheel
-  - pip install tox codecov
+  - pip install tox codecov pandoc
   - pip install codacy-coverage
 
 script:
