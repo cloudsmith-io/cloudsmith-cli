@@ -94,6 +94,16 @@ def get_package_status(owner, repo, slug):
     )
 
 
+def list_packages(owner, repo):
+    """List packages for a repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        res = client.packages_list(owner=owner, repo=repo)
+
+    return [x.to_dict() for x in res]
+
+
 def get_package_formats():
     """Get the list of available package formats and parameters."""
     # pylint: disable=fixme

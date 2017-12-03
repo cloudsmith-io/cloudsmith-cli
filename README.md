@@ -12,14 +12,24 @@ The [Cloudsmith](https://cloudsmith.io) Command Line Interface (CLI) is a Py2/Py
 
 ## Features
 
-The CLI currently supports the following commands:
+The CLI currently supports the following commands (and sub-commands):
 
 - `check`:  Check the status/version of the service.
 - `delete`: Delete a package from a repository.
 - `docs`:   Launch the help website in your browser.
 - `help`:   Display the help message and exit.
 - `list`:   List distributions, packages and repos.
+  - `distros`:  List available distributions.
+  - `packages`: List packages for a repository.
+  - `repos':    List repositories for a namespace (owner).
 - `push`:   Push/upload a new package to a repository.
+  - `deb`:     Push/upload a new Deb package upstream.
+  - `maven`:   Push/upload a new Maven package upstream.
+  - `python`:  Push/upload a new Python package upstream.
+  - `raw`:     Push/upload a new Raw package upstream.
+  - `rpm`:     Push/upload a new Rpm package upstream.
+  - `ruby`:    Push/upload a new Ruby package upstream.
+  - `vagrant`: Push/upload a new Vagrant package upstream.
 - `status`: Get the synchronisation status for a package.
 - `token`:  Retrieve your API authentication token/key.
 - `whoami`: Retrieve your current authentication status.
@@ -158,6 +168,14 @@ Assuming you have a package filename **assets.zip**, representing **packaged ass
 cloudsmith push raw lskillen/test assets.zip
 ```
 
+### Upload a Vagrant Package
+
+Assuming you have a package filename **awesome.box**, representing a Vagrant image for the **Awesome OS** (fictional, probably):
+
+```
+cloudsmith push vagrant lskillen/test awesome.box
+```
+
 ### Upload multiple Debian Packages
 
 You can also upload multiple packages in one go (all of the same distribution):
@@ -169,17 +187,6 @@ cloudsmith push deb lskillen/test/ubuntu/xenial libxml2-2.9.1-2.x86_64.deb libxm
 ## Contributing
 
 Yes! Please do contribute, this is why we love open source.  Please see `CONTRIBUTING.md` for contribution guidelines when making code changes or raising issues for bug reports, ideas, discussions and/or questions (i.e. help required).
-
-
-## Releasing
-
-To make a new release for `cloudsmith-cli` follow the procedure for virtualenv setup then:
-
-```
-$ bumpversion <major|minor|revision>
-```
-
-A tag will automatically created along with the version bump commit.
 
 
 ## License
