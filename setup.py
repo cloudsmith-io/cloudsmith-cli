@@ -52,7 +52,7 @@ setup(
         'click-configfile>=0.2.3',
         'click-didyoumean>=0.0.3',
         'click-spinner>=0.1.7',
-        'cloudsmith-api==0.20.7',
+        'cloudsmith-api==0.21.3',
         'colorama>=0.3.9',
         'requests>=2.18.4',
         'requests_toolbelt>=0.8.0',
