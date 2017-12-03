@@ -9,6 +9,9 @@
 
 The [Cloudsmith](https://cloudsmith.io) Command Line Interface (CLI) is a Py2/Py3 text-based interface to the [API](https://api.cloudsmith.io). This allows users, machines and other services to access and integrate smoothly with Cloudsmith without requiring explicit plugins or tools.
 
+The following GIF demonstrates a small slice of the CLI - [View the full video on YouTube](https://youtu.be/8nlstYU9J5M):
+
+[![CLI Demonstration](https://user-images.githubusercontent.com/2248287/33522274-c88416be-d7e0-11e7-86ab-518c53d6bf61.gif)](https://youtu.be/8nlstYU9J5M)
 
 ## Features
 
@@ -186,7 +189,7 @@ cloudsmith push deb lskillen/test/ubuntu/xenial libxml2-2.9.1-2.x86_64.deb libxm
 
 ## Contributing
 
-Yes! Please do contribute, this is why we love open source.  Please see `CONTRIBUTING.md` for contribution guidelines when making code changes or raising issues for bug reports, ideas, discussions and/or questions (i.e. help required).
+Yes! Please do contribute, this is why we love open source.  Please see [CONTRIBUTING](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CONTRIBUTING.md) for contribution guidelines when making code changes or raising issues for bug reports, ideas, discussions and/or questions (i.e. help required).
 
 
 ## License
@@ -207,4 +210,4 @@ limitations under the License.
 
 ## EOF
 
-This quality product was brought to you by [Cloudsmith](https://cloudsmith.io) and the fine folks who have contributed.
+This quality product was brought to you by [Cloudsmith](https://cloudsmith.io) and the [fine folks who have contributed](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CONTRIBUTORS.md).
