@@ -39,6 +39,7 @@ pycodestyle==2.3.1        # via flake8
 pydocstyle==2.1.1         # via flake8-docstrings
 pyflakes==1.6.0           # via flake8
 pylint==1.6.5
+pypandoc==1.4
 python-dateutil==2.6.1    # via cloudsmith-api
 requests==2.18.4
 requests_toolbelt==0.8.0
@@ -49,6 +50,7 @@ snowballstemmer==1.2.1    # via pydocstyle
 tox==2.9.1
 urllib3==1.22             # via cloudsmith-api, requests
 virtualenv==15.1.0        # via tox
+wheel==0.30.0             # via pypandoc
 wrapt==1.10.11            # via astroid
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -17,6 +17,8 @@ matrix:
     - TOXENV=pylint
   - env:
     - TOXENV=isort
+  - env:
+    - TOXENV=checkrst
 
 install:
   - pip install --upgrade pip setuptools wheel
