@@ -32,7 +32,16 @@ def print_version():
     cls=DYMGroup,
     context_settings=CONTEXT_SETTINGS,
     invoke_without_command=True,
-    help='The Cloudsmith CLI - Helping you to level up your DevOps!',
+    help="""\b
+   ________                __               _ __  __       ________    ____
+  / ____/ /___  __  ______/ /________ ___  (_) /_/ /_     / ____/ /   /  _/
+ / /   / / __ \/ / / / __  / ___/ __ `__ \/ / __/ __ \   / /   / /    / /
+/ /___/ / /_/ / /_/ / /_/ (__  ) / / / / / / /_/ / / /  / /___/ /____/ /
+\____/_/\____/\__,_/\__,_/____/_/ /_/ /_/_/\__/_/ /_/   \____/_____/___/
+
+
+The Cloudsmith Command-Line Interface - Be Awesome. Automate Everything.
+    """,
     epilog="""
 For more help, see the docs: %(help_website)s
 
