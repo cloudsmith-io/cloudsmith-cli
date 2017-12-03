@@ -39,7 +39,7 @@ setup(
     author='Cloudsmith Ltd',
     author_email='support@cloudsmith.io',
     description='Cloudsmith Command-Line Interface (CLI)',
-    long_description=get_long_description(),
+    long_description=get_long_description().strip(),
     packages=find_packages(exclude=['tests']),
     package_data={
         'cloudsmith_cli': ['cloudsmith_cli/data/*'],
