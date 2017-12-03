@@ -15,6 +15,10 @@ The following (slightly out of date) GIF demonstrates a small slice of the CLI -
 
 You can also read our [blog article](https://blog.cloudsmith.io/2017/11/25/automation-as-simple-as-a-b-cli/) that introduced the first version of the CLI and the Cloudsmith RESTful API.
 
+## Changelog
+
+Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CHANGELOG.md) for the list of changes by version. The currently version is displayed in the PyPi badge at the top.
+
 ## Features
 
 The CLI currently supports the following commands (and sub-commands):
