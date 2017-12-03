@@ -1,6 +1,7 @@
 # Test dependencies
 codecov>=2.0.9,<3.0.0
 coverage>=4.4.2,<5.0.0
+docutils>=0.14,<1.0
 flake8>=3.5.0,<4.0.0
 flake8-docstrings>=1.1.0,<2.0.0
 flake8-quotes==0.12.0
