@@ -1,6 +1,10 @@
 """CLI - Configuration."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import codecs
+import os
+import re
+
 import click
 import six
 from click_configfile import (
@@ -8,6 +12,12 @@ from click_configfile import (
 )
 
 from . import utils
+from ..core.utils import read_file, get_data_path
+
+
+def get_default_config_path():
+    """Get the default path to cloudsmith config files."""
+    return click.get_app_dir('cloudsmith')
 
 
 class ConfigSchema(object):
@@ -32,12 +42,13 @@ class ConfigReader(ConfigFileReader):
     config_files = [
         'config.ini'
     ]
+    config_name = 'non-credentials'
     config_section_schemas = [
         ConfigSchema.Default,
         ConfigSchema.Profile
     ]
     config_searchpath = [
-        click.get_app_dir('cloudsmith')
+        get_default_config_path()
     ]
 
     @classmethod
@@ -47,6 +58,79 @@ class ConfigReader(ConfigFileReader):
             return 'default'
         else:
             return section_name
+
+    @classmethod
+    def get_default_filepath(cls):
+        """Get the default filepath for the configuratin file."""
+        if not cls.config_files:
+            return
+        if not cls.config_searchpath:
+            return
+        filename = cls.config_files[0]
+        filepath = cls.config_searchpath[0]
+        return os.path.join(filepath, filename)
+
+    @classmethod
+    def create_default_file(cls, data=None):
+        """Create a config file and override data if specified."""
+        filepath = cls.get_default_filepath()
+        if not filepath:
+            return False
+
+        filename = os.path.basename(filepath)
+        config = read_file(get_data_path(), filename)
+
+        # Find and replace data in default config
+        data = data or {}
+        for k, v in six.iteritems(data):
+            v = v or ''
+            config = re.sub(
+                r'^(%(key)s) =[ ]*$' % {'key': k},
+                '%(key)s = %(value)s' % {'key': k, 'value': v},
+                config, flags=re.MULTILINE
+            )
+
+        dirpath = os.path.dirname(filepath)
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath)
+        with codecs.open(filepath, 'w+') as f:
+            f.write(config)
+
+        return True
+
+    @classmethod
+    def has_default_file(cls):
+        """Check if a configuration file exists."""
+        for filename in cls.config_files:
+            for searchpath in cls.config_searchpath:
+                path = os.path.join(searchpath, filename)
+                if os.path.exists(path):
+                    return True
+
+        return False
+
+    @classmethod
+    def load_config(cls, opts, path=None, profile=None):
+        """Load a configuration file into an options object."""
+        if path:
+            cls.searchpath = [path]
+
+        config = cls.read_config()
+        values = config.get('default', {})
+        cls._load_values_into_opts(opts, values)
+
+        if profile and profile != 'default':
+            values = config.get('profile:%s' % profile, {})
+            cls._load_values_into_opts(opts, values)
+
+        return values
+
+    @staticmethod
+    def _load_values_into_opts(opts, values):
+        for k, v in six.iteritems(values):
+            if v is None:
+                continue
+            setattr(opts, k, v)
 
 
 class CredentialsSchema(object):
@@ -63,27 +147,20 @@ class CredentialsSchema(object):
         """Profile-specifi configuration schema."""
 
 
-class CredentialsReader(ConfigFileReader):
+class CredentialsReader(ConfigReader):
     """Reader for credentials configuration."""
 
     config_files = [
         'credentials.ini'
     ]
+    config_name = 'credentials'
     config_section_schemas = [
         CredentialsSchema.Default,
         CredentialsSchema.Profile
     ]
     config_searchpath = [
-        click.get_app_dir('cloudsmith')
+        get_default_config_path()
     ]
-
-    @classmethod
-    def get_storage_name_for(cls, section_name):
-        """Get storage name for a configuration section."""
-        if not section_name or section_name == 'default':
-            return 'default'
-        else:
-            return section_name
 
 
 class Options(object):
@@ -96,34 +173,25 @@ class Options(object):
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
 
+    @staticmethod
+    def get_config_reader():
+        """Get the non-credentials config reader class."""
+        return ConfigReader
+
+    @staticmethod
+    def get_creds_reader():
+        """Get the credentials config reader class."""
+        return CredentialsReader
+
     def load_config_file(self, path, profile=None):
         """Load the standard config file."""
-        self._load_config(ConfigReader, path, profile=profile)
+        config_cls = self.get_config_reader()
+        return config_cls.load_config(self, path, profile=profile)
 
     def load_creds_file(self, path, profile=None):
         """Load the credentials config file."""
-        self._load_config(CredentialsReader, path, profile=profile)
-
-    def _load_config(self, config_cls, path=None, profile=None):
-        """Load a configuration file."""
-        if path:
-            config_cls.searchpath = [path]
-
-        config = config_cls.read_config()
-
-        values = config.get('default', {})
-        self._load_config_from_dict(values)
-
-        if profile and profile != 'default':
-            values = config.get('profile:%s' % profile, {})
-            self._load_config_from_dict(values)
-
-    def _load_config_from_dict(self, values):
-        """Load configuration from a dictionary."""
-        for k, v in six.iteritems(values):
-            if v is None:
-                continue
-            setattr(self, k, v)
+        config_cls = self.get_creds_reader()
+        return config_cls.load_config(self, path, profile=profile)
 
     @property
     def api_config(self):

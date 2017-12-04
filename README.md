@@ -87,7 +87,7 @@ api_key=1234567890abcdef1234567890abcdef
 
 ### Non-Credentials (config.ini)
 
-See the [default example](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/config/config.ini) in GitHub:
+See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith/data/config.ini) in GitHub:
 
 You can specify the following configuration options:
 
@@ -97,7 +97,7 @@ You can specify the following configuration options:
 
 ### Credentials (credentials.ini)
 
-See the [default example](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/config/credentials.ini) in GitHub:
+See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith/data/credentials.ini) in GitHub:
 
 You can specify the following configuration options:
 

@@ -7,6 +7,7 @@ from click_spinner import spinner
 from . import main
 from .. import decorators
 from ...core.api.user import get_user_token
+from ...core.utils import get_help_website
 from ..exceptions import handle_api_exceptions
 
 
@@ -18,6 +19,76 @@ def validate_login(ctx, param, value):
         raise click.BadParameter(
             'The value cannot be blank.', param=param)
     return value
+
+
+def create_config_files(ctx, opts, api_key):
+    """Create default config files."""
+    # pylint: disable=unused-argument
+    config_reader = opts.get_config_reader()
+    creds_reader = opts.get_creds_reader()
+    has_config = config_reader.has_default_file()
+    has_creds = creds_reader.has_default_file()
+
+    if has_config and has_creds:
+        create = False
+    else:
+        click.echo()
+        create = click.confirm(
+            'No default config file(s) found, do you want to create them?'
+        )
+
+    click.echo()
+    if not create:
+        click.secho(
+            'For reference here are your default config file locations:',
+            fg='yellow')
+    else:
+        click.secho(
+            'Great! Let me just create your default configs for you now ...',
+            fg='green'
+        )
+
+    values = (
+        (config_reader, has_config, {}),
+        (creds_reader, has_creds, {'api_key': api_key}),
+    )
+
+    has_errors = False
+    for reader, present, data in values:
+        click.echo(
+            '%(name)s config file: %(filepath)s ... ' % {
+                'name': click.style(
+                    reader.config_name.capitalize(), bold=True
+                ),
+                'filepath': click.style(
+                    reader.get_default_filepath(), fg='magenta'
+                )
+            }, nl=False
+        )
+
+        if not present and create:
+            try:
+                ok = reader.create_default_file(data=data)
+            except (OSError, IOError) as exc:
+                ok = False
+                error_message = exc.strerror
+                has_errors = True
+
+            if ok:
+                click.secho('CREATED', fg='green')
+            else:
+                click.secho('ERROR', fg='red')
+                click.secho(
+                    'The following error occurred while trying to '
+                    'create the file: %(message)s' % {
+                        'message': click.style(error_message, fg='red')
+                    }
+                )
+            continue
+
+        click.secho('EXISTS' if present else 'NOT CREATED', fg='yellow')
+
+    return create, has_errors
 
 
 @main.command()
@@ -42,7 +113,7 @@ def token(ctx, opts, login, password):
     context_msg = 'Failed to retrieve the API token!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
-            api_token = get_user_token(
+            api_key = get_user_token(
                 login=login,
                 password=password
             )
@@ -50,7 +121,36 @@ def token(ctx, opts, login, password):
     click.secho('OK', fg='green')
 
     click.echo(
-        'Your API token is: %(token)s' % {
-            'token': click.style(api_token, bold=True)
+        'Your API key/token is: %(token)s' % {
+            'token': click.style(api_key, fg='magenta')
         }
     )
+
+    create, has_errors = create_config_files(ctx, opts, api_key=api_key)
+    click.echo()
+
+    if has_errors:
+        click.secho('Oops, please fix the errors and try again!', fg='red')
+        return
+    elif opts.api_key and opts.api_key != api_key:
+        click.secho(
+            'Note: The above API key doesn\'t match what you have in '
+            'your default credentials config file.',
+            fg='yellow')
+        click.echo()
+    elif not opts.api_key:
+        click.secho(
+            'Note: Don\'t forget to put your API key in a config file, '
+            'export it on the environment, or set it via -k.',
+            fg='yellow'
+        )
+        click.secho(
+            'If you need more help please see the documentation: '
+            '%(website)s' % {
+                'website': click.style(get_help_website(), bold=True)
+            }
+        )
+        click.echo()
+
+    click.secho(
+        'You\'re ready to rock, let\'s start automating!', fg='green')

@@ -15,12 +15,14 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 def common_cli_config_options(f):
     """Add common CLI config options to commands."""
     @click.option(
-        '-C', '--config-file', type=click.Path(
+        '-C', '--config-file', envvar='CLOUDSMITH_CONFIG_FILE',
+        type=click.Path(
             dir_okay=False, exists=True, writable=False, resolve_path=True
         ),
         help='The path to your config.ini file.')
     @click.option(
-        '--credentials-file', type=click.Path(
+        '--credentials-file', envvar='CLOUDSMITH_CREDENTIALS_FILE',
+        type=click.Path(
             dir_okay=False, exists=True, writable=False, resolve_path=True
         ),
         help='The path to your credentials.ini file.')
