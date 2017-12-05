@@ -48,8 +48,8 @@ The CLI currently supports the following commands (and sub-commands):
 
 You can install the latest CLI application from:
 
-- [Official CLI Repository @ Cloudsmith](https://cloudsmith.io/package/ns/cloudsmith/repos/cli/packages/)
 - [Official CLI Repository @ PyPi](https://pypi.python.org/pypi/cloudsmith-cli)
+- [Official CLI Repository @ Cloudsmith](https://cloudsmith.io/package/ns/cloudsmith/repos/cli/packages/)
 
 The simplest way is to use `pip`, such as:
 
@@ -62,7 +62,6 @@ Or you can get the latest pre-release version from Cloudsmith:
 ```
 pip install cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
 ```
-
 
 ## Configuration
 
@@ -104,21 +103,20 @@ You can specify the following configuration options:
 - `api_key`: The API key for authenticating with the API.
 
 
-## Examples
+### Getting Your API Key
 
-**Note:** All of the examples in this section are uploading to the **lskillen** user and the **test** repository. Please replace these with your own user/org and repository names.
+You'll need to provide authentication to Cloudsmith for any CLI actions that result in accessing private data or making changes to resources (such as pushing a new package to a repository)..
 
-### Get your API key/token
-
-You can retrieve your API token using the `cloudsmith token` command:
+With the CLI this is simple to do. You can retrieve your API key using the `cloudsmith token` command:
 
 ```
 cloudsmith token
 Login: you@example.com
 Password:
 Repeat for confirmation:
-
 ```
+
+*Note:* Please ensure you use your email for the 'Login' prompt and not your user slug/identifier.
 
 The resulting output looks something like:
 
@@ -127,7 +125,15 @@ Retrieving API token for 'you@example.com' ... OK
 Your API token is: 1234567890abcdef1234567890abcdef
 ```
 
-You can then put this into your `credentials.ini`, use it as an environment variable `CLOUDSMITH_API_KEY=your_key_here` or pass it to the CLI using the `-k your_key_here` flag.
+Once you have your API key you can then put this into your `credentials.ini`, use it as an environment variable `export CLOUDSMITH_API_KEY=your_key_here` or pass it to the CLI using the `-k your_key_here` flag.
+
+For convenience the CLI will ask you if you want to install the default configuration files, complete with your API key, if they don't already exist. Say 'y' or 'yes' to create the configuration files.
+
+If the configuration files already exist, you'll have to manually put the API key into the configuration files, but the CLI will print out their locations.
+
+## Examples
+
+**Note:** All of the examples in this section are uploading to the **lskillen** user and the **test** repository. Please replace these with your own user/org and repository names.
 
 ### Upload a Debian Package
 
