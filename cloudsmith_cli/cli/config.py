@@ -33,7 +33,7 @@ class ConfigSchema(object):
 
     @matches_section('profile:*')
     class Profile(Default):
-        """Profile-specifi configuration schema."""
+        """Profile-specific configuration schema."""
 
 
 class ConfigReader(ConfigFileReader):
@@ -144,7 +144,7 @@ class CredentialsSchema(object):
 
     @matches_section('profile:*')
     class Profile(Default):
-        """Profile-specifi configuration schema."""
+        """Profile-specific configuration schema."""
 
 
 class CredentialsReader(ConfigReader):
