@@ -5,11 +5,8 @@ import functools
 
 import click
 
-from . import config
+from . import config, validators
 from ..core.api.init import initialise_api as _initialise_api
-
-
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 def common_cli_config_options(f):
@@ -96,6 +93,10 @@ def initialise_api(f):
     @click.option(
         '--api-user-agent', envvar='CLOUDSMITH_API_USER_AGENT',
         help='The user agent to use for requests.')
+    @click.option(
+        '--api-headers', envvar='CLOUDSMITH_API_HEADERS',
+        callback=validators.validate_api_headers,
+        help='A CSV list of extra headers (key=value) to send to the API.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -104,12 +105,14 @@ def initialise_api(f):
         opts.api_host = kwargs.pop('api_host')
         opts.api_proxy = kwargs.pop('api_proxy')
         opts.api_user_agent = kwargs.pop('api_user_agent')
+        opts.api_headers = kwargs.pop('api_headers')
         opts.api_config = _initialise_api(
             debug=opts.debug,
             host=opts.api_host,
             key=opts.api_key,
             proxy=opts.api_proxy,
-            user_agent=opts.api_user_agent
+            user_agent=opts.api_user_agent,
+            headers=opts.api_headers
         )
 
         kwargs['opts'] = opts

@@ -203,6 +203,16 @@ class Options(object):
         self._set_option('api_config', value)
 
     @property
+    def api_headers(self):
+        """Get value for API headers."""
+        return self._get_option('api_headers')
+
+    @api_headers.setter
+    def api_headers(self, value):
+        """Set value for API headers."""
+        self._set_option('api_headers', value)
+
+    @property
     def api_host(self):
         """Get value for API host."""
         return self._get_option('api_host')

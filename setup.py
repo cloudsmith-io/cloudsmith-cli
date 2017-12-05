@@ -1,8 +1,9 @@
 """Cloudsmith Command Line Interface (CLI)."""
 from __future__ import absolute_import, print_function
 
-from setuptools import find_packages, setup
 import os
+
+from setuptools import find_packages, setup
 
 
 def get_root_path():

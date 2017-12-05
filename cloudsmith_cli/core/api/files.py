@@ -10,16 +10,12 @@ from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
+from .init import get_api_client
 
 
 def get_files_api():
     """Get the files API client."""
-    config = cloudsmith_api.Configuration()
-    client = cloudsmith_api.FilesApi()
-    user_agent = getattr(config, 'user_agent', None)
-    if user_agent:
-        client.api_client.user_agent = user_agent
-    return client
+    return get_api_client(cloudsmith_api.FilesApi)
 
 
 def validate_request_file_upload(owner, repo, filepath, md5_checksum=None):

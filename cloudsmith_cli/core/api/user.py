@@ -4,17 +4,12 @@ from __future__ import absolute_import, print_function, unicode_literals
 import cloudsmith_api
 
 from .exceptions import catch_raise_api_exception
-from .init import set_api_key
+from .init import get_api_client, set_api_key
 
 
 def get_user_api():
     """Get the user API client."""
-    config = cloudsmith_api.Configuration()
-    client = cloudsmith_api.UserApi()
-    user_agent = getattr(config, 'user_agent', None)
-    if user_agent:
-        client.api_client.user_agent = user_agent
-    return client
+    return get_api_client(cloudsmith_api.UserApi)
 
 
 def get_user_token(login, password):

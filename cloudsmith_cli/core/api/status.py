@@ -4,16 +4,12 @@ from __future__ import absolute_import, print_function, unicode_literals
 import cloudsmith_api
 
 from .exceptions import catch_raise_api_exception
+from .init import get_api_client
 
 
 def get_status_api():
     """Get the status API client."""
-    config = cloudsmith_api.Configuration()
-    client = cloudsmith_api.StatusApi()
-    user_agent = getattr(config, 'user_agent', None)
-    if user_agent:
-        client.api_client.user_agent = user_agent
-    return client
+    return get_api_client(cloudsmith_api.StatusApi)
 
 
 def get_status(with_version=False):

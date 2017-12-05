@@ -5,16 +5,12 @@ import cloudsmith_api
 
 from . import user
 from .exceptions import catch_raise_api_exception
+from .init import get_api_client
 
 
 def get_repos_api():
     """Get the repos API client."""
-    config = cloudsmith_api.Configuration()
-    client = cloudsmith_api.ReposApi()
-    user_agent = getattr(config, 'user_agent', None)
-    if user_agent:
-        client.api_client.user_agent = user_agent
-    return client
+    return get_api_client(cloudsmith_api.ReposApi)
 
 
 def list_repos(owner=None):

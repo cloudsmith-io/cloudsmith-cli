@@ -1,7 +1,62 @@
 """CLI - Validators."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import base64
+import sys
+
 import click
+
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+BAD_API_HEADERS = ('user-agent', 'host')
+API_HEADER_TRANSFORMS = {'authorization': 'transform_api_header_authorization'}
+
+
+def transform_api_header_authorization(param, value):
+    """Transform a username:password value into a base64 string."""
+    try:
+        username, password = value.split(':', 1)
+    except ValueError:
+        raise click.BadParameter(
+            'Authorization header needs to be Authorization=username:password',
+            param=param)
+
+    value = base64.b64encode('%(username)s:%(password)s' % {
+        'username': username.strip(),
+        'password': password
+    })
+
+    return 'Basic %(value)s' % {'value': value}
+
+
+def validate_api_headers(ctx, param, value):
+    """Validate that API headers is a CSV of k=v pairs."""
+    headers = {}
+    for kv in value.split(','):
+        try:
+            k, v = kv.split('=', 1)
+            k = k.strip().lower()
+
+            for bad_header in BAD_API_HEADERS:
+                if bad_header == k:
+                    raise click.BadParameter(
+                        '%(key)s is not an allowed header' % {
+                            'key': bad_header
+                        },
+                        param=param)
+
+            if k in API_HEADER_TRANSFORMS:
+                module = sys.modules[__name__]
+                transform = getattr(module, API_HEADER_TRANSFORMS[k])
+                v = transform(param, v)
+        except ValueError:
+            raise click.BadParameter(
+                'Values need to be a CSV of key=value pairs',
+                param=param)
+
+        headers[k] = v
+
+    return headers
 
 
 def validate_slashes(param, value, minimum=2, maximum=None, form=None):
