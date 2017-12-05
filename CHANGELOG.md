@@ -14,6 +14,7 @@ Phase 3 release.
 
 - Silly (but nice) ASCII art banner for help command.
 - Default creds/non-creds are now config files created on `cloudsmith token`.
+- Support for `CLOUDSMITH_CONFIG_FILE` and `CLOUDSMITH_CREDENTIALS_FILE` environment variables.
 
 ## [0.2.2] - 2017-12-03
 
