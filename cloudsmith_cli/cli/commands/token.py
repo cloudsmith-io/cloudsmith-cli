@@ -132,24 +132,24 @@ def token(ctx, opts, login, password):
     if has_errors:
         click.secho('Oops, please fix the errors and try again!', fg='red')
         return
-    elif opts.api_key and opts.api_key != api_key:
-        click.secho(
-            'Note: The above API key doesn\'t match what you have in '
-            'your default credentials config file.',
-            fg='yellow')
-        click.echo()
-    elif not opts.api_key:
-        click.secho(
-            'Note: Don\'t forget to put your API key in a config file, '
-            'export it on the environment, or set it via -k.',
-            fg='yellow'
-        )
-        click.secho(
-            'If you need more help please see the documentation: '
-            '%(website)s' % {
-                'website': click.style(get_help_website(), bold=True)
-            }
-        )
+    elif opts.api_key != api_key:
+        if opts.api_key:
+            click.secho(
+                'Note: The above API key doesn\'t match what you have in '
+                'your default credentials config file.',
+                fg='yellow')
+        elif not create:
+            click.secho(
+                'Note: Don\'t forget to put your API key in a config file, '
+                'export it on the environment, or set it via -k.',
+                fg='yellow'
+            )
+            click.secho(
+                'If you need more help please see the documentation: '
+                '%(website)s' % {
+                    'website': click.style(get_help_website(), bold=True)
+                }
+            )
         click.echo()
 
     click.secho(

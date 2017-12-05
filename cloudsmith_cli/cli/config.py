@@ -11,7 +11,7 @@ from click_configfile import (
 )
 
 from . import utils
-from ..core.utils import read_file, get_data_path
+from ..core.utils import get_data_path, read_file
 
 
 def get_default_config_path():
