@@ -127,12 +127,13 @@ def token(ctx, opts, login, password):
     )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)
-    click.echo()
 
     if has_errors:
+        click.echo()
         click.secho('Oops, please fix the errors and try again!', fg='red')
         return
     elif opts.api_key != api_key:
+        click.echo()
         if opts.api_key:
             click.secho(
                 'Note: The above API key doesn\'t match what you have in '
