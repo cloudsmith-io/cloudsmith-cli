@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 Phase 3 release.
 
+## [0.3.0] - 2017-12-05
+
 ### Added
 
 - Silly (but nice) ASCII art banner for help command.
