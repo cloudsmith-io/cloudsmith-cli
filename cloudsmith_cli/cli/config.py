@@ -1,7 +1,6 @@
 """CLI - Configuration."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import codecs
 import os
 import re
 
@@ -93,7 +92,7 @@ class ConfigReader(ConfigFileReader):
         dirpath = os.path.dirname(filepath)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
-        with codecs.open(filepath, 'w+') as f:
+        with click.open_file(filepath, 'w+') as f:
             f.write(config)
 
         return True
