@@ -32,6 +32,9 @@ def transform_api_header_authorization(param, value):
 def validate_api_headers(ctx, param, value):
     """Validate that API headers is a CSV of k=v pairs."""
     # pylint: disable=unused-argument
+    if not value:
+        return {}
+
     headers = {}
     for kv in value.split(','):
         try:
