@@ -130,10 +130,18 @@ def get_401_error_hint(ctx, opts, exc):
         return (
             'Since you have an API key set, this probably means '
             'you don\'t have the permision to perform this action.')
+
+    if ctx.info_name == 'token':
+        # This is already the token command
+        return (
+            'The login failed - Either your email address and/or '
+            'your password was incorrect. Please check them and '
+            'try again!')
+
     return (
         'You don\'t have an API key set, but it seems this action '
-        'requires authenticated - Try getting your API key via '
-        '`cloudsmith token` first then try again.')
+        'requires authentication - Try getting your API key via '
+        '\'cloudsmith token\' first then try again.')
 
 
 def get_404_error_hint(ctx, opts, exc):
