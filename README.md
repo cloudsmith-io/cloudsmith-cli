@@ -54,13 +54,13 @@ You can install the latest CLI application from:
 The simplest way is to use `pip`, such as:
 
 ```
-pip install cloudsmith-cli
+pip install --upgrade cloudsmith-cli
 ```
 
 Or you can get the latest pre-release version from Cloudsmith:
 
 ```
-pip install cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
+pip install --upgrade cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
 ```
 
 ## Configuration
