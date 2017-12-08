@@ -28,5 +28,6 @@ reports/
 
 # Coverage
 .coverage
-coverage.xml
-cover/
+
+# Reports
+/reports

@@ -4,30 +4,77 @@ language: python
 
 addons:
   apt_packages:
-    - pandoc
+  - pandoc
 
 cache:
-   directories:
-     - $HOME/.cache/pip
-     - $TRAVIS_BUILD_DIR/.tox
+  directories:
+  - $HOME/.cache
+  - $TRAVIS_BUILD_DIR/.tox
 
-matrix:
-  fast_finish: true
+env:
+  global:
+    # CLOUDSMITH_API_KEY=foo
+    - secure: O77shtv3KoeUGNCGXFgHMOapOFQKtop7Kzy73pw6/fctVKuv1+s/XbZchRvqPQ4Mbthu6UQh3Ij5HMRsftLH+YM8gLdmNejICPcUfM+z4GTt7UDEefCBvHXpWx1ktNJsgTUwNZwtrxb/k3oZ9GGewEw6Jw1dmrpRlBHsVwB1UX77kSEvGO+G11rr9Kz/hkx7owIewkuMxTTKmOa6drf38xNDklU1OW3GU9PROEd8LdChS0AxK+wSQAxSy+/w4a5qBILAoOh0gNwI4mv6+NTJVeC1E3kpML0YPbTxfvs2y7BXrYjW8jtDpQ5cNfbcDWZqoPvmT+rfQAioHsUl+fRq/39ASbllud7tuZYWTx+DYQhRpPHq7Kgj4/nrSGnL5kKvmr7YAEQlgiVkBcnPgOfwDzrjHx3fKpztWP5K1NkVvwLbdFDrUAccvKi7556dxOF3NCiIBgS4dIFmrGPVSiQIrhqfG6OigiJiIvyqmM8sboxDQK0jLFvdHN93ES27dY3Vpnra24vosdcDIdNR4YwPvZdeA019ymFhmUU/nhewXTzbjq6mstfFp2oaFL7R0fhcNLbWFOD85zKBl+we6dP1O4xrjjXO8AaqDfN2ZDyhCJUXGJ+lm3jK/iFfYZv+wNdbtW7sd9LkQtvVCk1BsK3j4kRUEOXaTtlJgzSS9m0H8ic=
+    # PYPI_PASSWORD=foo
+    - secure: UPnRJkkJzTY2ZD/dQRsMvRzq3auuAo+IKyNwd2eQqA02LfzyuPuS8ouQ/eEFawXJ9/WRoZHBTxR0Ww/eTnR+Vzyat6S6+22Aza6o37F1NJVRnV1oAioEtPpvMBxEoX87V5amFfDNlFyIFhhV9zkgcKC0aQkVybRS6H59x/0PniarhH9su6iJw+B/gVBWohLfaVoGIuTnaWYcvv7tU+TwekQsOI8IAMmqctukQCjROIQVZD9nSiYTq0sKYdHbbkEIeZW/yYCNxoc4lbuy2z/PDa3E5CQobT1fnmRCcZSk9N42TrCAtZFArdcZPelD1aiYOiWVncKptB4mHCvIvU/6+5IlGOJrlk7qCb4MozSnF83nrMjYTYwCOMExt6+Fj+e19U5c3XvrYenpyqXbCPBS2De/LO30zOyGRf+NAtDXvE5Sj3ttEtQhHR59XSNEzjDJrxftUFZW/+KhvoKooA8fxD5vWC4X3IbiUcuaCjAKQDtu5tmUzydvdAoDwc0+nY5BL+7DOBe3XMMPtulDvgdXmiidEtkm5eSAl6y7JeDN6SPISmm2gTJntkZgluSzQbpfQmkf+2zHuWaQyBXhzCfuBNrsEQIEl654QsTAelwYfz8ZrZfEiv/99a3RUoFNiQ/7BDx3K0equadM+Z/SmJED6fXqqyibtva5fhSyM3l7KR4=
+
+# TODO(ls): Put script into stages when it is supported:
+# https://github.com/travis-ci/beta-features/issues/28
+stages:
+  - name: lint
+    if: tag IS blank
+  - name: test
+    if: tag IS blank
+  - name: deploy
+    if: branch = master AND type = push AND tag IS present
+
+jobs:
   include:
-  - python: 2.7
+  - stage: lint
+    env:
+    - TOXENV=flake8
+  - stage: lint
+    env:
+    - TOXENV=pylint
+  - stage: lint
+    env:
+    - TOXENV=isort
+  - stage: lint
+    env:
+    - TOXENV=checkrst
+  - stage: test
+    python: 2.7
     env:
     - TOXENV=py27
-  - python: 3.5
+    after_success:
+    - codecov
+    - python-codacy-coverage -r reports/coverage.xml
+  - stage: test
+    python: 3.5
     env:
     - TOXENV=py35
-  - env:
-    - TOXENV=flake8
-  - env:
-    - TOXENV=pylint
-  - env:
-    - TOXENV=isort
-  - env:
-    - TOXENV=checkrst
+    after_success:
+    - codecov
+    - python-codacy-coverage -r reports/coverage.xml
+  - stage: deploy
+    script:
+    before_deploy:
+    - pip install cloudsmith-cli twine
+    deploy:
+    - provider: script
+      skip_cleanup: true
+      script: ./scripts/deploy.sh
+      on:
+        tags: true
+    - provider: releases
+      skip_cleanup: true
+      api_key:
+        secure: ZPDS9f4qlpQoQpHc6zEBKJR69ZVR25b2UwSyvfGzrJgIddXP9aQg6uSi9U/ZFgZatAUThaKBq2o9tzsMdkg4BCx+TQZAAAZpqJ/E62QFgFm7WkIumz2HoZ4OR+NNuY/BJQLXsXQe9H9p2NoW2EUH+PnXHkEaxMNzx6gQeNYObcPkF69SVZDtgNPq/svKOo9HxQmDmD4sJyHchlA2bpBPYcZQRaxCBYbLdA1CUyDhbvRWP/ZFsSpk/g6ylP6cFjUp+DZAl9jObgDeFqczLVmaf05h5KSRaTtX4n8gOPss6rHCb57clU1JR3ZrxVBg5Uj1JakF8kBxOIeWUQ0QkcyRhnel4n2kDKWYRm+DKdRJioCxT0cHQFh6o1LKxAr0ogpAY8JhXPTqdnhwNsVzcSvZlfTlhlhjGGi5bJ5avwXVLbLv73/OXKE/xmfYIA2Csn5AHbYkJ5ZD/WYXnd4xgfShRUUsL6+vZUhI/vgmPOtwXBP0FkEPW/vb1PbJVr/ASb3YKPH0doaeMZvIkxS3Fx/hwidrMvzdsFjYgWepKUmCAQ/eqdYQMBrIPIyskZXQijN06iHNkfGGZ4gWEAZHPjO2xNwodNGopzrj5jzMy3iH3hmGdjviW8TH+j3Kwv/nb9kjarQSLd56mupQ/Rw9wHcaBoXdpheJ66uB1mbhAeD5VkU=
+      file_glob: true
+      file: dist/cloudsmith_cli*.whl
+      on:
+        repo: cloudsmith-io/cloudsmith-cli
+        tags: true
 
 install:
   - pip install --upgrade pip setuptools wheel
@@ -36,10 +83,6 @@ install:
 
 script:
   - tox
-
-after_success:
-  - codecov
-  - python-codacy-coverage -r coverage.xml
 
 notifications:
   email:
