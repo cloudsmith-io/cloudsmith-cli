@@ -41,13 +41,13 @@ class ConfigReader(ConfigFileReader):
     config_files = [
         'config.ini'
     ]
-    config_name = 'non-credentials'
+    config_name = 'standard'
+    config_searchpath = [
+        get_default_config_path()
+    ]
     config_section_schemas = [
         ConfigSchema.Default,
         ConfigSchema.Profile
-    ]
-    config_searchpath = [
-        get_default_config_path()
     ]
 
     @classmethod
@@ -70,7 +70,7 @@ class ConfigReader(ConfigFileReader):
         return os.path.join(filepath, filename)
 
     @classmethod
-    def create_default_file(cls, data=None):
+    def create_default_file(cls, data=None, mode=None):
         """Create a config file and override data if specified."""
         filepath = cls.get_default_filepath()
         if not filepath:
@@ -94,6 +94,9 @@ class ConfigReader(ConfigFileReader):
             os.makedirs(dirpath)
         with click.open_file(filepath, 'w+') as f:
             f.write(config)
+
+        if mode is not None:
+            os.chmod(filepath, mode)
 
         return True
 
@@ -153,12 +156,12 @@ class CredentialsReader(ConfigReader):
         'credentials.ini'
     ]
     config_name = 'credentials'
+    config_searchpath = [
+        get_default_config_path()
+    ]
     config_section_schemas = [
         CredentialsSchema.Default,
         CredentialsSchema.Profile
-    ]
-    config_searchpath = [
-        get_default_config_path()
     ]
 
 

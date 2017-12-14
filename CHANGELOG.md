@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 Phase 3 release.
 
+### Security
+
+- When writing a default `credentials.ini` file, use `ug+rw` for permissions instead of world-readable.
+
+
 ## [0.3.1] - 2017-12-06
 
 ### Added
@@ -19,11 +24,13 @@ Phase 3 release.
 - Support for `CLOUDSMITH_CONFIG_FILE` and `CLOUDSMITH_CREDENTIALS_FILE` environment variables.
 - Support for adding arbitrary headers to the API via `--api-headers` and `CLOUDSMITH_API_HEADERS`.
 
+
 ## [0.2.2] - 2017-12-03
 
 ### Fixed
 
 - Pin for `cloudsmith-api` is now correctly set to `0.21.3`.
+
 
 ## [0.2.1] - 2017-12-03
 
@@ -48,6 +55,7 @@ Phase 2 release.
 - Validation for `push` commands that require a distribution.
 - Token endpoint failing because API key overrides login/password.
 - Python3 compatibility so that it now runs with Py3. :-)
+
 
 ## [0.1.0] - 2017-11-23
 

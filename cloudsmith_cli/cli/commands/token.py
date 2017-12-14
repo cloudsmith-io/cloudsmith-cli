@@ -1,6 +1,9 @@
 """CLI/Commands - Get an API token."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import collections
+import stat
+
 import click
 from click_spinner import spinner
 
@@ -9,6 +12,10 @@ from .. import decorators
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
 from ..exceptions import handle_api_exceptions
+
+
+ConfigValues = collections.namedtuple(
+    'ConfigValues', ['reader', 'present', 'mode', 'data'])
 
 
 def validate_login(ctx, param, value):
@@ -48,27 +55,38 @@ def create_config_files(ctx, opts, api_key):
             fg='green'
         )
 
-    values = (
-        (config_reader, has_config, {}),
-        (creds_reader, has_creds, {'api_key': api_key}),
+    configs = (
+        ConfigValues(
+            reader=config_reader,
+            present=has_config,
+            mode=None,
+            data={}
+        ),
+        ConfigValues(
+            reader=creds_reader,
+            present=has_creds,
+            mode=stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP,
+            data={'api_key': api_key},
+        ),
     )
 
     has_errors = False
-    for reader, present, data in values:
+    for config in configs:
         click.echo(
             '%(name)s config file: %(filepath)s ... ' % {
                 'name': click.style(
-                    reader.config_name.capitalize(), bold=True
+                    config.reader.config_name.capitalize(), bold=True
                 ),
                 'filepath': click.style(
-                    reader.get_default_filepath(), fg='magenta'
+                    config.reader.get_default_filepath(), fg='magenta'
                 )
             }, nl=False
         )
 
-        if not present and create:
+        if not config.present and create:
             try:
-                ok = reader.create_default_file(data=data)
+                ok = config.reader.create_default_file(
+                    data=config.data, mode=config.mode)
             except (OSError, IOError) as exc:
                 ok = False
                 error_message = exc.strerror
@@ -86,7 +104,7 @@ def create_config_files(ctx, opts, api_key):
                 )
             continue
 
-        click.secho('EXISTS' if present else 'NOT CREATED', fg='yellow')
+        click.secho('EXISTS' if config.present else 'NOT CREATED', fg='yellow')
 
     return create, has_errors
 
