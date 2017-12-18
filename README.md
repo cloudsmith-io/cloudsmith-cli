@@ -15,9 +15,11 @@ The following (slightly out of date) GIF demonstrates a small slice of the CLI -
 
 You can also read our [blog article](https://blog.cloudsmith.io/2017/11/25/automation-as-simple-as-a-b-cli/) that introduced the first version of the CLI and the Cloudsmith RESTful API.
 
+
 ## Changelog
 
-Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CHANGELOG.md) for the list of changes by version. The currently version is displayed in the PyPi badge at the top.
+Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CHANGELOG.md) for the list of changes by version. The current version is displayed in the PyPi badge at the top.
+
 
 ## Features
 
@@ -130,6 +132,7 @@ Once you have your API key you can then put this into your `credentials.ini`, us
 For convenience the CLI will ask you if you want to install the default configuration files, complete with your API key, if they don't already exist. Say 'y' or 'yes' to create the configuration files.
 
 If the configuration files already exist, you'll have to manually put the API key into the configuration files, but the CLI will print out their locations.
+
 
 ## Examples
 
