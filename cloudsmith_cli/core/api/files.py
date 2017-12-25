@@ -59,6 +59,8 @@ def request_file_upload(owner, repo, filepath, md5_checksum=None):
 def upload_file(upload_url, upload_fields, filepath, callback=None):
     """Upload a pre-signed file to Cloudsmith."""
     upload_fields = upload_fields.items()
+    if not hasattr(upload_fields, 'append'):
+        upload_fields = list(upload_fields)
     upload_fields.append(
         ('file', (os.path.basename(filepath), click.open_file(filepath, 'rb')))
     )
