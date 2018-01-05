@@ -19,12 +19,12 @@ upload_to_pypi() {
     --skip-existing \
     dist/${package}-${version}-py2.py3-none-any.whl"
   test "$TRAVIS" == "true" && {
-      echo twine upload \
+      twine upload \
         -u csm-api-bot \
         -p $PYPI_PASSWORD \
         $twine_args
   } || {
-      echo twine upload $twine_args
+      twine upload $twine_args
   }
 }
 
@@ -33,7 +33,7 @@ upload_to_cloudsmith() {
   cloudsmith_args="\
     dist/${package}-${version}-py2.py3-none-any.whl \
     --skip-errors"
-  echo cloudsmith push python \
+  cloudsmith push python \
     ${cloudsmith_repo_cli} \
     ${cloudsmith_args}
 }
