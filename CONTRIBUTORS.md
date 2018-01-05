@@ -9,4 +9,4 @@ Lee Skillen ([@lskillen](https://github.com/lskillen)) - [Cloudsmith Ltd](https:
 
 The following contributors (in alphabetical order) are held in eternal high esteem and gratitude for their glorious contributions to the project:
 
-** YOUR NAME HERE ** (yup, that's right, impress your friends and be first!)
+Patrick McClory ([@mcclory](https://github.com/mcclory))

@@ -17,13 +17,12 @@ def get_packages_api():
 
 def make_create_payload(**kwargs):
     """Create payload for upload/check-upload operations."""
-    # Remove empty arguments
-    for k, v in kwargs.items():
-        if not v:
-            del kwargs[k]
-
     payload = {}
-    payload.update(kwargs)
+    # Add non-empty arguments
+    for k, v in six.iteritems(kwargs):
+        if v:
+            payload[k] = v
+
     return payload
 
 

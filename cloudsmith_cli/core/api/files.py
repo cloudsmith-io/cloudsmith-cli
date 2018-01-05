@@ -6,6 +6,7 @@ import os
 import click
 import cloudsmith_api
 import requests
+import six
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from ..utils import calculate_file_md5
@@ -58,7 +59,7 @@ def request_file_upload(owner, repo, filepath, md5_checksum=None):
 
 def upload_file(upload_url, upload_fields, filepath, callback=None):
     """Upload a pre-signed file to Cloudsmith."""
-    upload_fields = upload_fields.items()
+    upload_fields = list(six.iteritems(upload_fields))
     upload_fields.append(
         ('file', (os.path.basename(filepath), click.open_file(filepath, 'rb')))
     )
