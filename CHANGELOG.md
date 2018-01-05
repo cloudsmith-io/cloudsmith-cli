@@ -10,9 +10,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 Phase 3 release.
 
+
+## [0.3.2]
+
+Bugfix release.
+
 ### Security
 
 - When writing a default `credentials.ini` file, use `ug+rw` for permissions instead of world-readable.
+
+### Fixed
+
+- Issue #2: Not able to upload in Python3-based environments due to code incompatibility.
 
 
 ## [0.3.1] - 2017-12-06
