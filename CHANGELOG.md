@@ -10,15 +10,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 Phase 3 release.
 
+
+## [0.3.4] - 2018-03-05
+
+Phase 3 release.
+
 ### Fixed
 
 - Made documentation for cloudsmith push clearer for formats that support distro/release.
 - Serialization for API headers (especially Authorization) - No impact for most users.
 
 
-## [0.3.2]
-
-Bugfix release.
+## [0.3.2] - 2018-01-05
 
 ### Security
 
