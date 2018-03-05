@@ -73,7 +73,6 @@ jobs:
       file_glob: true
       file: dist/cloudsmith_cli*.whl
       on:
-        repo: cloudsmith-io/cloudsmith-cli
         tags: true
 
 install:

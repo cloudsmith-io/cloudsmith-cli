@@ -10,7 +10,7 @@ from click_configfile import (
     ConfigFileReader, Param, SectionSchema, matches_section
 )
 
-from . import utils
+from . import utils, validators
 from ..core.utils import get_data_path, read_file
 
 
@@ -26,6 +26,7 @@ class ConfigSchema(object):
     class Default(SectionSchema):
         """Default configuration schema."""
 
+        api_headers = Param(type=str)
         api_host = Param(type=str)
         api_proxy = Param(type=str)
         api_user_agent = Param(type=str)
@@ -132,6 +133,12 @@ class ConfigReader(ConfigFileReader):
         for k, v in six.iteritems(values):
             if v is None:
                 continue
+            if v.startswith('"') or v.startswith('\''):
+                v = v[1:]
+            if v.endswith('"') or v.endswith('\''):
+                v = v[:-1]
+            if not v:
+                continue
             setattr(opts, k, v)
 
 
@@ -213,6 +220,7 @@ class Options(object):
     @api_headers.setter
     def api_headers(self, value):
         """Set value for API headers."""
+        value = validators.validate_api_headers('api_headers', value)
         self._set_option('api_headers', value)
 
     @property

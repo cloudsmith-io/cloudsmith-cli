@@ -5,7 +5,7 @@ import functools
 
 import click
 
-from . import config, validators
+from . import config
 from ..core.api.init import initialise_api as _initialise_api
 
 
@@ -95,7 +95,6 @@ def initialise_api(f):
         help='The user agent to use for requests.')
     @click.option(
         '--api-headers', envvar='CLOUDSMITH_API_HEADERS',
-        callback=validators.validate_api_headers,
         help='A CSV list of extra headers (key=value) to send to the API.')
     @click.pass_context
     @functools.wraps(f)

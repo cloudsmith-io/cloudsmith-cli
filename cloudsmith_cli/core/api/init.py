@@ -1,6 +1,8 @@
 """Cloudsmith API - Initialisation."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import base64
+
 import cloudsmith_api
 import six
 
@@ -15,6 +17,12 @@ def initialise_api(
     config.proxy = proxy if proxy else config.proxy
     config.user_agent = user_agent
     config.headers = headers
+    if headers:
+        if 'Authorization' in config.headers:
+            encoded = config.headers['Authorization'].split(' ')[1]
+            decoded = base64.b64decode(encoded)
+            values = decoded.decode('utf-8')
+            config.username, config.password = values.split(':')
     set_api_key(config, key)
     return config
 

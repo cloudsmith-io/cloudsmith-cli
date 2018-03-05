@@ -2,14 +2,13 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import base64
-import sys
 
 import click
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 BAD_API_HEADERS = ('user-agent', 'host')
-API_HEADER_TRANSFORMS = {'authorization': 'transform_api_header_authorization'}
+API_HEADER_TRANSFORMS = {}
 
 
 def transform_api_header_authorization(param, value):
@@ -21,25 +20,25 @@ def transform_api_header_authorization(param, value):
             'Authorization header needs to be Authorization=username:password',
             param=param)
 
-    value = base64.b64encode('%(username)s:%(password)s' % {
-        'username': username.strip(),
-        'password': password
-    })
-
-    return 'Basic %(value)s' % {'value': value}
+    value = '%s:%s' % (username.strip(), password)
+    value = base64.b64encode(bytes(value.encode()))
+    return 'Basic %s' % value.decode('utf-8')
 
 
-def validate_api_headers(ctx, param, value):
+API_HEADER_TRANSFORMS['Authorization'] = transform_api_header_authorization
+
+
+def validate_api_headers(param, value):
     """Validate that API headers is a CSV of k=v pairs."""
     # pylint: disable=unused-argument
     if not value:
-        return {}
+        return None
 
     headers = {}
     for kv in value.split(','):
         try:
             k, v = kv.split('=', 1)
-            k = k.strip().lower()
+            k = k.strip()
 
             for bad_header in BAD_API_HEADERS:
                 if bad_header == k:
@@ -50,9 +49,8 @@ def validate_api_headers(ctx, param, value):
                         param=param)
 
             if k in API_HEADER_TRANSFORMS:
-                module = sys.modules[__name__]
-                transform = getattr(module, API_HEADER_TRANSFORMS[k])
-                v = transform(param, v)
+                transform_func = API_HEADER_TRANSFORMS[k]
+                v = transform_func(param, v)
         except ValueError:
             raise click.BadParameter(
                 'Values need to be a CSV of key=value pairs',
