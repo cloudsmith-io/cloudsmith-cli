@@ -304,11 +304,11 @@ def create_push_handlers():
             """
 
         if has_distribution_param:
-            target_metavar = 'OWNER/REPO/DISTRO[/VERSION]'
+            target_metavar = 'OWNER/REPO/DISTRO/RELEASE'
             target_callback = validators.validate_owner_repo_distro
             help_text += """
 
-            OWNER/REPO/DISTRO[/RELEASE]: Specify the OWNER namespace (i.e.
+            OWNER/REPO/DISTRO/RELEASE: Specify the OWNER namespace (i.e.
             user or org), the REPO name where the package file will be uploaded
             to, and the DISTRO and RELEASE the package is for. All separated by
             a slash.
