@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 Phase 3 release.
 
+### Fixed
+
+- Serialization for API headers (especially Authorization) - No impact for most users.
+
 
 ## [0.3.2]
 
