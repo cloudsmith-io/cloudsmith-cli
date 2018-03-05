@@ -12,6 +12,7 @@ Phase 3 release.
 
 ### Fixed
 
+- Made documentation for cloudsmith push clearer for formats that support distro/release.
 - Serialization for API headers (especially Authorization) - No impact for most users.
 
 
