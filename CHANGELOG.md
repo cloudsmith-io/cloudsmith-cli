@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+Nothing yet.
+
+
+## [0.4.0] - 2018-03-12
+
 ### Added
 
 - Support for pagination (page and page size) for lists, such as listing packages and repositories.
