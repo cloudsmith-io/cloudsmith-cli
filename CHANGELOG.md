@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 Nothing yet.
 
 
-## [0.4.0] - 2018-03-12
+## [0.4.1] - 2018-03-12
 
 ### Added
 
