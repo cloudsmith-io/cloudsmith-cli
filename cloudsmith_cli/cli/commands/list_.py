@@ -8,7 +8,7 @@ from click_didyoumean import DYMGroup
 from click_spinner import spinner
 
 from . import main
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ...core.api.distros import list_distros
 from ...core.api.packages import (
     get_package_format_names_with_distros, list_packages
@@ -115,14 +115,12 @@ def distros(ctx, opts, package_format):
     )
 
     click.echo()
-    click.secho(
-        'Total: %(num)s distribution release%(plural)s' % {
-            'num': click.style(
-                str(num_distros),
-                fg='green' if num_distros > 0 else 'red'
-            ),
-            'plural': 's' if num_distros != 1 else ''
-        }
+
+    num_results = num_distros
+    list_suffix = 'distribution release%s' % ('s' if num_results != 1 else '')
+    utils.print_list_info(
+        num_results=num_results,
+        suffix=list_suffix
     )
 
 
@@ -132,10 +130,11 @@ def distros(ctx, opts, package_format):
     callback=validators.validate_owner_repo)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
+@decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.pass_context
-def packages(ctx, opts, owner_repo):
+def packages(ctx, opts, owner_repo, page=None, page_size=None):
     """
     List packages for a repository.
 
@@ -152,7 +151,9 @@ def packages(ctx, opts, owner_repo):
     context_msg = 'Failed to get list of packages!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
-            packages_ = list_packages(owner=owner, repo=repo)
+            packages_, page_info = list_packages(
+                owner=owner, repo=repo, page=page, page_size=page_size
+            )
 
     click.secho('OK', fg='green')
 
@@ -215,14 +216,13 @@ def packages(ctx, opts, owner_repo):
         )
 
     click.echo()
-    click.secho(
-        'Total: %(num)s package%(plural)s visible' % {
-            'num': click.style(
-                str(len(packages_)),
-                fg='green' if packages_ else 'red'
-            ),
-            'plural': 's' if len(packages_) != 1 else ''
-        }
+
+    num_results = len(packages_)
+    list_suffix = 'package%s visible' % ('s' if num_results != 1 else '')
+    utils.print_list_info(
+        num_results=num_results,
+        page_info=page_info,
+        suffix=list_suffix
     )
 
 
@@ -231,10 +231,11 @@ def packages(ctx, opts, owner_repo):
     'owner', default=None, required=False)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
+@decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.pass_context
-def repos(ctx, opts, owner):
+def repos(ctx, opts, owner, page=None, page_size=None):
     """
     List repositories for a namespace (owner).
 
@@ -251,7 +252,9 @@ def repos(ctx, opts, owner):
     context_msg = 'Failed to get list of repositories!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
-            repos_ = list_repos(owner=owner)
+            repos_, page_info = list_repos(
+                owner=owner, page=page, page_size=page_size
+            )
 
     click.secho('OK', fg='green')
 
@@ -292,14 +295,13 @@ def repos(ctx, opts, owner):
         )
 
     click.echo()
-    click.secho(
-        'Total: %(num)s repositor%(plural)s visible' % {
-            'num': click.style(
-                str(len(repos_)),
-                fg='green' if repos_ else 'red'
-            ),
-            'plural': 'ies' if len(repos_) != 1 else 'y'
-        }
+
+    num_results = len(repos_)
+    list_suffix = 'repositor%s visible' % ('ies' if num_results != 1 else 'y')
+    utils.print_list_info(
+        num_results=num_results,
+        page_info=page_info,
+        suffix=list_suffix
     )
 
 

@@ -6,6 +6,7 @@ import inspect
 import cloudsmith_api
 import six
 
+from .. import pagination, utils
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
 
@@ -89,14 +90,20 @@ def get_package_status(owner, repo, slug):
     )
 
 
-def list_packages(owner, repo):
+def list_packages(owner, repo, **kwargs):
     """List packages for a repository."""
     client = get_packages_api()
 
-    with catch_raise_api_exception():
-        res = client.packages_list(owner=owner, repo=repo)
+    api_kwargs = {}
+    api_kwargs.update(utils.get_page_kwargs(**kwargs))
 
-    return [x.to_dict() for x in res]
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_list_with_http_info(
+            owner=owner, repo=repo, **api_kwargs
+        )
+
+    page_info = pagination.get_page_info_from_headers(headers)
+    return [x.to_dict() for x in data], page_info
 
 
 def get_package_formats():

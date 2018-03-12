@@ -108,3 +108,23 @@ def validate_owner_repo_distro(ctx, param, value):
     # pylint: disable=unused-argument
     form = 'OWNER/REPO/DISTRO[/RELEASE]'
     return validate_slashes(param, value, minimum=3, maximum=4, form=form)
+
+
+def validate_page(ctx, param, value):
+    """Ensure that a valid value for page is chosen."""
+    # pylint: disable=unused-argument
+    if value == 0:
+        raise click.BadParameter(
+            'Page is not zero-based, please set a value to 1 or higher.',
+            param=param)
+    return value
+
+
+def validate_page_size(ctx, param, value):
+    """Ensure that a valid value for page size is chosen."""
+    # pylint: disable=unused-argument
+    if value == 0:
+        raise click.BadParameter(
+            'Page size must be non-zero or unset.',
+            param=param)
+    return value

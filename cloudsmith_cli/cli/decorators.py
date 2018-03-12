@@ -5,7 +5,7 @@ import functools
 
 import click
 
-from . import config
+from . import config, validators
 from ..core.api.init import initialise_api as _initialise_api
 
 
@@ -61,6 +61,26 @@ def common_cli_output_options(f):
         opts.debug = kwargs.pop('debug')
         opts.output = kwargs.pop('output_format')
         opts.verbose = kwargs.pop('verbose')
+        kwargs['opts'] = opts
+        return ctx.invoke(f, *args, **kwargs)
+    return wrapper
+
+
+def common_cli_list_options(f):
+    """Add common list options to commands."""
+    @click.option(
+        '-p', '--page', default=1, type=int,
+        help='The page to view for lists, where 1 is the first page',
+        callback=validators.validate_page)
+    @click.option(
+        '-l', '--page-size', default=30, type=int,
+        help='The amount of items to view per page for lists.',
+        callback=validators.validate_page_size)
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
+        opts = config.get_or_create_options(ctx)
         kwargs['opts'] = opts
         return ctx.invoke(f, *args, **kwargs)
     return wrapper

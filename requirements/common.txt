@@ -15,6 +15,7 @@ click==6.7
 cloudsmith-api==0.21.3
 colorama==0.3.9
 configparser==3.5.0       # via click-configfile
+future==0.16.0
 idna==2.6                 # via requests
 python-dateutil==2.6.1    # via cloudsmith-api
 requests==2.18.4

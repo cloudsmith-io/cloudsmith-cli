@@ -58,3 +58,18 @@ def get_file_size(filepath):
     """Get the size of a file in bytes."""
     statinfo = os.stat(filepath)
     return statinfo.st_size
+
+
+def get_page_kwargs(**kwargs):
+    """Construct page and page size kwargs (if present)."""
+    page_kwargs = {}
+
+    page = kwargs.get('page')
+    if page is not None and page > 0:
+        page_kwargs['page'] = page
+
+    page_size = kwargs.get('page_size')
+    if page_size is not None and page_size > 0:
+        page_kwargs['page_size'] = page_size
+
+    return page_kwargs
