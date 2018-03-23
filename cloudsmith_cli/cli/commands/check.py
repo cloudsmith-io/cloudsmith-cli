@@ -19,7 +19,7 @@ from ..exceptions import handle_api_exceptions
 @decorators.initialise_api
 @click.pass_context
 def check(ctx, opts):
-    """Check the status/version of the service."""
+    """Check the status of the Cloudsmith service."""
     click.echo('Retrieving service status ... ', nl=False)
 
     context_msg = 'Failed to retrieve status!'

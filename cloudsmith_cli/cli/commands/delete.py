@@ -1,4 +1,4 @@
-"""CLI/Commands - Push packages."""
+"""CLI/Commands - Delete packages."""
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
@@ -10,7 +10,7 @@ from ...core.api.packages import delete_package
 from ..exceptions import handle_api_exceptions
 
 
-@main.command()
+@main.command(aliases=['rm'])
 @click.argument(
     'owner_repo_package',
     metavar='OWNER/REPO/PACKAGE',

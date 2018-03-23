@@ -4,11 +4,10 @@ from __future__ import absolute_import, print_function, unicode_literals
 from operator import attrgetter, itemgetter
 
 import click
-from click_didyoumean import DYMGroup
 from click_spinner import spinner
 
 from . import main
-from .. import decorators, utils, validators
+from .. import command, decorators, utils, validators
 from ...core.api.distros import list_distros
 from ...core.api.packages import (
     get_package_format_names_with_distros, list_packages
@@ -17,9 +16,7 @@ from ...core.api.repos import list_repos
 from ..exceptions import handle_api_exceptions
 
 
-@main.group(
-    cls=DYMGroup,
-    name='list')
+@main.group(cls=command.AliasGroup, name='list', aliases=['ls'])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options

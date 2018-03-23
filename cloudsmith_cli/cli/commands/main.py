@@ -2,9 +2,8 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
-from click_didyoumean import DYMGroup
 
-from .. import decorators
+from .. import command, decorators
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
@@ -29,7 +28,7 @@ def print_version():
 
 
 @click.group(
-    cls=DYMGroup,
+    cls=command.AliasGroup,
     context_settings=CONTEXT_SETTINGS,
     invoke_without_command=True,
     help="""\b

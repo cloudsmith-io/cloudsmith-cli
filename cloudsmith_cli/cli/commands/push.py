@@ -6,11 +6,10 @@ import time
 
 import click
 import six
-from click_didyoumean import DYMGroup
 from click_spinner import spinner
 
 from . import main
-from .. import decorators, validators
+from .. import command, decorators, validators
 from ...core import utils
 from ...core.api.exceptions import ApiException
 from ...core.api.files import upload_file as api_upload_file
@@ -407,7 +406,7 @@ def create_push_handlers():
         handlers[key] = push_handler
 
 
-@main.group(cls=DYMGroup)
+@main.group(cls=command.AliasGroup, aliases=['deploy'])
 @click.pass_context
 def push(ctx):  # pylint: disable=unused-argument
     """
