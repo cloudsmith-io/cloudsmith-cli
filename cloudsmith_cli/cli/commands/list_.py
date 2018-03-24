@@ -1,10 +1,11 @@
 """CLI/Commands - List objects."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-from operator import attrgetter, itemgetter
+from operator import itemgetter
 
 import click
 from click_spinner import spinner
+import json
 
 from . import main
 from .. import command, decorators, utils, validators
@@ -37,8 +38,11 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 @click.pass_context
 def distros(ctx, opts, package_format):
     """List available distributions."""
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr =  opts.output != 'pretty'
+
     click.echo(
-        'Getting list of distributions ... ', nl=False
+        'Getting list of distributions ... ', nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to get list of distributions!'
@@ -46,25 +50,28 @@ def distros(ctx, opts, package_format):
         with spinner():
             distros_ = list_distros(package_format=package_format)
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
+
+    if maybe_print_as_json(opts, distros_):
+        return
 
     headers = ['Distro', 'Release', 'Format', 'Distro / Release (Identifier)']
     if package_format:
         headers.remove('Format')
 
     rows = []
-    for distro in sorted(distros_, key=attrgetter('slug')):
-        if not distro.versions:
+    for distro in sorted(distros_, key=itemgetter('slug')):
+        if not distro['versions']:
             continue
 
-        for release in sorted(distro.versions, key=attrgetter('slug')):
+        for release in sorted(distro['versions'], key=itemgetter('slug')):
             row = [
-                click.style(distro.name, fg='cyan'),
-                click.style(release.name, fg='yellow'),
-                click.style(distro.format, fg='blue'),
+                click.style(distro['name'], fg='cyan'),
+                click.style(release['name'], fg='yellow'),
+                click.style(distro['format'], fg='blue'),
                 '%(distro)s/%(release)s' % {
-                    'distro': click.style(distro.slug, fg='green'),
-                    'release': click.style(release.slug, fg='magenta')
+                    'distro': click.style(distro['slug'], fg='green'),
+                    'release': click.style(release['slug'], fg='magenta')
                 }
             ]
 
@@ -80,7 +87,7 @@ def distros(ctx, opts, package_format):
     click.echo()
 
     num_results = sum(
-        1 for distro in distros_ for release in distro.versions if release
+        1 for distro in distros_ for release in distro['versions'] if release
     )
     list_suffix = 'distribution release%s' % ('s' if num_results != 1 else '')
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
@@ -141,8 +148,11 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
     """
     owner, repo = owner_repo
 
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr =  opts.output != 'pretty'
+
     click.echo(
-        'Getting list of packages ... ', nl=False
+        'Getting list of packages ... ', nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to get list of packages!'
@@ -153,7 +163,10 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
                 query=query
             )
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
+
+    if maybe_print_as_json(opts, packages_, page_info):
+        return
 
     headers = ['Name', 'Version', 'Status', 'Owner / Repository (Identifier)']
     rows = []
@@ -201,8 +214,11 @@ def repos(ctx, opts, owner, page=None, page_size=None):
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
     """
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr =  opts.output != 'pretty'
+
     click.echo(
-        'Getting list of repositories ... ', nl=False
+        'Getting list of repositories ... ', nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to get list of repositories!'
@@ -212,7 +228,10 @@ def repos(ctx, opts, owner, page=None, page_size=None):
                 owner=owner, page=page, page_size=page_size
             )
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
+
+    if maybe_print_as_json(opts, repos_, page_info):
+        return
 
     headers = ['Name', 'Type', 'Owner / Repository (Identifier)']
 
@@ -260,3 +279,19 @@ def _get_package_status(package):
 def _get_package_version(package):
     """Get the version for a package (if any)."""
     return package['version'] or 'None'
+
+
+def maybe_print_as_json(opts, data, page_info=None):
+    if not opts.output in ('json', 'pretty_json'):
+        return False
+
+    full_data = {'results': data}
+
+    if page_info is not None and page_info.is_valid:
+        full_data['_pagination'] = page_info.as_dict(num_results=len(data))
+
+    if opts.output == 'pretty_json':
+        full_data = json.dumps(full_data, indent=4, sort_keys=True)
+
+    click.echo(full_data)
+    return True

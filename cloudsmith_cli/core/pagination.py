@@ -15,15 +15,11 @@ class PageInfo(object):
 
     def __str__(self):
         """Get page information as text."""
+        data = self.as_dict()
+        data['valid'] = self.is_valid
         return (
             'Valid: %(valid)s, Count: %(count)s, Page: %(page)s, '
-            'Size: %(page_size)s, Total: %(total)s' % {
-                'valid': self.is_valid,
-                'count': self.count,
-                'page': self.page,
-                'page_size': self.page_size,
-                'total': self.page_total
-            }
+            'Size: %(page_size)s, Total: %(results_total)s' % data
         )
 
     def calculate_range(self, num_results):
@@ -37,6 +33,26 @@ class PageInfo(object):
             to_range = 0
 
         return from_range, to_range
+
+    def as_dict(self, num_results=None):
+        """Get the page info as a dict."""
+        if not self.is_valid:
+            return {}
+
+        data = {
+            'results_total': self.count,
+            'page': self.page,
+            'page_size': self.page_size,
+            'page_max': self.page_total
+        }
+
+        if num_results is not None:
+            from_range, to_range = self.calculate_range(num_results)
+            data['page_results_len'] = to_range - from_range
+            data['page_results_from'] = from_range
+            data['page_results_to'] = to_range
+
+        return data
 
     @property
     def is_valid(self):

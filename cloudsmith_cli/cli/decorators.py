@@ -73,9 +73,10 @@ def common_cli_output_options(f):
         '-d', '--debug', default=False, is_flag=True,
         help='Produce debug output during processing.')
     @click.option(
-        '-F', '--output-format', default='normal',
-        type=click.Choice(['normal', 'json', 'raw_json']),
-        help='Determines how output is formatted.')
+        '-F', '--output-format', default='pretty',
+        type=click.Choice(['pretty', 'json', 'pretty_json']),
+        help='Determines how output is formatted. This is only supported by a '
+             'subset of the commands at the moment (e.g. list).')
     @click.option(
         '-v', '--verbose', is_flag=True, default=False,
         help='Produce more output during processing.')

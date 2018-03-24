@@ -22,10 +22,7 @@ def list_distros(package_format=None):
     with catch_raise_api_exception():
         distros = client.distros_list()
 
-    if not package_format:
-        return distros
-
     return [
-        distro for distro in distros
-        if distro.format == package_format
+        distro.to_dict() for distro in distros
+        if not package_format or distro.format == package_format
     ]

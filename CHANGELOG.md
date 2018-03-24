@@ -12,9 +12,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - Support for aliased subcommands, starting with `delete` = `rm`, `list` = `ls` and `push` = `upload`.
 - Support for retrieving rate limits from the API via `check limits`.
-- Support for searching packages via `-q|--query` search query parameter (yes!)
+- Support for searching packages via `-q|--query` search query parameter.
 - Support for `copy` (`cp`), move (`mv`) and `resync` package subcommands.
 - Support for automatic resyncing when the sync fails (attempts can be controlled using `--sync-attempts`).
+- Support for formatting the output of `list` subcommands (`distros`, `packages` and `json`) as JSON using `-F` or `--output-format`).
 - Utility for printing tables (internal only, but expect consistent tables for list-based results).
 
 

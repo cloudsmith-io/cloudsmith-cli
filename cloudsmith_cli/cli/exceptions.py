@@ -17,14 +17,17 @@ def handle_api_exceptions(
         exit_on_error=True, reraise_on_error=False):
     """Context manager that handles API exceptions."""
     # flake8: ignore=C901
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr =  opts.output != 'pretty'
+
     try:
         yield
     except ApiException as exc:
         if nl:
-            click.echo()
-            click.secho('ERROR: ', fg='red', nl=False)
+            click.echo(err=use_stderr)
+            click.secho('ERROR: ', fg='red', nl=False, err=use_stderr)
         else:
-            click.secho('ERROR', fg='red')
+            click.secho('ERROR', fg='red', err=use_stderr)
 
         context_msg = context_msg or 'Failed to perform operation!'
         click.secho(
@@ -32,18 +35,18 @@ def handle_api_exceptions(
                 'context': context_msg,
                 'code': exc.status,
                 'code_text': exc.status_description
-            }, fg='red'
+            }, fg='red', err=use_stderr
         )
 
         detail, fields = get_details(exc)
         if detail or fields:
-            click.echo()
+            click.echo(err=use_stderr)
 
             if detail:
                 click.secho(
                     'Detail: %(detail)s' % {
                         'detail': click.style(detail, fg='red', bold=False)
-                    }, bold=True
+                    }, bold=True, err=use_stderr
                 )
 
             if fields:
@@ -53,7 +56,7 @@ def handle_api_exceptions(
                         '%(field)s: %(message)s' % {
                             'field': click.style(field, bold=True),
                             'message': click.style(v, fg='red')
-                        }
+                        }, err=use_stderr
                     )
 
         hint = get_error_hint(ctx, opts, exc)
@@ -61,19 +64,19 @@ def handle_api_exceptions(
             click.echo(
                 'Hint: %(hint)s' % {
                     'hint': click.style(hint, fg='yellow')
-                }
+                }, err=use_stderr
             )
 
         if opts.verbose and not opts.debug:
             if exc.headers:
-                click.echo()
-                click.echo('Headers in Reply:')
+                click.echo(err=use_stderr)
+                click.echo('Headers in Reply:', err=use_stderr)
                 for k, v in six.iteritems(exc.headers):
                     click.echo(
                         '%(key)s = %(value)s' % {
                             'key': k,
                             'value': v
-                        }
+                        }, err=use_stderr
                     )
 
         if reraise_on_error:
