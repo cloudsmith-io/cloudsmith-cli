@@ -9,6 +9,27 @@ from . import config, validators
 from ..core.api.init import initialise_api as _initialise_api
 
 
+def common_package_action_options(f):
+    """Add common options for package actions."""
+    @click.option(
+        '-s', '--skip-errors', default=False, is_flag=True,
+        help='Skip/ignore errors when copying packages.')
+    @click.option(
+        '-W', '--no-wait-for-sync', default=False, is_flag=True,
+        help='Don\'t wait for package synchronisation to complete before '
+             'exiting.')
+    @click.option(
+        '-I', '--wait-interval', default=5.0, type=float,
+        show_default=True,
+        help='The time in seconds to wait between checking synchronisation.')
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
+        return ctx.invoke(f, *args, **kwargs)
+    return wrapper
+
+
 def common_cli_config_options(f):
     """Add common CLI config options to commands."""
     @click.option(

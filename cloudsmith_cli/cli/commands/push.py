@@ -326,10 +326,12 @@ def create_push_handlers():
             Example: 'your-org/awesome-repo'.
             """
 
-        @push.command(
-            name=key,
-            help=help_text
-        )
+        @push.command(name=key, help=help_text)
+        @decorators.common_api_auth_options
+        @decorators.common_cli_config_options
+        @decorators.common_cli_output_options
+        @decorators.common_package_action_options
+        @decorators.initialise_api
         @click.argument(
             'owner_repo',
             metavar=target_metavar,
@@ -343,20 +345,6 @@ def create_push_handlers():
         @click.option(
             '-n', '--dry-run', default=False, is_flag=True,
             help='Execute in dry run mode (don\'t upload anything.)')
-        @click.option(
-            '-W', '--no-wait-for-sync', default=False, is_flag=True,
-            help='Wait for synchronisation to complete before exiting.')
-        @click.option(
-            '-I', '--wait-interval', default=5.0, type=float,
-            show_default=True,
-            help='The time in seconds to wait between checking operations.')
-        @click.option(
-            '-s', '--skip-errors', default=False, is_flag=True,
-            help='Skip errors when uploading multiple files.')
-        @decorators.common_cli_config_options
-        @decorators.common_cli_output_options
-        @decorators.common_api_auth_options
-        @decorators.initialise_api
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
@@ -406,7 +394,7 @@ def create_push_handlers():
         handlers[key] = push_handler
 
 
-@main.group(cls=command.AliasGroup, aliases=['deploy'])
+@main.group(cls=command.AliasGroup, aliases=['upload'])
 @click.pass_context
 def push(ctx):  # pylint: disable=unused-argument
     """

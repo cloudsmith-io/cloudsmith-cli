@@ -9,7 +9,7 @@
 
 The [Cloudsmith](https://cloudsmith.io) Command Line Interface (CLI) is a Py2/Py3 text-based interface to the [API](https://api.cloudsmith.io). This allows users, machines and other services to access and integrate smoothly with Cloudsmith without requiring explicit plugins or tools. Be awesome. [Automate Everything](https://corp.cloudsmith.io/tao/).
 
-The following (slightly out of date) GIF demonstrates a small slice of the CLI - [View the full video on YouTube](https://youtu.be/8nlstYU9J5M):
+The following (very out of date) GIF demonstrates a small slice of the CLI - [View the full video on YouTube](https://youtu.be/8nlstYU9J5M):
 
 [![CLI Demonstration](https://user-images.githubusercontent.com/2248287/33522274-c88416be-d7e0-11e7-86ab-518c53d6bf61.gif)](https://youtu.be/8nlstYU9J5M)
 
@@ -25,25 +25,28 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
-- `check`:  Check the status/version of the service.
-- `delete`: Delete a package from a repository.
-- `docs`:   Launch the help website in your browser.
-- `help`:   Display the help message and exit.
-- `list`:   List distributions, packages and repos.
-  - `distros`:  List available distributions.
-  - `packages`: List packages for a repository.
-  - `repos`:    List repositories for a namespace (owner).
-- `push`:   Push/upload a new package to a repository.
-  - `deb`:     Push/upload a new Deb package upstream.
-  - `maven`:   Push/upload a new Maven package upstream.
-  - `python`:  Push/upload a new Python package upstream.
-  - `raw`:     Push/upload a new Raw package upstream.
-  - `rpm`:     Push/upload a new Rpm package upstream.
-  - `ruby`:    Push/upload a new Ruby package upstream.
-  - `vagrant`: Push/upload a new Vagrant package upstream.
-- `status`: Get the synchronisation status for a package.
-- `token`:  Retrieve your API authentication token/key.
-- `whoami`: Retrieve your current authentication status.
+- `check`:         Check rate limits and service status.
+- `copy`|`cp`:     Copy a package to another repository.
+- `delete`|`rm`:   Delete a package from a repository.
+- `docs`:          Launch the help website in your browser.
+- `help`:          Display the help message and exit.
+- `list`|`ls`:       List distributions, packages and repos.
+  - `distros`:       List available distributions.
+  - `packages`:      List packages for a repository.
+  - `repos`:         List repositories for a namespace (owner).
+- `move`|`mv`:     Move/promote a package to another repository.
+- `push`|`upload`: Push/upload a new package to a repository.
+  - `deb`:           Push/upload a new Deb package upstream.
+  - `maven`:         Push/upload a new Maven package upstream.
+  - `python`:        Push/upload a new Python package upstream.
+  - `raw`:           Push/upload a new Raw package upstream.
+  - `rpm`:           Push/upload a new Rpm package upstream.
+  - `ruby`:          Push/upload a new Ruby package upstream.
+  - `vagrant`:       Push/upload a new Vagrant package upstream.
+- `resync`:      Resynchronise a package in a repository.
+- `status`:      Get the synchronisation status for a package.
+- `token`:       Retrieve your API authentication token/key.
+- `whoami`:      Retrieve your current authentication status.
 
 
 ## Installation

@@ -58,6 +58,40 @@ def validate_create_package(package_format, owner, repo, **kwargs):
     return True
 
 
+def copy_package(owner, repo, slug, destination):
+    """Copy a package to another repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data = client.packages_copy(
+            owner=owner,
+            repo=repo,
+            slug=slug,
+            data={
+                'repository': destination
+            }
+        )
+
+    return data.slug_perm, data.slug
+
+
+def move_package(owner, repo, slug, destination):
+    """Move a package to another repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data = client.packages_move(
+            owner=owner,
+            repo=repo,
+            slug=slug,
+            data={
+                'repository': destination
+            }
+        )
+
+    return data.slug_perm, data.slug
+
+
 def delete_package(owner, repo, slug):
     """Delete a package in a repository."""
     client = get_packages_api()
@@ -70,6 +104,20 @@ def delete_package(owner, repo, slug):
         )
 
     return True
+
+
+def resync_package(owner, repo, slug):
+    """Resync a package in a repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data = client.packages_resync(
+            owner=owner,
+            repo=repo,
+            slug=slug
+        )
+
+    return data.slug_perm, data.slug
 
 
 def get_package_status(owner, repo, slug):

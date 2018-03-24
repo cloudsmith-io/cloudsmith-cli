@@ -11,6 +11,10 @@ from ..exceptions import handle_api_exceptions
 
 
 @main.command(aliases=['rm'])
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
 @click.argument(
     'owner_repo_package',
     metavar='OWNER/REPO/PACKAGE',
@@ -18,10 +22,6 @@ from ..exceptions import handle_api_exceptions
 @click.option(
     '-y', '--yes', default=False, is_flag=True,
     help='Assume yes as default answer to questions.')
-@decorators.common_cli_config_options
-@decorators.common_cli_output_options
-@decorators.common_api_auth_options
-@decorators.initialise_api
 @click.pass_context
 def delete(ctx, opts, owner_repo_package, yes):
     """
@@ -31,7 +31,7 @@ def delete(ctx, opts, owner_repo_package, yes):
     REPO name where the package is stored, and the PACKAGE name (slug) of the
     package itself. All separated by a slash.
 
-    Example: 'your-org/awesome-repo/better-pkg'.
+      Example: 'your-org/awesome-repo/better-pkg'.
     """
     owner, repo, slug = owner_repo_package
 

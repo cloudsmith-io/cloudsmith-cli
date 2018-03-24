@@ -10,9 +10,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
-- Support for aliased subcommands, starting with `delete` = `rm` and `push` = `deploy`.
+- Support for aliased subcommands, starting with `delete` = `rm`, `list` = `ls` and `push` = `upload`.
 - Support for retrieving rate limits from the API via `check limits`.
 - Support for searching packages via `-q|--query` search query parameter (yes!)
+- Support for `copy` (`cp`), move (`mv`) and `resync` package subcommands.
 - Utility for printing tables (internal only, but expect consistent tables for list-based results).
 
 
