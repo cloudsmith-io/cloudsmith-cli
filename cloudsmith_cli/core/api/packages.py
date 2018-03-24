@@ -77,7 +77,7 @@ def copy_package(owner, repo, slug, destination):
             repo=repo,
             slug=slug,
             data={
-                'repository': destination
+                'destination': destination
             }
         )
 
@@ -95,7 +95,7 @@ def move_package(owner, repo, slug, destination):
             repo=repo,
             slug=slug,
             data={
-                'repository': destination
+                'destination': destination
             }
         )
 
