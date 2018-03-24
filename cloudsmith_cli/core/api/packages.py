@@ -97,6 +97,7 @@ def list_packages(owner, repo, **kwargs):
 
     api_kwargs = {}
     api_kwargs.update(utils.get_page_kwargs(**kwargs))
+    api_kwargs.update(utils.get_query_kwargs(**kwargs))
 
     with catch_raise_api_exception():
         data, _, headers = client.packages_list_with_http_info(

@@ -73,3 +73,14 @@ def get_page_kwargs(**kwargs):
         page_kwargs['page_size'] = page_size
 
     return page_kwargs
+
+
+def get_query_kwargs(**kwargs):
+    """Construct page and page size kwargs (if present)."""
+    query_kwargs = {}
+
+    query = kwargs.pop('query')
+    if query:
+        query_kwargs['query'] = query
+
+    return query_kwargs

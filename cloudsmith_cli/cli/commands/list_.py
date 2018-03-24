@@ -27,13 +27,13 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 
 
 @list_.command()
-@click.argument(
-    'package-format', default=None, required=False,
-    type=click.Choice(get_package_format_names_with_distros()))
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
+@click.argument(
+    'package-format', default=None, required=False,
+    type=click.Choice(get_package_format_names_with_distros()))
 @click.pass_context
 def distros(ctx, opts, package_format):
     """List available distributions."""
@@ -87,22 +87,57 @@ def distros(ctx, opts, package_format):
 
 
 @list_.command()
-@click.argument(
-    'owner_repo', metavar='OWNER/REPO',
-    callback=validators.validate_owner_repo)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
+@click.argument(
+    'owner_repo', metavar='OWNER/REPO',
+    callback=validators.validate_owner_repo)
+@click.option(
+    '-q', '--query',
+    help=(
+        'A boolean-like search term for querying package attributes.'
+    )
+)
 @click.pass_context
-def packages(ctx, opts, owner_repo, page=None, page_size=None):
+def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
     """
     List packages for a repository.
 
     OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the
     REPO name to list packages for that namespace and repository. All separated
     by a slash.
+
+    You can use the search query (-q|--query) to filter packages:
+
+      - By name: 'my-package' (implicit) or 'name:my-package'
+
+      - By filename: 'pkg.ext' (implicit) or 'filename:pkg.ext' (explicit)
+
+      - By version: '1.0.0' (implicit) or 'version:1.0.0' (explicit)
+
+      - By arch: 'x86_64' (implicit) or 'architecture:x86_64' (explicit)
+
+      - By disto: 'el' (implicit) or 'distribution:el' (explicit)
+
+    You can also modify the search terms:
+
+      - '^foo' to anchor to start of term
+
+      - 'foo$' to anchor to end of term
+
+      - 'foo*bar' for fuzzy matching
+
+      - '~foo' for negation of the term (explicit only, e.g. name:~foo)
+
+    Multiple search terms are conjunctive (AND).
+
+    Examples, to find packages named exactly foo, with a zip filename, that are
+    NOT the x86 architecture, use something like this:
+
+    --query 'name:^foo$ filename:.zip$ architecture:~x86'
     """
     owner, repo = owner_repo
 
@@ -114,7 +149,8 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             packages_, page_info = list_packages(
-                owner=owner, repo=repo, page=page, page_size=page_size
+                owner=owner, repo=repo, page=page, page_size=page_size,
+                query=query
             )
 
     click.secho('OK', fg='green')
@@ -147,13 +183,13 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None):
 
 
 @list_.command()
-@click.argument(
-    'owner', default=None, required=False)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
+@click.argument(
+    'owner', default=None, required=False)
 @click.pass_context
 def repos(ctx, opts, owner, page=None, page_size=None):
     """
