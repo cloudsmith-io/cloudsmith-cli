@@ -48,77 +48,42 @@ def distros(ctx, opts, package_format):
 
     click.secho('OK', fg='green')
 
-    if distros_:
-        distro_name_max = max(len(distro.name) for distro in distros_)
-        distro_name_max = max(distro_name_max, len('Distro Name'))
-        format_name_max = max(
-            len(x) for x in get_package_format_names_with_distros()
-        )
-        format_name_max = max(format_name_max, len('Format'))
-        release_name_max = max(
-            len(release.name)
-            for distro in distros_
-            for release in distro.versions
-            if release
-        )
-        release_name_max = max(release_name_max, len('Release Name'))
+    headers = ['Distro', 'Release', 'Format', 'Distro / Release (Identifier)']
+    if package_format:
+        headers.remove('Format')
 
-    # pylint: disable=fixme
-    # TODO(ls): Add in custom sorting and filtering.
+    rows = []
     for distro in sorted(distros_, key=attrgetter('slug')):
         if not distro.versions:
             continue
 
-        click.echo()
-        click.secho(
-            '%(distro_name)s%(format_col)s | %(release_name)s | %(slug)s' % {
-                'distro_name': click.style(
-                    'Distro Name'.ljust(distro_name_max), bold=True),
-                'format_col': (
-                    ' | %s' % click.style(
-                        'Format'.ljust(format_name_max), bold=True)
-                    if not package_format else ''
-                ),
-                'release_name': click.style(
-                    'Release Name'.ljust(release_name_max), bold=True),
-                'slug': click.style('Slug', bold=True),
-            }
-        )
-
         for release in sorted(distro.versions, key=attrgetter('slug')):
-            click.secho(
-                '%(distro_name)s%(format_col)s | %(name)s |'
-                ' %(distro_slug)s/%(slug)s' % {
-                    'distro_name': click.style(
-                        distro.name.ljust(distro_name_max), fg='blue'),
-                    'format_col': (
-                        ' | %s' % click.style(
-                            distro.format.ljust(format_name_max), fg='blue')
-                        if not package_format else ''
-                    ),
-                    'name': click.style(
-                        release.name.ljust(release_name_max), fg='cyan'
-                    ),
-                    'distro_slug': click.style(distro.slug, fg='green'),
-                    'slug': click.style(release.slug, fg='magenta'),
+            row = [
+                click.style(distro.name, fg='cyan'),
+                click.style(release.name, fg='yellow'),
+                click.style(distro.format, fg='blue'),
+                '%(distro)s/%(release)s' % {
+                    'distro': click.style(distro.slug, fg='green'),
+                    'release': click.style(release.slug, fg='magenta')
                 }
-            )
+            ]
 
-    num_distros = sum(
-        1
-        for distro in distros_
-        for release in distro.versions
-        if release
-    )
+            if package_format:
+                row.pop(2)  # Remove format column
+
+            rows.append(row)
+
+    if distros_:
+        click.echo()
+        utils.pretty_print_table(headers, rows)
 
     click.echo()
 
-    num_results = num_distros
-    list_suffix = 'distribution release%s' % ('s' if num_results != 1 else '')
-    utils.print_list_info(
-        num_results=num_results,
-        suffix=list_suffix
+    num_results = sum(
+        1 for distro in distros_ for release in distro.versions if release
     )
+    list_suffix = 'distribution release%s' % ('s' if num_results != 1 else '')
+    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
 @list_.command()
@@ -154,72 +119,30 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None):
 
     click.secho('OK', fg='green')
 
-    if packages_:
-        click.echo()
-        package_name_max = max(
-            len(_get_package_name(package))
-            for package in packages_
-        )
-        package_name_max = max(package_name_max, len('Name'))
-
-        package_status_max = max(
-            len(_get_package_status(package))
-            for package in packages_
-        )
-        package_status_max = max(package_status_max, len('Status'))
-
-        package_version_max = max(
-            len(_get_package_version(package))
-            for package in packages_ if package['version']
-        )
-        package_version_max = max(package_version_max, len('Version'))
-
-        # pylint: disable=fixme
-        # FIXME(ls): Add a utility for printing out tables?
-        click.secho(
-            '%(name)s | %(version)s | %(status)s | %(slug)s' % {
-                'name':
-                    click.style('Name'.ljust(package_name_max), bold=True),
-                'version':
-                    click.style(
-                        'Version'.ljust(package_version_max), bold=True),
-                'status':
-                    click.style(
-                        'Status'.ljust(package_status_max), bold=True),
-                'slug': click.style('Slug', bold=True)
-            }
-        )
-
+    headers = ['Name', 'Version', 'Status', 'Owner / Repository (Identifier)']
+    rows = []
     for package in sorted(packages_, key=itemgetter('slug')):
-        click.secho(
-            '%(name)s | %(version)s | %(status)s | '
+        rows.append([
+            click.style(_get_package_name(package), fg='cyan'),
+            click.style(_get_package_version(package), fg='yellow'),
+            click.style(_get_package_status(package), fg='blue'),
             '%(owner_slug)s/%(repo_slug)s/%(slug)s' % {
-                'name': click.style(
-                    _get_package_name(package)
-                    .ljust(package_name_max), fg='blue'
-                ),
                 'owner_slug': click.style(package['namespace'], fg='green'),
                 'repo_slug': click.style(package['repository'], fg='green'),
                 'slug': click.style(package['slug'], fg='magenta'),
-                'status': click.style(
-                    _get_package_status(package)
-                    .ljust(package_status_max), fg='cyan'
-                ),
-                'version': click.style(
-                    (_get_package_version(package))
-                    .ljust(package_version_max), fg='blue'
-                ),
             }
-        )
+        ])
+
+    if packages_:
+        click.echo()
+        utils.pretty_print_table(headers, rows)
 
     click.echo()
 
     num_results = len(packages_)
     list_suffix = 'package%s visible' % ('s' if num_results != 1 else '')
-    utils.print_list_info(
-        num_results=num_results,
-        page_info=page_info,
-        suffix=list_suffix
+    utils.pretty_print_list_info(
+        num_results=num_results, page_info=page_info, suffix=list_suffix
     )
 
 
@@ -255,50 +178,29 @@ def repos(ctx, opts, owner, page=None, page_size=None):
 
     click.secho('OK', fg='green')
 
-    if repos_:
-        click.echo()
-        repo_name_max = max(len(repo['name']) for repo in repos_)
-        repo_name_max = max(repo_name_max, len('Name'))
-        repo_type_max = max(
-            len(repo['repository_type_str']) for repo in repos_
-        )
-        repo_type_max = max(repo_type_max, len('Type'))
+    headers = ['Name', 'Type', 'Owner / Repository (Identifier)']
 
-        click.secho(
-            '%(name)s | %(type)s | %(slug)s' % {
-                'name': click.style(
-                    'Name'.ljust(repo_name_max), bold=True
-                ),
-                'slug': click.style(
-                    'Slug', bold=True
-                ),
-                'type': click.style(
-                    'Type'.ljust(repo_type_max), bold=True)
-            }
-        )
-
+    rows = []
     for repo in sorted(repos_, key=itemgetter('slug')):
-        click.secho(
-            '%(name)s | %(type)s | %(owner_slug)s/%(slug)s' % {
-                'name': click.style(
-                    repo['name'].ljust(repo_name_max), fg='blue'
-                ),
+        rows.append([
+            click.style(repo['name'], fg='cyan'),
+            click.style(repo['repository_type_str'], fg='yellow'),
+            '%(owner_slug)s/%(slug)s' % {
                 'owner_slug': click.style(repo['namespace'], fg='green'),
                 'slug': click.style(repo['slug'], fg='magenta'),
-                'type': click.style(
-                    repo['repository_type_str']
-                    .ljust(repo_type_max), fg='cyan')
             }
-        )
+        ])
+
+    if repos_:
+        click.echo()
+        utils.pretty_print_table(headers, rows)
 
     click.echo()
 
     num_results = len(repos_)
     list_suffix = 'repositor%s visible' % ('ies' if num_results != 1 else 'y')
-    utils.print_list_info(
-        num_results=num_results,
-        page_info=page_info,
-        suffix=list_suffix
+    utils.pretty_print_list_info(
+        num_results=num_results, page_info=page_info, suffix=list_suffix
     )
 
 

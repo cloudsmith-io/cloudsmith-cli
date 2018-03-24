@@ -10,7 +10,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
-- Support for aliased subcommands, starting with delete = rm and push = deploy.
+- Support for aliased subcommands, starting with `delete` = `rm` and `push` = `deploy`.
+- Support for retrieving rate limits from the API via `check limits`.
+- Utility for printing tables (internal only, but expect consistent tables for list-based results).
+
+
+## Changed
+
+- The check command is now a list of sub-commands, and `check service` is now for checking the service status.
 
 
 ## [0.4.1] - 2018-03-12

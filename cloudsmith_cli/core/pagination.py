@@ -15,9 +15,15 @@ class PageInfo(object):
 
     def __str__(self):
         """Get page information as text."""
-        return 'Valid: %s, Count: %s, Page: %s, Size: %s, Total: %s' % (
-            self.is_valid, self.count, self.page, self.page_size,
-            self.page_total
+        return (
+            'Valid: %(valid)s, Count: %(count)s, Page: %(page)s, '
+            'Size: %(page_size)s, Total: %(total)s' % {
+                'valid': self.is_valid,
+                'count': self.count,
+                'page': self.page,
+                'page_size': self.page_size,
+                'total': self.page_total
+            }
         )
 
     def calculate_range(self, num_results):
@@ -40,18 +46,18 @@ class PageInfo(object):
             for x in (self.count, self.page, self.page_size, self.page_total)
         )
 
+    @classmethod
+    def from_headers(cls, headers):
+        """Extract pagination info from headers."""
+        info = PageInfo()
 
-def get_page_info_from_headers(headers):
-    """Extract pagination info from headers."""
-    page_info = PageInfo()
+        if 'X-Pagination-Count' in headers:
+            info.count = int(headers['X-Pagination-Count'])
+        if 'X-Pagination-Page' in headers:
+            info.page = int(headers['X-Pagination-Page'])
+        if 'X-Pagination-PageSize' in headers:
+            info.page_size = int(headers['X-Pagination-PageSize'])
+        if 'X-Pagination-PageTotal' in headers:
+            info.page_total = int(headers['X-Pagination-PageTotal'])
 
-    if 'X-Pagination-Count' in headers:
-        page_info.count = int(headers['X-Pagination-Count'])
-    if 'X-Pagination-Page' in headers:
-        page_info.page = int(headers['X-Pagination-Page'])
-    if 'X-Pagination-PageSize' in headers:
-        page_info.page_size = int(headers['X-Pagination-PageSize'])
-    if 'X-Pagination-PageTotal' in headers:
-        page_info.page_total = int(headers['X-Pagination-PageTotal'])
-
-    return page_info
+        return info

@@ -6,7 +6,8 @@ import inspect
 import cloudsmith_api
 import six
 
-from .. import pagination, utils
+from .. import utils
+from ..pagination import PageInfo
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
 
@@ -102,7 +103,7 @@ def list_packages(owner, repo, **kwargs):
             owner=owner, repo=repo, **api_kwargs
         )
 
-    page_info = pagination.get_page_info_from_headers(headers)
+    page_info = PageInfo.from_headers(headers)
     return [x.to_dict() for x in data], page_info
 
 

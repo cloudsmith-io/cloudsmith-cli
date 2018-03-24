@@ -5,6 +5,7 @@ import platform
 
 import click
 
+from .table import Table, make_table
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
 
@@ -19,8 +20,8 @@ def make_user_agent(prefix=None):
     }
 
 
-def print_list_info(num_results, page_info=None, suffix=None):
-    """Print list info, with pagination, for user display."""
+def pretty_print_list_info(num_results, page_info=None, suffix=None):
+    """Pretty print list info, with pagination, for user display."""
     num_results_fg = 'green' if num_results else 'red'
     num_results_text = click.style(str(num_results), fg=num_results_fg)
 
@@ -54,3 +55,27 @@ def print_list_info(num_results, page_info=None, suffix=None):
             'suffix': suffix or 'item(s)',
         }
     )
+
+
+def pretty_print_table(headers, rows):
+    """Pretty print a table from headers and rows."""
+    table = make_table(headers=headers, rows=rows)
+    pretty_print_table_instance(table)
+
+
+def pretty_print_table_instance(table):
+    """Pretty print a table instance."""
+    assert isinstance(table, Table)
+
+    def pretty_print_row(styled, plain):
+        """Pretty print a row."""
+        click.secho(
+            ' | '.join(
+                v + ' ' * (table.column_widths[k] - len(plain[k]))
+                for k, v in enumerate(styled)
+            )
+        )
+
+    pretty_print_row(table.headers, table.plain_headers)
+    for k, row in enumerate(table.rows):
+        pretty_print_row(row, table.plain_rows[k])
