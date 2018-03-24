@@ -264,6 +264,36 @@ class Options(object):
         self._set_option('api_user_agent', value)
 
     @property
+    def rate_limit(self):
+        """Get value for rate limiting."""
+        return self._get_option('rate_limit', default=True)
+
+    @rate_limit.setter
+    def rate_limit(self, value):
+        """Set value for rate limiting."""
+        self._set_option('rate_limit', value)
+
+    @property
+    def rate_limit_warning(self):
+        """Get value for rate limiting warning (in seconds)."""
+        return self._get_option('rate_limit_warning', default=30)
+
+    @rate_limit_warning.setter
+    def rate_limit_warning(self, value):
+        """Set value for rate limiting warning (in seconds)."""
+        self._set_option('rate_limit_warning', value)
+
+    @property
+    def always_show_rate_limit(self):
+        """Get value for rate limiting warning (in seconds)."""
+        return self._get_option('always_show_rate_limit', default=False)
+
+    @always_show_rate_limit.setter
+    def always_show_rate_limit(self, value):
+        """Set value for rate limiting warning (in seconds)."""
+        self._set_option('always_show_rate_limit', value)
+
+    @property
     def debug(self):
         """Get value for debug flag."""
         return self._get_option('debug', default=False)

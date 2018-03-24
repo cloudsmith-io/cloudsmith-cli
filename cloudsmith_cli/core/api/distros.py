@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
 
+from .. import ratelimits, utils
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
 
@@ -20,7 +21,9 @@ def list_distros(package_format=None):
     # TODO(ls): Add package format param on the server-side to filter distros
     # instead of doing it here.
     with catch_raise_api_exception():
-        distros = client.distros_list()
+        distros, _, headers = client.distros_list_with_http_info()
+
+    ratelimits.maybe_rate_limit(client, headers)
 
     return [
         distro.to_dict() for distro in distros

@@ -9,6 +9,7 @@ import requests
 import six
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
+from .. import ratelimits
 from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
@@ -25,7 +26,7 @@ def validate_request_file_upload(owner, repo, filepath, md5_checksum=None):
     md5_checksum = md5_checksum or calculate_file_md5(filepath)
 
     with catch_raise_api_exception():
-        client.files_validate(
+        _, _, headers = client.files_validate_with_http_info(
             owner=owner,
             repo=repo,
             data={
@@ -34,6 +35,7 @@ def validate_request_file_upload(owner, repo, filepath, md5_checksum=None):
             }
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return md5_checksum
 
 
@@ -43,7 +45,7 @@ def request_file_upload(owner, repo, filepath, md5_checksum=None):
     md5_checksum = md5_checksum or calculate_file_md5(filepath)
 
     with catch_raise_api_exception():
-        data = client.files_create(
+        data, _, headers = client.files_create_with_http_info(
             owner=owner,
             repo=repo,
             data={
@@ -54,6 +56,7 @@ def request_file_upload(owner, repo, filepath, md5_checksum=None):
 
     # pylint: disable=no-member
     # Pylint detects the returned value as a tuple
+    ratelimits.maybe_rate_limit(client, headers)
     return data.identifier, data.upload_url, data.upload_fields
 
 

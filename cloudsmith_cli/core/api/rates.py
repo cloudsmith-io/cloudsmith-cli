@@ -5,6 +5,7 @@ import six
 
 import cloudsmith_api
 
+from .. import ratelimits
 from ..ratelimits import RateLimitsInfo
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
@@ -20,7 +21,9 @@ def get_rate_limits(with_version=False):
     client = get_rates_api()
 
     with catch_raise_api_exception():
-        data = client.rates_limits_list()
+        data, _, headers = client.rates_limits_list_with_http_info()
+
+    ratelimits.maybe_rate_limit(client, headers)
 
     return {
         k: RateLimitsInfo.from_dict(v)

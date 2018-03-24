@@ -9,7 +9,7 @@ import six
 
 def initialise_api(
         debug=False, host=None, key=None, proxy=None, user_agent=None,
-        headers=None):
+        headers=None, rate_limit=True, rate_limit_callback=None):
     """Initialise the API."""
     config = cloudsmith_api.Configuration()
     config.debug = debug
@@ -17,6 +17,8 @@ def initialise_api(
     config.proxy = proxy if proxy else config.proxy
     config.user_agent = user_agent
     config.headers = headers
+    config.rate_limit = rate_limit
+    config.rate_limit_callback = rate_limit_callback
     if headers:
         if 'Authorization' in config.headers:
             encoded = config.headers['Authorization'].split(' ')[1]
@@ -31,6 +33,7 @@ def get_api_client(cls):
     """Get an API client (with configuration)."""
     config = cloudsmith_api.Configuration()
     client = cls()
+    client.config = config
 
     user_agent = getattr(config, 'user_agent', None)
     if user_agent:

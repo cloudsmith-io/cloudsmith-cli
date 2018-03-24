@@ -6,7 +6,7 @@ import inspect
 import cloudsmith_api
 import six
 
-from .. import utils
+from .. import ratelimits, utils
 from ..pagination import PageInfo
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
@@ -33,13 +33,17 @@ def create_package(package_format, owner, repo, **kwargs):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        upload = getattr(client, 'packages_upload_%s' % package_format)
-        data = upload(
+        upload = getattr(
+            client, 'packages_upload_%s_with_http_info' % package_format
+        )
+
+        data, _, headers = upload(
             owner=owner,
             repo=repo,
             data=make_create_payload(**kwargs)
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return data.slug_perm, data.slug
 
 
@@ -48,13 +52,18 @@ def validate_create_package(package_format, owner, repo, **kwargs):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        check = getattr(client, 'packages_validate_upload_%s' % package_format)
-        check(
+        check = getattr(
+            client,
+            'packages_validate_upload_%s_with_http_info' % package_format
+        )
+
+        _, _, headers = check(
             owner=owner,
             repo=repo,
             data=make_create_payload(**kwargs)
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return True
 
 
@@ -63,7 +72,7 @@ def copy_package(owner, repo, slug, destination):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        data = client.packages_copy(
+        data, _, headers = client.packages_copy_with_http_info(
             owner=owner,
             repo=repo,
             slug=slug,
@@ -72,6 +81,7 @@ def copy_package(owner, repo, slug, destination):
             }
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return data.slug_perm, data.slug
 
 
@@ -80,7 +90,7 @@ def move_package(owner, repo, slug, destination):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        data = client.packages_move(
+        data, _, headers = client.packages_move_with_http_info(
             owner=owner,
             repo=repo,
             slug=slug,
@@ -89,6 +99,7 @@ def move_package(owner, repo, slug, destination):
             }
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return data.slug_perm, data.slug
 
 
@@ -97,12 +108,13 @@ def delete_package(owner, repo, slug):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        client.packages_delete(
+        _, _, headers = client.packages_delete_with_http_info(
             owner=owner,
             repo=repo,
             slug=slug
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return True
 
 
@@ -111,12 +123,13 @@ def resync_package(owner, repo, slug):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        data = client.packages_resync(
+        data, _, headers = client.packages_resync_with_http_info(
             owner=owner,
             repo=repo,
             slug=slug
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     return data.slug_perm, data.slug
 
 
@@ -125,11 +138,13 @@ def get_package_status(owner, repo, slug):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        data = client.packages_status(
+        data, _, headers = client.packages_status_with_http_info(
             owner=owner,
             repo=repo,
             slug=slug
         )
+
+    ratelimits.maybe_rate_limit(client, headers)
 
     # pylint: disable=no-member
     # Pylint detects the returned value as a tuple
@@ -152,6 +167,7 @@ def list_packages(owner, repo, **kwargs):
             owner=owner, repo=repo, **api_kwargs
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     page_info = PageInfo.from_headers(headers)
     return [x.to_dict() for x in data], page_info
 

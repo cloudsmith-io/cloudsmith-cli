@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - Support for `copy` (`cp`), move (`mv`) and `resync` package subcommands.
 - Support for automatic resyncing when the sync fails (attempts can be controlled using `--sync-attempts`).
 - Support for formatting the output of `list` subcommands (`distros`, `packages` and `json`) as JSON using `-F` or `--output-format`).
+- Automatic rate limiting based on usage across all API calls (it can be turned off using `-R`).
 - Utility for printing tables (internal only, but expect consistent tables for list-based results).
 
 

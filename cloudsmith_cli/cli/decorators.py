@@ -5,7 +5,7 @@ import functools
 
 import click
 
-from . import config, validators
+from . import config, utils, validators
 from ..core.api.init import initialise_api as _initialise_api
 
 
@@ -143,6 +143,16 @@ def initialise_api(f):
     @click.option(
         '--api-headers', envvar='CLOUDSMITH_API_HEADERS',
         help='A CSV list of extra headers (key=value) to send to the API.')
+    @click.option(
+        '-R', '--without-rate-limit', default=False, is_flag=True,
+        help='Don\'t obey the suggested rate limit interval. The CLI will '
+             'automatically sleep between commands to ensure that you do '
+             'not hit the server-side rate limit.')
+    @click.option(
+        '--rate-limit-warning', default=30,
+        help='When rate limiting, display information that it is happening '
+             'if wait interval is higher than this setting. By default no '
+             'information will be printed. Set to zero to always see it.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -152,13 +162,21 @@ def initialise_api(f):
         opts.api_proxy = kwargs.pop('api_proxy')
         opts.api_user_agent = kwargs.pop('api_user_agent')
         opts.api_headers = kwargs.pop('api_headers')
+        opts.rate_limit = not kwargs.pop('without_rate_limit')
+        opts.rate_limit_warning = kwargs.pop('rate_limit_warning')
+
+        def call_print_rate_limit_info_with_opts(rate_info):
+            utils.print_rate_limit_info(opts, rate_info)
+
         opts.api_config = _initialise_api(
             debug=opts.debug,
             host=opts.api_host,
             key=opts.api_key,
             proxy=opts.api_proxy,
             user_agent=opts.api_user_agent,
-            headers=opts.api_headers
+            headers=opts.api_headers,
+            rate_limit=opts.rate_limit,
+            rate_limit_callback=call_print_rate_limit_info_with_opts
         )
 
         kwargs['opts'] = opts

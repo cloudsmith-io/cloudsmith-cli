@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import platform
+import six
 
 import click
 
@@ -79,3 +80,28 @@ def pretty_print_table_instance(table):
     pretty_print_row(table.headers, table.plain_headers)
     for k, row in enumerate(table.rows):
         pretty_print_row(row, table.plain_rows[k])
+
+
+def print_rate_limit_info(opts, rate_info):
+    """Tell the user when we're being rate limited."""
+    if not rate_info:
+        return
+
+    show_info = (
+        opts.always_show_rate_limit or
+        rate_info.interval > opts.rate_limit_warning
+    )
+
+    if not show_info:
+        return
+
+    click.echo(err=True)
+    click.secho(
+        'Throttling (rate limited) for: %(throttle)s seconds ... ' % {
+            'throttle': click.style(
+                six.text_type(rate_info.interval),
+                reverse=True
+            )
+        },
+        err=True, reset=False
+    )

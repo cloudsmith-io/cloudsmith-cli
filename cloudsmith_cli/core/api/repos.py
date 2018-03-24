@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 import cloudsmith_api
 
 from . import user
-from .. import utils
+from .. import ratelimits, utils
 from ..pagination import PageInfo
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
@@ -35,5 +35,6 @@ def list_repos(owner=None, **kwargs):
             owner=owner, **api_kwargs
         )
 
+    ratelimits.maybe_rate_limit(client, headers)
     page_info = PageInfo.from_headers(headers)
     return [x.to_dict() for x in res], page_info
