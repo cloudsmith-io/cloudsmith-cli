@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 - Support for retrieving rate limits from the API via `check limits`.
 - Support for searching packages via `-q|--query` search query parameter (yes!)
 - Support for `copy` (`cp`), move (`mv`) and `resync` package subcommands.
+- Support for automatic resyncing when the sync fails (attempts can be controlled using `--sync-attempts`).
 - Utility for printing tables (internal only, but expect consistent tables for list-based results).
 
 

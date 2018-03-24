@@ -14,9 +14,9 @@ from ...core import utils
 from ...core.api.exceptions import ApiException
 from ...core.api.files import upload_file as api_upload_file
 from ...core.api.files import request_file_upload, validate_request_file_upload
-from ...core.api.packages import create_package as api_create_package
-from ...core.api.packages import \
-    validate_create_package as api_validate_create_package
+from ...core.api.packages import (
+    create_package as api_create_package, resync_package,
+    validate_create_package as api_validate_create_package)
 from ...core.api.packages import get_package_formats, get_package_status
 from ..exceptions import handle_api_exceptions
 from ..types import ExpandPath
@@ -155,12 +155,14 @@ def create_package(
 
 
 def wait_for_package_sync(
-        ctx, opts, owner, repo, slug, wait_interval, skip_errors):
+        ctx, opts, owner, repo, slug, wait_interval, skip_errors,
+        attempts=3):
     """Wait for a package to synchronise (or fail)."""
+    attempts -= 1
     click.echo()
     completed = False
     label = 'Synchronising %(package)s:' % {
-        'package': click.style(slug, bold=True)
+        'package': click.style(slug, fg='magenta')
     }
 
     status_str = 'Waiting'
@@ -171,10 +173,12 @@ def wait_for_package_sync(
         # pylint: disable=unused-argument
         if not stage_str:
             return status_str
-        return '%(status)s / %(stage)s' % {
-            'status': status_str,
-            'stage': stage_str
-        }
+        return click.style(
+            '%(status)s / %(stage)s' % {
+                'status': status_str,
+                'stage': stage_str
+            }, fg='cyan'
+        )
 
     context_msg = 'Failed to synchronise file!'
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
@@ -197,17 +201,43 @@ def wait_for_package_sync(
 
     if completed:
         click.secho('Package synchronised successfully!', fg='green')
-    else:
+        return
+
+    click.secho(
+        'Package failed to synchronise during stage: %(stage)s' % {
+            'stage': stage_str or 'Unknown',
+        }, fg='red'
+    )
+
+    if attempts + 1 > 0:
+        # Show attempts upto and including zero attempts left
         click.secho(
-            'Package failed to synchronise during stage: %(stage)s' % {
-                'stage': stage_str or 'Unknown',
-            }, fg='red'
+            'Attempts left: %(left)s (%(action)s)' % {
+                'left': click.style(six.text_type(attempts), bold=True),
+                'action': 'trying again' if attempts > 0 else 'giving up'
+            },
+        )
+        click.echo()
+
+    if attempts > 0:
+        from .resync import resync_package
+
+        resync_package(
+            ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug,
+            skip_errors=skip_errors
+        )
+
+        wait_for_package_sync(
+            ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug,
+            wait_interval=wait_interval, skip_errors=skip_errors,
+            attempts=attempts
         )
 
 
 def upload_files_and_create_package(
         ctx, opts, package_type, owner_repo, dry_run,
-        no_wait_for_sync, wait_interval, skip_errors, **kwargs):
+        no_wait_for_sync, wait_interval, skip_errors,
+        sync_attempts, **kwargs):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
     owner, repo = owner_repo
@@ -256,7 +286,8 @@ def upload_files_and_create_package(
     # 5. (optionally) Wait for the package to synchronise
     wait_for_package_sync(
         ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug,
-        wait_interval=wait_interval, skip_errors=skip_errors
+        wait_interval=wait_interval, skip_errors=skip_errors,
+        attempts=sync_attempts
     )
 
 

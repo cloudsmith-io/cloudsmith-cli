@@ -27,7 +27,7 @@ from ..exceptions import handle_api_exceptions
 @click.pass_context
 def copy(
         ctx, opts, owner_repo_package, destination, skip_errors, wait_interval,
-        no_wait_for_sync):
+        no_wait_for_sync, sync_attempts):
     """
     Copy a package to another repository.
 
@@ -77,5 +77,6 @@ def copy(
 
     wait_for_package_sync(
         ctx=ctx, opts=opts, owner=owner, repo=destination, slug=new_slug,
-        wait_interval=wait_interval, skip_errors=skip_errors
+        wait_interval=wait_interval, skip_errors=skip_errors,
+        attempts=sync_attempts
     )

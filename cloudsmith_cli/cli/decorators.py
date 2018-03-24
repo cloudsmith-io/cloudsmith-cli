@@ -22,6 +22,11 @@ def common_package_action_options(f):
         '-I', '--wait-interval', default=5.0, type=float,
         show_default=True,
         help='The time in seconds to wait between checking synchronisation.')
+    @click.option(
+        '--sync-attempts', default=3, type=int,
+        help='Number of times to attempt package synchronisation. If the '
+             'package fails the first time, the client will attempt to '
+             'automatically resynchronise it.')
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
