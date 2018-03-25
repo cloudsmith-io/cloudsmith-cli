@@ -192,7 +192,7 @@ def wait_for_package_sync(
                                item_show_func=display_status) as pb:
             while True:
                 res = get_package_status(owner, repo, slug)
-                k, failed, progress, status_str, stage_str, reason = res
+                ok, failed, progress, status_str, stage_str, reason = res
                 delta = progress - last_progress
                 if delta > 0:
                     last_progress = progress
