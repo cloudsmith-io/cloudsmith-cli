@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 Nothing yet.
 
 
+## [0.25.1] - 2018-03-25
+
+### Added
+
+- Display status reason text when a package fails, and give up attempting if it was fatal.
+
+
 ## [0.25.0] - 2018-03-25
 
 ### Added
