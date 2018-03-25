@@ -44,7 +44,7 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 def distros(ctx, opts, package_format):
     """List available distributions."""
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr =  opts.output != 'pretty'
+    use_stderr = opts.output != 'pretty'
 
     click.echo(
         'Getting list of distributions ... ', nl=False, err=use_stderr
@@ -102,7 +102,7 @@ def distros(ctx, opts, package_format):
 @entitlements.list_entitlements_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
-def entitlements_(*args, **kwargs):
+def entitlements_(*args, **kwargs):  # noqa
     return entitlements.list_entitlements(*args, **kwargs)
 
 
@@ -158,11 +158,12 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     NOT the x86 architecture, use something like this:
 
     --query 'name:^foo$ filename:.zip$ architecture:~x86'
+
     """
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr =  opts.output != 'pretty'
+    use_stderr = opts.output != 'pretty'
 
     click.echo(
         'Getting list of packages ... ', nl=False, err=use_stderr
@@ -228,7 +229,7 @@ def repos(ctx, opts, owner, page, page_size):
     (if any). If you're unauthenticated, no results will be returned.
     """
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr =  opts.output != 'pretty'
+    use_stderr = opts.output != 'pretty'
 
     click.echo(
         'Getting list of repositories ... ', nl=False, err=use_stderr
@@ -246,7 +247,10 @@ def repos(ctx, opts, owner, page, page_size):
     if utils.maybe_print_as_json(opts, repos_, page_info):
         return
 
-    headers = ['Name', 'Type', 'Packages', 'Groups', 'Downloads', 'Size', 'Owner / Repository (Identifier)']
+    headers = [
+        'Name', 'Type', 'Packages', 'Groups', 'Downloads', 'Size',
+        'Owner / Repository (Identifier)'
+    ]
 
     rows = []
     for repo in sorted(repos_, key=itemgetter('slug')):

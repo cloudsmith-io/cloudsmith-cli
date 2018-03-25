@@ -10,9 +10,7 @@ from click_didyoumean import DYMGroup
 
 
 class AliasGroup(DYMGroup):
-    """
-    A group with DYM and alias support.
-    """
+    """A command group with DYM and alias support."""
 
     def __init__(self, *args, **kwargs):
         super(AliasGroup, self).__init__(*args, **kwargs)
@@ -22,7 +20,7 @@ class AliasGroup(DYMGroup):
     def resolve_command(self, ctx, args):
         try:
             return super(AliasGroup, self).resolve_command(ctx, args)
-        except click.exceptions.UsageError as exc:
+        except click.exceptions.UsageError:
             # Before DYM kicks in, check to see if the command prefix matches
             # exactly one command, then use that instead.
             if args:
@@ -66,6 +64,7 @@ class AliasGroup(DYMGroup):
 
     def command(self, *args, **kwargs):
         def decorator(f):
+            # pylint: disable=missing-docstring
             aliases = kwargs.pop('aliases', [])
             cmd = super(AliasGroup, self).command(*args, **kwargs)(f)
 
@@ -80,6 +79,7 @@ class AliasGroup(DYMGroup):
 
     def group(self, *args, **kwargs):
         def decorator(f):
+            # pylint: disable=missing-docstring
             aliases = kwargs.pop('aliases', [])
             cmd = super(AliasGroup, self).group(*args, **kwargs)(f)
 

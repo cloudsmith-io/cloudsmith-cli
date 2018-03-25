@@ -110,20 +110,21 @@ def print_rate_limit_info(opts, rate_info):
 
 def maybe_print_as_json(opts, data, page_info=None):
     """Maybe print data as JSON."""
-    if not opts.output in ('json', 'pretty_json'):
+    if opts.output not in ('json', 'pretty_json'):
         return False
 
-    full_data = {'results': data}
+    root = {'data': data}
 
     if page_info is not None and page_info.is_valid:
-        full_data['_pagination'] = page_info.as_dict(num_results=len(data))
+        meta = root['meta'] = {}
+        meta['pagination'] = page_info.as_dict(num_results=len(data))
 
     if opts.output == 'pretty_json':
-        full_data = json.dumps(full_data, indent=4, sort_keys=True)
+        dump = json.dumps(root, indent=4, sort_keys=True)
     else:
-        full_data = json.dumps(full_data, sort_keys=True)
+        dump = json.dumps(root, sort_keys=True)
 
-    click.echo(full_data)
+    click.echo(dump)
     return True
 
 

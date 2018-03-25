@@ -3,7 +3,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
 
-from .. import ratelimits, utils
+from .. import ratelimits
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
 

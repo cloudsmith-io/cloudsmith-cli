@@ -1,4 +1,5 @@
 [flake8]
 exclude=.svn,CVS,.bzr,.hg,.git,__pycache,.venv,migrations,settings,tests,.tox,build
+ignore=D107,D102
 max-complexity = 20
 max-line-length = 79

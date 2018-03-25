@@ -86,7 +86,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr =  opts.output != 'pretty'
+    use_stderr = opts.output != 'pretty'
 
     click.echo(
         'Getting list of entitlements for the %(repository)s '
@@ -110,13 +110,11 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     )
 
 
-
-
 @entitlements.command(name='list', aliases=['ls'])
 @list_entitlements_options
 @functools.wraps(list_entitlements)
 @click.pass_context
-def list_(*args, **kwargs):
+def list_(*args, **kwargs):  # noqa
     return list_entitlements(*args, **kwargs)
 
 

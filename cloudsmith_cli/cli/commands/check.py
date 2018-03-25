@@ -41,7 +41,9 @@ def rates(ctx, opts):
 
     click.secho('OK', fg='green')
 
-    headers = ['Resource', 'Throttled', 'Remaining', 'Interval (Seconds)', 'Reset']
+    headers = [
+        'Resource', 'Throttled', 'Remaining', 'Interval (Seconds)', 'Reset'
+    ]
 
     rows = []
     for resource, limits in six.iteritems(resources_limits):

@@ -73,7 +73,7 @@ def move(
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
                                reraise_on_error=skip_errors):
         with spinner():
-            new_slug_perm, new_slug = move_package(
+            _, new_slug = move_package(
                 owner=owner,
                 repo=source,
                 slug=slug,

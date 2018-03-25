@@ -29,7 +29,7 @@ def list_entitlements(owner, repo, page, page_size, show_tokens):
 
     ratelimits.maybe_rate_limit(client, headers)
     page_info = PageInfo.from_headers(headers)
-    entitlements = [ent.to_dict() for ent in data]
+    entitlements = [ent.to_dict() for ent in data]  # pylint: disable=no-member
     return entitlements, page_info
 
 
@@ -53,7 +53,7 @@ def create_entitlement(owner, repo, name, token, show_tokens):
         )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return data.to_dict()
+    return data.to_dict()  # pylint: disable=no-member
 
 
 def delete_entitlement(owner, repo, slug_perm):
@@ -91,7 +91,7 @@ def update_entitlement(owner, repo, slug_perm, name, token, show_tokens):
         )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return data.to_dict()
+    return data.to_dict()  # pylint: disable=no-member
 
 
 def refresh_entitlement(owner, repo, slug_perm, show_tokens):

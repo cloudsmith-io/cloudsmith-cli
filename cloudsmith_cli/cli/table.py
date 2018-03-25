@@ -1,8 +1,9 @@
 """Core rate limit utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-from collections import defaultdict, namedtuple
+from collections import namedtuple
 
+# pylint: disable=ungrouped-imports
 import click
 import six
 from click.utils import strip_ansi
@@ -27,11 +28,6 @@ def make_table(headers=None, rows=None):
 
     plain_headers = [strip_ansi(six.text_type(v)) for v in headers]
     plain_rows = [row for row in [strip_ansi(six.text_type(v)) for v in rows]]
-
-    def make_header_value(k, value):
-        """Convert a header value to a string."""
-        value = six.text_type(value)
-        return value
 
     plain_headers = []
     column_widths = []

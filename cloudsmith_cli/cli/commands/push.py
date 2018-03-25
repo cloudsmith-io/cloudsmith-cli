@@ -158,6 +158,7 @@ def wait_for_package_sync(
         ctx, opts, owner, repo, slug, wait_interval, skip_errors,
         attempts=3):
     """Wait for a package to synchronise (or fail)."""
+    # pylint: disable=too-many-locals
     attempts -= 1
     click.echo()
     completed = False

@@ -35,7 +35,7 @@ class PageInfo(object):
         return from_range, to_range
 
     def as_dict(self, num_results=None):
-        """Get the page info as a dict."""
+        """Create PageInfo from a dictionary."""
         if not self.is_valid:
             return {}
 
@@ -64,7 +64,7 @@ class PageInfo(object):
 
     @classmethod
     def from_headers(cls, headers):
-        """Extract pagination info from headers."""
+        """Create PageInfo from HTTP headers."""
         info = PageInfo()
 
         if 'X-Pagination-Count' in headers:

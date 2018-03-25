@@ -10,7 +10,6 @@ import time
 from future.utils import python_2_unicode_compatible
 
 
-# FIXME: Globals aren't great, do this properly later.
 LAST_CLIENT = threading.local()
 LAST_CLIENT = None
 LAST_HEADERS = threading.local()
@@ -42,6 +41,7 @@ class RateLimitsInfo(object):
 
     @classmethod
     def from_dict(cls, data):
+        """Create RateLimitsInfo from a dictionary."""
         info = RateLimitsInfo()
 
         if 'interval' in data:
@@ -61,7 +61,7 @@ class RateLimitsInfo(object):
 
     @classmethod
     def from_headers(cls, headers):
-        """Extract rate info from headers."""
+        """Create RateLimitsInfo from HTTP headers."""
         try:
             data = {
                 'interval': headers['X-RateLimit-Interval'],
@@ -83,6 +83,9 @@ def maybe_rate_limit_atexit():
 
 def maybe_rate_limit(client, headers):
     """Optionally pause the process based on suggested rate interval."""
+    # pylint: disable=fixme
+    # pylint: disable=global-statement
+    # FIXME: Yes, I know this is not great. We'll fix it later. :-)
     global LAST_CLIENT, LAST_HEADERS
 
     if LAST_CLIENT and LAST_HEADERS:

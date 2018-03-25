@@ -5,7 +5,7 @@ import click
 from click_spinner import spinner
 
 from . import main
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ...core.api.packages import delete_package
 from ..exceptions import handle_api_exceptions
 

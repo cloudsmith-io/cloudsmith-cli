@@ -15,7 +15,7 @@ def get_rates_api():
     return get_api_client(cloudsmith_api.RatesApi)
 
 
-def get_rate_limits(with_version=False):
+def get_rate_limits():
     """Retrieve status (and optionally) version from the API."""
     client = get_rates_api()
 
