@@ -11,21 +11,28 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 Nothing yet.
 
 
-## [0.25.2] - 2018-03-25
+## [0.5.3] - 2018-03-25
+
+### Fixed
+
+- Issue with status subcommand failing due to API mismatch.
+
+
+## [0.5.2] - 2018-03-25
 
 ### Fixed
 
 - Issue with package synchronisation stalling due to typo in status check.
 
 
-## [0.25.1] - 2018-03-25
+## [0.5.1] - 2018-03-25
 
 ### Added
 
 - Display status reason text when a package fails, and give up attempting if it was fatal.
 
 
-## [0.25.0] - 2018-03-25
+## [0.5.0] - 2018-03-25
 
 ### Added
 
