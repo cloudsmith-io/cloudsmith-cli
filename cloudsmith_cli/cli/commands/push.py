@@ -161,7 +161,6 @@ def wait_for_package_sync(
     # pylint: disable=too-many-locals
     attempts -= 1
     click.echo()
-    completed = False
     label = 'Synchronising %(package)s:' % {
         'package': click.style(slug, fg='green')
     }
@@ -182,6 +181,8 @@ def wait_for_package_sync(
         )
 
     context_msg = 'Failed to synchronise file!'
+    ok = False
+    reason = None
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
                                reraise_on_error=skip_errors):
         last_progress = 0
@@ -191,24 +192,40 @@ def wait_for_package_sync(
                                item_show_func=display_status) as pb:
             while True:
                 res = get_package_status(owner, repo, slug)
-                completed, failed, progress, status_str, stage_str = res
+                k, failed, progress, status_str, stage_str, reason = res
                 delta = progress - last_progress
                 if delta > 0:
                     last_progress = progress
                     pb.update(delta)
-                if completed or failed:
+                if ok or failed:
                     break
                 time.sleep(wait_interval)
 
-    if completed:
+    if ok:
         click.secho('Package synchronised successfully!', fg='green')
         return
 
     click.secho(
         'Package failed to synchronise during stage: %(stage)s' % {
-            'stage': stage_str or 'Unknown',
+            'stage': click.style(stage_str or 'Unknown', fg='yellow'),
         }, fg='red'
     )
+
+    if reason:
+        click.secho(
+            'Reason given: %(reason)s' % {
+                'reason': click.style(reason, fg='yellow')
+            }, fg='red'
+        )
+
+        # FIXME: The API should communicate "no retry" fails
+        if 'package should be deleted' in reason and attempts > 1:
+            click.secho(
+                'This is not recoverable, so stopping further attempts!',
+                fg='red'
+            )
+            click.echo()
+            attempts = 0
 
     if attempts + 1 > 0:
         # Show attempts upto and including zero attempts left

@@ -150,7 +150,7 @@ def get_package_status(owner, repo, slug):
     # Pylint detects the returned value as a tuple
     return (
         data.is_sync_completed, data.is_sync_failed, data.sync_progress,
-        data.status_str, data.stage_str
+        data.status_str, data.stage_str, data.status_reason
     )
 
 
