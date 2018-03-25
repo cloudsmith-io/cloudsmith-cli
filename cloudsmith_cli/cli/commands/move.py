@@ -60,7 +60,7 @@ def move(
         'dest': click.style(destination, bold=True),
     }
 
-    prompt = 'move the %(package)s from %(source)s to %(dest)s' % move_args
+    prompt = 'move the %(slug)s from %(source)s to %(dest)s' % move_args
     if not utils.confirm_operation(prompt, assume_yes=yes):
         return
 
