@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 Nothing yet.
 
 
+## [0.5.5] - 2018-03-25
+
+### Fixed
+
+- Issue with the move subcommand due to typo in string formatting.
+
+
 ## [0.5.4] - 2018-03-25
 
 ### Fixed
