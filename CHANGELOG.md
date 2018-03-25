@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 Nothing yet.
 
 
+## [0.5.6] - 2018-03-25
+
+### Fixed
+
+- Issue with entitlements create command crashing because `--name` was left off.
+
+
 ## [0.5.5] - 2018-03-25
 
 ### Fixed
