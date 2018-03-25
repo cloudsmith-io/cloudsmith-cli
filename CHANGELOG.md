@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## Changed
 
+- Minimum API version required is now 0.26.0+.
 - The check command is now a list of sub-commands, and `check service` is now for checking the service status.
 
 
