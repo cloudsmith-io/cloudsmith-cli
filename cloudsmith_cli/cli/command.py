@@ -2,12 +2,11 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import sys
-
 from collections import OrderedDict
 
 import click.exceptions
-from click_didyoumean import DYMGroup
 import six
+from click_didyoumean import DYMGroup
 
 
 class AliasGroup(DYMGroup):

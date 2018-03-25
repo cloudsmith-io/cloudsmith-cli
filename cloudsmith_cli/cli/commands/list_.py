@@ -5,8 +5,8 @@ import functools
 from operator import itemgetter
 
 import click
-from click_spinner import spinner
 import six
+from click_spinner import spinner
 
 from . import entitlements, main
 from .. import command, decorators, utils, validators

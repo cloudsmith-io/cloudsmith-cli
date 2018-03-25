@@ -1,9 +1,8 @@
 """API - Status endpoints."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import six
-
 import cloudsmith_api
+import six
 
 from .. import ratelimits
 from ..ratelimits import RateLimitsInfo

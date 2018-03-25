@@ -3,13 +3,13 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import json
 import platform
-import six
 
 import click
+import six
 
-from .table import Table, make_table
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
+from .table import Table, make_table
 
 
 def make_user_agent(prefix=None):

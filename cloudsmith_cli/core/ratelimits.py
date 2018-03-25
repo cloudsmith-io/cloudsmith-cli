@@ -1,11 +1,11 @@
 """Core rate limit utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import copy
 import atexit
+import copy
 import datetime
-import time
 import threading
+import time
 
 from future.utils import python_2_unicode_compatible
 

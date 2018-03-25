@@ -1,10 +1,10 @@
 """Core rate limit utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import six
-
 from collections import defaultdict, namedtuple
+
 import click
+import six
 from click.utils import strip_ansi
 
 

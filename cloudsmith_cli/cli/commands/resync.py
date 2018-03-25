@@ -5,10 +5,10 @@ import click
 from click_spinner import spinner
 
 from . import main
-from .push import wait_for_package_sync
 from .. import decorators, validators
 from ...core.api.packages import resync_package as api_resync_package
 from ..exceptions import handle_api_exceptions
+from .push import wait_for_package_sync
 
 
 @main.command()
