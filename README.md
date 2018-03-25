@@ -25,24 +25,32 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
-- `check`:         Check rate limits and service status.
-- `copy`|`cp`:     Copy a package to another repository.
-- `delete`|`rm`:   Delete a package from a repository.
-- `docs`:          Launch the help website in your browser.
-- `help`:          Display the help message and exit.
-- `list`|`ls`:       List distributions, packages and repos.
-  - `distros`:       List available distributions.
-  - `packages`:      List packages for a repository.
-  - `repos`:         List repositories for a namespace (owner).
-- `move`|`mv`:     Move/promote a package to another repository.
-- `push`|`upload`: Push/upload a new package to a repository.
-  - `deb`:           Push/upload a new Deb package upstream.
-  - `maven`:         Push/upload a new Maven package upstream.
-  - `python`:        Push/upload a new Python package upstream.
-  - `raw`:           Push/upload a new Raw package upstream.
-  - `rpm`:           Push/upload a new Rpm package upstream.
-  - `ruby`:          Push/upload a new Ruby package upstream.
-  - `vagrant`:       Push/upload a new Vagrant package upstream.
+- `check`:               Check rate limits and service status.
+- `copy`|`cp`:           Copy a package to another repository.
+- `delete`|`rm`:         Delete a package from a repository.
+- `docs`:                Launch the help website in your browser.
+- `entitlements`|`ents`: Manage the entitlements for a repository.
+  - `create`|`new`:        Create a new entitlement in a repository.
+  - `delete`|`rm`:         Delete an entitlement from a repository.
+  - `list`|`ls`:           List entitlements for a repository.
+  - `refresh`:             Refresh an entitlement in a repository.
+  - `sync`:                Sync entitlements from another repository.
+  - `update`|`set`:        Update (patch) a entitlement in a repository.
+- `help`:                Display the delightful help message and exit.
+- `list`|`ls`:           List distros, packages, repos and entitlements.
+  - `distros`:             List available distributions.
+  - `entitlements`:        List entitlements for a repository.
+  - `packages`:            List packages for a repository.
+  - `repos`:               List repositories for a namespace (owner).
+- `move`|`mv`:     Move (promote) a package to another repo.
+- `push`|`upload`: Push (upload) a new package to a repository.
+  - `deb`:           Push (upload) a new Deb package upstream.
+  - `maven`:         Push (upload) a new Maven package upstream.
+  - `python`:        Push (upload) a new Python package upstream.
+  - `raw`:           Push (upload) a new Raw package upstream.
+  - `rpm`:           Push (upload) a new Rpm package upstream.
+  - `ruby`:          Push (upload) a new Ruby package upstream.
+  - `vagrant`:       Push (upload) a new Vagrant package upstream.
 - `resync`:      Resynchronise a package in a repository.
 - `status`:      Get the synchronisation status for a package.
 - `token`:       Retrieve your API authentication token/key.

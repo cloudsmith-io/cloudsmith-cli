@@ -6,7 +6,7 @@ from click_spinner import spinner
 
 from . import main
 from .push import wait_for_package_sync
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ...core.api.packages import move_package
 from ..exceptions import handle_api_exceptions
 
@@ -24,12 +24,15 @@ from ..exceptions import handle_api_exceptions
 @click.argument(
     'destination',
     metavar='DEST')
+@click.option(
+    '-y', '--yes', default=False, is_flag=True,
+    help='Assume yes as default answer to questions (this is dangerous!)')
 @click.pass_context
 def move(
         ctx, opts, owner_repo_package, destination, skip_errors, wait_interval,
-        no_wait_for_sync, sync_attempts):
+        no_wait_for_sync, sync_attempts, yes):
     """
-    Move/promote a package to another repository.
+    Move (promote) a package to another repo.
 
     This requires appropriate permissions for both the source
     repository/package and the destination repository.
@@ -51,12 +54,19 @@ def move(
     """
     owner, source, slug = owner_repo_package
 
+    move_args = {
+        'slug': click.style(slug, bold=True),
+        'source': click.style(source, bold=True),
+        'dest': click.style(destination, bold=True),
+    }
+
+    prompt = 'move the %(package)s from %(source)s to %(dest)s' % move_args
+    if not utils.confirm_operation(prompt, assume_yes=yes):
+        return
+
     click.echo(
-        'Moving %(slug)s package from %(source)s to %(dest)s ... ' % {
-            'slug': click.style(slug, bold=True),
-            'source': click.style(source, bold=True),
-            'dest': click.style(destination, bold=True),
-        }, nl=False
+        'Moving %(slug)s package from %(source)s to %(dest)s ... ' % move_args,
+        nl=False
     )
 
     context_msg = 'Failed to move package!'

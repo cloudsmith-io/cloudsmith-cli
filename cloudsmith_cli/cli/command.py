@@ -2,8 +2,11 @@
 from __future__ import absolute_import, print_function, unicode_literals
 from future.builtins import super
 
+import sys
+
 from collections import OrderedDict
 
+import click.exceptions
 from click_didyoumean import DYMGroup
 import six
 
@@ -17,6 +20,22 @@ class AliasGroup(DYMGroup):
         super(AliasGroup, self).__init__(*args, **kwargs)
         self.aliases = OrderedDict()
         self.inverse = {}
+
+    def resolve_command(self, ctx, args):
+        try:
+            return super(AliasGroup, self).resolve_command(ctx, args)
+        except click.exceptions.UsageError as exc:
+            # Before DYM kicks in, check to see if the command prefix matches
+            # exactly one command, then use that instead.
+            if args:
+                cmd_name = args[0]
+                cmds = self.list_commands(ctx)
+                matched = [cmd for cmd in cmds if cmd.startswith(cmd_name)]
+                if len(matched) == 1 and len(cmd_name) > 1:
+                    args[0] = matched[0]
+                    return super(AliasGroup, self).resolve_command(ctx, args)
+
+            six.reraise(*sys.exc_info())
 
     def list_commands(self, ctx):
         commands = super(AliasGroup, self).list_commands(ctx)

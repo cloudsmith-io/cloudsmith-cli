@@ -1,6 +1,7 @@
 """CLI - Utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import json
 import platform
 import six
 
@@ -105,3 +106,44 @@ def print_rate_limit_info(opts, rate_info):
         },
         err=True, reset=False
     )
+
+
+def maybe_print_as_json(opts, data, page_info=None):
+    """Maybe print data as JSON."""
+    if not opts.output in ('json', 'pretty_json'):
+        return False
+
+    full_data = {'results': data}
+
+    if page_info is not None and page_info.is_valid:
+        full_data['_pagination'] = page_info.as_dict(num_results=len(data))
+
+    if opts.output == 'pretty_json':
+        full_data = json.dumps(full_data, indent=4, sort_keys=True)
+    else:
+        full_data = json.dumps(full_data, sort_keys=True)
+
+    click.echo(full_data)
+    return True
+
+
+def confirm_operation(prompt, prefix=None, assume_yes=False):
+    """Prompt the user for confirmation for dangerous actions."""
+    if assume_yes:
+        return True
+
+    prefix = prefix or click.style(
+        'Are you %s certain you want to' % (
+            click.style('absolutely', bold=True)))
+
+    prompt = '%(prefix)s %(prompt)s?' % {
+        'prefix': prefix,
+        'prompt': prompt
+    }
+
+    if click.confirm(prompt):
+        return True
+
+    click.echo()
+    click.secho('OK, phew! Close call. :-)', fg='green')
+    return False

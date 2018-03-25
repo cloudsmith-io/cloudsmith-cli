@@ -21,7 +21,7 @@ from ..exceptions import handle_api_exceptions
     callback=validators.validate_owner_repo_package)
 @click.option(
     '-y', '--yes', default=False, is_flag=True,
-    help='Assume yes as default answer to questions.')
+    help='Assume yes as default answer to questions (this is dangerous!)')
 @click.pass_context
 def delete(ctx, opts, owner_repo_package, yes):
     """
@@ -35,20 +35,18 @@ def delete(ctx, opts, owner_repo_package, yes):
     """
     owner, repo, slug = owner_repo_package
 
-    args = {
+    delete_args = {
         'owner': click.style(owner, bold=True),
         'repo': click.style(repo, bold=True),
         'package': click.style(slug, bold=True)
     }
 
-    if not yes and not click.confirm(
-            'Are you sure you want to delete %(package)s from '
-            '%(owner)s/%(repo)s?' % args):
-        click.secho('OK! Phew, close call. :-)', fg='yellow')
+    prompt = 'delete the %(package)s from %(owner)s/%(repo)s' % delete_args
+    if not utils.confirm_operation(prompt, assume_yes=yes):
         return
 
     click.echo(
-        'Deleting %(package)s from %(owner)s/%(repo)s ... ' % args,
+        'Deleting %(package)s from %(owner)s/%(repo)s ... ' % delete_args,
         nl=False
     )
 

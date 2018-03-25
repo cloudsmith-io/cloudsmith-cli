@@ -6,6 +6,7 @@ from . import check  # noqa
 from . import copy  # noqa
 from . import delete  # noqa
 from . import docs  # noqa
+from . import entitlements  # noqa
 from . import help_  # noqa
 from . import list_  # noqa
 from . import move  # noqa

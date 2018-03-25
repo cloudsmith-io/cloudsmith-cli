@@ -34,8 +34,8 @@ def whoami(ctx, opts):
     else:
         click.secho(
             '%(name)s (slug: %(username)s, email: %(email)s)' % {
-                'name': click.style(name, fg='green'),
+                'name': click.style(name, fg='cyan'),
                 'username': click.style(username, fg='magenta'),
-                'email': click.style(email, fg='magenta')
+                'email': click.style(email, fg='green')
             }
         )

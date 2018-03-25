@@ -1,13 +1,14 @@
 """CLI/Commands - List objects."""
 from __future__ import absolute_import, print_function, unicode_literals
 
+import functools
 from operator import itemgetter
 
 import click
 from click_spinner import spinner
-import json
+import six
 
-from . import main
+from . import entitlements, main
 from .. import command, decorators, utils, validators
 from ...core.api.distros import list_distros
 from ...core.api.packages import (
@@ -24,7 +25,11 @@ from ..exceptions import handle_api_exceptions
 @decorators.initialise_api
 @click.pass_context
 def list_(ctx, opts):  # pylint: disable=unused-argument
-    """List distributions, packages and repos."""
+    """
+    List distros, packages, repos and entitlements.
+
+    See the help for subcommands for more information on each.
+    """
 
 
 @list_.command()
@@ -52,7 +57,7 @@ def distros(ctx, opts, package_format):
 
     click.secho('OK', fg='green', err=use_stderr)
 
-    if maybe_print_as_json(opts, distros_):
+    if utils.maybe_print_as_json(opts, distros_):
         return
 
     headers = ['Distro', 'Release', 'Format', 'Distro / Release (Identifier)']
@@ -70,8 +75,8 @@ def distros(ctx, opts, package_format):
                 click.style(release['name'], fg='yellow'),
                 click.style(distro['format'], fg='blue'),
                 '%(distro)s/%(release)s' % {
-                    'distro': click.style(distro['slug'], fg='green'),
-                    'release': click.style(release['slug'], fg='magenta')
+                    'distro': click.style(distro['slug'], fg='magenta'),
+                    'release': click.style(release['slug'], fg='green')
                 }
             ]
 
@@ -93,6 +98,14 @@ def distros(ctx, opts, package_format):
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
+@functools.wraps(entitlements.list_)
+@list_.command(name='entitlements', aliases=['ents'])
+@entitlements.list_entitlements_options
+@click.pass_context
+def entitlements_(*args, **kwargs):
+    return entitlements.list_entitlements(*args, **kwargs)
+
+
 @list_.command()
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
@@ -109,7 +122,7 @@ def distros(ctx, opts, package_format):
     )
 )
 @click.pass_context
-def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
+def packages(ctx, opts, owner_repo, page, page_size, query):
     """
     List packages for a repository.
 
@@ -165,7 +178,7 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
 
     click.secho('OK', fg='green', err=use_stderr)
 
-    if maybe_print_as_json(opts, packages_, page_info):
+    if utils.maybe_print_as_json(opts, packages_, page_info):
         return
 
     headers = ['Name', 'Version', 'Status', 'Owner / Repository (Identifier)']
@@ -176,9 +189,9 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
             click.style(_get_package_version(package), fg='yellow'),
             click.style(_get_package_status(package), fg='blue'),
             '%(owner_slug)s/%(repo_slug)s/%(slug)s' % {
-                'owner_slug': click.style(package['namespace'], fg='green'),
-                'repo_slug': click.style(package['repository'], fg='green'),
-                'slug': click.style(package['slug'], fg='magenta'),
+                'owner_slug': click.style(package['namespace'], fg='magenta'),
+                'repo_slug': click.style(package['repository'], fg='magenta'),
+                'slug': click.style(package['slug'], fg='green'),
             }
         ])
 
@@ -204,7 +217,7 @@ def packages(ctx, opts, owner_repo, page=None, page_size=None, query=None):
 @click.argument(
     'owner', default=None, required=False)
 @click.pass_context
-def repos(ctx, opts, owner, page=None, page_size=None):
+def repos(ctx, opts, owner, page, page_size):
     """
     List repositories for a namespace (owner).
 
@@ -230,19 +243,23 @@ def repos(ctx, opts, owner, page=None, page_size=None):
 
     click.secho('OK', fg='green', err=use_stderr)
 
-    if maybe_print_as_json(opts, repos_, page_info):
+    if utils.maybe_print_as_json(opts, repos_, page_info):
         return
 
-    headers = ['Name', 'Type', 'Owner / Repository (Identifier)']
+    headers = ['Name', 'Type', 'Packages', 'Groups', 'Downloads', 'Size', 'Owner / Repository (Identifier)']
 
     rows = []
     for repo in sorted(repos_, key=itemgetter('slug')):
         rows.append([
             click.style(repo['name'], fg='cyan'),
             click.style(repo['repository_type_str'], fg='yellow'),
+            click.style(six.text_type(repo['package_count']), fg='blue'),
+            click.style(six.text_type(repo['package_group_count']), fg='blue'),
+            click.style(six.text_type(repo['num_downloads']), fg='blue'),
+            click.style(six.text_type(repo['size_str']), fg='blue'),
             '%(owner_slug)s/%(slug)s' % {
-                'owner_slug': click.style(repo['namespace'], fg='green'),
-                'slug': click.style(repo['slug'], fg='magenta'),
+                'owner_slug': click.style(repo['namespace'], fg='magenta'),
+                'slug': click.style(repo['slug'], fg='green'),
             }
         ])
 
@@ -279,19 +296,3 @@ def _get_package_status(package):
 def _get_package_version(package):
     """Get the version for a package (if any)."""
     return package['version'] or 'None'
-
-
-def maybe_print_as_json(opts, data, page_info=None):
-    if not opts.output in ('json', 'pretty_json'):
-        return False
-
-    full_data = {'results': data}
-
-    if page_info is not None and page_info.is_valid:
-        full_data['_pagination'] = page_info.as_dict(num_results=len(data))
-
-    if opts.output == 'pretty_json':
-        full_data = json.dumps(full_data, indent=4, sort_keys=True)
-
-    click.echo(full_data)
-    return True

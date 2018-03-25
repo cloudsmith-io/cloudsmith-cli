@@ -15,7 +15,7 @@ from ...core.api.exceptions import ApiException
 from ...core.api.files import upload_file as api_upload_file
 from ...core.api.files import request_file_upload, validate_request_file_upload
 from ...core.api.packages import (
-    create_package as api_create_package, resync_package,
+    create_package as api_create_package,
     validate_create_package as api_validate_create_package)
 from ...core.api.packages import get_package_formats, get_package_status
 from ..exceptions import handle_api_exceptions
@@ -145,7 +145,7 @@ def create_package(
     click.echo(
         'Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)' % {
             'owner': click.style(owner, fg='magenta'),
-            'repo': click.style(repo, fg='blue'),
+            'repo': click.style(repo, fg='magenta'),
             'slug': click.style(slug, fg='green'),
             'slug_perm': click.style(slug_perm, bold=True)
         }
@@ -162,7 +162,7 @@ def wait_for_package_sync(
     click.echo()
     completed = False
     label = 'Synchronising %(package)s:' % {
-        'package': click.style(slug, fg='magenta')
+        'package': click.style(slug, fg='green')
     }
 
     status_str = 'Waiting'
@@ -425,11 +425,11 @@ def create_push_handlers():
         handlers[key] = push_handler
 
 
-@main.group(cls=command.AliasGroup, aliases=['upload'])
+@main.group(cls=command.AliasGroup, aliases=['upload', 'deploy'])
 @click.pass_context
 def push(ctx):  # pylint: disable=unused-argument
     """
-    Push/upload a new package to a repository.
+    Push (upload) a new package to a repository.
 
     At the moment you need to specify the package format (see below) of
     the package you're uploading. Each package format may have additional
