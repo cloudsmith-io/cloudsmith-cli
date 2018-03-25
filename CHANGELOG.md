@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+Nothing yet.
+
+
+## [0.25.0] - 2018-03-25
+
 ### Added
 
 - Support for aliased subcommands, starting with `delete` = `rm`, `list` = `ls` and `push` = `upload`.
