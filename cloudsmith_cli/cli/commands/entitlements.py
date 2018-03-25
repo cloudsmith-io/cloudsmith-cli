@@ -75,7 +75,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     List entitlements for a repository.
 
     - OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the REPO
-      name where you want to create an entitlement. All separated by a slash.
+      name where you want to list entitlements for. All separated by a slash.
 
         Example: 'your-org/your-repo'
 
@@ -164,7 +164,7 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
     metavar='OWNER/REPO',
     callback=validators.validate_owner_repo)
 @click.option(
-    '--name', type=str,
+    '--name', type=str, required=True,
     help='The name of the entitlement token (for informational purposes '
          'only). Must be something other than "Default".'
 )
