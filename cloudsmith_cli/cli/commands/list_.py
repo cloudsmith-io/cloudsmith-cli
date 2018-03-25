@@ -106,7 +106,7 @@ def entitlements_(*args, **kwargs):  # noqa
     return entitlements.list_entitlements(*args, **kwargs)
 
 
-@list_.command()
+@list_.command(aliases=['pkgs'])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_cli_list_options

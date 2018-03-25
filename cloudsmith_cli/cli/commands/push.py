@@ -181,8 +181,6 @@ def wait_for_package_sync(
         )
 
     context_msg = 'Failed to synchronise file!'
-    ok = False
-    reason = None
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
                                reraise_on_error=skip_errors):
         last_progress = 0
@@ -218,6 +216,7 @@ def wait_for_package_sync(
             }, fg='red'
         )
 
+        # pylint: disable=fixme
         # FIXME: The API should communicate "no retry" fails
         if 'package should be deleted' in reason and attempts > 1:
             click.secho(

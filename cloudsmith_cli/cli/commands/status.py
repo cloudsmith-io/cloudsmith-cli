@@ -44,7 +44,7 @@ def status(ctx, opts, owner_repo_package):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             res = get_package_status(owner, repo, slug)
-            completed, failed, _, status_str, stage_str = res
+            ok, failed, _, status_str, stage_str, reason = res
 
     click.secho('OK', fg='green')
 
@@ -56,7 +56,7 @@ def status(ctx, opts, owner_repo_package):
             'stage': stage_str
         }
 
-    if completed:
+    if ok:
         status_colour = 'green'
     elif failed:
         status_colour = 'red'
@@ -68,3 +68,10 @@ def status(ctx, opts, owner_repo_package):
             'status': click.style(package_status, fg=status_colour)
         }
     )
+
+    if reason:
+        click.secho(
+            'Reason given: %(reason)s' % {
+                'reason': click.style(reason, fg='yellow')
+            }, fg=status_colour
+        )
