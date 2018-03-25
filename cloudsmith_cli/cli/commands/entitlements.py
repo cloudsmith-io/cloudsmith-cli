@@ -70,21 +70,19 @@ def list_entitlements_options(f):
     return wrapper
 
 
-@entitlements.command(name='list', aliases=['ls'])
-@list_entitlements_options
-@click.pass_context
-def list_(*args, **kwargs):
+def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     """
     List entitlements for a repository.
+
+    - OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the REPO
+      name where you want to create an entitlement. All separated by a slash.
+
+        Example: 'your-org/your-repo'
 
     Full CLI example:
 
       $ cloudsmith ents list your-org/your-repo
     """
-    return list_entitlements(*args, **kwargs)
-
-
-def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
@@ -110,6 +108,16 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     print_entitlements(
         opts=opts, data=entitlements_, page_info=page_info
     )
+
+
+
+
+@entitlements.command(name='list', aliases=['ls'])
+@list_entitlements_options
+@functools.wraps(list_entitlements)
+@click.pass_context
+def list_(*args, **kwargs):
+    return list_entitlements(*args, **kwargs)
 
 
 def print_entitlements(opts, data, page_info=None, show_list_info=True):

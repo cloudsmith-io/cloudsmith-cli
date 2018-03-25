@@ -98,9 +98,9 @@ def distros(ctx, opts, package_format):
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
-@functools.wraps(entitlements.list_)
 @list_.command(name='entitlements', aliases=['ents'])
 @entitlements.list_entitlements_options
+@functools.wraps(entitlements.list_entitlements)
 @click.pass_context
 def entitlements_(*args, **kwargs):
     return entitlements.list_entitlements(*args, **kwargs)
