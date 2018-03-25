@@ -28,8 +28,11 @@ def get_long_description():
     root_path = get_root_path()
     readme_path = os.path.join(root_path, 'README.md')
 
-    import pypandoc
-    return pypandoc.convert(readme_path, 'rst')
+    try:
+        import pypandoc
+        return pypandoc.convert(readme_path, 'rst')
+    except ImportError:
+        return 'Cloudsmith API'
 
 
 setup(
@@ -53,7 +56,7 @@ setup(
         'click-configfile>=0.2.3',
         'click-didyoumean>=0.0.3',
         'click-spinner>=0.1.7',
-        'cloudsmith-api==0.21.3',
+        'cloudsmith-api>=0.26.0',
         'colorama>=0.3.9',
         'future>=0.16.0',
         'requests>=2.18.4',
