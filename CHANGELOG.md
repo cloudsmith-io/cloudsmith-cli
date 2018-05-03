@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - #5: Credentials file not loading when explicitly specified via command-line parameter.
 - #6: Ensure that a non-zero status is always returned on errors/failures.
+- Exit with an error after running out of sync attempts.
 
 
 ## [0.5.6] - 2018-03-25

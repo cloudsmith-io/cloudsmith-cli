@@ -249,6 +249,8 @@ def wait_for_package_sync(
             wait_interval=wait_interval, skip_errors=skip_errors,
             attempts=attempts
         )
+    else:
+        ctx.exit(1)
 
 
 def upload_files_and_create_package(
