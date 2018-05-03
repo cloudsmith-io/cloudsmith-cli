@@ -8,7 +8,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- #5: Credentials file not loading when explicitly specified via command-line parameter.
 
 
 ## [0.5.6] - 2018-03-25

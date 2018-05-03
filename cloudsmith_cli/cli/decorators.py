@@ -40,13 +40,13 @@ def common_cli_config_options(f):
     @click.option(
         '-C', '--config-file', envvar='CLOUDSMITH_CONFIG_FILE',
         type=click.Path(
-            dir_okay=False, exists=True, writable=False, resolve_path=True
+            dir_okay=True, exists=True, writable=False, resolve_path=True
         ),
         help='The path to your config.ini file.')
     @click.option(
         '--credentials-file', envvar='CLOUDSMITH_CREDENTIALS_FILE',
         type=click.Path(
-            dir_okay=False, exists=True, writable=False, resolve_path=True
+            dir_okay=True, exists=True, writable=False, resolve_path=True
         ),
         help='The path to your credentials.ini file.')
     @click.option(
