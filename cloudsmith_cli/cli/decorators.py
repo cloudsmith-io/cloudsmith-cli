@@ -165,8 +165,8 @@ def initialise_api(f):
         opts.rate_limit = not kwargs.pop('without_rate_limit')
         opts.rate_limit_warning = kwargs.pop('rate_limit_warning')
 
-        def call_print_rate_limit_info_with_opts(rate_info):
-            utils.print_rate_limit_info(opts, rate_info)
+        def call_print_rate_limit_info_with_opts(rate_info, atexit=False):
+            utils.print_rate_limit_info(opts, rate_info, atexit=atexit)
 
         opts.api_config = _initialise_api(
             debug=opts.debug,

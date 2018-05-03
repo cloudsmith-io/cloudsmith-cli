@@ -78,10 +78,10 @@ class RateLimitsInfo(object):
 @atexit.register
 def maybe_rate_limit_atexit():
     """Pause the process at exit based on rate limit interval (if any)."""
-    rate_limit(LAST_CLIENT, LAST_HEADERS)
+    rate_limit(LAST_CLIENT, LAST_HEADERS, atexit=True)
 
 
-def maybe_rate_limit(client, headers):
+def maybe_rate_limit(client, headers, atexit=False):
     """Optionally pause the process based on suggested rate interval."""
     # pylint: disable=fixme
     # pylint: disable=global-statement
@@ -90,13 +90,13 @@ def maybe_rate_limit(client, headers):
 
     if LAST_CLIENT and LAST_HEADERS:
         # Wait based on previous client/headers
-        rate_limit(LAST_CLIENT, LAST_HEADERS)
+        rate_limit(LAST_CLIENT, LAST_HEADERS, atexit=atexit)
 
     LAST_CLIENT = copy.copy(client)
     LAST_HEADERS = copy.copy(headers)
 
 
-def rate_limit(client, headers):
+def rate_limit(client, headers, atexit=False):
     """Pause the process based on suggested rate interval."""
     if not client or not headers:
         return False
@@ -111,6 +111,6 @@ def rate_limit(client, headers):
     if rate_info.interval:
         cb = getattr(client.config, 'rate_limit_callback', None)
         if cb and callable(cb):
-            cb(rate_info)
+            cb(rate_info, atexit=atexit)
         time.sleep(rate_info.interval)
     return True

@@ -83,13 +83,13 @@ def pretty_print_table_instance(table):
         pretty_print_row(row, table.plain_rows[k])
 
 
-def print_rate_limit_info(opts, rate_info):
+def print_rate_limit_info(opts, rate_info, atexit=False):
     """Tell the user when we're being rate limited."""
     if not rate_info:
         return
 
     show_info = (
-        opts.always_show_rate_limit or
+        opts.always_show_rate_limit or atexit or
         rate_info.interval > opts.rate_limit_warning
     )
 
