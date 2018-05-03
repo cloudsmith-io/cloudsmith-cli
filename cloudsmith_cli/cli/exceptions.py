@@ -83,7 +83,7 @@ def handle_api_exceptions(
             six.reraise(*sys.exc_info())
 
         if exit_on_error:
-            ctx.exit(exc.status)
+            ctx.exit(exc.status or 1)
 
 
 def get_details(exc):
