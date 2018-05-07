@@ -1,7 +1,7 @@
 """Core rate limit utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import atexit
+import atexit as atexit_
 import copy
 import datetime
 import threading
@@ -75,7 +75,7 @@ class RateLimitsInfo(object):
         return cls.from_dict(data)
 
 
-@atexit.register
+@atexit_.register
 def maybe_rate_limit_atexit():
     """Pause the process at exit based on rate limit interval (if any)."""
     rate_limit(LAST_CLIENT, LAST_HEADERS, atexit=True)
