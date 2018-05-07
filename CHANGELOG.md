@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 **Note:** Until 1.0 any MAJOR or MINOR release may have backwards-incompatible changes.
 
+
 ## [Unreleased]
+
+Nothing yet.
+
+
+## [0.5.7] - 2018-05-07
 
 ### Added
 
