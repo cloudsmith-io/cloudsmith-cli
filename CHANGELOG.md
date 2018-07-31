@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+Nothing yet.
+
+
+## [0.6.0] - 2018-07-31
+
 ### Added
 
 - Updated and pinned cloudsmith-api dependency to 0.30.3.
