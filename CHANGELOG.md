@@ -9,7 +9,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Added support for latest API (0.30) which changed how packages are referenced (slug -> identifier).
 
 
 ## [0.5.7] - 2018-05-07

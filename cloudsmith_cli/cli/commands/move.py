@@ -76,7 +76,7 @@ def move(
             _, new_slug = move_package(
                 owner=owner,
                 repo=source,
-                slug=slug,
+                identifier=slug,
                 destination=destination
             )
 

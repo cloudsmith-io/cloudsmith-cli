@@ -67,7 +67,7 @@ def validate_create_package(package_format, owner, repo, **kwargs):
     return True
 
 
-def copy_package(owner, repo, slug, destination):
+def copy_package(owner, repo, identifier, destination):
     """Copy a package to another repository."""
     client = get_packages_api()
 
@@ -75,7 +75,7 @@ def copy_package(owner, repo, slug, destination):
         data, _, headers = client.packages_copy_with_http_info(
             owner=owner,
             repo=repo,
-            slug=slug,
+            identifier=identifier,
             data={
                 'destination': destination
             }
@@ -85,7 +85,7 @@ def copy_package(owner, repo, slug, destination):
     return data.slug_perm, data.slug
 
 
-def move_package(owner, repo, slug, destination):
+def move_package(owner, repo, identifier, destination):
     """Move a package to another repository."""
     client = get_packages_api()
 
@@ -93,7 +93,7 @@ def move_package(owner, repo, slug, destination):
         data, _, headers = client.packages_move_with_http_info(
             owner=owner,
             repo=repo,
-            slug=slug,
+            identifier=identifier,
             data={
                 'destination': destination
             }
@@ -103,7 +103,7 @@ def move_package(owner, repo, slug, destination):
     return data.slug_perm, data.slug
 
 
-def delete_package(owner, repo, slug):
+def delete_package(owner, repo, identifier):
     """Delete a package in a repository."""
     client = get_packages_api()
 
@@ -111,14 +111,14 @@ def delete_package(owner, repo, slug):
         _, _, headers = client.packages_delete_with_http_info(
             owner=owner,
             repo=repo,
-            slug=slug
+            identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
     return True
 
 
-def resync_package(owner, repo, slug):
+def resync_package(owner, repo, identifier):
     """Resync a package in a repository."""
     client = get_packages_api()
 
@@ -126,14 +126,14 @@ def resync_package(owner, repo, slug):
         data, _, headers = client.packages_resync_with_http_info(
             owner=owner,
             repo=repo,
-            slug=slug
+            identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
     return data.slug_perm, data.slug
 
 
-def get_package_status(owner, repo, slug):
+def get_package_status(owner, repo, identifier):
     """Get the status for a package in a repository."""
     client = get_packages_api()
 
@@ -141,7 +141,7 @@ def get_package_status(owner, repo, slug):
         data, _, headers = client.packages_status_with_http_info(
             owner=owner,
             repo=repo,
-            slug=slug
+            identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)

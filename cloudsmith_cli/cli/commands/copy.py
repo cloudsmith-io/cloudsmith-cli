@@ -66,7 +66,7 @@ def copy(
             _, new_slug = copy_package(
                 owner=owner,
                 repo=source,
-                slug=slug,
+                identifier=slug,
                 destination=destination
             )
 

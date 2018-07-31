@@ -72,7 +72,7 @@ def resync_package(ctx, opts, owner, repo, slug, skip_errors):
             api_resync_package(
                 owner=owner,
                 repo=repo,
-                slug=slug
+                identifier=slug
             )
 
     click.secho('OK', fg='green')

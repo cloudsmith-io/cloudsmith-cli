@@ -56,7 +56,7 @@ def delete(ctx, opts, owner_repo_package, yes):
             delete_package(
                 owner=owner,
                 repo=repo,
-                slug=slug
+                identifier=slug
             )
 
     click.secho('OK', fg='green')
