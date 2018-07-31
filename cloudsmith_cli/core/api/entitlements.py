@@ -56,7 +56,7 @@ def create_entitlement(owner, repo, name, token, show_tokens):
     return data.to_dict()  # pylint: disable=no-member
 
 
-def delete_entitlement(owner, repo, slug_perm):
+def delete_entitlement(owner, repo, identifier):
     """Delete an entitlement from a repository."""
     client = get_entitlements_api()
 
@@ -64,13 +64,13 @@ def delete_entitlement(owner, repo, slug_perm):
         _, _, headers = client.entitlements_delete_with_http_info(
             owner=owner,
             repo=repo,
-            slug_perm=slug_perm
+            identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
 
 
-def update_entitlement(owner, repo, slug_perm, name, token, show_tokens):
+def update_entitlement(owner, repo, identifier, name, token, show_tokens):
     """Update an entitlement in a repository."""
     client = get_entitlements_api()
 
@@ -85,7 +85,7 @@ def update_entitlement(owner, repo, slug_perm, name, token, show_tokens):
         data, _, headers = client.entitlements_partial_update_with_http_info(
             owner=owner,
             repo=repo,
-            slug_perm=slug_perm,
+            identifier=identifier,
             data=data,
             show_tokens=show_tokens
         )
@@ -94,7 +94,7 @@ def update_entitlement(owner, repo, slug_perm, name, token, show_tokens):
     return data.to_dict()  # pylint: disable=no-member
 
 
-def refresh_entitlement(owner, repo, slug_perm, show_tokens):
+def refresh_entitlement(owner, repo, identifier, show_tokens):
     """Refresh an entitlement in a repository."""
     client = get_entitlements_api()
 
@@ -102,7 +102,7 @@ def refresh_entitlement(owner, repo, slug_perm, show_tokens):
         data, _, headers = client.entitlements_refresh_with_http_info(
             owner=owner,
             repo=repo,
-            slug_perm=slug_perm,
+            identifier=identifier,
             show_tokens=show_tokens
         )
 

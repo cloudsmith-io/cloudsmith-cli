@@ -264,7 +264,7 @@ def delete(ctx, opts, owner_repo_identifier, yes):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             api.delete_entitlement(
-                owner=owner, repo=repo, slug_perm=identifier
+                owner=owner, repo=repo, identifier=identifier
             )
 
     click.secho('OK', fg='green')
@@ -319,7 +319,7 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             entitlement = api.update_entitlement(
-                owner=owner, repo=repo, slug_perm=identifier, name=name,
+                owner=owner, repo=repo, identifier=identifier, name=name,
                 token=token, show_tokens=show_tokens
             )
 
@@ -384,7 +384,7 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             entitlement = api.refresh_entitlement(
-                owner=owner, repo=repo, slug_perm=identifier,
+                owner=owner, repo=repo, identifier=identifier,
                 show_tokens=show_tokens
             )
 

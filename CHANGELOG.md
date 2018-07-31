@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 - Updated and pinned cloudsmith-api dependency to 0.30.3.
 - Added support for latest API (0.30.x+) which changed how packages are referenced (slug -> identifier).
+- Added support for latest API (0.30.x+) which changed how entitlements are referenced (slug_perm -> identifier).
 
 
 ## [0.5.7] - 2018-05-07
