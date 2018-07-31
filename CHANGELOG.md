@@ -11,7 +11,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ### Added
 
-- Added support for latest API (0.30) which changed how packages are referenced (slug -> identifier).
+- Updated and pinned cloudsmith-api dependency to 0.30.3.
+- Added support for latest API (0.30.x+) which changed how packages are referenced (slug -> identifier).
 
 
 ## [0.5.7] - 2018-05-07
