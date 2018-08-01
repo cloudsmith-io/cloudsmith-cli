@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ## [Unreleased]
 
 Nothing yet.
+### Fixed
+
+- Pinned cloudsmith-cli to 0.30.7 to fix issues with entitlements actions.
 
 
 ## [0.6.0] - 2018-07-31
