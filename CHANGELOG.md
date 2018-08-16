@@ -9,7 +9,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- When calling `ls repos`, the CLI will now list all repositories that the user can see.
+
+### Fixed
+
+- Compatibility with API changes for listing repositories.
 
 
 ## [0.6.1] - 2018-08-01

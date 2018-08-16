@@ -3,7 +3,6 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
 
-from . import user
 from .. import ratelimits, utils
 from ..pagination import PageInfo
 from .exceptions import catch_raise_api_exception
@@ -19,21 +18,21 @@ def list_repos(owner=None, **kwargs):
     """List repositories in a namespace."""
     client = get_repos_api()
 
-    # pylint: disable=fixme
-    # TODO(ls): Add support on the server-side to list the repositories for the
-    # current user instead of having to determine it. E.g. /user/self/repos or
-    # something like that.
-    if not owner:
-        # FIXME: We really shouldn't return standard tuples
-        _, owner, _, _ = user.get_user_brief()
-
     api_kwargs = {}
     api_kwargs.update(utils.get_page_kwargs(**kwargs))
 
+    # pylint: disable=fixme
+    # FIXME: Compatibility code until we work out how to conflate
+    # the overlapping repos_list methods into one.
+    repos_list = client.repos_list_with_http_info
+
+    if owner is not None:
+        api_kwargs['owner'] = owner
+        if hasattr(client, 'repos_list0_with_http_info'):
+            repos_list = client.repos_list0_with_http_info
+
     with catch_raise_api_exception():
-        res, _, headers = client.repos_list_with_http_info(
-            owner=owner, **api_kwargs
-        )
+        res, _, headers = repos_list(**api_kwargs)
 
     ratelimits.maybe_rate_limit(client, headers)
     page_info = PageInfo.from_headers(headers)
