@@ -30,6 +30,9 @@ def list_repos(owner=None, **kwargs):
         api_kwargs['owner'] = owner
         if hasattr(client, 'repos_list0_with_http_info'):
             repos_list = client.repos_list0_with_http_info
+    else:
+        if hasattr(client, 'repos_all_list_with_http_info'):
+            repos_list = client.repos_all_list_with_http_info
 
     with catch_raise_api_exception():
         res, _, headers = repos_list(**api_kwargs)
