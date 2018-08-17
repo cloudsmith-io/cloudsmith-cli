@@ -184,7 +184,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 
     headers = ['Name', 'Version', 'Status', 'Owner / Repository (Identifier)']
     rows = []
-    for package in sorted(packages_, key=itemgetter('namesspace', 'slug')):
+    for package in sorted(packages_, key=itemgetter('namespace', 'slug')):
         rows.append([
             click.style(_get_package_name(package), fg='cyan'),
             click.style(_get_package_version(package), fg='yellow'),
