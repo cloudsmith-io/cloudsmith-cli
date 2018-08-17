@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+### Added
+
+- Compatibility with upcoming API changes for listing repositories.
+
+### Fixed
+
+- Regression in listing packages caused by typo.
+
 
 ## [0.6.2] - 2018-08-16
 
