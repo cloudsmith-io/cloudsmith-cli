@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+### Added
+
+- Updated and pinned cloudsmith-api dependency to 0.32.11 (w/ alpine/npm support)
+
 
 ## [0.6.3] - 2018-08-17
 
