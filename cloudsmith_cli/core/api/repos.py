@@ -29,9 +29,11 @@ def list_repos(owner=None, **kwargs):
     if owner is not None:
         api_kwargs['owner'] = owner
         if hasattr(client, 'repos_list0_with_http_info'):
+            # pylint: disable=no-member
             repos_list = client.repos_list0_with_http_info
     else:
         if hasattr(client, 'repos_all_list_with_http_info'):
+            # pylint: disable=no-member
             repos_list = client.repos_all_list_with_http_info
 
     with catch_raise_api_exception():
