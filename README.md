@@ -62,7 +62,7 @@ The CLI currently supports the following commands (and sub-commands):
 You can install the latest CLI application from:
 
 - [Official CLI Repository @ PyPi](https://pypi.python.org/pypi/cloudsmith-cli)
-- [Official CLI Repository @ Cloudsmith](https://cloudsmith.io/package/ns/cloudsmith/repos/cli/packages/)
+- [Official CLI Repository @ Cloudsmith](https://cloudsmith.io/~cloudsmith/repos/cli/packages/)
 
 The simplest way is to use `pip`, such as:
 
