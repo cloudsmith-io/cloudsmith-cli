@@ -44,9 +44,11 @@ The CLI currently supports the following commands (and sub-commands):
   - `repos`:               List repositories for a namespace (owner).
 - `move`|`mv`:     Move (promote) a package to another repo.
 - `push`|`upload`: Push (upload) a new package to a repository.
+  - `alpine`:        Push (upload) a new Alpine package upstream.
   - `deb`:           Push (upload) a new Deb package upstream.
   - `maven`:         Push (upload) a new Maven package upstream.
   - `python`:        Push (upload) a new Python package upstream.
+  - `npm`:           Push (upload) a new Npm package upstream.
   - `raw`:           Push (upload) a new Raw package upstream.
   - `rpm`:           Push (upload) a new Rpm package upstream.
   - `ruby`:          Push (upload) a new Ruby package upstream.
