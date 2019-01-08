@@ -128,7 +128,7 @@ def maybe_print_as_json(opts, data, page_info=None):
     return True
 
 
-def confirm_operation(prompt, prefix=None, assume_yes=False):
+def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     """Prompt the user for confirmation for dangerous actions."""
     if assume_yes:
         return True
@@ -142,9 +142,9 @@ def confirm_operation(prompt, prefix=None, assume_yes=False):
         'prompt': prompt
     }
 
-    if click.confirm(prompt):
+    if click.confirm(prompt, err=err):
         return True
 
-    click.echo()
-    click.secho('OK, phew! Close call. :-)', fg='green')
+    click.echo(err=err)
+    click.secho('OK, phew! Close call. :-)', fg='green', err=err)
     return False
