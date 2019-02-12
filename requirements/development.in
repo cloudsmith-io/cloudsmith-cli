@@ -1,3 +1,4 @@
 # Development dependencies
+black>=18.0<=19.0
 bumpversion==0.5.3
 pip-tools>=2.0.0,<3.0.0
