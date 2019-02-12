@@ -190,12 +190,15 @@ def create(ctx, opts, owner_repo, show_tokens, name, token):
     """
     owner, repo = owner_repo
 
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr = opts.output != 'pretty'
+
     click.secho(
         'Creating %(name)s entitlement for the %(repository)s '
         'repository ... ' % {
             'name': click.style(name, bold=True),
             'repository': click.style(repo, bold=True)
-        }, nl=False
+        }, nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to create the entitlement!'
@@ -206,7 +209,7 @@ def create(ctx, opts, owner_repo, show_tokens, name, token):
                 show_tokens=show_tokens
             )
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
 
     print_entitlements(
         opts=opts, data=[entitlement], show_list_info=False
@@ -307,12 +310,15 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
     """
     owner, repo, identifier = owner_repo_identifier
 
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr = opts.output != 'pretty'
+
     click.secho(
         'Updating %(identifier)s entitlement for the %(repository)s '
         'repository ... ' % {
             'identifier': click.style(identifier, bold=True),
             'repository': click.style(repo, bold=True)
-        }, nl=False
+        }, nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to update the entitlement!'
@@ -323,7 +329,7 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
                 token=token, show_tokens=show_tokens
             )
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
 
     print_entitlements(
         opts=opts, data=[entitlement], show_list_info=False
@@ -367,17 +373,20 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
         'repository': click.style(repo, bold=True)
     }
 
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr = opts.output != 'pretty'
+
     prompt = (
         'refresh the %(identifier)s entitlement for the %(repository)s '
         'repository' % refresh_args
     )
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
         'Refreshing %(identifier)s entitlement for the %(repository)s '
         'repository ... ' % refresh_args,
-        nl=False
+        nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to refresh the entitlement!'
@@ -388,7 +397,7 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
                 show_tokens=show_tokens
             )
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
 
     print_entitlements(
         opts=opts, data=[entitlement], show_list_info=False
@@ -441,12 +450,15 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
         'warning': click.style('*** WARNING ***', fg='yellow')
     }
 
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr = opts.output != 'pretty'
+
     if not yes:
         click.secho(
             '%(warning)s This will DELETE ALL of the existing entitlements '
             'in the %(dest)s repository and replace them with entitlements '
             'from the %(source)s repository.' % sync_args,
-            fg='yellow'
+            fg='yellow', err=use_stderr
         )
         click.echo()
 
@@ -454,13 +466,13 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
         'sync entitlements from the %(source)s repository to the '
         '%(dest)s repository' % sync_args
     )
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
         'Syncing entitlements from the %(source)s repository to the '
         '%(dest)s repository' % sync_args,
-        nl=False
+        nl=False, err=use_stderr
     )
 
     context_msg = 'Failed to sync the entitlements!'
@@ -470,6 +482,6 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
                 owner=owner, repo=repo, source=source, show_tokens=show_tokens
             )
 
-    click.secho('OK', fg='green')
+    click.secho('OK', fg='green', err=use_stderr)
 
     print_entitlements(opts=opts, data=entitlements_, page_info=page_info)
