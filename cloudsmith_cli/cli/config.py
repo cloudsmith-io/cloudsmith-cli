@@ -47,16 +47,15 @@ class ConfigReader(ConfigFileReader):
         """Get storage name for a configuration section."""
         if not section_name or section_name == "default":
             return "default"
-        else:
-            return section_name
+        return section_name
 
     @classmethod
     def get_default_filepath(cls):
         """Get the default filepath for the configuratin file."""
         if not cls.config_files:
-            return
+            return None
         if not cls.config_searchpath:
-            return
+            return None
         filename = cls.config_files[0]
         filepath = cls.config_searchpath[0]
         return os.path.join(filepath, filename)

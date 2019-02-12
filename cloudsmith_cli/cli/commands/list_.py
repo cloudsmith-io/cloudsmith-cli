@@ -102,7 +102,7 @@ def distros(ctx, opts, package_format):
 @entitlements.list_entitlements_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
-def entitlements_(*args, **kwargs):  # noqa
+def entitlements_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
     return entitlements.list_entitlements(*args, **kwargs)
 
 

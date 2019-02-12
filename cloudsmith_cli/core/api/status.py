@@ -24,5 +24,5 @@ def get_status(with_version=False):
 
     if with_version:
         return data.detail, data.version
-    else:
-        return data.detail
+
+    return data.detail

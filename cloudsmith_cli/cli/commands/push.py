@@ -268,7 +268,7 @@ def upload_files_and_create_package(
     wait_interval,
     skip_errors,
     sync_attempts,
-    **kwargs
+    **kwargs,
 ):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
@@ -282,7 +282,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     # 2. Validate file upload parameters
@@ -328,7 +328,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     if no_wait_for_sync:
@@ -461,7 +461,6 @@ def create_push_handlers():
 
         # Add any additional arguments
         for k, info in six.iteritems(kwargs):
-            # pylint: disable=redefined-variable-type
             if k.endswith("_file"):
                 # Treat parameters that end with _file as uploadable filepaths.
                 option_type = ExpandPath(

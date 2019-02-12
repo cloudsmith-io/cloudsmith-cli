@@ -143,7 +143,8 @@ def token(ctx, opts, login, password):
         click.echo()
         click.secho("Oops, please fix the errors and try again!", fg="red")
         return
-    elif opts.api_key != api_key:
+
+    if opts.api_key != api_key:
         click.echo()
         if opts.api_key:
             click.secho(
