@@ -17,6 +17,11 @@ repos:
   - id: trailing-whitespace
   language_version: python3.6
 
+- repo: https://github.com/pre-commit/mirrors-isort
+  rev: v4.3.4
+  hooks:
+  - id: isort
+
 - repo: https://github.com/ambv/black
   rev: stable
   hooks:
