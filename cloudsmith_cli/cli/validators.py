@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """CLI - Validators."""
 from __future__ import absolute_import, print_function, unicode_literals
 
