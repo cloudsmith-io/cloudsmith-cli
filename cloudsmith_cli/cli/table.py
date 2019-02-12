@@ -10,9 +10,7 @@ from click.utils import strip_ansi
 
 
 Table = namedtuple(
-    'Table', [
-        'headers', 'plain_headers', 'rows', 'plain_rows', 'column_widths'
-    ]
+    "Table", ["headers", "plain_headers", "rows", "plain_rows", "column_widths"]
 )
 
 
@@ -56,6 +54,9 @@ def make_table(headers=None, rows=None):
         plain_rows.append(plain_row)
 
     return Table(
-        headers=headers, plain_headers=plain_headers,
-        rows=rows, plain_rows=plain_rows, column_widths=column_widths
+        headers=headers,
+        plain_headers=plain_headers,
+        rows=rows,
+        plain_rows=plain_rows,
+        column_widths=column_widths,
     )

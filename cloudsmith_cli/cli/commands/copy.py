@@ -11,23 +11,29 @@ from ..exceptions import handle_api_exceptions
 from .push import wait_for_package_sync
 
 
-@main.command(aliases=['cp'])
+@main.command(aliases=["cp"])
 @decorators.common_api_auth_options
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_package_action_options
 @decorators.initialise_api
 @click.argument(
-    'owner_repo_package',
-    metavar='OWNER/REPO/PACKAGE',
-    callback=validators.validate_owner_repo_package)
-@click.argument(
-    'destination',
-    metavar='DEST')
+    "owner_repo_package",
+    metavar="OWNER/REPO/PACKAGE",
+    callback=validators.validate_owner_repo_package,
+)
+@click.argument("destination", metavar="DEST")
 @click.pass_context
 def copy(
-        ctx, opts, owner_repo_package, destination, skip_errors, wait_interval,
-        no_wait_for_sync, sync_attempts):
+    ctx,
+    opts,
+    owner_repo_package,
+    destination,
+    skip_errors,
+    wait_interval,
+    no_wait_for_sync,
+    sync_attempts,
+):
     """
     Copy a package to another repository.
 
@@ -52,31 +58,36 @@ def copy(
     owner, source, slug = owner_repo_package
 
     click.echo(
-        'Copying %(slug)s package from %(source)s to %(dest)s ... ' % {
-            'slug': click.style(slug, bold=True),
-            'source': click.style(source, bold=True),
-            'dest': click.style(destination, bold=True),
-        }, nl=False
+        "Copying %(slug)s package from %(source)s to %(dest)s ... "
+        % {
+            "slug": click.style(slug, bold=True),
+            "source": click.style(source, bold=True),
+            "dest": click.style(destination, bold=True),
+        },
+        nl=False,
     )
 
-    context_msg = 'Failed to copy package!'
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
-                               reraise_on_error=skip_errors):
+    context_msg = "Failed to copy package!"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
         with spinner():
             _, new_slug = copy_package(
-                owner=owner,
-                repo=source,
-                identifier=slug,
-                destination=destination
+                owner=owner, repo=source, identifier=slug, destination=destination
             )
 
-    click.secho('OK', fg='green')
+    click.secho("OK", fg="green")
 
     if no_wait_for_sync:
         return
 
     wait_for_package_sync(
-        ctx=ctx, opts=opts, owner=owner, repo=destination, slug=new_slug,
-        wait_interval=wait_interval, skip_errors=skip_errors,
-        attempts=sync_attempts
+        ctx=ctx,
+        opts=opts,
+        owner=owner,
+        repo=destination,
+        slug=new_slug,
+        wait_interval=wait_interval,
+        skip_errors=skip_errors,
+        attempts=sync_attempts,
     )

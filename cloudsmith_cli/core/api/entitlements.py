@@ -24,7 +24,7 @@ def list_entitlements(owner, repo, page, page_size, show_tokens):
             repo=repo,
             page=page,
             page_size=page_size,
-            show_tokens=show_tokens
+            show_tokens=show_tokens,
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -39,17 +39,14 @@ def create_entitlement(owner, repo, name, token, show_tokens):
 
     data = {}
     if name is not None:
-        data['name'] = name
+        data["name"] = name
 
     if token is not None:
-        data['token'] = token
+        data["token"] = token
 
     with catch_raise_api_exception():
         data, _, headers = client.entitlements_create_with_http_info(
-            owner=owner,
-            repo=repo,
-            data=data,
-            show_tokens=show_tokens
+            owner=owner, repo=repo, data=data, show_tokens=show_tokens
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -62,9 +59,7 @@ def delete_entitlement(owner, repo, identifier):
 
     with catch_raise_api_exception():
         _, _, headers = client.entitlements_delete_with_http_info(
-            owner=owner,
-            repo=repo,
-            identifier=identifier
+            owner=owner, repo=repo, identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -76,10 +71,10 @@ def update_entitlement(owner, repo, identifier, name, token, show_tokens):
 
     data = {}
     if name is not None:
-        data['name'] = name
+        data["name"] = name
 
     if token is not None:
-        data['token'] = token
+        data["token"] = token
 
     with catch_raise_api_exception():
         data, _, headers = client.entitlements_partial_update_with_http_info(
@@ -87,7 +82,7 @@ def update_entitlement(owner, repo, identifier, name, token, show_tokens):
             repo=repo,
             identifier=identifier,
             data=data,
-            show_tokens=show_tokens
+            show_tokens=show_tokens,
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -100,10 +95,7 @@ def refresh_entitlement(owner, repo, identifier, show_tokens):
 
     with catch_raise_api_exception():
         data, _, headers = client.entitlements_refresh_with_http_info(
-            owner=owner,
-            repo=repo,
-            identifier=identifier,
-            show_tokens=show_tokens
+            owner=owner, repo=repo, identifier=identifier, show_tokens=show_tokens
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -116,12 +108,7 @@ def sync_entitlements(owner, repo, source, show_tokens):
 
     with catch_raise_api_exception():
         data, _, headers = client.entitlements_sync_with_http_info(
-            owner=owner,
-            repo=repo,
-            data={
-                'source': source,
-            },
-            show_tokens=show_tokens
+            owner=owner, repo=repo, data={"source": source}, show_tokens=show_tokens
         )
 
     ratelimits.maybe_rate_limit(client, headers)

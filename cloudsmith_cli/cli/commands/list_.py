@@ -11,14 +11,12 @@ from click_spinner import spinner
 from . import entitlements, main
 from .. import command, decorators, utils, validators
 from ...core.api.distros import list_distros
-from ...core.api.packages import (
-    get_package_format_names_with_distros, list_packages
-)
+from ...core.api.packages import get_package_format_names_with_distros, list_packages
 from ...core.api.repos import list_repos
 from ..exceptions import handle_api_exceptions
 
 
-@main.group(cls=command.AliasGroup, name='list', aliases=['ls'])
+@main.group(cls=command.AliasGroup, name="list", aliases=["ls"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -38,46 +36,48 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.argument(
-    'package-format', default=None, required=False,
-    type=click.Choice(get_package_format_names_with_distros()))
+    "package-format",
+    default=None,
+    required=False,
+    type=click.Choice(get_package_format_names_with_distros()),
+)
 @click.pass_context
 def distros(ctx, opts, package_format):
     """List available distributions."""
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != 'pretty'
+    use_stderr = opts.output != "pretty"
 
-    click.echo(
-        'Getting list of distributions ... ', nl=False, err=use_stderr
-    )
+    click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
 
-    context_msg = 'Failed to get list of distributions!'
+    context_msg = "Failed to get list of distributions!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             distros_ = list_distros(package_format=package_format)
 
-    click.secho('OK', fg='green', err=use_stderr)
+    click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, distros_):
         return
 
-    headers = ['Distro', 'Release', 'Format', 'Distro / Release (Identifier)']
+    headers = ["Distro", "Release", "Format", "Distro / Release (Identifier)"]
     if package_format:
-        headers.remove('Format')
+        headers.remove("Format")
 
     rows = []
-    for distro in sorted(distros_, key=itemgetter('slug')):
-        if not distro['versions']:
+    for distro in sorted(distros_, key=itemgetter("slug")):
+        if not distro["versions"]:
             continue
 
-        for release in sorted(distro['versions'], key=itemgetter('slug')):
+        for release in sorted(distro["versions"], key=itemgetter("slug")):
             row = [
-                click.style(distro['name'], fg='cyan'),
-                click.style(release['name'], fg='yellow'),
-                click.style(distro['format'], fg='blue'),
-                '%(distro)s/%(release)s' % {
-                    'distro': click.style(distro['slug'], fg='magenta'),
-                    'release': click.style(release['slug'], fg='green')
-                }
+                click.style(distro["name"], fg="cyan"),
+                click.style(release["name"], fg="yellow"),
+                click.style(distro["format"], fg="blue"),
+                "%(distro)s/%(release)s"
+                % {
+                    "distro": click.style(distro["slug"], fg="magenta"),
+                    "release": click.style(release["slug"], fg="green"),
+                },
             ]
 
             if package_format:
@@ -92,13 +92,13 @@ def distros(ctx, opts, package_format):
     click.echo()
 
     num_results = sum(
-        1 for distro in distros_ for release in distro['versions'] if release
+        1 for distro in distros_ for release in distro["versions"] if release
     )
-    list_suffix = 'distribution release%s' % ('s' if num_results != 1 else '')
+    list_suffix = "distribution release%s" % ("s" if num_results != 1 else "")
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
-@list_.command(name='entitlements', aliases=['ents'])
+@list_.command(name="entitlements", aliases=["ents"])
 @entitlements.list_entitlements_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
@@ -106,20 +106,19 @@ def entitlements_(*args, **kwargs):  # noqa
     return entitlements.list_entitlements(*args, **kwargs)
 
 
-@list_.command(aliases=['pkgs'])
+@list_.command(aliases=["pkgs"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.argument(
-    'owner_repo', metavar='OWNER/REPO',
-    callback=validators.validate_owner_repo)
+    "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_repo
+)
 @click.option(
-    '-q', '--query',
-    help=(
-        'A boolean-like search term for querying package attributes.'
-    )
+    "-q",
+    "--query",
+    help=("A boolean-like search term for querying package attributes."),
 )
 @click.pass_context
 def packages(ctx, opts, owner_repo, page, page_size, query):
@@ -163,38 +162,38 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != 'pretty'
+    use_stderr = opts.output != "pretty"
 
-    click.echo(
-        'Getting list of packages ... ', nl=False, err=use_stderr
-    )
+    click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
 
-    context_msg = 'Failed to get list of packages!'
+    context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
             packages_, page_info = list_packages(
-                owner=owner, repo=repo, page=page, page_size=page_size,
-                query=query
+                owner=owner, repo=repo, page=page, page_size=page_size, query=query
             )
 
-    click.secho('OK', fg='green', err=use_stderr)
+    click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, packages_, page_info):
         return
 
-    headers = ['Name', 'Version', 'Status', 'Owner / Repository (Identifier)']
+    headers = ["Name", "Version", "Status", "Owner / Repository (Identifier)"]
     rows = []
-    for package in sorted(packages_, key=itemgetter('namespace', 'slug')):
-        rows.append([
-            click.style(_get_package_name(package), fg='cyan'),
-            click.style(_get_package_version(package), fg='yellow'),
-            click.style(_get_package_status(package), fg='blue'),
-            '%(owner_slug)s/%(repo_slug)s/%(slug)s' % {
-                'owner_slug': click.style(package['namespace'], fg='magenta'),
-                'repo_slug': click.style(package['repository'], fg='magenta'),
-                'slug': click.style(package['slug'], fg='green'),
-            }
-        ])
+    for package in sorted(packages_, key=itemgetter("namespace", "slug")):
+        rows.append(
+            [
+                click.style(_get_package_name(package), fg="cyan"),
+                click.style(_get_package_version(package), fg="yellow"),
+                click.style(_get_package_status(package), fg="blue"),
+                "%(owner_slug)s/%(repo_slug)s/%(slug)s"
+                % {
+                    "owner_slug": click.style(package["namespace"], fg="magenta"),
+                    "repo_slug": click.style(package["repository"], fg="magenta"),
+                    "slug": click.style(package["slug"], fg="green"),
+                },
+            ]
+        )
 
     if packages_:
         click.echo()
@@ -203,7 +202,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     click.echo()
 
     num_results = len(packages_)
-    list_suffix = 'package%s visible' % ('s' if num_results != 1 else '')
+    list_suffix = "package%s visible" % ("s" if num_results != 1 else "")
     utils.pretty_print_list_info(
         num_results=num_results, page_info=page_info, suffix=list_suffix
     )
@@ -215,8 +214,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 @decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
-@click.argument(
-    'owner', default=None, required=False)
+@click.argument("owner", default=None, required=False)
 @click.pass_context
 def repos(ctx, opts, owner, page, page_size):
     """
@@ -229,43 +227,47 @@ def repos(ctx, opts, owner, page, page_size):
     (if any). If you're unauthenticated, no results will be returned.
     """
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != 'pretty'
+    use_stderr = opts.output != "pretty"
 
-    click.echo(
-        'Getting list of repositories ... ', nl=False, err=use_stderr
-    )
+    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
-    context_msg = 'Failed to get list of repositories!'
+    context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with spinner():
-            repos_, page_info = list_repos(
-                owner=owner, page=page, page_size=page_size
-            )
+            repos_, page_info = list_repos(owner=owner, page=page, page_size=page_size)
 
-    click.secho('OK', fg='green', err=use_stderr)
+    click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, repos_, page_info):
         return
 
     headers = [
-        'Name', 'Type', 'Packages', 'Groups', 'Downloads', 'Size',
-        'Owner / Repository (Identifier)'
+        "Name",
+        "Type",
+        "Packages",
+        "Groups",
+        "Downloads",
+        "Size",
+        "Owner / Repository (Identifier)",
     ]
 
     rows = []
-    for repo in sorted(repos_, key=itemgetter('namespace', 'slug')):
-        rows.append([
-            click.style(repo['name'], fg='cyan'),
-            click.style(repo['repository_type_str'], fg='yellow'),
-            click.style(six.text_type(repo['package_count']), fg='blue'),
-            click.style(six.text_type(repo['package_group_count']), fg='blue'),
-            click.style(six.text_type(repo['num_downloads']), fg='blue'),
-            click.style(six.text_type(repo['size_str']), fg='blue'),
-            '%(owner_slug)s/%(slug)s' % {
-                'owner_slug': click.style(repo['namespace'], fg='magenta'),
-                'slug': click.style(repo['slug'], fg='green'),
-            }
-        ])
+    for repo in sorted(repos_, key=itemgetter("namespace", "slug")):
+        rows.append(
+            [
+                click.style(repo["name"], fg="cyan"),
+                click.style(repo["repository_type_str"], fg="yellow"),
+                click.style(six.text_type(repo["package_count"]), fg="blue"),
+                click.style(six.text_type(repo["package_group_count"]), fg="blue"),
+                click.style(six.text_type(repo["num_downloads"]), fg="blue"),
+                click.style(six.text_type(repo["size_str"]), fg="blue"),
+                "%(owner_slug)s/%(slug)s"
+                % {
+                    "owner_slug": click.style(repo["namespace"], fg="magenta"),
+                    "slug": click.style(repo["slug"], fg="green"),
+                },
+            ]
+        )
 
     if repos_:
         click.echo()
@@ -274,7 +276,7 @@ def repos(ctx, opts, owner, page, page_size):
     click.echo()
 
     num_results = len(repos_)
-    list_suffix = 'repositor%s visible' % ('ies' if num_results != 1 else 'y')
+    list_suffix = "repositor%s visible" % ("ies" if num_results != 1 else "y")
     utils.pretty_print_list_info(
         num_results=num_results, page_info=page_info, suffix=list_suffix
     )
@@ -282,21 +284,18 @@ def repos(ctx, opts, owner, page, page_size):
 
 def _get_package_name(package):
     """Get the name (or filename) for a package."""
-    return package['name'] or package['filename']
+    return package["name"] or package["filename"]
 
 
 def _get_package_status(package):
     """Get the status for a package."""
-    status = package['status_str'] or 'Unknown'
-    stage = package['stage_str'] or 'Unknown'
-    if stage == 'Fully Synchronised':
+    status = package["status_str"] or "Unknown"
+    stage = package["stage_str"] or "Unknown"
+    if stage == "Fully Synchronised":
         return status
-    return '%(status)s / %(stage)s' % {
-        'status': status,
-        'stage': stage
-    }
+    return "%(status)s / %(stage)s" % {"status": status, "stage": stage}
 
 
 def _get_package_version(package):
     """Get the version for a package (if any)."""
-    return package['version'] or 'None'
+    return package["version"] or "None"

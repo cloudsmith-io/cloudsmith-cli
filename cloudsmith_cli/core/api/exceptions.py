@@ -16,16 +16,16 @@ except ImportError:
 class ApiException(Exception):
     """Exception raised by the Cloudsmith API."""
 
-    def __init__(self, status, detail=None, headers=None, body=None,
-                 fields=None):
+    def __init__(self, status, detail=None, headers=None, body=None, fields=None):
         """Create a new APIException."""
         super(ApiException, self).__init__()
         self.status = status
         if status == 422:
-            self.status_description = 'Unprocessable Entity'
+            self.status_description = "Unprocessable Entity"
         else:
-            self.status_description = (
-                http_client.responses.get(status, 'Unknown Status'))
+            self.status_description = http_client.responses.get(
+                status, "Unknown Status"
+            )
         self.detail = detail
         self.headers = headers or {}
         self.body = body
@@ -43,16 +43,12 @@ def catch_raise_api_exception():
             try:
                 # pylint: disable=no-member
                 data = json.loads(exc.body)
-                detail = data.get('detail', None)
-                fields = data.get('fields', None)
+                detail = data.get("detail", None)
+                fields = data.get("fields", None)
             except ValueError:
                 detail = None
                 fields = None
 
         raise ApiException(
-            exc.status,
-            detail=detail,
-            headers=exc.headers,
-            body=exc.body,
-            fields=fields
+            exc.status, detail=detail, headers=exc.headers, body=exc.body, fields=fields
         )

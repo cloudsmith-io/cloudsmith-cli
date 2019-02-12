@@ -26,5 +26,5 @@ def get_rate_limits():
 
     return {
         k: RateLimitsInfo.from_dict(v)
-        for k, v in six.iteritems(data.to_dict().get('resources', {}))
+        for k, v in six.iteritems(data.to_dict().get("resources", {}))
     }

@@ -27,12 +27,12 @@ def list_repos(owner=None, **kwargs):
     repos_list = client.repos_list_with_http_info
 
     if owner is not None:
-        api_kwargs['owner'] = owner
-        if hasattr(client, 'repos_list0_with_http_info'):
+        api_kwargs["owner"] = owner
+        if hasattr(client, "repos_list0_with_http_info"):
             # pylint: disable=no-member
             repos_list = client.repos_list0_with_http_info
     else:
-        if hasattr(client, 'repos_all_list_with_http_info'):
+        if hasattr(client, "repos_all_list_with_http_info"):
             # pylint: disable=no-member
             repos_list = client.repos_all_list_with_http_info
 

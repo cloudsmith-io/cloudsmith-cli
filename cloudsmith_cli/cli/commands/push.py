@@ -15,8 +15,7 @@ from ...core.api.exceptions import ApiException
 from ...core.api.files import upload_file as api_upload_file
 from ...core.api.files import request_file_upload, validate_request_file_upload
 from ...core.api.packages import create_package as api_create_package
-from ...core.api.packages import \
-    validate_create_package as api_validate_create_package
+from ...core.api.packages import validate_create_package as api_validate_create_package
 from ...core.api.packages import get_package_formats, get_package_status
 from ..exceptions import handle_api_exceptions
 from ..types import ExpandPath
@@ -28,22 +27,21 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     basename = os.path.basename(filename)
 
     click.echo(
-        'Checking %(filename)s file upload parameters ... ' % {
-            'filename': click.style(basename, bold=True)
-        }, nl=False
+        "Checking %(filename)s file upload parameters ... "
+        % {"filename": click.style(basename, bold=True)},
+        nl=False,
     )
 
-    context_msg = 'Failed to validate upload parameters!'
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
-                               reraise_on_error=skip_errors):
+    context_msg = "Failed to validate upload parameters!"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
         with spinner():
             md5_checksum = validate_request_file_upload(
-                owner=owner,
-                repo=repo,
-                filepath=filename
+                owner=owner, repo=repo, filepath=filename
             )
 
-    click.secho('OK', fg='green')
+    click.secho("OK", fg="green")
 
     return md5_checksum
 
@@ -54,35 +52,37 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     basename = os.path.basename(filename)
 
     click.echo(
-        'Requesting file upload for %(filename)s ... ' % {
-            'filename': click.style(basename, bold=True)
-        }, nl=False
+        "Requesting file upload for %(filename)s ... "
+        % {"filename": click.style(basename, bold=True)},
+        nl=False,
     )
 
-    context_msg = 'Failed to request file upload!'
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
-                               reraise_on_error=skip_errors):
+    context_msg = "Failed to request file upload!"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
         with spinner():
             identifier, upload_url, upload_fields = request_file_upload(
-                owner=owner,
-                repo=repo,
-                filepath=filename,
-                md5_checksum=md5_checksum
+                owner=owner, repo=repo, filepath=filename, md5_checksum=md5_checksum
             )
 
-    click.secho('OK', fg='green')
+    click.secho("OK", fg="green")
 
-    context_msg = 'Failed to upload file!'
+    context_msg = "Failed to upload file!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         filesize = utils.get_file_size(filepath=filename)
 
-        label = 'Uploading %(filename)s:' % {
-            'filename': click.style(basename, bold=True)
+        label = "Uploading %(filename)s:" % {
+            "filename": click.style(basename, bold=True)
         }
 
-        with click.progressbar(length=filesize, label=label,
-                               fill_char=click.style('#', fg='green'),
-                               empty_char=click.style('-', fg='red')) as pb:
+        with click.progressbar(
+            length=filesize,
+            label=label,
+            fill_char=click.style("#", fg="green"),
+            empty_char=click.style("-", fg="red"),
+        ) as pb:
+
             def progress_callback(monitor):
                 pb.update(monitor.bytes_read)
 
@@ -90,64 +90,61 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
                 upload_url=upload_url,
                 upload_fields=upload_fields,
                 filepath=filename,
-                callback=progress_callback
+                callback=progress_callback,
             )
 
     return identifier
 
 
 def validate_create_package(
-        ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
+    ctx, opts, owner, repo, package_type, skip_errors, **kwargs
+):
     """Check new package parameters via the API."""
     click.echo(
-        'Checking %(package_type)s package upload parameters ... ' % {
-            'package_type': click.style(package_type, bold=True)
-        }, nl=False
+        "Checking %(package_type)s package upload parameters ... "
+        % {"package_type": click.style(package_type, bold=True)},
+        nl=False,
     )
 
-    context_msg = 'Failed to validate upload parameters!'
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
-                               reraise_on_error=skip_errors):
+    context_msg = "Failed to validate upload parameters!"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
         with spinner():
             api_validate_create_package(
-                package_format=package_type,
-                owner=owner,
-                repo=repo,
-                **kwargs
+                package_format=package_type, owner=owner, repo=repo, **kwargs
             )
 
-    click.secho('OK', fg='green')
+    click.secho("OK", fg="green")
     return True
 
 
-def create_package(
-        ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
+def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     """Create a new package via the API."""
     click.echo(
-        'Creating a new %(package_type)s package ... ' % {
-            'package_type': click.style(package_type, bold=True)
-        }, nl=False
+        "Creating a new %(package_type)s package ... "
+        % {"package_type": click.style(package_type, bold=True)},
+        nl=False,
     )
 
-    context_msg = 'Failed to create package!'
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
-                               reraise_on_error=skip_errors):
+    context_msg = "Failed to create package!"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
         with spinner():
             slug_perm, slug = api_create_package(
-                package_format=package_type,
-                owner=owner,
-                repo=repo,
-                **kwargs
+                package_format=package_type, owner=owner, repo=repo, **kwargs
             )
 
-    click.secho('OK', fg='green')
+    click.secho("OK", fg="green")
 
     click.echo(
-        'Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)' % {
-            'owner': click.style(owner, fg='magenta'),
-            'repo': click.style(repo, fg='magenta'),
-            'slug': click.style(slug, fg='green'),
-            'slug_perm': click.style(slug_perm, bold=True)
+        "Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)"
+        % {
+            "owner": click.style(owner, fg="magenta"),
+            "repo": click.style(repo, fg="magenta"),
+            "slug": click.style(slug, fg="green"),
+            "slug_perm": click.style(slug_perm, bold=True),
         }
     )
 
@@ -155,17 +152,15 @@ def create_package(
 
 
 def wait_for_package_sync(
-        ctx, opts, owner, repo, slug, wait_interval, skip_errors,
-        attempts=3):
+    ctx, opts, owner, repo, slug, wait_interval, skip_errors, attempts=3
+):
     """Wait for a package to synchronise (or fail)."""
     # pylint: disable=too-many-locals
     attempts -= 1
     click.echo()
-    label = 'Synchronising %(package)s:' % {
-        'package': click.style(slug, fg='green')
-    }
+    label = "Synchronising %(package)s:" % {"package": click.style(slug, fg="green")}
 
-    status_str = 'Waiting'
+    status_str = "Waiting"
     stage_str = None
 
     def display_status(current):
@@ -174,20 +169,22 @@ def wait_for_package_sync(
         if not stage_str:
             return status_str
         return click.style(
-            '%(status)s / %(stage)s' % {
-                'status': status_str,
-                'stage': stage_str
-            }, fg='cyan'
+            "%(status)s / %(stage)s" % {"status": status_str, "stage": stage_str},
+            fg="cyan",
         )
 
-    context_msg = 'Failed to synchronise file!'
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg,
-                               reraise_on_error=skip_errors):
+    context_msg = "Failed to synchronise file!"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
         last_progress = 0
-        with click.progressbar(length=100, label=label,
-                               fill_char=click.style('#', fg='green'),
-                               empty_char=click.style('-', fg='red'),
-                               item_show_func=display_status) as pb:
+        with click.progressbar(
+            length=100,
+            label=label,
+            fill_char=click.style("#", fg="green"),
+            empty_char=click.style("-", fg="red"),
+            item_show_func=display_status,
+        ) as pb:
             while True:
                 res = get_package_status(owner, repo, slug)
                 ok, failed, progress, status_str, stage_str, reason = res
@@ -200,28 +197,26 @@ def wait_for_package_sync(
                 time.sleep(wait_interval)
 
     if ok:
-        click.secho('Package synchronised successfully!', fg='green')
+        click.secho("Package synchronised successfully!", fg="green")
         return
 
     click.secho(
-        'Package failed to synchronise during stage: %(stage)s' % {
-            'stage': click.style(stage_str or 'Unknown', fg='yellow'),
-        }, fg='red'
+        "Package failed to synchronise during stage: %(stage)s"
+        % {"stage": click.style(stage_str or "Unknown", fg="yellow")},
+        fg="red",
     )
 
     if reason:
         click.secho(
-            'Reason given: %(reason)s' % {
-                'reason': click.style(reason, fg='yellow')
-            }, fg='red'
+            "Reason given: %(reason)s" % {"reason": click.style(reason, fg="yellow")},
+            fg="red",
         )
 
         # pylint: disable=fixme
         # FIXME: The API should communicate "no retry" fails
-        if 'package should be deleted' in reason and attempts > 1:
+        if "package should be deleted" in reason and attempts > 1:
             click.secho(
-                'This is not recoverable, so stopping further attempts!',
-                fg='red'
+                "This is not recoverable, so stopping further attempts!", fg="red"
             )
             click.echo()
             attempts = 0
@@ -229,10 +224,11 @@ def wait_for_package_sync(
     if attempts + 1 > 0:
         # Show attempts upto and including zero attempts left
         click.secho(
-            'Attempts left: %(left)s (%(action)s)' % {
-                'left': click.style(six.text_type(attempts), bold=True),
-                'action': 'trying again' if attempts > 0 else 'giving up'
-            },
+            "Attempts left: %(left)s (%(action)s)"
+            % {
+                "left": click.style(six.text_type(attempts), bold=True),
+                "action": "trying again" if attempts > 0 else "giving up",
+            }
         )
         click.echo()
 
@@ -240,63 +236,99 @@ def wait_for_package_sync(
         from .resync import resync_package
 
         resync_package(
-            ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug,
-            skip_errors=skip_errors
+            ctx=ctx,
+            opts=opts,
+            owner=owner,
+            repo=repo,
+            slug=slug,
+            skip_errors=skip_errors,
         )
 
         wait_for_package_sync(
-            ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug,
-            wait_interval=wait_interval, skip_errors=skip_errors,
-            attempts=attempts
+            ctx=ctx,
+            opts=opts,
+            owner=owner,
+            repo=repo,
+            slug=slug,
+            wait_interval=wait_interval,
+            skip_errors=skip_errors,
+            attempts=attempts,
         )
     else:
         ctx.exit(1)
 
 
 def upload_files_and_create_package(
-        ctx, opts, package_type, owner_repo, dry_run,
-        no_wait_for_sync, wait_interval, skip_errors,
-        sync_attempts, **kwargs):
+    ctx,
+    opts,
+    package_type,
+    owner_repo,
+    dry_run,
+    no_wait_for_sync,
+    wait_interval,
+    skip_errors,
+    sync_attempts,
+    **kwargs
+):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
     owner, repo = owner_repo
 
     # 1. Validate package create parameters
     validate_create_package(
-        ctx=ctx, opts=opts, owner=owner, repo=repo,
-        package_type=package_type, skip_errors=skip_errors, **kwargs
+        ctx=ctx,
+        opts=opts,
+        owner=owner,
+        repo=repo,
+        package_type=package_type,
+        skip_errors=skip_errors,
+        **kwargs
     )
 
     # 2. Validate file upload parameters
     md5_checksums = {}
     for k, v in kwargs.items():
-        if not v or not k.endswith('_file'):
+        if not v or not k.endswith("_file"):
             continue
 
         md5_checksums[k] = validate_upload_file(
-            ctx=ctx, opts=opts, owner=owner, repo=repo, filepath=v,
-            skip_errors=skip_errors
+            ctx=ctx,
+            opts=opts,
+            owner=owner,
+            repo=repo,
+            filepath=v,
+            skip_errors=skip_errors,
         )
 
     if dry_run:
         click.echo()
-        click.secho('You requested a dry run so skipping upload.', fg='yellow')
+        click.secho("You requested a dry run so skipping upload.", fg="yellow")
         return
 
     # 3. Upload any arguments that look like files
     for k, v in kwargs.items():
-        if not v or not k.endswith('_file'):
+        if not v or not k.endswith("_file"):
             continue
 
         kwargs[k] = upload_file(
-            ctx=ctx, opts=opts, owner=owner, repo=repo, filepath=v,
-            skip_errors=skip_errors, md5_checksum=md5_checksums[k]
+            ctx=ctx,
+            opts=opts,
+            owner=owner,
+            repo=repo,
+            filepath=v,
+            skip_errors=skip_errors,
+            md5_checksum=md5_checksums[k],
         )
 
     # 4. Create the package with package files and additional arguments
     _, slug = create_package(
-        ctx=ctx, opts=opts, owner=owner, repo=repo,
-        package_type=package_type, skip_errors=skip_errors, **kwargs
+        ctx=ctx,
+        opts=opts,
+        owner=owner,
+        repo=repo,
+        package_type=package_type,
+        skip_errors=skip_errors,
+        **kwargs
     )
 
     if no_wait_for_sync:
@@ -304,9 +336,14 @@ def upload_files_and_create_package(
 
     # 5. (optionally) Wait for the package to synchronise
     wait_for_package_sync(
-        ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug,
-        wait_interval=wait_interval, skip_errors=skip_errors,
-        attempts=sync_attempts
+        ctx=ctx,
+        opts=opts,
+        owner=owner,
+        repo=repo,
+        slug=slug,
+        wait_interval=wait_interval,
+        skip_errors=skip_errors,
+        attempts=sync_attempts,
     )
 
 
@@ -323,22 +360,20 @@ def create_push_handlers():
         kwargs = parameters.copy()
 
         # Remove standard arguments
-        kwargs.pop('package_file')
-        if 'distribution' in parameters:
+        kwargs.pop("package_file")
+        if "distribution" in parameters:
             has_distribution_param = True
-            kwargs.pop('distribution')
+            kwargs.pop("distribution")
         else:
             has_distribution_param = False
 
         has_additional_params = len(kwargs) > 0
 
-        help_text = (
-            """
+        help_text = """
             Push/upload a new %(type)s package upstream.
             """ % {
-                'type': key.capitalize()
-            }
-        )
+            "type": key.capitalize()
+        }
 
         if has_additional_params:
             help_text += """
@@ -353,7 +388,7 @@ def create_push_handlers():
             """
 
         if has_distribution_param:
-            target_metavar = 'OWNER/REPO/DISTRO/RELEASE'
+            target_metavar = "OWNER/REPO/DISTRO/RELEASE"
             target_callback = validators.validate_owner_repo_distro
             help_text += """
 
@@ -365,7 +400,7 @@ def create_push_handlers():
             Example: 'your-org/awesome-repo/ubuntu/xenial'.
             """
         else:
-            target_metavar = 'OWNER/REPO'
+            target_metavar = "OWNER/REPO"
             target_callback = validators.validate_owner_repo
             help_text += """
 
@@ -382,69 +417,72 @@ def create_push_handlers():
         @decorators.common_cli_output_options
         @decorators.common_package_action_options
         @decorators.initialise_api
+        @click.argument("owner_repo", metavar=target_metavar, callback=target_callback)
         @click.argument(
-            'owner_repo',
-            metavar=target_metavar,
-            callback=target_callback)
-        @click.argument(
-            'package_file',
+            "package_file",
             nargs=1 if has_additional_params else -1,
             type=ExpandPath(
-                dir_okay=False, exists=True, writable=False, resolve_path=True,
-            ))
+                dir_okay=False, exists=True, writable=False, resolve_path=True
+            ),
+        )
         @click.option(
-            '-n', '--dry-run', default=False, is_flag=True,
-            help='Execute in dry run mode (don\'t upload anything.)')
+            "-n",
+            "--dry-run",
+            default=False,
+            is_flag=True,
+            help="Execute in dry run mode (don't upload anything.)",
+        )
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
             parameters = context.get(ctx.info_name)
-            kwargs['package_type'] = ctx.info_name
+            kwargs["package_type"] = ctx.info_name
 
-            owner_repo = kwargs.pop('owner_repo')
-            if 'distribution' in parameters:
-                kwargs['distribution'] = '/'.join(owner_repo[2:])
+            owner_repo = kwargs.pop("owner_repo")
+            if "distribution" in parameters:
+                kwargs["distribution"] = "/".join(owner_repo[2:])
                 owner_repo = owner_repo[0:2]
-            kwargs['owner_repo'] = owner_repo
+            kwargs["owner_repo"] = owner_repo
 
-            package_files = kwargs.pop('package_file')
+            package_files = kwargs.pop("package_file")
             if not isinstance(package_files, tuple):
                 package_files = (package_files,)
 
             for package_file in package_files:
-                kwargs['package_file'] = package_file
+                kwargs["package_file"] = package_file
 
                 try:
                     click.echo()
                     upload_files_and_create_package(ctx, *args, **kwargs)
                 except ApiException:
-                    click.secho('Skipping error and moving on.', fg='yellow')
+                    click.secho("Skipping error and moving on.", fg="yellow")
 
                 click.echo()
 
         # Add any additional arguments
         for k, info in six.iteritems(kwargs):
             # pylint: disable=redefined-variable-type
-            if k.endswith('_file'):
+            if k.endswith("_file"):
                 # Treat parameters that end with _file as uploadable filepaths.
                 option_type = ExpandPath(
-                    dir_okay=False, exists=True, writable=False,
-                    resolve_path=True
+                    dir_okay=False, exists=True, writable=False, resolve_path=True
                 )
             else:
                 option_type = str
 
-            option_name = '--%(key)s' % {'key': k.replace('_', '-')}
+            option_name = "--%(key)s" % {"key": k.replace("_", "-")}
             decorator = click.option(
-                option_name, type=option_type, required=info['required'],
-                help=info['help']
+                option_name,
+                type=option_type,
+                required=info["required"],
+                help=info["help"],
             )
             push_handler = decorator(push_handler)
 
         handlers[key] = push_handler
 
 
-@main.group(cls=command.AliasGroup, aliases=['upload', 'deploy'])
+@main.group(cls=command.AliasGroup, aliases=["upload", "deploy"])
 @click.pass_context
 def push(ctx):  # pylint: disable=unused-argument
     """

@@ -33,14 +33,10 @@ def create_package(package_format, owner, repo, **kwargs):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        upload = getattr(
-            client, 'packages_upload_%s_with_http_info' % package_format
-        )
+        upload = getattr(client, "packages_upload_%s_with_http_info" % package_format)
 
         data, _, headers = upload(
-            owner=owner,
-            repo=repo,
-            data=make_create_payload(**kwargs)
+            owner=owner, repo=repo, data=make_create_payload(**kwargs)
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -53,14 +49,11 @@ def validate_create_package(package_format, owner, repo, **kwargs):
 
     with catch_raise_api_exception():
         check = getattr(
-            client,
-            'packages_validate_upload_%s_with_http_info' % package_format
+            client, "packages_validate_upload_%s_with_http_info" % package_format
         )
 
         _, _, headers = check(
-            owner=owner,
-            repo=repo,
-            data=make_create_payload(**kwargs)
+            owner=owner, repo=repo, data=make_create_payload(**kwargs)
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -76,9 +69,7 @@ def copy_package(owner, repo, identifier, destination):
             owner=owner,
             repo=repo,
             identifier=identifier,
-            data={
-                'destination': destination
-            }
+            data={"destination": destination},
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -94,9 +85,7 @@ def move_package(owner, repo, identifier, destination):
             owner=owner,
             repo=repo,
             identifier=identifier,
-            data={
-                'destination': destination
-            }
+            data={"destination": destination},
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -109,9 +98,7 @@ def delete_package(owner, repo, identifier):
 
     with catch_raise_api_exception():
         _, _, headers = client.packages_delete_with_http_info(
-            owner=owner,
-            repo=repo,
-            identifier=identifier
+            owner=owner, repo=repo, identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -124,9 +111,7 @@ def resync_package(owner, repo, identifier):
 
     with catch_raise_api_exception():
         data, _, headers = client.packages_resync_with_http_info(
-            owner=owner,
-            repo=repo,
-            identifier=identifier
+            owner=owner, repo=repo, identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -139,9 +124,7 @@ def get_package_status(owner, repo, identifier):
 
     with catch_raise_api_exception():
         data, _, headers = client.packages_status_with_http_info(
-            owner=owner,
-            repo=repo,
-            identifier=identifier
+            owner=owner, repo=repo, identifier=identifier
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -149,8 +132,12 @@ def get_package_status(owner, repo, identifier):
     # pylint: disable=no-member
     # Pylint detects the returned value as a tuple
     return (
-        data.is_sync_completed, data.is_sync_failed, data.sync_progress,
-        data.status_str, data.stage_str, data.status_reason
+        data.is_sync_completed,
+        data.is_sync_failed,
+        data.sync_progress,
+        data.status_str,
+        data.stage_str,
+        data.status_reason,
     )
 
 
@@ -185,15 +172,12 @@ def get_package_formats():
         # Create a dummy instance so we can check if a parameter is required.
         # As with the rest of this function, this is obviously hacky. We'll
         # figure out a way to pull this information in from the API later.
-        dummy_kwargs = {
-            k: 'dummy'
-            for k in cls.swagger_types
-        }
+        dummy_kwargs = {k: "dummy" for k in cls.swagger_types}
         instance = cls(**dummy_kwargs)
 
         for k, v in six.iteritems(cls.swagger_types):
             attr = getattr(cls, k)
-            docs = attr.__doc__.strip().split('\n')
+            docs = attr.__doc__.strip().split("\n")
             doc = (docs[1] if docs[1] else docs[0]).strip()
 
             try:
@@ -203,28 +187,29 @@ def get_package_formats():
                 required = True
 
             params[cls.attribute_map.get(k)] = {
-                'type': v,
-                'help': doc,
-                'required': required
+                "type": v,
+                "help": doc,
+                "required": required,
             }
 
         return params
 
     return {
-        key.replace('PackagesUpload', '').lower(): get_parameters(cls)
+        key.replace("PackagesUpload", "").lower(): get_parameters(cls)
         for key, cls in inspect.getmembers(cloudsmith_api.models)
-        if key.startswith('PackagesUpload')
+        if key.startswith("PackagesUpload")
     }
 
 
 def get_package_format_names(predicate=None):
     """Get names for available package formats."""
     return [
-        k for k, v in six.iteritems(get_package_formats())
+        k
+        for k, v in six.iteritems(get_package_formats())
         if not predicate or predicate(k, v)
     ]
 
 
 def get_package_format_names_with_distros():
     """Get names for package formats that support distributions."""
-    return get_package_format_names(lambda k, v: 'distribution' in v)
+    return get_package_format_names(lambda k, v: "distribution" in v)

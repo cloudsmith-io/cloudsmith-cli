@@ -8,8 +8,15 @@ import six
 
 
 def initialise_api(
-        debug=False, host=None, key=None, proxy=None, user_agent=None,
-        headers=None, rate_limit=True, rate_limit_callback=None):
+    debug=False,
+    host=None,
+    key=None,
+    proxy=None,
+    user_agent=None,
+    headers=None,
+    rate_limit=True,
+    rate_limit_callback=None,
+):
     """Initialise the API."""
     config = cloudsmith_api.Configuration()
     config.debug = debug
@@ -20,11 +27,11 @@ def initialise_api(
     config.rate_limit = rate_limit
     config.rate_limit_callback = rate_limit_callback
     if headers:
-        if 'Authorization' in config.headers:
-            encoded = config.headers['Authorization'].split(' ')[1]
+        if "Authorization" in config.headers:
+            encoded = config.headers["Authorization"].split(" ")[1]
             decoded = base64.b64decode(encoded)
-            values = decoded.decode('utf-8')
-            config.username, config.password = values.split(':')
+            values = decoded.decode("utf-8")
+            config.username, config.password = values.split(":")
     set_api_key(config, key)
     return config
 
@@ -35,11 +42,11 @@ def get_api_client(cls):
     client = cls()
     client.config = config
 
-    user_agent = getattr(config, 'user_agent', None)
+    user_agent = getattr(config, "user_agent", None)
     if user_agent:
         client.api_client.user_agent = user_agent
 
-    headers = getattr(config, 'headers', None)
+    headers = getattr(config, "headers", None)
     if headers:
         for k, v in six.iteritems(headers):
             client.api_client.set_default_header(k, v)
@@ -49,7 +56,7 @@ def get_api_client(cls):
 
 def set_api_key(config, key):
     """Configure a new API key."""
-    if not key and 'X-Api-Key' in config.api_key:
-        del config.api_key['X-Api-Key']
+    if not key and "X-Api-Key" in config.api_key:
+        del config.api_key["X-Api-Key"]
     else:
-        config.api_key['X-Api-Key'] = key
+        config.api_key["X-Api-Key"] = key

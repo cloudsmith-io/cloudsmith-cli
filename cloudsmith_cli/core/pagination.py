@@ -16,10 +16,10 @@ class PageInfo(object):
     def __str__(self):
         """Get page information as text."""
         data = self.as_dict()
-        data['valid'] = self.is_valid
+        data["valid"] = self.is_valid
         return (
-            'Valid: %(valid)s, Count: %(count)s, Page: %(page)s, '
-            'Size: %(page_size)s, Total: %(results_total)s' % data
+            "Valid: %(valid)s, Count: %(count)s, Page: %(page)s, "
+            "Size: %(page_size)s, Total: %(results_total)s" % data
         )
 
     def calculate_range(self, num_results):
@@ -40,17 +40,17 @@ class PageInfo(object):
             return {}
 
         data = {
-            'results_total': self.count,
-            'page': self.page,
-            'page_size': self.page_size,
-            'page_max': self.page_total
+            "results_total": self.count,
+            "page": self.page,
+            "page_size": self.page_size,
+            "page_max": self.page_total,
         }
 
         if num_results is not None:
             from_range, to_range = self.calculate_range(num_results)
-            data['page_results_len'] = to_range - from_range
-            data['page_results_from'] = from_range
-            data['page_results_to'] = to_range
+            data["page_results_len"] = to_range - from_range
+            data["page_results_from"] = from_range
+            data["page_results_to"] = to_range
 
         return data
 
@@ -67,13 +67,13 @@ class PageInfo(object):
         """Create PageInfo from HTTP headers."""
         info = PageInfo()
 
-        if 'X-Pagination-Count' in headers:
-            info.count = int(headers['X-Pagination-Count'])
-        if 'X-Pagination-Page' in headers:
-            info.page = int(headers['X-Pagination-Page'])
-        if 'X-Pagination-PageSize' in headers:
-            info.page_size = int(headers['X-Pagination-PageSize'])
-        if 'X-Pagination-PageTotal' in headers:
-            info.page_total = int(headers['X-Pagination-PageTotal'])
+        if "X-Pagination-Count" in headers:
+            info.count = int(headers["X-Pagination-Count"])
+        if "X-Pagination-Page" in headers:
+            info.page = int(headers["X-Pagination-Page"])
+        if "X-Pagination-PageSize" in headers:
+            info.page_size = int(headers["X-Pagination-PageSize"])
+        if "X-Pagination-PageTotal" in headers:
+            info.page_total = int(headers["X-Pagination-PageTotal"])
 
         return info

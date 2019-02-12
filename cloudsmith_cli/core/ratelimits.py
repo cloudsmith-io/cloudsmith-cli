@@ -29,13 +29,14 @@ class RateLimitsInfo(object):
     def __str__(self):
         """Get rate limit information as text."""
         return (
-            'Throttled: %(throttled)s, Remaining: %(remaining)d/%(limit)d, '
-            'Interval: %(interval)f, Reset: %(reset)s' % {
-                'throttled': 'Yes' if self.throttled else 'No',
-                'remaining': self.remaining,
-                'limit': self.limit,
-                'interval': self.interval,
-                'reset': self.reset
+            "Throttled: %(throttled)s, Remaining: %(remaining)d/%(limit)d, "
+            "Interval: %(interval)f, Reset: %(reset)s"
+            % {
+                "throttled": "Yes" if self.throttled else "No",
+                "remaining": self.remaining,
+                "limit": self.limit,
+                "interval": self.interval,
+                "reset": self.reset,
             }
         )
 
@@ -44,16 +45,16 @@ class RateLimitsInfo(object):
         """Create RateLimitsInfo from a dictionary."""
         info = RateLimitsInfo()
 
-        if 'interval' in data:
-            info.interval = float(data['interval'])
-        if 'limit' in data:
-            info.limit = int(data['limit'])
-        if 'remaining' in data:
-            info.remaining = int(data['remaining'])
-        if 'reset' in data:
-            info.reset = datetime.datetime.utcfromtimestamp(int(data['reset']))
-        if 'throtted' in data:
-            info.throttled = bool(data['throttled'])
+        if "interval" in data:
+            info.interval = float(data["interval"])
+        if "limit" in data:
+            info.limit = int(data["limit"])
+        if "remaining" in data:
+            info.remaining = int(data["remaining"])
+        if "reset" in data:
+            info.reset = datetime.datetime.utcfromtimestamp(int(data["reset"]))
+        if "throtted" in data:
+            info.throttled = bool(data["throttled"])
         else:
             info.throttled = info.remaining == 0
 
@@ -64,10 +65,10 @@ class RateLimitsInfo(object):
         """Create RateLimitsInfo from HTTP headers."""
         try:
             data = {
-                'interval': headers['X-RateLimit-Interval'],
-                'limit': headers['X-RateLimit-Limit'],
-                'remaining': headers['X-RateLimit-Remaining'],
-                'reset': headers['X-RateLimit-Reset']
+                "interval": headers["X-RateLimit-Interval"],
+                "limit": headers["X-RateLimit-Limit"],
+                "remaining": headers["X-RateLimit-Remaining"],
+                "reset": headers["X-RateLimit-Reset"],
             }
         except KeyError:
             data = {}
@@ -101,7 +102,7 @@ def rate_limit(client, headers, atexit=False):
     if not client or not headers:
         return False
 
-    if not getattr(client.config, 'rate_limit', False):
+    if not getattr(client.config, "rate_limit", False):
         return False
 
     rate_info = RateLimitsInfo.from_headers(headers)
@@ -109,7 +110,7 @@ def rate_limit(client, headers, atexit=False):
         return False
 
     if rate_info.interval:
-        cb = getattr(client.config, 'rate_limit_callback', None)
+        cb = getattr(client.config, "rate_limit_callback", None)
         if cb and callable(cb):
             cb(rate_info, atexit=atexit)
         time.sleep(rate_info.interval)

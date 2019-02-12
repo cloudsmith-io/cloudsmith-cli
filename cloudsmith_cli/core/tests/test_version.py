@@ -9,11 +9,11 @@ from .. import utils
 
 class TestGetVersion(TestCase):
     def setUp(self):
-        patcher = patch.object(utils, 'read_file', autospec=True)
+        patcher = patch.object(utils, "read_file", autospec=True)
         self.addCleanup(patcher.stop)
         self.read_file_mock = patcher.start()
 
     def test_read_version(self):
-        self.read_file_mock.return_value = '1.0.0'
-        self.assertEqual('1.0.0', version.get_version())
-        self.read_file_mock.assert_called_once_with(ANY, 'VERSION')
+        self.read_file_mock.return_value = "1.0.0"
+        self.assertEqual("1.0.0", version.get_version())
+        self.read_file_mock.assert_called_once_with(ANY, "VERSION")

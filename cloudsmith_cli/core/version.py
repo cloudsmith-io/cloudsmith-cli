@@ -8,7 +8,7 @@ from . import utils
 
 def get_version():
     """Get the raw/unparsed version of the application as a string."""
-    return utils.read_file(utils.get_data_path(), 'VERSION').strip()
+    return utils.read_file(utils.get_data_path(), "VERSION").strip()
 
 
 def get_version_info():

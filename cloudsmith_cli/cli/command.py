@@ -36,10 +36,10 @@ class AliasGroup(DYMGroup):
     def list_commands(self, ctx):
         commands = super(AliasGroup, self).list_commands(ctx)
 
-        if getattr(ctx, 'showing_help', False):
+        if getattr(ctx, "showing_help", False):
             for k, v in enumerate(commands):
                 try:
-                    commands[k] = '%s|%s' % (v, '|'.join(self.aliases[v]))
+                    commands[k] = "%s|%s" % (v, "|".join(self.aliases[v]))
                 except KeyError:
                     pass
 
@@ -51,9 +51,9 @@ class AliasGroup(DYMGroup):
         return commands
 
     def get_command(self, ctx, cmd_name):
-        if getattr(ctx, 'showing_help', False):
-            if '|' in cmd_name:
-                cmd_name = cmd_name.split('|')[0]
+        if getattr(ctx, "showing_help", False):
+            if "|" in cmd_name:
+                cmd_name = cmd_name.split("|")[0]
 
         try:
             cmd_name = self.inverse[cmd_name]
@@ -65,7 +65,7 @@ class AliasGroup(DYMGroup):
     def command(self, *args, **kwargs):
         def decorator(f):
             # pylint: disable=missing-docstring
-            aliases = kwargs.pop('aliases', [])
+            aliases = kwargs.pop("aliases", [])
             cmd = super(AliasGroup, self).command(*args, **kwargs)(f)
 
             if aliases:
@@ -80,7 +80,7 @@ class AliasGroup(DYMGroup):
     def group(self, *args, **kwargs):
         def decorator(f):
             # pylint: disable=missing-docstring
-            aliases = kwargs.pop('aliases', [])
+            aliases = kwargs.pop("aliases", [])
             cmd = super(AliasGroup, self).group(*args, **kwargs)(f)
 
             if aliases:

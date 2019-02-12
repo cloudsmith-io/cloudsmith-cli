@@ -23,10 +23,7 @@ def get_user_token(login, password):
 
     with catch_raise_api_exception():
         data, _, headers = client.user_token_create_with_http_info(
-            data={
-                'email': login,
-                'password': password
-            }
+            data={"email": login, "password": password}
         )
 
     ratelimits.maybe_rate_limit(client, headers)

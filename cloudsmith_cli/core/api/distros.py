@@ -26,6 +26,7 @@ def list_distros(package_format=None):
     ratelimits.maybe_rate_limit(client, headers)
 
     return [
-        distro.to_dict() for distro in distros
+        distro.to_dict()
+        for distro in distros
         if not package_format or distro.format == package_format
     ]

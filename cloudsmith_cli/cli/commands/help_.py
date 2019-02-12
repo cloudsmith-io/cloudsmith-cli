@@ -6,7 +6,7 @@ import click
 from . import main
 
 
-@main.command(name='help')
+@main.command(name="help")
 @click.pass_context
 def help_(ctx):
     """Show this delightful help message and exit."""
