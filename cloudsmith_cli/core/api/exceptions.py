@@ -39,6 +39,8 @@ def catch_raise_api_exception():
         yield
     except _ApiException as exc:
         detail = None
+        fields = None
+
         if exc.body:
             try:
                 # pylint: disable=no-member
@@ -46,8 +48,7 @@ def catch_raise_api_exception():
                 detail = data.get("detail", None)
                 fields = data.get("fields", None)
             except ValueError:
-                detail = None
-                fields = None
+                pass
 
         raise ApiException(
             exc.status, detail=detail, headers=exc.headers, body=exc.body, fields=fields
