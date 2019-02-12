@@ -5,7 +5,6 @@ import base64
 
 import click
 
-
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}

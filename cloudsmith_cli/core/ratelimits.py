@@ -9,7 +9,6 @@ import time
 
 from future.utils import python_2_unicode_compatible
 
-
 LAST_CLIENT = threading.local()
 LAST_CLIENT = None
 LAST_HEADERS = threading.local()

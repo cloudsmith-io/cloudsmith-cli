@@ -8,7 +8,6 @@ from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
 
-
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 

@@ -8,7 +8,6 @@ import click
 import six
 from click.utils import strip_ansi
 
-
 Table = namedtuple(
     "Table", ["headers", "plain_headers", "rows", "plain_rows", "column_widths"]
 )

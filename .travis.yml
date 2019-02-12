@@ -41,6 +41,14 @@ jobs:
   - stage: lint
     python: 3.6
     env:
+    - TOXENV=py36-black
+  - stage: lint
+    python: 3.6
+    env:
+    - TOXENV=py36-isort
+  - stage: lint
+    python: 3.6
+    env:
     - TOXENV=py36-checkrst
   - stage: test
     python: 2.7

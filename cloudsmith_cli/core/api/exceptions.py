@@ -6,7 +6,6 @@ import contextlib
 from cloudsmith_api.rest import ApiException as _ApiException
 from six.moves import http_client
 
-
 try:
     import simplejson as json
 except ImportError:

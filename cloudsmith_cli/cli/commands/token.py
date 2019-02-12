@@ -13,7 +13,6 @@ from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
 from ..exceptions import handle_api_exceptions
 
-
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]
 )
