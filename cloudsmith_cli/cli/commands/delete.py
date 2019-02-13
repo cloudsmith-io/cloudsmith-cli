@@ -3,12 +3,12 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
-from click_spinner import spinner
 
 from . import main
 from .. import decorators, utils, validators
 from ...core.api.packages import delete_package
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 
 
 @main.command(aliases=["rm"])
@@ -57,7 +57,7 @@ def delete(ctx, opts, owner_repo_package, yes):
 
     context_msg = "Failed to delete the package!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             delete_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green")

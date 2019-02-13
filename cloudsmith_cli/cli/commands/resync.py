@@ -3,12 +3,12 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
-from click_spinner import spinner
 
 from . import main
 from .. import decorators, validators
 from ...core.api.packages import resync_package as api_resync_package
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 from .push import wait_for_package_sync
 
 
@@ -81,7 +81,7 @@ def resync_package(ctx, opts, owner, repo, slug, skip_errors):
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
-        with spinner():
+        with maybe_spinner(opts):
             api_resync_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green")

@@ -19,6 +19,9 @@ def initialise_api(
     headers=None,
     rate_limit=True,
     rate_limit_callback=None,
+    error_retry_max=None,
+    error_retry_backoff=None,
+    error_retry_codes=None,
 ):
     """Initialise the API."""
     config = cloudsmith_api.Configuration()
@@ -29,12 +32,17 @@ def initialise_api(
     config.headers = headers
     config.rate_limit = rate_limit
     config.rate_limit_callback = rate_limit_callback
+    config.error_retry_max = error_retry_max
+    config.error_retry_backoff = error_retry_backoff
+    config.error_retry_codes = error_retry_codes
+
     if headers:
         if "Authorization" in config.headers:
             encoded = config.headers["Authorization"].split(" ")[1]
             decoded = base64.b64decode(encoded)
             values = decoded.decode("utf-8")
             config.username, config.password = values.split(":")
+
     set_api_key(config, key)
     return config
 

@@ -61,9 +61,11 @@ confidence =
 # --disable = W"
 disable =
   locally-disabled,
-  line-too-long,
-  bad-continuation,
-  useless-object-inheritance  # py2 compat
+  line-too-long,  # handled by black
+  bad-continuation,  # handled by black
+  useless-object-inheritance,  # py2 compat
+  invalid-name,
+  ungrouped-imports,  # handled by black/isort
 
 
 [REPORTS]

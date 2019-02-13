@@ -6,7 +6,6 @@ import click
 import cloudsmith_api
 import semver
 import six
-from click_spinner import spinner
 
 from . import main
 from .. import command, decorators, utils
@@ -14,6 +13,7 @@ from ...core.api.rates import get_rate_limits
 from ...core.api.status import get_status
 from ...core.api.version import get_version as get_api_version_info
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 
 
 @main.group(cls=command.AliasGroup)
@@ -37,7 +37,7 @@ def rates(ctx, opts):
 
     context_msg = "Failed to retrieve status!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             resources_limits = get_rate_limits()
 
     click.secho("OK", fg="green")
@@ -87,7 +87,7 @@ def service(ctx, opts):
 
     context_msg = "Failed to retrieve status!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             status, version = get_status(with_version=True)
 
     click.secho("OK", fg="green")

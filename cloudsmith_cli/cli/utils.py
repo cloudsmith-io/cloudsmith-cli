@@ -4,9 +4,11 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import json
 import platform
+from contextlib import contextmanager
 
 import click
 import six
+from click_spinner import spinner
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
@@ -139,3 +141,14 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     click.echo(err=err)
     click.secho("OK, phew! Close call. :-)", fg="green", err=err)
     return False
+
+
+@contextmanager
+def maybe_spinner(opts):
+    """Only activate the spinner if not in debug mode."""
+    if opts.debug:
+        # No spinner
+        yield
+    else:
+        with spinner() as spin:
+            yield spin

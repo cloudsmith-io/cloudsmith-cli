@@ -6,13 +6,13 @@ import collections
 import stat
 
 import click
-from click_spinner import spinner
 
 from . import main
 from .. import decorators
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]
@@ -127,7 +127,7 @@ def token(ctx, opts, login, password):
 
     context_msg = "Failed to retrieve the API token!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             api_key = get_user_token(login=login, password=password)
 
     click.secho("OK", fg="green")

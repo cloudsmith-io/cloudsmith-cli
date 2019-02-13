@@ -7,7 +7,6 @@ import time
 
 import click
 import six
-from click_spinner import spinner
 
 from . import main
 from .. import command, decorators, validators
@@ -21,6 +20,7 @@ from ...core.api.packages import get_package_formats, get_package_status
 from ...core.api.packages import validate_create_package as api_validate_create_package
 from ..exceptions import handle_api_exceptions
 from ..types import ExpandPath
+from ..utils import maybe_spinner
 
 
 def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
@@ -38,7 +38,7 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
-        with spinner():
+        with maybe_spinner(opts):
             md5_checksum = validate_request_file_upload(
                 owner=owner, repo=repo, filepath=filename
             )
@@ -63,7 +63,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
-        with spinner():
+        with maybe_spinner(opts):
             identifier, upload_url, upload_fields = request_file_upload(
                 owner=owner, repo=repo, filepath=filename, md5_checksum=md5_checksum
             )
@@ -112,7 +112,7 @@ def validate_create_package(
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
-        with spinner():
+        with maybe_spinner(opts):
             api_validate_create_package(
                 package_format=package_type, owner=owner, repo=repo, **kwargs
             )
@@ -133,7 +133,7 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
-        with spinner():
+        with maybe_spinner(opts):
             slug_perm, slug = api_create_package(
                 package_format=package_type, owner=owner, repo=repo, **kwargs
             )

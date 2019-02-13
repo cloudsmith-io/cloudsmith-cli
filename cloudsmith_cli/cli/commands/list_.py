@@ -7,7 +7,6 @@ from operator import itemgetter
 
 import click
 import six
-from click_spinner import spinner
 
 from . import entitlements, main
 from .. import command, decorators, utils, validators
@@ -15,6 +14,7 @@ from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
 from ...core.api.repos import list_repos
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 
 
 @main.group(cls=command.AliasGroup, name="list", aliases=["ls"])
@@ -52,7 +52,7 @@ def distros(ctx, opts, package_format):
 
     context_msg = "Failed to get list of distributions!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             distros_ = list_distros(package_format=package_format)
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -169,7 +169,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             packages_, page_info = list_packages(
                 owner=owner, repo=repo, page=page, page_size=page_size, query=query
             )
@@ -234,7 +234,7 @@ def repos(ctx, opts, owner, page, page_size):
 
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             repos_, page_info = list_repos(owner=owner, page=page, page_size=page_size)
 
     click.secho("OK", fg="green", err=use_stderr)

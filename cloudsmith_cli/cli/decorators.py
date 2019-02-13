@@ -219,6 +219,28 @@ def initialise_api(f):
         "if wait interval is higher than this setting. By default no "
         "information will be printed. Set to zero to always see it.",
     )
+    @click.option(
+        "--error-retry-max",
+        default=6,
+        help="The maximum amount of times to retry on errors received from "
+        "the API, as determined by the --error-retry-codes parameter.",
+    )
+    @click.option(
+        "--error-retry-backoff",
+        default=0.23,
+        type=float,
+        help="The backoff factor determines how long to wait in seconds "
+        "between error retries. The backoff factor is multiplied by the "
+        "amount of retries so far. So if 0.1, then the wait is 0.1s then "
+        "0.2s, then 0.4s, and so forth.",
+    )
+    @click.option(
+        "--error-retry-codes",
+        default="500,502,503,504",
+        help="The status codes that when received from the API will cause "
+        "a retry (if --error-retry-max is > 0). By default this will be for "
+        "500, 502, 503 and 504 error codes.",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -230,6 +252,9 @@ def initialise_api(f):
         opts.api_headers = kwargs.pop("api_headers")
         opts.rate_limit = not kwargs.pop("without_rate_limit")
         opts.rate_limit_warning = kwargs.pop("rate_limit_warning")
+        opts.error_retry_max = kwargs.pop("error_retry_max")
+        opts.error_retry_backoff = kwargs.pop("error_retry_backoff")
+        opts.error_retry_codes = kwargs.pop("error_retry_codes")
 
         def call_print_rate_limit_info_with_opts(rate_info, atexit=False):
             utils.print_rate_limit_info(opts, rate_info, atexit=atexit)
@@ -243,6 +268,9 @@ def initialise_api(f):
             headers=opts.api_headers,
             rate_limit=opts.rate_limit,
             rate_limit_callback=call_print_rate_limit_info_with_opts,
+            error_retry_max=opts.error_retry_max,
+            error_retry_backoff=opts.error_retry_backoff,
+            error_retry_codes=opts.error_retry_codes,
         )
 
         kwargs["opts"] = opts

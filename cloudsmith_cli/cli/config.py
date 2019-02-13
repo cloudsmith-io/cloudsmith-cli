@@ -311,6 +311,38 @@ class Options(object):
         """Set value for verbose flag."""
         self._set_option("verbose", bool(value))
 
+    @property
+    def error_retry_max(self):
+        """Get value for error_retry_max."""
+        return self._get_option("error_retry_max", default=5)
+
+    @error_retry_max.setter
+    def error_retry_max(self, value):
+        """Set value for error_retry_max."""
+        self._set_option("error_retry_max", int(value))
+
+    @property
+    def error_retry_backoff(self):
+        """Get value for error_retry_backoff."""
+        return self._get_option("error_retry_backoff", default=0.23)
+
+    @error_retry_backoff.setter
+    def error_retry_backoff(self, value):
+        """Set value for error_retry_backoff."""
+        self._set_option("error_retry_backoff", float(value))
+
+    @property
+    def error_retry_codes(self):
+        """Get value for error_retry_codes."""
+        return self._get_option("error_retry_codes", default=[500, 502, 503, 504])
+
+    @error_retry_codes.setter
+    def error_retry_codes(self, value):
+        """Set value for error_retry_codes."""
+        if isinstance(value, six.string_types):
+            value = [int(x) for x in value.split(",")]
+        self._set_option("error_retry_codes", value)
+
     def _get_option(self, name, default=None):
         """Get value for an option."""
         return self.opts.get(name, default)

@@ -6,12 +6,12 @@ import functools
 from operator import itemgetter
 
 import click
-from click_spinner import spinner
 
 from . import main
 from .. import command, decorators, utils, validators
 from ...core.api import entitlements as api
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 
 
 def validate_owner_repo_identifier(ctx, param, value):
@@ -101,7 +101,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
 
     context_msg = "Failed to get list of entitlements!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             entitlements_, page_info = api.list_entitlements(
                 owner=owner,
                 repo=repo,
@@ -217,7 +217,7 @@ def create(ctx, opts, owner_repo, show_tokens, name, token):
 
     context_msg = "Failed to create the entitlement!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             entitlement = api.create_entitlement(
                 owner=owner, repo=repo, name=name, token=token, show_tokens=show_tokens
             )
@@ -281,7 +281,7 @@ def delete(ctx, opts, owner_repo_identifier, yes):
 
     context_msg = "Failed to delete the entitlement!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             api.delete_entitlement(owner=owner, repo=repo, identifier=identifier)
 
     click.secho("OK", fg="green")
@@ -345,7 +345,7 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
 
     context_msg = "Failed to update the entitlement!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             entitlement = api.update_entitlement(
                 owner=owner,
                 repo=repo,
@@ -421,7 +421,7 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
 
     context_msg = "Failed to refresh the entitlement!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             entitlement = api.refresh_entitlement(
                 owner=owner, repo=repo, identifier=identifier, show_tokens=show_tokens
             )
@@ -507,7 +507,7 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
 
     context_msg = "Failed to sync the entitlements!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             entitlements_, page_info = api.sync_entitlements(
                 owner=owner, repo=repo, source=source, show_tokens=show_tokens
             )

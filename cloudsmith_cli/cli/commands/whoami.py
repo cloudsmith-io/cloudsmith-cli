@@ -3,12 +3,12 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
-from click_spinner import spinner
 
 from . import main
 from .. import decorators
 from ...core.api.user import get_user_brief
 from ..exceptions import handle_api_exceptions
+from ..utils import maybe_spinner
 
 
 @main.command()
@@ -23,7 +23,7 @@ def whoami(ctx, opts):
 
     context_msg = "Failed to retrieve your authentication status!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with spinner():
+        with maybe_spinner(opts):
             is_auth, username, email, name = get_user_brief()
 
     click.secho("OK", fg="green")

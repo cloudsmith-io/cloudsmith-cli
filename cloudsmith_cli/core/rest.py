@@ -12,16 +12,16 @@ import requests.exceptions
 from cloudsmith_api.configuration import Configuration
 from cloudsmith_api.rest import ApiException, RESTClientObject
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from requests.packages.urllib3.util.retry import Retry  # pylint: disable=import-error
 from six.moves.urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
 
 def create_requests_session(
-    retries=1,
-    backoff_factor=0.1,
-    status_forcelist=(500, 502, 503, 504),
+    retries=None,
+    backoff_factor=None,
+    status_forcelist=None,
     pools_size=4,
     maxsize=4,
     ssl_verify=None,
@@ -30,14 +30,33 @@ def create_requests_session(
     session=None,
 ):
     """Create a requests session that retries some errors."""
+    # pylint: disable=too-many-branches
     config = Configuration()
+
+    if retries is None:
+        if config.error_retry_max is None:
+            retries = 5
+        else:
+            retries = config.error_retry_max
+
+    if backoff_factor is None:
+        if config.error_retry_backoff is None:
+            backoff_factor = 0.23
+        else:
+            backoff_factor = config.error_retry_backoff
+
+    if status_forcelist is None:
+        if config.error_retry_codes is None:
+            status_forcelist = [500, 502, 503, 504]
+        else:
+            status_forcelist = config.error_retry_codes
 
     if ssl_verify is None:
         ssl_verify = config.verify_ssl
 
     if ssl_cert is None:
         if config.cert_file and config.key_file:
-            ssl_cert = (config.cert_File, config.key_file)
+            ssl_cert = (config.cert_file, config.key_file)
         elif config.cert_file:
             ssl_cert = config.cert_file
 
@@ -54,8 +73,9 @@ def create_requests_session(
     retry = Retry(
         backoff_factor=backoff_factor,
         connect=retries,
+        method_whitelist=False,
         read=retries,
-        status_forcelist=status_forcelist,
+        status_forcelist=tuple(status_forcelist),
         total=retries,
     )
 
@@ -73,7 +93,10 @@ def create_requests_session(
 
 
 class RestResponse(io.IOBase):
+    """A urllib3 adapter for a requests response."""
+
     def __init__(self, response):
+        super(RestResponse, self).__init__()
         self.response = response
         self.status = response.status_code
         self.reason = response.reason
@@ -93,7 +116,10 @@ class RestResponse(io.IOBase):
 
 
 class RestClient(RESTClientObject):
+    """A rest client interface based on requests, with retry."""
+
     def __init__(self, *args, **kwargs):
+        # pylint: disable=super-init-not-called
         self.session = create_requests_session(*args, **kwargs)
 
     def request(
