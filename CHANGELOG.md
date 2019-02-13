@@ -10,6 +10,17 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 ## [Unreleased]
 
 
+## [0.7.1] - 2019-02-13
+
+### Added
+
+- 501, 502, 503 and 504 errors received from the API will now be retried, with exponential backoff.
+
+### Fixed
+
+- Entitlement command output will now respect pretty format properly and not send non-output to sysout.
+
+
 ## [0.7.0] - 2018-10-13
 
 ### Added
