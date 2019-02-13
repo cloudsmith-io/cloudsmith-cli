@@ -3,7 +3,6 @@ self=$(readlink -f $BASH_SOURCE)
 self_dir=$(dirname $self)
 root_dir=$(readlink -f "$self_dir/..")
 cloudsmith_repo_cli="cloudsmith/cli"
-project="cloudsmith-cli"
 package="cloudsmith_cli"
 version=$(cat VERSION)
 
@@ -18,14 +17,14 @@ upload_to_pypi() {
   twine_args="\
     --skip-existing \
     dist/${package}-${version}-py2.py3-none-any.whl"
-  test "$TRAVIS" == "true" && {
-      twine upload \
-        -u csm-api-bot \
-        -p $PYPI_PASSWORD \
-        $twine_args
-  } || {
-      twine upload $twine_args
-  }
+  if [[ "$TRAVIS" == "true" ]]; then
+    twine upload \
+      -u csm-api-bot \
+      -p $PYPI_PASSWORD \
+      $twine_args
+  else
+    twine upload $twine_args
+  fi
 }
 
 upload_to_cloudsmith() {
