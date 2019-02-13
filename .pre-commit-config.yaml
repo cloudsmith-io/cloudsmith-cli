@@ -11,6 +11,10 @@ repos:
   - id: check-yaml
   - id: debug-statements
   - id: end-of-file-fixer
+    exclude: >
+      (?x)^(
+        .bumpversion.cfg
+      )$
   - id: flake8
   - id: fix-encoding-pragma
   - id: forbid-new-submodules
