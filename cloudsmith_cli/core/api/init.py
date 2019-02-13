@@ -7,6 +7,8 @@ import base64
 import cloudsmith_api
 import six
 
+from ..rest import RestClient
+
 
 def initialise_api(
     debug=False,
@@ -42,6 +44,7 @@ def get_api_client(cls):
     config = cloudsmith_api.Configuration()
     client = cls()
     client.config = config
+    client.api_client.rest_client = RestClient()
 
     user_agent = getattr(config, "user_agent", None)
     if user_agent:

@@ -50,6 +50,8 @@ def catch_raise_api_exception():
             except ValueError:
                 pass
 
+        detail = detail or exc.reason
+
         raise ApiException(
             exc.status, detail=detail, headers=exc.headers, body=exc.body, fields=fields
         )

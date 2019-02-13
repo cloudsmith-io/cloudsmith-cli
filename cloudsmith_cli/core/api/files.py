@@ -11,6 +11,7 @@ import six
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from .. import ratelimits
+from ..rest import create_requests_session
 from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
@@ -75,7 +76,8 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
     client = get_files_api()
     headers["user-agent"] = client.api_client.user_agent
 
-    resp = requests.post(upload_url, data=monitor, headers=headers, proxies=proxies)
+    session = create_requests_session()
+    resp = session.post(upload_url, data=monitor, headers=headers, proxies=proxies)
 
     try:
         resp.raise_for_status()
