@@ -100,7 +100,16 @@ class RestResponse(io.IOBase):
         self.response = response
         self.status = response.status_code
         self.reason = response.reason
-        self.data = response.content
+        self._data = None
+
+    @property
+    def data(self):
+        """
+        Get the content for the response (lazily decoded).
+        """
+        if self._data is None:
+            self._data = self.response.content.decode("utf-8")
+        return self._data
 
     def getheaders(self):
         """
@@ -194,11 +203,11 @@ class RestClient(RESTClientObject):
             msg = "{0}\n{1}".format(type(exc).__name__, str(exc))
             raise ApiException(status=0, reason=msg)
 
-        resp.encoding = "utf-8"
-        if _preload_content:
-            logger.debug("response body: %s", resp.content)
-
+        resp.encoding = resp.apparent_encoding or "utf-8"
         rest_resp = RestResponse(resp)
+
+        if _preload_content:
+            logger.debug("response body: %s", rest_resp.data)
 
         if not 200 <= rest_resp.status <= 299:
             raise ApiException(http_resp=rest_resp)
