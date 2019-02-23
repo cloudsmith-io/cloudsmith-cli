@@ -11,8 +11,8 @@ if [[ "${base_dir}" == py* ]]; then
   cd $self_dir
   echo "Building requirements for Python: ${py_version}"
   ${pip_compile} --output-file common.txt common.in
-  ${pip_compile} --output-file test.txt common.in test.in
-  ${pip_compile} --output-file development.txt common.in test.in development.in
+  ${pip_compile} --pre --output-file test.txt common.in test.in
+  ${pip_compile} --pre --output-file development.txt common.in test.in development.in
 else
   for py_version in py2 py3; do
     ${self_dir}/${py_version}/pip-compile.sh
