@@ -1,0 +1,35 @@
+version: v1.0
+
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+
+blocks:
+  - name: Run Tests
+    task:
+      jobs:
+      - name: py27-tests
+        commands:
+          - checkout
+          - tox py27
+      - name: py36-tests
+        commands:
+          - checkout
+          - tox py36
+      - name: isort
+        commands:
+          - checkout
+          - tox -e py36-isort
+      - name: flake8
+        commands:
+          - checkout
+          - tox -e py36-flake8
+      - name: pylint
+        commands:
+          - checkout
+          - tox -e py36-pylint
+      - name: black
+        commands:
+          - checkout
+          - tox -e py36-black
