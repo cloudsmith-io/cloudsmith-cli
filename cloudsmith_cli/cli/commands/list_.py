@@ -14,7 +14,8 @@ from ...core.api.repos import list_repos
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import entitlements, main
+from . import entitlements
+from .main import main
 
 
 @main.group(cls=command.AliasGroup, name="list", aliases=["ls"])

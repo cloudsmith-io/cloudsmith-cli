@@ -8,7 +8,7 @@ from ...core.api.packages import get_package_status
 from .. import decorators, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 
 @main.command()

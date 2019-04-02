@@ -8,7 +8,7 @@ from ...core.api.packages import delete_package
 from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 
 @main.command(aliases=["rm"])

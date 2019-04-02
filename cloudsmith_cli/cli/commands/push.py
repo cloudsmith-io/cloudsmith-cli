@@ -25,7 +25,7 @@ from .. import command, decorators, validators
 from ..exceptions import handle_api_exceptions
 from ..types import ExpandPath
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 
 def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
@@ -275,7 +275,7 @@ def upload_files_and_create_package(
     wait_interval,
     skip_errors,
     sync_attempts,
-    **kwargs
+    **kwargs,
 ):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
@@ -289,7 +289,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     # 2. Validate file upload parameters
@@ -335,7 +335,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     if no_wait_for_sync:
@@ -439,6 +439,13 @@ def create_push_handlers():
             is_flag=True,
             help="Execute in dry run mode (don't upload anything.)",
         )
+        @click.option(
+            "-n",
+            "--dry-run",
+            default=False,
+            is_flag=True,
+            help="Execute in dry run mode (don't upload anything.)",
+        )
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
@@ -468,20 +475,25 @@ def create_push_handlers():
 
         # Add any additional arguments
         for k, info in six.iteritems(kwargs):
+            option_kwargs = {}
+
             if k.endswith("_file"):
                 # Treat parameters that end with _file as uploadable filepaths.
-                option_type = ExpandPath(
+                option_kwargs["type"] = ExpandPath(
                     dir_okay=False, exists=True, writable=False, resolve_path=True
                 )
             else:
-                option_type = str
+                if info["type"] == "bool":
+                    option_kwargs["is_flag"] = True
+                else:
+                    option_kwargs["type"] = str
 
             option_name = "--%(key)s" % {"key": k.replace("_", "-")}
             decorator = click.option(
                 option_name,
-                type=option_type,
                 required=info["required"],
                 help=info["help"],
+                **option_kwargs,
             )
             push_handler = decorator(push_handler)
 

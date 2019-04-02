@@ -8,7 +8,7 @@ from ...core.api.user import get_user_brief
 from .. import decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 
 @main.command()

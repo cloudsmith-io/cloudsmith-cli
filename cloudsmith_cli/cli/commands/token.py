@@ -12,7 +12,7 @@ from ...core.utils import get_help_website
 from .. import decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]

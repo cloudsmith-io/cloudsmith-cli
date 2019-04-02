@@ -13,7 +13,7 @@ from ...core.api.version import get_version as get_api_version_info
 from .. import command, decorators, utils
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 
 @main.group(cls=command.AliasGroup)

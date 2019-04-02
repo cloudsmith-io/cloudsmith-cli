@@ -9,10 +9,10 @@ from . import docs  # noqa
 from . import entitlements  # noqa
 from . import help_  # noqa
 from . import list_  # noqa
+from . import main  # noqa
 from . import move  # noqa
 from . import push  # noqa
 from . import resync  # noqa
 from . import status  # noqa
 from . import token  # noqa
 from . import whoami  # noqa
-from .main import main  # noqa

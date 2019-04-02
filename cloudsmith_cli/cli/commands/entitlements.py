@@ -11,7 +11,7 @@ from ...core.api import entitlements as api
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 
 
 def validate_owner_repo_identifier(ctx, param, value):

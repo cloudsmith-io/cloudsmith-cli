@@ -6,7 +6,7 @@ import click
 
 from ...core.utils import get_help_website
 from .. import decorators
-from . import main
+from .main import main
 
 
 @main.command()

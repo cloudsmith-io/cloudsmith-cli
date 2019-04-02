@@ -8,7 +8,7 @@ from ...core.api.packages import copy_package
 from .. import decorators, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import main
+from .main import main
 from .push import wait_for_package_sync
 
 
