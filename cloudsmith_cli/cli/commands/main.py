@@ -4,10 +4,10 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 
-from .. import command, decorators
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
+from .. import command, decorators
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 

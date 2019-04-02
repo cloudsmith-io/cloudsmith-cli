@@ -4,11 +4,11 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 
-from . import main
-from .. import decorators, validators
 from ...core.api.packages import get_package_status
+from .. import decorators, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
+from . import main
 
 
 @main.command()

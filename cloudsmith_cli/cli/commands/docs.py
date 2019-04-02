@@ -4,9 +4,9 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 
-from . import main
-from .. import decorators
 from ...core.utils import get_help_website
+from .. import decorators
+from . import main
 
 
 @main.command()

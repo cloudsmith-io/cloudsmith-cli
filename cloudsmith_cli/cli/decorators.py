@@ -6,8 +6,8 @@ import functools
 
 import click
 
-from . import config, utils, validators
 from ..core.api.init import initialise_api as _initialise_api
+from . import config, utils, validators
 
 
 def common_package_action_options(f):

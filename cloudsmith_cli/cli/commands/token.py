@@ -7,12 +7,12 @@ import stat
 
 import click
 
-from . import main
-from .. import decorators
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
+from .. import decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
+from . import main
 
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]

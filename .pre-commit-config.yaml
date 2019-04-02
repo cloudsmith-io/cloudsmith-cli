@@ -4,30 +4,67 @@ repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v2.1.0
   hooks:
-  - id: check-ast
-  - id: check-byte-order-marker
-  - id: check-json
-  - id: check-symlinks
-  - id: check-yaml
   - id: debug-statements
   - id: end-of-file-fixer
     exclude: >
       (?x)^(
+        \.bumpversion\.cfg
+      )$
+  - id: check-merge-conflict
+  - id: check-added-large-files
+  - id: check-ast
+  - id: check-byte-order-marker
+  - id: check-builtin-literals
+  - id: check-json
+  - id: check-symlinks
+  - id: check-yaml
+  - id: detect-aws-credentials
+    args: ['--allow-missing-credentials']
+  - id: detect-private-key
+    exclude: >
+      (?x)^(
         .bumpversion.cfg
       )$
-  - id: flake8
   - id: fix-encoding-pragma
   - id: forbid-new-submodules
   - id: trailing-whitespace
+  - id: name-tests-test
+    args: ['--django']
+    exclude: >
+      (?x)^(
+        cloudsmith/.*/tests/apps\.py|
+        cloudsmith/.*/tests/enums\.py|
+        cloudsmith/.*/tests/factories\.py|
+        cloudsmith/.*/tests/forms\.py|
+        cloudsmith/.*/tests/models\.py|
+        cloudsmith/.*/tests/mixins\.py|
+        cloudsmith/.*/tests/utils\.py|
+        cloudsmith/.*/tests/views\.py
+      )$
+  - id: flake8
+    exclude: >
+      (?x)^(
+        cloudsmith/.*/tests/.*|
+        cloudsmith/.*/migrations/.*|
+        cloudsmith/settings/.*
+      )$
+    args: ['--config=.flake8']
   language_version: python3.6
 
-- repo: https://github.com/pre-commit/mirrors-isort
-  rev: v4.3.4
-  hooks:
-  - id: isort
-
 - repo: https://github.com/ambv/black
-  rev: stable
+  rev: 18.9b0
   hooks:
   - id: black
+    language_version: python3.6
+
+- repo: https://github.com/asottile/seed-isort-config
+  rev: v1.7.0
+  hooks:
+  - id: seed-isort-config
+    language_version: python3.6
+
+- repo: https://github.com/pre-commit/mirrors-isort
+  rev: v4.3.15
+  hooks:
+  - id: isort
     language_version: python3.6

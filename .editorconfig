@@ -10,3 +10,6 @@ insert_final_newline = true
 quote_type = double
 max_line_length = 88
 trim_trailing_whitespace = true
+
+[site.yaml]
+indent_size = 2

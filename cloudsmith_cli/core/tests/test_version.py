@@ -2,10 +2,11 @@
 """Core version utilities - Tests."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-from mock import ANY, patch
 from unittest import TestCase
-from .. import version
-from .. import utils
+
+from mock import ANY, patch
+
+from .. import utils, version
 
 
 class TestGetVersion(TestCase):

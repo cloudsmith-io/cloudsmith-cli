@@ -9,8 +9,8 @@ import click
 import six
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
 
-from . import utils, validators
 from ..core.utils import get_data_path, read_file
+from . import utils, validators
 
 
 def get_default_config_path():

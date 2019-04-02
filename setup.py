@@ -32,9 +32,9 @@ def get_long_description():
     try:
         import pypandoc
 
-        return pypandoc.convert(readme_path, "rst")
+        return pypandoc.convert(readme_path, "rst").strip()
     except ImportError:
-        return "Cloudsmith API"
+        return "Cloudsmith CLI"
 
 
 setup(
@@ -45,7 +45,7 @@ setup(
     author="Cloudsmith Ltd",
     author_email="support@cloudsmith.io",
     description="Cloudsmith Command-Line Interface (CLI)",
-    long_description=get_long_description().strip(),
+    long_description=get_long_description(),
     packages=find_packages(exclude=["tests"]),
     package_data={"cloudsmith_cli": ["cloudsmith_cli/data/*"]},
     include_package_data=True,
@@ -56,7 +56,7 @@ setup(
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
-        "cloudsmith-api>=0.32.0,<0.33.0",
+        "cloudsmith-api>=0.34.0",
         "colorama>=0.3.9",
         "future>=0.16.0",
         "requests>=2.18.4",
@@ -71,9 +71,9 @@ setup(
         # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
         # 'Development Status :: 1 - Planning',
         # 'Development Status :: 2 - Pre-Alpha',
-        "Development Status :: 3 - Alpha",
+        # 'Development Status :: 3 - Alpha',
         # 'Development Status :: 4 - Beta',
-        # 'Development Status :: 5 - Production/Stable',
+        "Development Status :: 5 - Production/Stable",
         # 'Development Status :: 6 - Mature',
         # 'Development Status :: 7 - Inactive',
         "Environment :: Console",

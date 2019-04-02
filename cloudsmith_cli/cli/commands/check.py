@@ -7,13 +7,13 @@ import cloudsmith_api
 import semver
 import six
 
-from . import main
-from .. import command, decorators, utils
 from ...core.api.rates import get_rate_limits
 from ...core.api.status import get_status
 from ...core.api.version import get_version as get_api_version_info
+from .. import command, decorators, utils
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
+from . import main
 
 
 @main.group(cls=command.AliasGroup)
