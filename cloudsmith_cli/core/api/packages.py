@@ -23,7 +23,7 @@ def make_create_payload(**kwargs):
     payload = {}
     # Add non-empty arguments
     for k, v in six.iteritems(kwargs):
-        if v:
+        if v is not None:
             payload[k] = v
 
     return payload

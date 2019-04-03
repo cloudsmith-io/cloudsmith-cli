@@ -476,19 +476,20 @@ def create_push_handlers():
         # Add any additional arguments
         for k, info in six.iteritems(kwargs):
             option_kwargs = {}
+            option_name_fmt = "--%(key)s"
 
             if k.endswith("_file"):
                 # Treat parameters that end with _file as uploadable filepaths.
                 option_kwargs["type"] = ExpandPath(
                     dir_okay=False, exists=True, writable=False, resolve_path=True
                 )
+            elif info["type"] == "bool":
+                option_name_fmt = "--%(key)s/--no-%(key)s"
+                option_kwargs["is_flag"] = True
             else:
-                if info["type"] == "bool":
-                    option_kwargs["is_flag"] = True
-                else:
-                    option_kwargs["type"] = str
+                option_kwargs["type"] = str
 
-            option_name = "--%(key)s" % {"key": k.replace("_", "-")}
+            option_name = option_name_fmt % {"key": k.replace("_", "-")}
             decorator = click.option(
                 option_name,
                 required=info["required"],
