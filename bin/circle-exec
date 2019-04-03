@@ -1,0 +1,17 @@
+#!/bin/bash
+set -eou pipefail
+
+WORK_DIR=`mktemp -d -p $(pwd)`
+
+function cleanup {
+  rm -rf "$WORK_DIR"
+}
+
+trap cleanup EXIT
+
+
+circleci config process .circleci/config.yml > $WORK_DIR/config.yml
+cat $WORK_DIR/config.yml
+circleci local execute --config $WORK_DIR/config.yml \
+  --env "CIRCLE_LOCAL=true" \
+  --job "$@"
