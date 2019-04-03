@@ -34,8 +34,8 @@ orbs:
           - run:
               name: Install dependencies
               command: |
-                python3 -m venv venv
-                . venv/bin/activate
+                python3 -m venv .venv
+                . .venv/bin/activate
                 pip install -r requirements_dev.txt
           - when:
               condition: <<parameters.is_test_suite>>
@@ -44,7 +44,7 @@ orbs:
                     name: Setup Codacy coverage reporter
                     command: |
                       test "$CIRCLE_LOCAL" == "true" || {
-                        . venv/bin/activate;
+                        . .venv/bin/activate;
                         pip install codacy-coverage;
                       }
                 - run:
@@ -67,7 +67,7 @@ orbs:
           - run:
               name: Run <<parameters.service_name>>
               command: |
-                . venv/bin/activate
+                . .venv/bin/activate
                 <<parameters.command>>
                 echo $? > /tmp/run_exit_code
               no_output_timeout: <<parameters.no_output_timeout>>
@@ -81,7 +81,7 @@ orbs:
                 - deploy:
                     command: |
                       test "$CIRCLE_LOCAL" == "true" || {
-                        . venv/bin/activate
+                        . .venv/bin/activate
                         cp ./reports/coverage.xml .;
                         python-codacy-coverage -r ./coverage.xml;
                         ./cc-test-reporter after-build -t coverage.py --exit-code $(cat /tmp/run_exit_code);
