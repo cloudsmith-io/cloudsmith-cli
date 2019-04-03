@@ -1,4 +1,0 @@
-[pydocstyle]
-inherit = true
-ignore =
-match = *.py
