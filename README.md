@@ -182,7 +182,7 @@ cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.
 
 ### Upload a Helm Package
 
-Assuming you have a package filename **your-package-1.0.0.tgz**, representing **your-package** **1.0.0***, for **Helm**:
+Assuming you have a package filename **your-package-1.0.0.tgz**, representing **your-package** **1.0.0**, for **Helm**:
 
 ```
 cloudsmith push helm your-account/your-repo your-package-1.0.0.tgz
