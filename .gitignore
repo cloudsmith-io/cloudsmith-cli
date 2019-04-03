@@ -23,7 +23,7 @@ node_modules/
 reports/
 
 # Virtualenv/Tox
-.venv
+**/.venv
 .tox
 
 # Coverage

@@ -1,0 +1,5 @@
+# Lint-only dependencies (py2)
+astroid==1.6.1  # >1.6.1 is too slow
+pylint==1.9.4
+pylint-django<2.0
+pylint-plugin-utils

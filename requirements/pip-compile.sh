@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
+set -eou pipefail
 self=$(readlink -f $BASH_SOURCE)
 self_dir=$(dirname $self)
-base_dir=$(basename $self_dir)
 
-if [[ "${base_dir}" == py* ]]; then
-  root_dir=$(readlink -f "$self_dir/../..")
-  py_version=$base_dir
-  pip_compile=${root_dir}/.venv/${py_version}/bin/pip-compile
-
-  cd $self_dir
-  echo "Building requirements for Python: ${py_version}"
-  ${pip_compile} --output-file common.txt common.in
-  ${pip_compile} --output-file test.txt common.in test.in
-  ${pip_compile} --output-file development.txt common.in test.in development.in
-else
-  for py_version in py2 py3; do
-    ${self_dir}/${py_version}/pip-compile.sh
-  done
+cd $self_dir
+echo "Rebuilding Python 2.x requirements"
+if [ ! -d .venv/py2 ]; then
+  virtualenv -p python2.7 .venv/py2 --no-site-packages
+  .venv/py2/bin/pip install pip-tools
 fi
+
+.venv/py2/bin/pip-compile --pre --output-file production.py2.txt common.in
+.venv/py2/bin/pip-compile --pre --output-file development.py2.txt common.in development.in test.in lint.in lint.py2.in
+
+echo "Rebuild Python 3.x requirements"
+if [ ! -d .venv/py3 ]; then
+  virtualenv -p python3.6 .venv/py3 --no-site-packages
+  .venv/py3/bin/pip install pip-tools
+fi
+
+.venv/py3/bin/pip-compile --pre --output-file production.py3.txt common.in
+.venv/py3/bin/pip-compile --pre --output-file development.py3.txt common.in development.in test.in lint.in lint.py3.in
