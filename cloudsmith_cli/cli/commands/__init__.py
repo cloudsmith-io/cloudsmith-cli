@@ -9,7 +9,6 @@ from . import docs  # noqa
 from . import entitlements  # noqa
 from . import help_  # noqa
 from . import list_  # noqa
-from . import main  # noqa
 from . import move  # noqa
 from . import push  # noqa
 from . import resync  # noqa
