@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+
+## [0.8.0] - 2019-04-03
+
 ### Added
 
 - Support for Helm repository charts/packages (https://github.com/helm/charts).
