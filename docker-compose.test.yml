@@ -1,0 +1,31 @@
+version: '3.7'
+services:
+
+  isort:
+    build:
+      context: .
+    image: cloudsmith-cli
+    command: isort -rc -c
+
+  black:
+    build:
+      context: .
+    image: cloudsmith-cli
+    command: black --check .
+
+  flake8:
+    build:
+      context: .
+    image: cloudsmith-cli
+    command: flake8
+
+  pylint:
+    build:
+      context: .
+    image: cloudsmith-cli
+    command: pylint --rcfile=.pylintrc cloudsmith_cli
+
+  pytest:
+    build: .
+    image: cloudsmith-cli
+    command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
