@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+### Added
+
+- Support for Helm repository charts/packages (https://github.com/helm/charts).
+- Support for republishing packages (overwrite existing versions).
+
 
 ## [0.7.2] - 2019-02-19
 
