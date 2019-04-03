@@ -77,15 +77,19 @@ workflows:
           command: isort -rc -c
       - cloudsmith_ci/execute:
           name: black
-          service_name: black --check .
+          service_name: black
+          command: black --check .
       - cloudsmith_ci/execute:
           name: flake8
           service_name: flake8
+          command: flake8
       - cloudsmith_ci/execute:
           name: pylint
-          service_name: pylint --rcfile=.pylintrc cloudsmith_cli
+          service_name: pylint
+          command: pylint --rcfile=.pylintrc cloudsmith_cli
           no_output_timeout: 1200
       - cloudsmith_ci/execute:
           name: pytest
+          service_name: pytest
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
           is_test_suite: true
