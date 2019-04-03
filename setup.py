@@ -65,7 +65,9 @@ setup(
         "simplejson>=3.12.0",
         "six>=1.11.0",
     ],
-    entry_points={"console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands:main"]},
+    entry_points={
+        "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
+    },
     keywords=["cloudsmith", "cli", "devops"],
     classifiers=[
         # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
