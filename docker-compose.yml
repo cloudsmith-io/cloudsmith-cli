@@ -1,0 +1,10 @@
+version: '3.7'
+services:
+
+  cli:
+    build: .
+    image: cloudsmith-cli
+    command: python cloudsmith-cli
+    working_dir: /usr/src/app/cloudsmith_cli
+    environment:
+      - DEBUG=true

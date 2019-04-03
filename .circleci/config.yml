@@ -1,0 +1,91 @@
+# Python CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-python/ for more details
+#
+version: 2.1
+
+orbs:
+  cloudsmith_ci:
+    jobs:
+      execute:
+        parameters:
+          service_name:
+            description: Name of the command to execute
+            type: string
+          command:
+            description: The command to execute
+            type: string
+          no_output_timeout:
+            description: Number of seconds to let job run without output before timeout
+            type: integer
+            default: 600
+          is_test_suite:
+            description: Should the job collect test results and coverage?
+            type: boolean
+            default: false
+        executor: cloudsmith_executor
+        working_directory: ~/repo
+        steps:
+          - checkout
+          - when:
+              condition: <<parameters.is_test_suite>>
+              steps:
+                - run:
+                    name: Setup Codacy coverage reporter
+                    command: sudo pip install codacy-coverage
+                - run:
+                    name: Setup Code Climate coverage reporter
+                    command: |
+                      curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+                      chmod +x ./cc-test-reporter
+                - run:
+                    name: Notify Code Climate of pending test report
+                    command: ./cc-test-reporter before-build
+          - run:
+              name: Run <<parameters.service_name>>
+              command: |
+                <<parameters.command>>
+                echo $? > /tmp/run_exit_code
+              no_output_timeout: <<parameters.no_output_timeout>>
+          - when:
+              condition: <<parameters.is_test_suite>>
+              steps:
+                - run:
+                    name: Copy coverage.xml to root of repository
+                    command: cp ./reports/coverage.xml .
+                - store_test_results:
+                    path: ./reports
+                - store_artifacts:
+                    path: ./reports
+                - deploy:
+                    command: |
+                      python-codacy-coverage -r ./coverage.xml
+                      ./cc-test-reporter after-build -t coverage.py --exit-code $(cat /tmp/run_exit_code)
+
+    executors:
+      cloudsmith_executor:
+        docker:
+          - image: circleci/python:3.6.1
+
+
+workflows:
+  commit:
+    jobs:
+      - cloudsmith_ci/execute:
+          name: isort
+          service_name: isort
+          command: isort -rc -c
+      - cloudsmith_ci/execute:
+          name: black
+          service_name: black --check .
+      - cloudsmith_ci/execute:
+          name: flake8
+          service_name: flake8
+      - cloudsmith_ci/execute:
+          name: pylint
+          service_name: pylint --rcfile=.pylintrc cloudsmith_cli
+          no_output_timeout: 1200
+      - cloudsmith_ci/execute:
+          name: pytest
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          is_test_suite: true
