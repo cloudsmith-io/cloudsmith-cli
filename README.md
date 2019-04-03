@@ -6,7 +6,7 @@
 [![CircleCI](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli.svg?style=svg)](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/7ce010a44fd249329dab8959ca09142a)](https://www.codacy.com/app/Cloudsmith/cloudsmith-cli)
 [![Maintainability](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/maintainability)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/test_coverage)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/test_coverage)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/your-repo_coverage)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/your-repo_coverage)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 
@@ -48,10 +48,12 @@ The CLI currently supports the following commands (and sub-commands):
 - `move`|`mv`:     Move (promote) a package to another repo.
 - `push`|`upload`: Push (upload) a new package to a repository.
   - `alpine`:        Push (upload) a new Alpine package upstream.
+  - `composer`:      Push (upload) a new Composer package upstream.
   - `deb`:           Push (upload) a new Deb package upstream.
+  - `helm`:          Push (upload) a new Helm package upstream.
   - `maven`:         Push (upload) a new Maven package upstream.
-  - `python`:        Push (upload) a new Python package upstream.
   - `npm`:           Push (upload) a new Npm package upstream.
+  - `python`:        Push (upload) a new Python package upstream.
   - `raw`:           Push (upload) a new Raw package upstream.
   - `rpm`:           Push (upload) a new Rpm package upstream.
   - `ruby`:          Push (upload) a new Ruby package upstream.
@@ -152,14 +154,22 @@ If the configuration files already exist, you'll have to manually put the API ke
 
 ## Examples
 
-**Note:** All of the examples in this section are uploading to the **lskillen** user and the **test** repository. Please replace these with your own user/org and repository names.
+**Note:** All of the examples in this section are uploading to the **your-account** user and the **test** repository. Please replace these with your own user/org and repository names.
 
 ### Upload an Alpine Package
 
 Assuming you have a package filename **libjq-1.0.3.apk**, representing **libjq 1.0.3**, for the **Alpine v3.8** distribution (which has a cloudsmith identifier of **alpine/v3.8**):
 
 ```
-cloudsmith push alpine lskillen/test/alpine/v3.8 libjq-1.0.3.apk
+cloudsmith push alpine your-account/your-repo/alpine/v3.8 libjq-1.0.3.apk
+```
+
+### Upload a Composer Package
+
+Assuming you have a package filename **your-package.phar**, representing **your-package**, for **Composer**:
+
+```
+cloudsmith push composer your-account/your-repo your-package.phar
 ```
 
 ### Upload a Debian Package
@@ -167,7 +177,15 @@ cloudsmith push alpine lskillen/test/alpine/v3.8 libjq-1.0.3.apk
 Assuming you have a package filename **libxml2-2.9.4-2.x86_64.deb**, representing **libxml 2.9.4**, for the **Ubuntu 16.04** distribution (which has a cloudsmith identifier of **ubuntu/xenial**):
 
 ```
-cloudsmith push deb lskillen/test/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
+cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
+```
+
+### Upload a Helm Package
+
+Assuming you have a package filename **your-package-1.0.0.tgz**, representing **your-package** **1.0.0***, for **Helm**:
+
+```
+cloudsmith push helm your-account/your-repo your-package-1.0.0.tgz
 ```
 
 ### Upload a Maven Package
@@ -175,7 +193,7 @@ cloudsmith push deb lskillen/test/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
 Assuming you have a package filename **validation-api-1.0.0.GA.jar**, representing **validation-api 1.0.0**, for **Maven/Java**:
 
 ```
-cloudsmith push maven lskillen/test validation-api-1.0.0.GA.jar --pom-file=validation-api-1.0.0.GA.pom
+cloudsmith push maven your-account/your-repo validation-api-1.0.0.GA.jar --pom-file=validation-api-1.0.0.GA.pom
 ```
 
 ### Upload a Npm Package
@@ -183,7 +201,7 @@ cloudsmith push maven lskillen/test validation-api-1.0.0.GA.jar --pom-file=valid
 Assuming you have a package filename **cloudsmithjs-1.0.0.tgz**, representing **cloudsmith-js 1.0.0*, for **Npm**:
 
 ```
-cloudsmith push npm lskillen/test cloudsmithjs-1.0.0.tgz
+cloudsmith push npm your-account/your-repo cloudsmithjs-1.0.0.tgz
 ```
 
 ### Upload a Python Package
@@ -191,7 +209,7 @@ cloudsmith push npm lskillen/test cloudsmithjs-1.0.0.tgz
 Assuming you have a package filename **boto3-1.4.4.py2.p3-none-any.whl**, representing **boto3 1.4.4**, for **Python 2/3**:
 
 ```
-cloudsmith push python lskillen/test boto3-1.4.4.py2.p3-none-any.whl
+cloudsmith push python your-account/your-repo boto3-1.4.4.py2.p3-none-any.whl
 ```
 
 ### Upload a Raw Package
@@ -199,7 +217,7 @@ cloudsmith push python lskillen/test boto3-1.4.4.py2.p3-none-any.whl
 Assuming you have a package filename **assets.zip**, representing **packaged assets**:
 
 ```
-cloudsmith push raw lskillen/test assets.zip
+cloudsmith push raw your-account/your-repo assets.zip
 ```
 
 ### Upload a RedHat Package
@@ -207,7 +225,7 @@ cloudsmith push raw lskillen/test assets.zip
 Assuming you have a package filename **libxml2-2.9.4-2.el5.x86_64.rpm**, representing **libxml 2.9.4**, for the **RedHat Enterprise 5.0** distribution (which has a cloudsmith identifier of **el/5**):
 
 ```
-cloudsmith push rpm lskillen/test/el/5 libxml2-2.9.4-2.el5.x86_64.rpm
+cloudsmith push rpm your-account/your-repo/el/5 libxml2-2.9.4-2.el5.x86_64.rpm
 ```
 
 ### Upload a Ruby Package
@@ -215,7 +233,7 @@ cloudsmith push rpm lskillen/test/el/5 libxml2-2.9.4-2.el5.x86_64.rpm
 Assuming you have a package filename **safe_yaml-1.0.4.gem**, representing **safe_yaml 1.0.4**, for **Ruby 2.3+**:
 
 ```
-cloudsmith push ruby lskillen/test safe_yaml-1.0.4.gem
+cloudsmith push ruby your-account/your-repo safe_yaml-1.0.4.gem
 ```
 
 ### Upload a Vagrant Package
@@ -223,7 +241,7 @@ cloudsmith push ruby lskillen/test safe_yaml-1.0.4.gem
 Assuming you have a package filename **awesome.box**, representing a Vagrant image for the **Awesome OS** (fictional, probably):
 
 ```
-cloudsmith push vagrant lskillen/test awesome.box --provider virtualbox
+cloudsmith push vagrant your-account/your-repo awesome.box --provider virtualbox
 ```
 
 ### Upload multiple Debian Packages
@@ -231,7 +249,7 @@ cloudsmith push vagrant lskillen/test awesome.box --provider virtualbox
 You can also upload multiple packages in one go (all of the same distribution):
 
 ```
-cloudsmith push deb lskillen/test/ubuntu/xenial libxml2-2.9.1-2.x86_64.deb libxml2-2.9.2-2.x86_64.deb libxml2-2.9.3-2.x86_64.deb
+cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.1-2.x86_64.deb libxml2-2.9.2-2.x86_64.deb libxml2-2.9.3-2.x86_64.deb
 ```
 
 
