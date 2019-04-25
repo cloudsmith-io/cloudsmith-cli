@@ -164,6 +164,14 @@ Assuming you have a package filename **libjq-1.0.3.apk**, representing **libjq 1
 cloudsmith push alpine your-account/your-repo/alpine/v3.8 libjq-1.0.3.apk
 ```
 
+### Upload a Cargo Package
+
+Assuming you have a package filename **your-package.crate**, representing **your-package**, for **Cargo**:
+
+```
+cloudsmith push cargo your-account/your-repo your-package.crate
+```
+
 ### Upload a Composer Package
 
 Assuming you have a package filename **your-package.phar**, representing **your-package**, for **Composer**:
