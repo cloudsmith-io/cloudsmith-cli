@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.10.0] - 2019-04-25
+
+### Added
+
+- Support for Cargo registry crates.
+
+
 ## [0.9.0] - 2019-04-16
 
 ### Added
