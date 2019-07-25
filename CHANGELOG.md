@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed duplicated --dry-run parameter in push command (thanks to @SeanTAllen of @ponylang).
+
+
 ## [0.10.0] - 2019-04-25
 
 ### Added
