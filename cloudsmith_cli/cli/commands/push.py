@@ -439,13 +439,6 @@ def create_push_handlers():
             is_flag=True,
             help="Execute in dry run mode (don't upload anything.)",
         )
-        @click.option(
-            "-n",
-            "--dry-run",
-            default=False,
-            is_flag=True,
-            help="Execute in dry run mode (don't upload anything.)",
-        )
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
