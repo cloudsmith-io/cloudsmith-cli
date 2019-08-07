@@ -9,6 +9,12 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.11.0] - 2019-08-07
+
+### Added
+
+- Support for LuaRocks modules.
+
 ### Fixed
 
 - Removed duplicated --dry-run parameter in push command (thanks to @SeanTAllen of @ponylang).
