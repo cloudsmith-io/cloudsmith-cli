@@ -196,6 +196,14 @@ Assuming you have a package filename **your-package-1.0.0.tgz**, representing **
 cloudsmith push helm your-account/your-repo your-package-1.0.0.tgz
 ```
 
+### Upload a LuaRocks Module
+
+Assuming you have a package filename **your-module-1.0.0-1.src.rock**, representing **your-module**, for **LuaRocks**:
+
+```
+cloudsmith push luarocks your-account/your-repo your-module-1.0.0-1.src.rock
+```
+
 ### Upload a Maven Package
 
 Assuming you have a package filename **validation-api-1.0.0.GA.jar**, representing **validation-api 1.0.0**, for **Maven/Java**:
