@@ -49,6 +49,7 @@ The CLI currently supports the following commands (and sub-commands):
 - `push`|`upload`: Push (upload) a new package to a repository.
   - `alpine`:        Push (upload) a new Alpine package upstream.
   - `composer`:      Push (upload) a new Composer package upstream.
+  - `cran`:          Push (upload) a new R/CRAN package upstream.
   - `deb`:           Push (upload) a new Deb package upstream.
   - `helm`:          Push (upload) a new Helm package upstream.
   - `maven`:         Push (upload) a new Maven package upstream.
@@ -178,6 +179,14 @@ Assuming you have a package filename **your-package.phar**, representing **your-
 
 ```
 cloudsmith push composer your-account/your-repo your-package.phar
+```
+
+### Upload an R/CRAN Package
+
+Assuming you have a package filename **your-package_0.1.0.tar.gz**, representing **your-package 0.1.0**, for **R/CRAN**:
+
+```
+cloudsmith push cran your-account/your-repo your-package_0.1.0.tar.gz
 ```
 
 ### Upload a Debian Package
