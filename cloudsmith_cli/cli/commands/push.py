@@ -419,10 +419,10 @@ def create_push_handlers():
             """
 
         @push.command(name=key, help=help_text)
-        @decorators.common_api_auth_options
         @decorators.common_cli_config_options
         @decorators.common_cli_output_options
         @decorators.common_package_action_options
+        @decorators.common_api_auth_options
         @decorators.initialise_api
         @click.argument("owner_repo", metavar=target_metavar, callback=target_callback)
         @click.argument(

@@ -13,10 +13,10 @@ from .push import wait_for_package_sync
 
 
 @main.command(aliases=["mv", "promote"])
-@decorators.common_api_auth_options
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_package_action_options
+@decorators.common_api_auth_options
 @decorators.initialise_api
 @click.argument(
     "owner_repo_package",
