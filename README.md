@@ -48,10 +48,12 @@ The CLI currently supports the following commands (and sub-commands):
 - `move`|`mv`:     Move (promote) a package to another repo.
 - `push`|`upload`: Push (upload) a new package to a repository.
   - `alpine`:        Push (upload) a new Alpine package upstream.
+  - `cargo`:         Push (upload) a new Cargo package upstream.
   - `composer`:      Push (upload) a new Composer package upstream.
   - `cran`:          Push (upload) a new R/CRAN package upstream.
   - `deb`:           Push (upload) a new Deb package upstream.
   - `helm`:          Push (upload) a new Helm package upstream.
+  - `luarocks`:      Push (upload) a new Lua module upstream.
   - `maven`:         Push (upload) a new Maven package upstream.
   - `npm`:           Push (upload) a new Npm package upstream.
   - `python`:        Push (upload) a new Python package upstream.
