@@ -9,12 +9,15 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
-## [0.12.0] - 2019-08-08
+## [0.12.0] - 2019-08-014
+
+### Added
+
+- Support for R/CRAN packages.
 
 ### Fixed
 
 - Ordering of parameter decorators.
-
 
 ## [0.11.0] - 2019-08-07
 
