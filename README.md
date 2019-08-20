@@ -53,6 +53,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `cran`:          Push (upload) a new R/CRAN package upstream.
   - `deb`:           Push (upload) a new Deb package upstream.
   - `helm`:          Push (upload) a new Helm package upstream.
+  - `go`:            Push (upload) a new Go module upstream.
   - `luarocks`:      Push (upload) a new Lua module upstream.
   - `maven`:         Push (upload) a new Maven package upstream.
   - `npm`:           Push (upload) a new Npm package upstream.
@@ -205,6 +206,14 @@ Assuming you have a package filename **your-package-1.0.0.tgz**, representing **
 
 ```
 cloudsmith push helm your-account/your-repo your-package-1.0.0.tgz
+```
+
+### Upload a Go Module
+
+Assuming you have a package filename **v1.0.0.zip**, representing **your-package** **1.0.0**, for **Go**:
+
+```
+cloudsmith push go your-account/your-repo v1.0.0.zip
 ```
 
 ### Upload a LuaRocks Module
