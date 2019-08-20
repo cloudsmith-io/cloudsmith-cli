@@ -9,7 +9,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
-## [0.12.0] - 2019-08-014
+## [0.13.0] - 2019-08-20
+
+### Added
+
+- Support for Go modules.
+
+## [0.12.0] - 2019-08-14
 
 ### Added
 
