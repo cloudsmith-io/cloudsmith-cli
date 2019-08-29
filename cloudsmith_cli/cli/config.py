@@ -28,6 +28,7 @@ class ConfigSchema(object):
         api_headers = Param(type=str)
         api_host = Param(type=str)
         api_proxy = Param(type=str)
+        api_ssl_verify = Param(type=bool)
         api_user_agent = Param(type=str)
 
     @matches_section("profile:*")
@@ -240,6 +241,16 @@ class Options(object):
     def api_proxy(self, value):
         """Set value for API proxy."""
         self._set_option("api_proxy", value)
+
+    @property
+    def api_ssl_verify(self):
+        """Get value for API SSL verify."""
+        return self._get_option("api_ssl_verify")
+
+    @api_ssl_verify.setter
+    def api_ssl_verify(self, value):
+        """Set value for API SSL verify."""
+        self._set_option("api_ssl_verify", value)
 
     @property
     def api_user_agent(self):
