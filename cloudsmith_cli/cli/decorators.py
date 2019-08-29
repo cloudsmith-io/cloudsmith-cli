@@ -25,7 +25,7 @@ def common_package_action_options(f):
         "--no-wait-for-sync",
         default=False,
         is_flag=True,
-        help="Don't wait for package synchronisation to complete before " "exiting.",
+        help="Don't wait for package synchronisation to complete before exiting.",
     )
     @click.option(
         "-I",
@@ -194,6 +194,16 @@ def initialise_api(f):
         help="The API proxy to connect through.",
     )
     @click.option(
+        "-S",
+        "--without-api-ssl-verify",
+        default=False,
+        is_flag=True,
+        envvar="CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
+        help="Don't verify the SSL connection for the API. This is dangerous and "
+        "should only be used in an old/broken environment that doesn't support the "
+        "same secure ciphers as Cloudsmith.",
+    )
+    @click.option(
         "--api-user-agent",
         envvar="CLOUDSMITH_API_USER_AGENT",
         help="The user agent to use for requests.",
@@ -248,9 +258,10 @@ def initialise_api(f):
         opts = config.get_or_create_options(ctx)
         opts.api_host = kwargs.pop("api_host")
         opts.api_proxy = kwargs.pop("api_proxy")
+        opts.api_ssl_verify = not kwargs.pop("without_api_ssl_verify") is True
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
-        opts.rate_limit = not kwargs.pop("without_rate_limit")
+        opts.rate_limit = not kwargs.pop("without_rate_limit") is True
         opts.rate_limit_warning = kwargs.pop("rate_limit_warning")
         opts.error_retry_max = kwargs.pop("error_retry_max")
         opts.error_retry_backoff = kwargs.pop("error_retry_backoff")
@@ -264,6 +275,7 @@ def initialise_api(f):
             host=opts.api_host,
             key=opts.api_key,
             proxy=opts.api_proxy,
+            ssl_verify=opts.api_ssl_verify,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
             rate_limit=opts.rate_limit,

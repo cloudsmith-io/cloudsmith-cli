@@ -15,6 +15,7 @@ def initialise_api(
     host=None,
     key=None,
     proxy=None,
+    ssl_verify=True,
     user_agent=None,
     headers=None,
     rate_limit=True,
@@ -35,6 +36,7 @@ def initialise_api(
     config.error_retry_max = error_retry_max
     config.error_retry_backoff = error_retry_backoff
     config.error_retry_codes = error_retry_codes
+    config.verify_ssl = ssl_verify
 
     if headers:
         if "Authorization" in config.headers:
