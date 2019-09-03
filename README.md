@@ -51,15 +51,17 @@ The CLI currently supports the following commands (and sub-commands):
   - `cargo`:         Push (upload) a new Cargo package upstream.
   - `composer`:      Push (upload) a new Composer package upstream.
   - `cran`:          Push (upload) a new R/CRAN package upstream.
-  - `deb`:           Push (upload) a new Deb package upstream.
-  - `helm`:          Push (upload) a new Helm package upstream.
+  - `deb`:           Push (upload) a new Debian package upstream.
+  - `docker`:        Push (upload) a new Docker image upstream.
   - `go`:            Push (upload) a new Go module upstream.
+  - `helm`:          Push (upload) a new Helm package upstream.
   - `luarocks`:      Push (upload) a new Lua module upstream.
   - `maven`:         Push (upload) a new Maven package upstream.
   - `npm`:           Push (upload) a new Npm package upstream.
+  - `nuget`:         Push (upload) a new NuGet package upstream.
   - `python`:        Push (upload) a new Python package upstream.
   - `raw`:           Push (upload) a new Raw package upstream.
-  - `rpm`:           Push (upload) a new Rpm package upstream.
+  - `rpm`:           Push (upload) a new RedHat package upstream.
   - `ruby`:          Push (upload) a new Ruby package upstream.
   - `vagrant`:       Push (upload) a new Vagrant package upstream.
 - `resync`:      Resynchronise a package in a repository.
@@ -200,12 +202,12 @@ Assuming you have a package filename **libxml2-2.9.4-2.x86_64.deb**, representin
 cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
 ```
 
-### Upload a Helm Package
+### Upload a Docker Image
 
-Assuming you have a package filename **your-package-1.0.0.tgz**, representing **your-package** **1.0.0**, for **Helm**:
+Assuming you have a package filename **your-image.docker**, representing **your-image**, for **Docker**:
 
 ```
-cloudsmith push helm your-account/your-repo your-package-1.0.0.tgz
+cloudsmith push docker your-account/your-repo your-image.docker
 ```
 
 ### Upload a Go Module
@@ -214,6 +216,14 @@ Assuming you have a package filename **v1.0.0.zip**, representing **your-package
 
 ```
 cloudsmith push go your-account/your-repo v1.0.0.zip
+```
+
+### Upload a Helm Package
+
+Assuming you have a package filename **your-package-1.0.0.tgz**, representing **your-package** **1.0.0**, for **Helm**:
+
+```
+cloudsmith push helm your-account/your-repo your-package-1.0.0.tgz
 ```
 
 ### Upload a LuaRocks Module
@@ -238,6 +248,14 @@ Assuming you have a package filename **cloudsmithjs-1.0.0.tgz**, representing **
 
 ```
 cloudsmith push npm your-account/your-repo cloudsmithjs-1.0.0.tgz
+```
+
+### Upload a Npm Package
+
+Assuming you have a package filename **your-package-1.0.0.nupkg**, representing **your-package 1.0.0*, for **NuGet**:
+
+```
+cloudsmith push nuget your-account/your-repo your-package-1.0.0.nupkg
 ```
 
 ### Upload a Python Package
@@ -278,14 +296,6 @@ Assuming you have a package filename **awesome.box**, representing a Vagrant ima
 
 ```
 cloudsmith push vagrant your-account/your-repo awesome.box --provider virtualbox
-```
-
-### Upload multiple Debian Packages
-
-You can also upload multiple packages in one go (all of the same distribution):
-
-```
-cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.1-2.x86_64.deb libxml2-2.9.2-2.x86_64.deb libxml2-2.9.3-2.x86_64.deb
 ```
 
 

@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+- Added support for NuGet packages (via API update).
+
 ## [0.14.0] - 2019-08-29
 
 - Added support for --without-api-ssl-verify to turn off SSL verification.
