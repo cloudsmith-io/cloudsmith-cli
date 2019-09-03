@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.15.0] - 2019-09-03
+
 - Added support for NuGet packages (via API update).
 
 ## [0.14.0] - 2019-08-29
