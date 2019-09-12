@@ -4,9 +4,8 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![PyPI Version](https://img.shields.io/pypi/v/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![CircleCI](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli.svg?style=svg)](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/7ce010a44fd249329dab8959ca09142a)](https://www.codacy.com/app/Cloudsmith/cloudsmith-cli)
 [![Maintainability](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/maintainability)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/your-repo_coverage)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/your-repo_coverage)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/test_coverage)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/test_coverage)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 

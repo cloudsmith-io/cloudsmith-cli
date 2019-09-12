@@ -41,13 +41,6 @@ orbs:
               condition: <<parameters.is_test_suite>>
               steps:
                 - run:
-                    name: Setup Codacy coverage reporter
-                    command: |
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        . .venv/bin/activate;
-                        pip install codacy-coverage;
-                      }
-                - run:
                     name: Setup Code Climate coverage reporter
                     command: |
                       test "$CIRCLE_LOCAL" == "true" || {
@@ -83,7 +76,6 @@ orbs:
                       test "$CIRCLE_LOCAL" == "true" || {
                         . .venv/bin/activate
                         cp ./reports/coverage.xml .;
-                        python-codacy-coverage -r ./coverage.xml;
                         ./cc-test-reporter after-build -t coverage.py --exit-code $(cat /tmp/run_exit_code);
                       }
 
