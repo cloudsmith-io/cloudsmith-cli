@@ -101,7 +101,7 @@ By default, the CLI will look for these in the following locations:
 - The current working directory.
 - A directory called `cloudsmith` in the OS-defined application directory. For example:
   - Linux: `$HOME/.config/cloudsmith`
-    - Windows: `C:\Users\YourName\AppData\cloudsmith`
+  - Windows: `C:\Users\YourName\AppData\Roaming\cloudsmith`
 
 Both configuration files use the simple INI format, such as:
 
