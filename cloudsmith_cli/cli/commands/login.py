@@ -9,7 +9,7 @@ import click
 
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
-from .. import decorators
+from .. import command, decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -103,7 +103,7 @@ def create_config_files(ctx, opts, api_key):
     return create, has_errors
 
 
-@main.command()
+@main.group(cls=command.AliasGroup, aliases=["login", "token"])
 @click.option(
     "-l",
     "--login",
@@ -117,8 +117,8 @@ def create_config_files(ctx, opts, api_key):
 @decorators.common_cli_output_options
 @decorators.initialise_api
 @click.pass_context
-def token(ctx, opts, login, password):
-    """Retrieve your API authentication token/key."""
+def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
+    """Retrieve your API authentication token/key via login."""
     click.echo(
         "Retrieving API token for %(login)s ... "
         % {"login": click.style(login, bold=True)},

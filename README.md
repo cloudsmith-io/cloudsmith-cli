@@ -44,6 +44,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `entitlements`:        List entitlements for a repository.
   - `packages`:            List packages for a repository.
   - `repos`:               List repositories for a namespace (owner).
+- `login`:       Retrieve your API authentication token/key via login.
 - `move`|`mv`:     Move (promote) a package to another repo.
 - `push`|`upload`: Push (upload) a new package to a repository.
   - `alpine`:        Push (upload) a new Alpine package upstream.
@@ -65,7 +66,6 @@ The CLI currently supports the following commands (and sub-commands):
   - `vagrant`:       Push (upload) a new Vagrant package upstream.
 - `resync`:      Resynchronise a package in a repository.
 - `status`:      Get the synchronisation status for a package.
-- `token`:       Retrieve your API authentication token/key.
 - `whoami`:      Retrieve your current authentication status.
 
 
@@ -132,10 +132,10 @@ You can specify the following configuration options:
 
 You'll need to provide authentication to Cloudsmith for any CLI actions that result in accessing private data or making changes to resources (such as pushing a new package to a repository)..
 
-With the CLI this is simple to do. You can retrieve your API key using the `cloudsmith token` command:
+With the CLI this is simple to do. You can retrieve your API key using the `cloudsmith login` command:
 
 ```
-cloudsmith token
+cloudsmith login
 Login: you@example.com
 Password:
 Repeat for confirmation:
