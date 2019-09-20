@@ -10,3 +10,4 @@ The following maintainers manage the project and are reponsible for reviewing/me
 The following contributors (in alphabetical order) are held in eternal high esteem and gratitude for their glorious contributions to the project:
 
 - Patrick McClory ([@mcclory](https://github.com/mcclory))
+- Jamie Brynes ([@jamiebrynes7](https://github.com/jamiebrynes7))
