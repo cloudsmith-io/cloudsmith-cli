@@ -126,6 +126,7 @@ You can specify the following configuration options:
 
 - `api_host`: The API host to connect to.
 - `api_proxy`: The API proxy to connect through.
+- `api_ssl_verify`: Whether or not to use SSL verification for requests.
 - `api_user_agent`: The user agent to use for requests.
 
 ### Credentials (credentials.ini)
