@@ -19,7 +19,7 @@ chardet==3.0.4            # via requests
 click-configfile==0.2.3
 click-didyoumean==0.0.3
 click-spinner==0.1.7
-click==6.7
+click==7.0
 cloudsmith-api==0.44.4
 codecov==2.0.15
 colorama==0.3.9

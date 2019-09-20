@@ -1,6 +1,6 @@
 # Shared/Runtime dependencies
 --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/api/python/index/
-click>=6.7,<7.0
+click>=7.0
 click-configfile==0.2.3
 click-didyoumean==0.0.3
 click-spinner==0.1.7

@@ -20,7 +20,6 @@ from .main import main
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
-@decorators.initialise_api
 @click.pass_context
 def check(ctx, opts):  # pylint: disable=unused-argument
     """Check rate limits and service status."""
