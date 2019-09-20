@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+- Upgraded suggested version of python-click to >=7.0.
 - Fixed parsing of booleans from config files.
 - Fixed tolerance of booleans without values in config files (thanks to @Mno-hime for reporting).
 - Renamed the `cloudsmith token` command to `cloudsmith login` (token still works).
