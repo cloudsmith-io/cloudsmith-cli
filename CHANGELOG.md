@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+- Fixed parsing of booleans from config files.
+- Fixed tolerance of booleans without values in config files.
+
 ## [0.16.0] - 2019-09-18
 
 - Added support for --content-type when uploading Raw packages.

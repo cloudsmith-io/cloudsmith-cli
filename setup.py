@@ -52,7 +52,7 @@ setup(
     zip_safe=False,
     platforms=["any"],
     install_requires=[
-        "click>=6.7",
+        "click>=7.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",

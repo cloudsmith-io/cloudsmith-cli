@@ -4,6 +4,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import os
 import re
+import threading
 
 import click
 import six
@@ -11,6 +12,35 @@ from click_configfile import ConfigFileReader, Param, SectionSchema, matches_sec
 
 from ..core.utils import get_data_path, read_file
 from . import utils, validators
+
+OPTIONS = threading.local()
+
+
+class ConfigParam(Param):
+    # For compatibility with click>=7.0
+    def __init__(self, *args, **kwargs):
+        super(ConfigParam, self).__init__(*args, **kwargs)
+        self.ctx = None
+
+    def parse(self, text):
+        if text:
+            text = text.strip()
+        if self.type.name == "boolean":
+            if not text:
+                return None
+        return super(ConfigParam, self).parse(text)
+
+    def get_error_hint(self, ctx):
+        if self.ctx:
+            files = []
+            for path in self.ctx.config_searchpath:
+                for filename in self.ctx.config_files:
+                    files.append(os.path.join(path, filename))
+            files = " or ".join(files)
+            msg = "%s in %s" % (self.name, files)
+        else:
+            msg = "%s in a config file" % (self.name,)
+        return msg
 
 
 def get_default_config_path():
@@ -25,11 +55,11 @@ class ConfigSchema(object):
     class Default(SectionSchema):
         """Default configuration schema."""
 
-        api_headers = Param(type=str)
-        api_host = Param(type=str)
-        api_proxy = Param(type=str)
-        api_ssl_verify = Param(type=bool)
-        api_user_agent = Param(type=str)
+        api_headers = ConfigParam(name="api_headers", type=str)
+        api_host = ConfigParam(name="api_host", type=str)
+        api_proxy = ConfigParam(name="api_ssl_verify", type=str)
+        api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool, default=True)
+        api_user_agent = ConfigParam(name="api_user_agent", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -43,6 +73,14 @@ class ConfigReader(ConfigFileReader):
     config_name = "standard"
     config_searchpath = [get_default_config_path()]
     config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
+
+    @classmethod
+    def select_config_schema_for(cls, section_name):
+        section_schema = super(ConfigReader, cls).select_config_schema_for(section_name)
+        for v in six.itervalues(section_schema.__dict__):
+            if isinstance(v, ConfigParam):
+                v.ctx = cls
+        return section_schema
 
     @classmethod
     def get_storage_name_for(cls, section_name):
@@ -129,12 +167,16 @@ class ConfigReader(ConfigFileReader):
         for k, v in six.iteritems(values):
             if v is None:
                 continue
-            if v.startswith('"') or v.startswith("'"):
-                v = v[1:]
-            if v.endswith('"') or v.endswith("'"):
-                v = v[:-1]
-            if not v:
-                continue
+            if isinstance(v, six.string_types):
+                if v.startswith('"') or v.startswith("'"):
+                    v = v[1:]
+                if v.endswith('"') or v.endswith("'"):
+                    v = v[:-1]
+                if not v:
+                    continue
+            else:
+                if v is None:
+                    continue
             setattr(opts, k, v)
 
 
@@ -145,7 +187,7 @@ class CredentialsSchema(object):
     class Default(SectionSchema):
         """Default configuration schema."""
 
-        api_key = Param(type=str)
+        api_key = ConfigParam(name="api_key", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -245,12 +287,12 @@ class Options(object):
     @property
     def api_ssl_verify(self):
         """Get value for API SSL verify."""
-        return self._get_option("api_ssl_verify")
+        return self._get_option("api_ssl_verify", default=True)
 
     @api_ssl_verify.setter
     def api_ssl_verify(self, value):
         """Set value for API SSL verify."""
-        self._set_option("api_ssl_verify", value)
+        self._set_option("api_ssl_verify", value, allow_clear=False)
 
     @property
     def api_user_agent(self):
@@ -356,7 +398,10 @@ class Options(object):
 
     def _get_option(self, name, default=None):
         """Get value for an option."""
-        return self.opts.get(name, default)
+        value = self.opts.get(name)
+        if value is None:
+            return default
+        return value
 
     def _set_option(self, name, value, allow_clear=False):
         """Set value for an option."""
@@ -374,4 +419,8 @@ class Options(object):
 
 def get_or_create_options(ctx):
     """Get or create the options object."""
-    return ctx.ensure_object(Options)
+    try:
+        return OPTIONS.value
+    except AttributeError:
+        OPTIONS.value = ctx.ensure_object(Options)
+        return OPTIONS.value

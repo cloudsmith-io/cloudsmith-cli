@@ -196,7 +196,7 @@ def initialise_api(f):
     @click.option(
         "-S",
         "--without-api-ssl-verify",
-        default=False,
+        default=None,
         is_flag=True,
         envvar="CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
         help="Don't verify the SSL connection for the API. This is dangerous and "
@@ -216,7 +216,7 @@ def initialise_api(f):
     @click.option(
         "-R",
         "--without-rate-limit",
-        default=False,
+        default=None,
         is_flag=True,
         help="Don't obey the suggested rate limit interval. The CLI will "
         "automatically sleep between commands to ensure that you do "
@@ -255,13 +255,20 @@ def initialise_api(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
+        def _set_boolean(name, invert=False):
+            value = kwargs.pop(name)
+            value = value if value is not None else None
+            if value is not None and invert:
+                value = not value
+            return value
+
         opts = config.get_or_create_options(ctx)
         opts.api_host = kwargs.pop("api_host")
         opts.api_proxy = kwargs.pop("api_proxy")
-        opts.api_ssl_verify = not kwargs.pop("without_api_ssl_verify") is True
+        opts.api_ssl_verify = _set_boolean("without_api_ssl_verify", invert=True)
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
-        opts.rate_limit = not kwargs.pop("without_rate_limit") is True
+        opts.rate_limit = _set_boolean("without_rate_limit", invert=True)
         opts.rate_limit_warning = kwargs.pop("rate_limit_warning")
         opts.error_retry_max = kwargs.pop("error_retry_max")
         opts.error_retry_backoff = kwargs.pop("error_retry_backoff")
