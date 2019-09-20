@@ -99,8 +99,17 @@ By default, the CLI will look for these in the following locations:
 
 - The current working directory.
 - A directory called `cloudsmith` in the OS-defined application directory. For example:
-  - Linux: `$HOME/.config/cloudsmith`
-    - Windows: `C:\Users\YourName\AppData\cloudsmith`
+  - Linux:
+    - `$HOME/.config/cloudsmith`
+    - `$HOME/.cloudsmith`
+  - Mac OS:
+    - `$HOME/Library/Application Support/cloudsmith`
+    - `$HOME/.cloudsmith`
+  - Windows:
+    - `C:\Users\<user>\AppData\Local\cloudsmith` (Win7+, not roaming)
+    - `C:\Users\<user>\AppData\Roaming\cloudsmith` (Win7+, roaming)
+    - `C:\Documents and Settings\<user>\Application Data\cloudsmith` (WinXP, not roaming)
+    - `C:\Documents and Settings\<user>\Local Settings\Application Data\cloudsmith` (WinXP, roaming)
 
 Both configuration files use the simple INI format, such as:
 
