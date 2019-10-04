@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.17.1] - 2019-10-04
+
 - Fixed the `cloudsmith login` command (so that it is properly recognised).
 
 ## [0.17.0] - 2019-09-20
