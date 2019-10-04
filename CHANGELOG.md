@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+- Fixed the `cloudsmith login` command (so that it is properly recognised).
+
 ## [0.17.0] - 2019-09-20
 
 - Upgraded suggested version of python-click to >=7.0.
