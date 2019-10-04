@@ -12,3 +12,12 @@ The following contributors (in alphabetical order) are held in eternal high este
 
 - Jamie Brynes ([@jamiebrynes7](https://github.com/jamiebrynes7))
 - Patrick McClory ([@mcclory](https://github.com/mcclory))
+
+
+# Thanks
+
+We'd also like to say thank you to the following people (in alphabetical order), for raising issues, providing suggestions or just for being awesome:
+
+- Michal Nowak ([@Mno-hime](https://github.com/Mno-hime))
+- Rob Madole ([@robmadole](https://github.com/robmadole))
+- Sean Allen ([@SeanTAllen](https://github.com/SeanTAllen))
