@@ -103,7 +103,7 @@ def create_config_files(ctx, opts, api_key):
     return create, has_errors
 
 
-@main.group(cls=command.AliasGroup, aliases=["login", "token"])
+@main.group(cls=command.AliasGroup, aliases=["token"])
 @click.option(
     "-l",
     "--login",
