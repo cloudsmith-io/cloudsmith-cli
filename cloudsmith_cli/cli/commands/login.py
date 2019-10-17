@@ -9,7 +9,7 @@ import click
 
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
-from .. import command, decorators
+from .. import decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -103,7 +103,7 @@ def create_config_files(ctx, opts, api_key):
     return create, has_errors
 
 
-@main.group(cls=command.AliasGroup, aliases=["token"])
+@main.command(aliases=["token"])
 @click.option(
     "-l",
     "--login",

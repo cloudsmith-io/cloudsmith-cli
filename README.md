@@ -44,29 +44,29 @@ The CLI currently supports the following commands (and sub-commands):
   - `entitlements`:        List entitlements for a repository.
   - `packages`:            List packages for a repository.
   - `repos`:               List repositories for a namespace (owner).
-- `login`:       Retrieve your API authentication token/key via login.
-- `move`|`mv`:     Move (promote) a package to another repo.
-- `push`|`upload`: Push (upload) a new package to a repository.
-  - `alpine`:        Push (upload) a new Alpine package upstream.
-  - `cargo`:         Push (upload) a new Cargo package upstream.
-  - `composer`:      Push (upload) a new Composer package upstream.
-  - `cran`:          Push (upload) a new R/CRAN package upstream.
-  - `deb`:           Push (upload) a new Debian package upstream.
-  - `docker`:        Push (upload) a new Docker image upstream.
-  - `go`:            Push (upload) a new Go module upstream.
-  - `helm`:          Push (upload) a new Helm package upstream.
-  - `luarocks`:      Push (upload) a new Lua module upstream.
-  - `maven`:         Push (upload) a new Maven package upstream.
-  - `npm`:           Push (upload) a new Npm package upstream.
-  - `nuget`:         Push (upload) a new NuGet package upstream.
-  - `python`:        Push (upload) a new Python package upstream.
-  - `raw`:           Push (upload) a new Raw package upstream.
-  - `rpm`:           Push (upload) a new RedHat package upstream.
-  - `ruby`:          Push (upload) a new Ruby package upstream.
-  - `vagrant`:       Push (upload) a new Vagrant package upstream.
-- `resync`:      Resynchronise a package in a repository.
-- `status`:      Get the synchronisation status for a package.
-- `whoami`:      Retrieve your current authentication status.
+- `login`|`token`:       Retrieve your API authentication token/key via login.
+- `move`|`mv`:           Move (promote) a package to another repo.
+- `push`|`upload`:       Push (upload) a new package to a repository.
+  - `alpine`:              Push (upload) a new Alpine package upstream.
+  - `cargo`:               Push (upload) a new Cargo package upstream.
+  - `composer`:            Push (upload) a new Composer package upstream.
+  - `cran`:                Push (upload) a new R/CRAN package upstream.
+  - `deb`:                 Push (upload) a new Debian package upstream.
+  - `docker`:              Push (upload) a new Docker image upstream.
+  - `go`:                  Push (upload) a new Go module upstream.
+  - `helm`:                Push (upload) a new Helm package upstream.
+  - `luarocks`:            Push (upload) a new Lua module upstream.
+  - `maven`:               Push (upload) a new Maven package upstream.
+  - `npm`:                 Push (upload) a new Npm package upstream.
+  - `nuget`:               Push (upload) a new NuGet package upstream.
+  - `python`:              Push (upload) a new Python package upstream.
+  - `raw`:                 Push (upload) a new Raw package upstream.
+  - `rpm`:                 Push (upload) a new RedHat package upstream.
+  - `ruby`:                Push (upload) a new Ruby package upstream.
+  - `vagrant`:             Push (upload) a new Vagrant package upstream.
+- `resync`:              Resynchronise a package in a repository.
+- `status`:              Get the synchronisation status for a package.
+- `whoami`:              Retrieve your current authentication status.
 
 
 ## Installation
