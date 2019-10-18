@@ -142,7 +142,9 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
                     }
                 ),
                 click.style(entitlement["token"], fg="yellow"),
-                click.style(entitlement["updated_at"], fg="blue"),
+                click.style(
+                    entitlement["updated_at"] or entitlement["created_at"], fg="blue"
+                ),
                 click.style(entitlement["slug_perm"], fg="green"),
             ]
         )
