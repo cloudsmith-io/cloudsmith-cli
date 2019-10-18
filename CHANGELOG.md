@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.17.3] - 2019-10-18
+
 - Fixed issue with displaying entitlements
 
 ## [0.17.2] - 2019-10-17
