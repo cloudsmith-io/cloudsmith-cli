@@ -203,6 +203,14 @@ Assuming you have a package filename **your-package_0.1.0.tar.gz**, representing
 cloudsmith push cran your-account/your-repo your-package_0.1.0.tar.gz
 ```
 
+### Upload a (Google) Dart Package
+
+Assuming you have a package filename **your-package-1.0.0.tgz**, representing **your-package 1.0.0**, for **(Google) Dart**:
+
+```
+cloudsmith push dart your-account/your-repo your-package-1.0.0.tgz
+```
+
 ### Upload a Debian Package
 
 Assuming you have a package filename **libxml2-2.9.4-2.x86_64.deb**, representing **libxml 2.9.4**, for the **Ubuntu 16.04** distribution (which has a cloudsmith identifier of **ubuntu/xenial**):
