@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+- Added support for (Objective-C and Swift) CocoaPod packages.
+
 ## [0.18.0] - 2019-12-20
 
 - Added support for (Google) Dart packages.
