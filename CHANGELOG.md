@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+## [0.19.1] - 2020-02-07
+
+- Fix missing README information on PyPi
+
 ## [0.19.0] - 2020-02-06
 
 - Added support for (Objective-C and Swift) CocoaPod packages.
