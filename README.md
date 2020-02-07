@@ -187,6 +187,14 @@ Assuming you have a package filename **your-package.crate**, representing **your
 cloudsmith push cargo your-account/your-repo your-package.crate
 ```
 
+### Upload a (Objective-C or Swift) CocoaPods package
+
+Assuming you have a package filename **your-package.tar.gz**, representing **your-package**, for **(Objective-C or Swift) CocoaPods**:
+
+```
+cloudsmith push cocoapods your-account/your-repo your-package.tar.gz
+```
+
 ### Upload a Composer Package
 
 Assuming you have a package filename **your-package.phar**, representing **your-package**, for **Composer**:
