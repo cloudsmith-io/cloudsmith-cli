@@ -115,7 +115,7 @@ class ConfigReader(ConfigFileReader):
         for k, v in six.iteritems(data):
             v = v or ""
             config = re.sub(
-                r"^(%(key)s) =[ ]*$" % {"key": k},
+                r"^(%(key)s)\s?=[ ]*$" % {"key": k},
                 "%(key)s = %(value)s" % {"key": k, "value": v},
                 config,
                 flags=re.MULTILINE,
