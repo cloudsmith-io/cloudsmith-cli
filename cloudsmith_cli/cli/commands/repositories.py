@@ -73,20 +73,25 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
     """
 
 
-@repositories.command(name="list", aliases=["ls"])
+@repositories.command(name="get", aliases=["list", "ls"])
 @decorators.common_cli_config_options
 @decorators.common_cli_list_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
-@click.argument("owner", default=None, required=False)
+@click.argument(
+    "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_optional_repo
+)
 @click.pass_context
-def list_(ctx, opts, owner, page, page_size):
+def get(ctx, opts, owner_repo, page, page_size):
     """
     List repositories for a namespace (owner).
 
-    OWNER: Specify the OWNER namespace (i.e user or org) to list the
+    OWNER/REPO: Specify the OWNER namespace (i.e user or org) to list the
     repositories for that namespace.
+
+    If REPO isn't specified, all repositories will be retrieved from the
+    OWNER namespace.
 
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
@@ -96,10 +101,14 @@ def list_(ctx, opts, owner, page, page_size):
 
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
+    owner, repo = owner_repo
+
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            repos_, page_info = list_repos(owner=owner, page=page, page_size=page_size)
+            repos_, page_info = list_repos(
+                owner=owner, repo=repo, page=page, page_size=page_size
+            )
 
     click.secho("OK", fg="green", err=use_stderr)
 

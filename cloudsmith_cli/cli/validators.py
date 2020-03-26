@@ -87,6 +87,13 @@ def validate_slashes(param, value, minimum=2, maximum=None, form=None):
     return value
 
 
+def validate_owner_optional_repo(ctx, param, value):
+    """Ensure that owner/repo is formatted correctly, where repo is optional."""
+    # pylint: disable=unused-argument
+    form = "OWNER/REPO"
+    return validate_slashes(param, value, minimum=1, maximum=2, form=form)
+
+
 def validate_owner_repo(ctx, param, value):
     """Ensure that owner/repo is formatted correctly."""
     # pylint: disable=unused-argument
