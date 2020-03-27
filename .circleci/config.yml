@@ -4,6 +4,31 @@
 #
 version: 2.1
 
+jobs:
+  publish:
+    docker:
+      - image: circleci/python:3.6.1
+    parameters:
+      registry_url:
+        description: Registry URL to upload the CLI to
+        type: string
+        default: https://upload.pypi.org/legacy/
+      username:
+        description: Twine username
+        type: string
+      password:
+        description: Twine password
+        type: string
+    environment:
+      TWINE_REPOSITORY_URL: <<parameters.registry_url>>
+      TWINE_USERNAME: <<parameters.username>>
+      TWINE_PASSWORD: <<parameters.password>>
+    steps:
+      - checkout
+      - run: pip install --user --upgrade setuptools twine wheel
+      - run: setup.py sdist bdist_wheel
+      - run: twine upload dist/*
+
 orbs:
   cloudsmith_ci:
     jobs:
@@ -110,3 +135,32 @@ workflows:
           service_name: pytest
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
           is_test_suite: true
+      - publish:
+          requires:
+            - isort
+            - black
+            - pyflakes
+            - pylint
+            - pytest
+          filters:
+            branches:
+              only:
+                - master
+          name: cloudsmith
+          registry_url: https://python.cloudsmith.io/cloudsmith/api/
+          username: ${CLOUDSMITH_USERNAME}
+          password: ${CLOUDSMITH_PASSWORD}
+      - publish:
+          requires:
+            - isort
+            - black
+            - pyflakes
+            - pylint
+            - pytest
+          filters:
+            branches:
+              only:
+                - master
+          name: pypi
+          username: ${PYPI_USERNAME}
+          password: ${PYPI_PASSWORD}
