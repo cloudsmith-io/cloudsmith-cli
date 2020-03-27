@@ -148,7 +148,7 @@ workflows:
           requires:
             - isort
             - black
-            - pyflakes
+            - flake8
             - pylint
             - pytest
           filters:
@@ -163,7 +163,7 @@ workflows:
           requires:
             - isort
             - black
-            - pyflakes
+            - flake8
             - pylint
             - pytest
           filters:
