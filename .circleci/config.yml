@@ -37,6 +37,10 @@ jobs:
             - run: pip install --user --upgrade setuptools twine wheel
             - run: setup.py sdist bdist_wheel
             - run: twine upload dist/*
+      - unless:
+          condition: <<pipeline.parameters.should_publish>>
+          steps:
+            - run: echo "Skipping publish"
 
 orbs:
   cloudsmith_ci:
