@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) a
 
 ## [Unreleased]
 
+- Pinned the Cloudsmith API library version to 0.x+ (excl. 1.x+ series).
+
 ## [0.19.2] - 2020-03-27
 
 - Fix credentials config file not being populated with API key by `cloudsmith login`
