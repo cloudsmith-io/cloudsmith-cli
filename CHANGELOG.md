@@ -2,61 +2,95 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 **Note:** Until 1.0 any MAJOR or MINOR release may have backwards-incompatible changes.
 
-
 ## [Unreleased]
+
+## [0.20.0] - 2020-03-27
+
+**Note:** This release pins the Cloudsmith API library to version 0.x due to
+changes in the versioning of the library. If you're having issues with an older
+version of the CLI that installs the latest API, please upgrade your CLI
+version, or install `cloudsmith-api==0.49.94`.
+
+### Changed
 
 - Pinned the Cloudsmith API library version to 0.x+ (excl. 1.x+ series).
 
 ## [0.19.2] - 2020-03-27
 
-- Fix credentials config file not being populated with API key by `cloudsmith login`
+### Fixed
+
+- Credentials config file not being populated with API key by `cloudsmith login`.
 
 ## [0.19.1] - 2020-02-07
 
-- Fix missing README information on PyPi
+### Fixed
+
+- Missing README information on PyPi.
 
 ## [0.19.0] - 2020-02-06
 
-- Added support for (Objective-C and Swift) CocoaPod packages.
+### Added
+
+- Support for (Objective-C and Swift) CocoaPod packages.
 
 ## [0.18.0] - 2019-12-20
 
-- Added support for (Google) Dart packages.
+### Added
+
+- Support for (Google) Dart packages.
 
 ## [0.17.3] - 2019-10-18
+
+### Fixed
 
 - Fixed issue with displaying entitlements.
 
 ## [0.17.2] - 2019-10-17
 
-- Fixed regression with the `cloudsmith login` and `cloudsmith token` commands where they didn't execute correctly.
+### Fixed
+
+- Regression with the `cloudsmith login` and `cloudsmith token` commands where they didn't execute correctly.
 
 ## [0.17.1] - 2019-10-04
 
-- Fixed the `cloudsmith login` command (so that it is properly recognised) (thanks to @robmadole for reporting).
+### Fixed
+
+- `cloudsmith login` command (so that it is properly recognised) (thanks to @robmadole for reporting).
 
 ## [0.17.0] - 2019-09-20
 
+### Changed
+
 - Upgraded suggested version of python-click to >=7.0.
-- Fixed parsing of booleans from config files.
-- Fixed tolerance of booleans without values in config files (thanks to @Mno-hime for reporting).
 - Renamed the `cloudsmith token` command to `cloudsmith login` (token still works).
+
+### Fixed
+
+- Parsing of booleans from config files.
+- Tolerance of booleans without values in config files (thanks to @Mno-hime for reporting).
 
 ## [0.16.0] - 2019-09-18
 
-- Added support for --content-type when uploading Raw packages.
+### Added
+
+- Support for --content-type when uploading Raw packages.
 
 ## [0.15.0] - 2019-09-03
 
-- Added support for NuGet packages (via API update).
+### Added
+
+- Support for NuGet packages (via API update).
 
 ## [0.14.0] - 2019-08-29
 
-- Added support for --without-api-ssl-verify to turn off SSL verification.
+### Added
+
+- Support for --without-api-ssl-verify to turn off SSL verification.
 
 ## [0.13.0] - 2019-08-20
 
