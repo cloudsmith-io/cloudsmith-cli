@@ -4,6 +4,12 @@
 #
 version: 2.1
 
+parameters:
+  should_publish:
+    description: Whether the CLI should be published to repositories
+    type: boolean
+    default: false
+
 jobs:
   publish:
     docker:
@@ -24,10 +30,13 @@ jobs:
       TWINE_USERNAME: <<parameters.username>>
       TWINE_PASSWORD: <<parameters.password>>
     steps:
-      - checkout
-      - run: pip install --user --upgrade setuptools twine wheel
-      - run: setup.py sdist bdist_wheel
-      - run: twine upload dist/*
+      - when:
+          condition: <<pipeline.parameters.should_publish>>
+          steps:
+            - checkout
+            - run: pip install --user --upgrade setuptools twine wheel
+            - run: setup.py sdist bdist_wheel
+            - run: twine upload dist/*
 
 orbs:
   cloudsmith_ci:

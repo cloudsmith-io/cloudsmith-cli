@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+
+curl -X POST https://circleci.com/api/v2/project/cloudsmith-cli/pipeline \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H "Circle-Token: $CIRCLE_TOKEN" \
+  --data '{"branch": "master", "parameters": {"should_publish": true}}'
