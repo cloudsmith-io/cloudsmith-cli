@@ -141,16 +141,10 @@ workflows:
           service_name: pytest
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
           is_test_suite: true
-  publish:
+  publish_cli:
     when: <<pipeline.parameters.should_publish>>
     jobs:
       - publish:
-          requires:
-            - isort
-            - black
-            - flake8
-            - pylint
-            - pytest
           filters:
             branches:
               only:
@@ -160,12 +154,6 @@ workflows:
           username: ${CLOUDSMITH_USERNAME}
           password: ${CLOUDSMITH_PASSWORD}
       - publish:
-          requires:
-            - isort
-            - black
-            - flake8
-            - pylint
-            - pytest
           filters:
             branches:
               only:
