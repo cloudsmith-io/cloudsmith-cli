@@ -4,12 +4,6 @@
 #
 version: 2.1
 
-parameters:
-  should_publish:
-    description: Whether the CLI should be published to repositories
-    type: boolean
-    default: false
-
 jobs:
   publish:
     docker:
@@ -141,11 +135,10 @@ workflows:
           service_name: pytest
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
           is_test_suite: true
-  publish_cli:
-    when: <<pipeline.parameters.should_publish>>
-    jobs:
       - publish:
           filters:
+            tags:
+              only: /^v.*/
             branches:
               only:
                 - master
@@ -155,6 +148,8 @@ workflows:
           password: ${CLOUDSMITH_PASSWORD}
       - publish:
           filters:
+            tags:
+              only: /^v.*/
             branches:
               only:
                 - master
