@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.20.1] - 2020-03-27
+
+### Fixed
+
+- Version specifier set by `0.20.0` wasn't compatible with older versions of Python.
+
 ## [0.20.0] - 2020-03-27
 
 **Note:** This release pins the Cloudsmith API library to version 0.x due to
