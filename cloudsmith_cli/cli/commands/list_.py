@@ -16,6 +16,7 @@ from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from . import entitlements
 from .main import main
+from .repos import get as get_repos
 
 
 @main.group(cls=command.AliasGroup, name="list", aliases=["ls"])
@@ -216,72 +217,28 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 @decorators.common_cli_list_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
-@click.argument("owner", default=None, required=False)
+@click.argument(
+    "owner_repo",
+    metavar="OWNER/REPO",
+    callback=validators.validate_optional_owner_repo,
+    default="",
+    required=False,
+)
 @click.pass_context
-def repos(ctx, opts, owner, page, page_size):
+def repos(ctx, opts, owner_repo, page, page_size):
     """
     List repositories for a namespace (owner).
 
-    OWNER: Specify the OWNER namespace (i.e. user or org) to list the
+    OWNER/REPO: Specify the OWNER namespace (i.e user or org) to list the
     repositories for that namespace.
+
+    If REPO isn't specified, all repositories will be retrieved from the
+    OWNER namespace.
 
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
     """
-    # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
-
-    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
-
-    context_msg = "Failed to get list of repositories!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repos_, page_info = list_repos(owner=owner, page=page, page_size=page_size)
-
-    click.secho("OK", fg="green", err=use_stderr)
-
-    if utils.maybe_print_as_json(opts, repos_, page_info):
-        return
-
-    headers = [
-        "Name",
-        "Type",
-        "Packages",
-        "Groups",
-        "Downloads",
-        "Size",
-        "Owner / Repository (Identifier)",
-    ]
-
-    rows = []
-    for repo in sorted(repos_, key=itemgetter("namespace", "slug")):
-        rows.append(
-            [
-                click.style(repo["name"], fg="cyan"),
-                click.style(repo["repository_type_str"], fg="yellow"),
-                click.style(six.text_type(repo["package_count"]), fg="blue"),
-                click.style(six.text_type(repo["package_group_count"]), fg="blue"),
-                click.style(six.text_type(repo["num_downloads"]), fg="blue"),
-                click.style(six.text_type(repo["size_str"]), fg="blue"),
-                "%(owner_slug)s/%(slug)s"
-                % {
-                    "owner_slug": click.style(repo["namespace"], fg="magenta"),
-                    "slug": click.style(repo["slug"], fg="green"),
-                },
-            ]
-        )
-
-    if repos_:
-        click.echo()
-        utils.pretty_print_table(headers, rows)
-
-    click.echo()
-
-    num_results = len(repos_)
-    list_suffix = "repositor%s visible" % ("ies" if num_results != 1 else "y")
-    utils.pretty_print_list_info(
-        num_results=num_results, page_info=page_info, suffix=list_suffix
-    )
+    ctx.forward(get_repos)
 
 
 def _get_package_name(package):
