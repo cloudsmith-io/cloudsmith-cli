@@ -8,8 +8,7 @@ from operator import itemgetter
 import click
 import six
 
-from ...core.api import repositories as api
-from ...core.api.repos import list_repos
+from ...core.api import repos as api
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
@@ -80,7 +79,11 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.argument(
-    "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_optional_repo
+    "owner_repo",
+    metavar="OWNER/REPO",
+    callback=validators.validate_optional_owner_repo,
+    default="",
+    required=False,
 )
 @click.pass_context
 def get(ctx, opts, owner_repo, page, page_size):
@@ -101,12 +104,24 @@ def get(ctx, opts, owner_repo, page, page_size):
 
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
-    owner, repo = owner_repo
+    if isinstance(owner_repo, list):
+        if len(owner_repo) == 1:
+            owner = owner_repo[0]
+            repo = None
+        else:
+            owner, repo = owner_repo
+    if isinstance(owner_repo, str):
+        repo = None
+
+        if len(str) == 0:
+            owner = None
+        else:
+            owner = owner_repo
 
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            repos_, page_info = list_repos(
+            repos_, page_info = api.list_repos(
                 owner=owner, repo=repo, page=page, page_size=page_size
             )
 
@@ -175,7 +190,7 @@ def create(ctx, opts, owner, repo_config_file):
     context_msg = "Failed to create the repository!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            repository = api.create_repository(owner=owner, **repo_config)
+            repository = api.create_repo(owner, repo_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -290,6 +305,6 @@ def delete(ctx, opts, owner_repo, yes):
     context_msg = "Failed to delete the repository!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            api.delete_repository(owner=owner, repo=repo)
+            api.delete_repo(owner=owner, repo=repo)
 
     click.secho("OK", fg="green")
