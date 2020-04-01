@@ -25,9 +25,7 @@ def list_repos(owner=None, **kwargs):
     if owner:
         repo = kwargs.get("repo", None)
         if repo is not None:
-
             if hasattr(client, "repos_read_with_http_info"):
-                print(f"Owner: {owner}, Repo: {repo}")
                 with catch_raise_api_exception():
                     res, _, headers = client.repos_read_with_http_info(owner, repo)
                     res = [res]
@@ -66,7 +64,7 @@ def update_repo(owner, repo, repo_config):
 
     with catch_raise_api_exception():
         data, _, headers = client.repos_partial_update_with_http_info(
-            owner=owner, repo=repo, data=repo_config
+            owner, repo=repo, data=repo_config
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -78,8 +76,6 @@ def delete_repo(owner, repo):
     client = get_repos_api()
 
     with catch_raise_api_exception():
-        _, _, headers = client.entitlements_delete_with_http_info(
-            owner=owner, repo=repo
-        )
+        _, _, headers = client.repos_delete_with_http_info(owner, repo)
 
     ratelimits.maybe_rate_limit(client, headers)
