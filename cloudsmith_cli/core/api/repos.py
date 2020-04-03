@@ -64,7 +64,7 @@ def update_repo(owner, repo, repo_config):
 
     with catch_raise_api_exception():
         data, _, headers = client.repos_partial_update_with_http_info(
-            owner, repo=repo, data=repo_config
+            owner, repo, data=repo_config
         )
 
     ratelimits.maybe_rate_limit(client, headers)

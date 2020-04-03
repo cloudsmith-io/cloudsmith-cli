@@ -223,7 +223,7 @@ def update(ctx, opts, owner_repo, repo_config_file):
         ```json
         {
           "description": "your updated repo description",
-          "repository_type_str": "Open Source",
+          "repository_type_str": "Open-Source",
         }
         ```
 
@@ -251,7 +251,7 @@ def update(ctx, opts, owner_repo, repo_config_file):
     context_msg = "Failed to update the repository!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            repository = api.update_repository(owner=owner, repo=repo, **repo_config)
+            repository = api.update_repo(owner, repo, repo_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
