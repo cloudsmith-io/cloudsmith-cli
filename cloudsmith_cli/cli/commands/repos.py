@@ -113,10 +113,10 @@ def get(ctx, opts, owner_repo, page, page_size):
     if isinstance(owner_repo, str):
         repo = None
 
-        if len(str) == 0:
-            owner = None
-        else:
+        if owner_repo:
             owner = owner_repo
+        else:
+            owner = None
 
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):

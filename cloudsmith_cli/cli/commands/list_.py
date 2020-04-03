@@ -6,11 +6,9 @@ import functools
 from operator import itemgetter
 
 import click
-import six
 
 from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
-from ...core.api.repos import list_repos
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
