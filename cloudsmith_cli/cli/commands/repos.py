@@ -153,15 +153,14 @@ def create(ctx, opts, owner, repo_config_file):
     - REPO_CONFIG_FILE: Config file specifying the settings for the
       repository to be created.
 
+        \b
         Example:
-        ```json
         {
           "name": "your-repo",
           "description": "your repo description",
           "repository_type_str": "Private",
           "slug": "your-repo-slug"
         }
-        ```
 
     Full CLI example:
 
@@ -219,13 +218,12 @@ def update(ctx, opts, owner_repo, repo_config_file):
     - REPO_CONFIG_FILE: Config file specifying the settings to
       update on the repository.
 
+        \b
         Example:
-        ```json
         {
           "description": "your updated repo description",
           "repository_type_str": "Open-Source",
         }
-        ```
 
     Full CLI example:
 
