@@ -258,7 +258,7 @@ def update(ctx, opts, owner_repo, repo_config_file):
     print_repositories(opts=opts, data=[repository], show_list_info=False)
 
 
-@repositories.command()
+@repositories.command(aliases=["rm"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
