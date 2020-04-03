@@ -61,7 +61,9 @@ def validate_api_headers(param, value):
     return headers
 
 
-def validate_slashes(param, value, minimum=2, maximum=None, form=None, optional=False):
+def validate_slashes(
+    param, value, minimum=2, maximum=None, form=None, allow_blank=False
+):
     """Ensure that parameter has slashes and minimum parts."""
     try:
         value = value.split("/")
@@ -81,7 +83,7 @@ def validate_slashes(param, value, minimum=2, maximum=None, form=None, optional=
         )
 
     value = [v.strip() for v in value]
-    if not optional and not all(value):
+    if not allow_blank and not all(value):
         raise click.BadParameter("Individual values cannot be blank", param=param)
 
     return value
@@ -91,8 +93,9 @@ def validate_optional_owner_repo(ctx, param, value):
     """Ensure that owner/repo is formatted correctly, where owner and repo are optional."""
     # pylint: disable=unused-argument
     form = "OWNER/REPO"
+
     return validate_slashes(
-        param, value, minimum=0, maximum=2, form=form, optional=True
+        param, value, minimum=0, maximum=2, form=form, allow_blank=True
     )
 
 
