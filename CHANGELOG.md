@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.21.0] - 2020-04-03
+
+### Added
+
+- Support for repositories API and subcommands (`list`, `create`, `retrieve`, `update` and `delete`).
+
 ## [0.20.1] - 2020-03-27
 
 ### Fixed
