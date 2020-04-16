@@ -12,6 +12,7 @@ from . import list_  # noqa
 from . import login  # noqa
 from . import move  # noqa
 from . import push  # noqa
+from . import repos  # noqa
 from . import resync  # noqa
 from . import status  # noqa
 from . import whoami  # noqa

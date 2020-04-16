@@ -27,46 +27,51 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
-- `check`:               Check rate limits and service status.
-- `copy`|`cp`:           Copy a package to another repository.
-- `delete`|`rm`:         Delete a package from a repository.
-- `docs`:                Launch the help website in your browser.
-- `entitlements`|`ents`: Manage the entitlements for a repository.
-  - `create`|`new`:        Create a new entitlement in a repository.
-  - `delete`|`rm`:         Delete an entitlement from a repository.
-  - `list`|`ls`:           List entitlements for a repository.
-  - `refresh`:             Refresh an entitlement in a repository.
-  - `sync`:                Sync entitlements from another repository.
-  - `update`|`set`:        Update (patch) a entitlement in a repository.
-- `help`:                Display the delightful help message and exit.
-- `list`|`ls`:           List distros, packages, repos and entitlements.
-  - `distros`:             List available distributions.
-  - `entitlements`:        List entitlements for a repository.
-  - `packages`:            List packages for a repository.
-  - `repos`:               List repositories for a namespace (owner).
-- `login`|`token`:       Retrieve your API authentication token/key via login.
-- `move`|`mv`:           Move (promote) a package to another repo.
-- `push`|`upload`:       Push (upload) a new package to a repository.
-  - `alpine`:              Push (upload) a new Alpine package upstream.
-  - `cargo`:               Push (upload) a new Cargo package upstream.
-  - `composer`:            Push (upload) a new Composer package upstream.
-  - `cran`:                Push (upload) a new R/CRAN package upstream.
-  - `deb`:                 Push (upload) a new Debian package upstream.
-  - `docker`:              Push (upload) a new Docker image upstream.
-  - `go`:                  Push (upload) a new Go module upstream.
-  - `helm`:                Push (upload) a new Helm package upstream.
-  - `luarocks`:            Push (upload) a new Lua module upstream.
-  - `maven`:               Push (upload) a new Maven package upstream.
-  - `npm`:                 Push (upload) a new Npm package upstream.
-  - `nuget`:               Push (upload) a new NuGet package upstream.
-  - `python`:              Push (upload) a new Python package upstream.
-  - `raw`:                 Push (upload) a new Raw package upstream.
-  - `rpm`:                 Push (upload) a new RedHat package upstream.
-  - `ruby`:                Push (upload) a new Ruby package upstream.
-  - `vagrant`:             Push (upload) a new Vagrant package upstream.
-- `resync`:              Resynchronise a package in a repository.
-- `status`:              Get the synchronisation status for a package.
-- `whoami`:              Retrieve your current authentication status.
+- `check`:                Check rate limits and service status.
+- `copy`|`cp`:            Copy a package to another repository.
+- `delete`|`rm`:          Delete a package from a repository.
+- `docs`:                 Launch the help website in your browser.
+- `entitlements`|`ents`:  Manage the entitlements for a repository.
+  - `create`|`new`:         Create a new entitlement in a repository.
+  - `delete`|`rm`:          Delete an entitlement from a repository.
+  - `list`|`ls`:            List entitlements for a repository.
+  - `refresh`:              Refresh an entitlement in a repository.
+  - `sync`:                 Sync entitlements from another repository.
+  - `update`|`set`:         Update (patch) a entitlement in a repository.
+- `help`:                 Display the delightful help message and exit.
+- `list`|`ls`:            List distros, packages, repos and entitlements.
+  - `distros`:              List available distributions.
+  - `entitlements`:         List entitlements for a repository.
+  - `packages`:             List packages for a repository. (Aliases `repos list`)
+  - `repos`:                List repositories for a namespace (owner).
+- `login`|`token`:        Retrieve your API authentication token/key via login.
+- `move`|`mv`:            Move (promote) a package to another repo.
+- `push`|`upload`:        Push (upload) a new package to a repository.
+  - `alpine`:               Push (upload) a new Alpine package upstream.
+  - `cargo`:                Push (upload) a new Cargo package upstream.
+  - `composer`:             Push (upload) a new Composer package upstream.
+  - `cran`:                 Push (upload) a new R/CRAN package upstream.
+  - `deb`:                  Push (upload) a new Debian package upstream.
+  - `docker`:               Push (upload) a new Docker image upstream.
+  - `go`:                   Push (upload) a new Go module upstream.
+  - `helm`:                 Push (upload) a new Helm package upstream.
+  - `luarocks`:             Push (upload) a new Lua module upstream.
+  - `maven`:                Push (upload) a new Maven package upstream.
+  - `npm`:                  Push (upload) a new Npm package upstream.
+  - `nuget`:                Push (upload) a new NuGet package upstream.
+  - `python`:               Push (upload) a new Python package upstream.
+  - `raw`:                  Push (upload) a new Raw package upstream.
+  - `rpm`:                  Push (upload) a new RedHat package upstream.
+  - `ruby`:                 Push (upload) a new Ruby package upstream.
+  - `vagrant`:              Push (upload) a new Vagrant package upstream.
+- `repositories`|`repos`: Manage repositories.
+  - `create`|`new`:         Create a new repository in a namespace.
+  - `get`|`list`|`ls`:      List repositories for a user, in a namespace or get details for a specific repository.
+  - `update`:               Update a repository in a namespace.
+  - `delete`|`rm`:          Delete a repository from a namespace.
+- `resync`:               Resynchronise a package in a repository.
+- `status`:               Get the synchronisation status for a package.
+- `whoami`:               Retrieve your current authentication status.
 
 
 ## Installation

@@ -22,24 +22,60 @@ def list_repos(owner=None, **kwargs):
     api_kwargs = {}
     api_kwargs.update(utils.get_page_kwargs(**kwargs))
 
-    # pylint: disable=fixme
-    # FIXME: Compatibility code until we work out how to conflate
-    # the overlapping repos_list methods into one.
-    repos_list = client.repos_list_with_http_info
+    if owner:
+        repo = kwargs.get("repo", None)
+        if repo is not None:
+            if hasattr(client, "repos_read_with_http_info"):
+                with catch_raise_api_exception():
+                    res, _, headers = client.repos_read_with_http_info(owner, repo)
+                    res = [res]
+        else:
+            api_kwargs["owner"] = owner
 
-    if owner is not None:
-        api_kwargs["owner"] = owner
-        if hasattr(client, "repos_list0_with_http_info"):
-            # pylint: disable=no-member
-            repos_list = client.repos_list0_with_http_info
+            if hasattr(client, "repos_list_with_http_info"):
+                with catch_raise_api_exception():
+                    res, _, headers = client.repos_list_with_http_info(**api_kwargs)
     else:
         if hasattr(client, "repos_all_list_with_http_info"):
-            # pylint: disable=no-member
-            repos_list = client.repos_all_list_with_http_info
-
-    with catch_raise_api_exception():
-        res, _, headers = repos_list(**api_kwargs)
+            with catch_raise_api_exception():
+                res, _, headers = client.repos_all_list_with_http_info(**api_kwargs)
 
     ratelimits.maybe_rate_limit(client, headers)
     page_info = PageInfo.from_headers(headers)
     return [x.to_dict() for x in res], page_info
+
+
+def create_repo(owner, repo_config):
+    """Create a repository in a namespace."""
+    client = get_repos_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.repos_create_with_http_info(
+            owner=owner, data=repo_config
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.to_dict()
+
+
+def update_repo(owner, repo, repo_config):
+    """Update a repo in a namespace."""
+    client = get_repos_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.repos_partial_update_with_http_info(
+            owner, repo, data=repo_config
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.to_dict()
+
+
+def delete_repo(owner, repo):
+    """Delete a repo from a namespace."""
+    client = get_repos_api()
+
+    with catch_raise_api_exception():
+        _, _, headers = client.repos_delete_with_http_info(owner, repo)
+
+    ratelimits.maybe_rate_limit(client, headers)
