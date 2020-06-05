@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.22.0] - 2020-06-05
+
+### Added
+
+- Support for (C/C++) Conan packages.
+
+**Note:** This release pins the Cloudsmith API library to version 0.51 due to
+changes in the versioning of the library. If you're having issues with an older
+version of the CLI that installs the latest API, please upgrade your CLI
+version, or install `cloudsmith-api==0.51.22`.
+
 ## [0.21.0] - 2020-04-16
 
 ### Added
