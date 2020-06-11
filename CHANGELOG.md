@@ -9,16 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.22.2] - 2020-06-11
+
+### Added
+
+- Support for Terraform modules.
+- Update for (C/C++) Conan push command to allow an optional name and version to be provided.
+
 ## [0.22.1] - 2020-06-10
 
 ### Added
 
 - Update for (C/C++) Conan packages.
-
-**Note:** This release pins the Cloudsmith API library to version 0.51 due to
-changes in the versioning of the library. If you're having issues with an older
-version of the CLI that installs the latest API, please upgrade your CLI
-version, or install `cloudsmith-api==0.51.34`.
 
 ## [0.22.0] - 2020-06-05
 
@@ -29,7 +31,7 @@ version, or install `cloudsmith-api==0.51.34`.
 **Note:** This release pins the Cloudsmith API library to version 0.51 due to
 changes in the versioning of the library. If you're having issues with an older
 version of the CLI that installs the latest API, please upgrade your CLI
-version, or install `cloudsmith-api==0.51.34`.
+version, or install `cloudsmith-api==0.51.38`.
 
 ## [0.21.0] - 2020-04-16
 
