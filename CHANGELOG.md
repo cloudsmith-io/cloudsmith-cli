@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Publishing a duplicate package without specifying `--publish` or `--no-republish` will now default to the repository republish settings.
+
 ## [0.21.0] - 2020-04-16
 
 ### Added
