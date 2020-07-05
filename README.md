@@ -74,6 +74,12 @@ The CLI currently supports the following commands (and sub-commands):
   - `delete`|`rm`:          Delete a repository from a namespace.
 - `resync`:               Resynchronise a package in a repository.
 - `status`:               Get the synchronisation status for a package.
+- `tags`:                 Manage the tags for a package in a repository.
+  - `add`:                  Add tags to a package in a repository.
+  - `clear`:                Clear all existing (non-immutable) tags from a package in a repository.
+  - `list`|`ls`:            List tags for a package in a repository.
+  - `remove`|`rm`:          Remove tags from a package in a repository.
+  - `replace`:              Replace all existing (non-immutable) tags on a package in a repository.
 - `whoami`:               Retrieve your current authentication status.
 
 
