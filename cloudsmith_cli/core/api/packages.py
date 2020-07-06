@@ -119,6 +119,19 @@ def resync_package(owner, repo, identifier):
     return data.slug_perm, data.slug
 
 
+def tag_package(owner, repo, identifier, data):
+    """Manage tags for a package in a repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_tag_with_http_info(
+            owner=owner, repo=repo, identifier=identifier, data=data
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.tags, data.tags_immutable
+
+
 def get_package_status(owner, repo, identifier):
     """Get the status for a package in a repository."""
     client = get_packages_api()
@@ -140,6 +153,22 @@ def get_package_status(owner, repo, identifier):
         data.stage_str,
         data.status_reason,
     )
+
+
+def get_package_tags(owner, repo, identifier):
+    """Get the tags for a package in a repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_read_with_http_info(
+            owner=owner, repo=repo, identifier=identifier
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+
+    # pylint: disable=no-member
+    # Pylint detects the returned value as a tuple
+    return (data.tags, data.tags_immutable)
 
 
 def list_packages(owner, repo, **kwargs):

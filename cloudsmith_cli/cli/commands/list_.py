@@ -140,7 +140,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 
       - By arch: 'x86_64' (implicit) or 'architecture:x86_64' (explicit)
 
-      - By disto: 'el' (implicit) or 'distribution:el' (explicit)
+      - By distro: 'el' (implicit) or 'distribution:el' (explicit)
 
     You can also modify the search terms:
 
