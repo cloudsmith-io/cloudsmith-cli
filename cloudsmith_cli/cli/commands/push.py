@@ -482,6 +482,10 @@ def create_push_handlers():
             else:
                 option_kwargs["type"] = str
 
+            if k == "republish":
+                # None is required to default upload republish settings to the repo republish settings
+                option_kwargs["default"] = None
+
             option_name = option_name_fmt % {"key": k.replace("_", "-")}
             decorator = click.option(
                 option_name,

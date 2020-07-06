@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Support for package tagging: `list`, `add`, `clear`, `remove` and `replace` tags.
 
+### Fixed
+
+- Publishing a duplicate package without specifying `--publish` or `--no-republish` will now default to the repository republish settings.
+
 ## [0.22.2] - 2020-06-11
 
 ### Added
