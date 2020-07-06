@@ -15,4 +15,5 @@ from . import push  # noqa
 from . import repos  # noqa
 from . import resync  # noqa
 from . import status  # noqa
+from . import tags  # noqa
 from . import whoami  # noqa
