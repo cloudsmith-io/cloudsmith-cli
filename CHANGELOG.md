@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+Note: This release requires `cloudsmith-api` >= `0.52.0`.
+
 ### Added
 
 - Support for package tagging: `list`, `add`, `clear`, `remove` and `replace` tags.
+- Support for debian DSC (source file) uploading.
 
 ### Fixed
 
@@ -35,11 +38,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Support for (C/C++) Conan packages.
-
-**Note:** This release pins the Cloudsmith API library to version 0.51 due to
-changes in the versioning of the library. If you're having issues with an older
-version of the CLI that installs the latest API, please upgrade your CLI
-version, or install `cloudsmith-api==0.51.38`.
 
 ## [0.21.0] - 2020-04-16
 
