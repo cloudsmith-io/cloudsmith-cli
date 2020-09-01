@@ -3,6 +3,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import base64
+from datetime import datetime
 
 import click
 
@@ -144,7 +145,7 @@ def validate_optional_tokens(ctx, param, value):
         for token in value.split(","):
             if not token.isalnum() or len(token) != 12:
                 raise click.BadParameter(
-                    "Tokens must contain one or more valid entitlement token identifiers as a comma seperate string.",
+                    "Tokens must contain one or more valid entitlement token identifiers as a comma seperated string.",
                     param=param,
                 )
 
@@ -153,9 +154,17 @@ def validate_optional_tokens(ctx, param, value):
 
 def validate_optional_timestamp(ctx, param, value):
     """Ensure that a valid value for page size is chosen."""
-    if value and not value.isnumeric():
-        raise click.BadParameter(
-            f"{param} must be a valid epoch timestamp.", param=param
-        )
+
+    if value:
+        try:
+            utc_dt = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+            utc_dt.replace(hour=0, minute=0, second=0)
+            epoch = int((utc_dt - datetime(1970, 1, 1)).total_seconds())
+            return epoch
+        except ValueError:
+            raise click.BadParameter(
+                f"{param.name} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` e.g. `2020-12-31T00:00:00Z`",
+                param=param,
+            )
 
     return value

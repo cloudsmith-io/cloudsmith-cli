@@ -47,7 +47,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
 - `metrics`:              Metrics and statistics for a repository.
-  - `usage`:                Retrieve bandwidth usage for entitlment tokens.
+  - `usage`:                Retrieve bandwidth usage for entitlement tokens.
 - `move`|`mv`:            Move (promote) a package to another repo.
 - `push`|`upload`:        Push (upload) a new package to a repository.
   - `alpine`:               Push (upload) a new Alpine package upstream.

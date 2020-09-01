@@ -97,23 +97,23 @@ def metrics(ctx, opts):  # pylink: disable=unused-argument
     "--tokens",
     type=str,
     required=False,
-    help="A comma seperate list of entitlement tokens (identifiers). Each identifier is exactly 12 characters in "
+    help="A comma seperated list of entitlement tokens (identifiers). Each identifier is exactly 12 characters in "
     "length and only contain alphanumerics. If a list is not specified then "
-    "all entitlment tokens will be included for a given repository.",
+    "all entitlement tokens will be included for a given repository.",
     callback=validators.validate_optional_tokens,
 )
 @click.option(
     "--start",
     type=str,
     required=False,
-    help="An epoch timestamp used to filter metrics starting from or equal to this period.",
+    help="An utc timestamp used to filter metrics starting from this period.",
     callback=validators.validate_optional_timestamp,
 )
 @click.option(
     "--finish",
     type=str,
     required=False,
-    help="An epoch timestamp used to filter metrics ending before this period.",
+    help="An utc timestamp used to filter metrics ending before this period.",
     callback=validators.validate_optional_timestamp,
 )
 @click.pass_context
@@ -129,19 +129,11 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
 
     click.echo("Getting usage metrics ... ", nl=False, err=use_stderr)
 
-    if isinstance(owner_repo, list):
-        if len(owner_repo) == 1:
-            owner = owner_repo[0]
-            repo = None
-        else:
-            owner, repo = owner_repo
-    if isinstance(owner_repo, str):
-        repo = None
-
-        if owner_repo:
-            owner = owner_repo
-        else:
-            owner = None
+    owner = None
+    repo = None
+    # owner/repo are required arguments
+    if isinstance(owner_repo, list) and len(owner_repo) == 2:
+        owner, repo = owner_repo
 
     context_msg = "Failed to get list of metrics!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
