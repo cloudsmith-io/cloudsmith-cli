@@ -136,3 +136,26 @@ def validate_page_size(ctx, param, value):
     if value == 0:
         raise click.BadParameter("Page size must be non-zero or unset.", param=param)
     return value
+
+
+def validate_optional_tokens(ctx, param, value):
+    """Ensure that a valid value for page size is chosen."""
+    if value:
+        for token in value.split(","):
+            if not token.isalnum() or len(token) != 12:
+                raise click.BadParameter(
+                    "Tokens must contain one or more valid entitlement token identifiers as a comma seperate string.",
+                    param=param,
+                )
+
+    return value
+
+
+def validate_optional_timestamp(ctx, param, value):
+    """Ensure that a valid value for page size is chosen."""
+    if value and not value.isnumeric():
+        raise click.BadParameter(
+            f"{param} must be a valid epoch timestamp.", param=param
+        )
+
+    return value
