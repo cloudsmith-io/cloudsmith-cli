@@ -153,14 +153,13 @@ def validate_optional_tokens(ctx, param, value):
 
 
 def validate_optional_timestamp(ctx, param, value):
-    """Ensure that a valid value for page size is chosen."""
+    """Ensure that a valid value for a timestamp is used."""
 
     if value:
         try:
-            utc_dt = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
-            utc_dt.replace(hour=0, minute=0, second=0)
-            epoch = int((utc_dt - datetime(1970, 1, 1)).total_seconds())
-            return epoch
+            return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
+                hour=0, minute=0, second=0
+            )
         except ValueError:
             raise click.BadParameter(
                 f"{param.name} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` e.g. `2020-12-31T00:00:00Z`",
