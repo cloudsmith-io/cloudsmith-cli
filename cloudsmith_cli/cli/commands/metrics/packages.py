@@ -108,7 +108,7 @@ def _print_packages(opts, data, label):
     "--packages",
     type=str,
     required=False,
-    help="A comma seperated list of package's (identifiers). Each identifier is exactly 12 characters in "
+    help="A comma seperated list of packages (identifiers). Each identifier is exactly 12 characters in "
     "length and only contain alphanumerics. If a list is not specified then "
     "all packages will be included for a given repository.",
     callback=validators.validate_optional_tokens,
