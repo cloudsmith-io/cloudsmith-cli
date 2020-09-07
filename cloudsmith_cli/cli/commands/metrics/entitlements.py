@@ -4,18 +4,18 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 
-from ...core.api import metrics as api
-from .. import command, decorators, utils, validators
-from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner
-from .main import main
+from ....core.api import metrics as api
+from ... import decorators, utils, validators
+from ...exceptions import handle_api_exceptions
+from ...utils import maybe_spinner
+from .command import metrics
 
 
 def _print_total_usage_table(opts, data):
     """ Print total usage metrics as a table. """
     headers = ["Total Tokens", "Active Tokens", "Inactive Tokens", "Bandwidth Used"]
 
-    click.echo(click.style("\nUsage Totals", bold=True, fg="white"))
+    click.echo(click.style("\nToken Usage Totals", bold=True, fg="white"))
     click.echo(
         "---------------------------------------------------------------", nl=False
     )
@@ -68,21 +68,7 @@ def print_metrics(opts, data):
     _print_bandwith_usage_table(opts, data)
 
 
-@main.group(cls=command.AliasGroup, name="metrics", aliases=["metrics"])
-@decorators.common_cli_config_options
-@decorators.common_cli_output_options
-@decorators.common_api_auth_options
-@decorators.initialise_api
-@click.pass_context
-def metrics(ctx, opts):  # pylink: disable=unused-argument
-    """
-    Retrieve Metrics.
-
-    See the help for subcommands for more information on each.
-    """
-
-
-@metrics.command(name="usage", aliases=["usage"])
+@metrics.command(name="tokens", aliases=["tokens"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -119,7 +105,7 @@ def metrics(ctx, opts):  # pylink: disable=unused-argument
 @click.pass_context
 def usage(ctx, opts, owner_repo, tokens, start, finish):
     """
-    Retrieve metrics for a namespace (owner).
+    Retrieve token usage metrics.
 
     OWNER/REPO: Specify the OWNER namespace (i.e user or org) and repository to retrieve the
     metrics for that namespace/repository combination.
@@ -138,7 +124,7 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
     context_msg = "Failed to get list of metrics!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            metrics_ = api.usage_metrics(
+            metrics_ = api.entitlement_usage_metrics(
                 owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
             )
 
