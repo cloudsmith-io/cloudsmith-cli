@@ -117,7 +117,7 @@ def _print_packages(opts, data, label):
     "--start",
     type=str,
     required=False,
-    help="An utc timestamp used to filter metrics starting from this period.",
+    help="A UTC timestamp used to filter metrics starting from this period.",
     callback=validators.validate_optional_timestamp,
 )
 @click.option(
