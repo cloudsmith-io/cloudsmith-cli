@@ -145,7 +145,8 @@ def validate_optional_tokens(ctx, param, value):
         for token in value.split(","):
             if not token.isalnum() or len(token) != 12:
                 raise click.BadParameter(
-                    "Tokens must contain one or more valid entitlement token identifiers as a comma seperated string.",
+                    "Tokens must contain one or more valid entitlement token "
+                    "identifiers as a comma seperated string.",
                     param=param,
                 )
 
@@ -162,7 +163,8 @@ def validate_optional_timestamp(ctx, param, value):
             )
         except ValueError:
             raise click.BadParameter(
-                f"{param.name} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` e.g. `2020-12-31T00:00:00Z`",
+                "{} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` "
+                "e.g. `2020-12-31T00:00:00Z`".format(param.name),
                 param=param,
             )
 
