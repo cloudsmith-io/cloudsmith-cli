@@ -100,6 +100,13 @@ def validate_optional_owner_repo(ctx, param, value):
     )
 
 
+def validate_owner(ctx, param, value):
+    """Ensure that owner is formatted correctly."""
+    # pylint: disable=unused-argument
+    form = "OWNER"
+    return validate_slashes(param, value, minimum=1, maximum=1, form=form)
+
+
 def validate_owner_repo(ctx, param, value):
     """Ensure that owner/repo is formatted correctly."""
     # pylint: disable=unused-argument

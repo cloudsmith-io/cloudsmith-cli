@@ -71,6 +71,9 @@ The CLI currently supports the following commands (and sub-commands):
   - `ruby`:                 Push (upload) a new Ruby package upstream.
   - `terraform`:            Push (upload) a new Terraform package upstream.
   - `vagrant`:              Push (upload) a new Vagrant package upstream.
+- `quota`:                Quota limits and history for a organisation.
+  - `limits`:               Display the Quota (bandwidth & storage usage/limits) for a specific organisation.
+  - `history`:              Display the Quota History (upload, download, and storage usage/limits) for a specific organisation.
 - `repositories`|`repos`: Manage repositories.
   - `create`|`new`:         Create a new repository in a namespace.
   - `get`|`list`|`ls`:      List repositories for a user, in a namespace or get details for a specific repository.
