@@ -13,6 +13,7 @@ from . import login  # noqa
 from . import metrics  # noqa
 from . import move  # noqa
 from . import push  # noqa
+from . import quota  # noqa
 from . import repos  # noqa
 from . import resync  # noqa
 from . import status  # noqa

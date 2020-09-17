@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.25.0] - 2020-09-16
+
+Note: This release requires `cloudsmith-api` >= `0.53.3`.
+
+### Added
+
+- Support for Quota API limits & history
+
 ## [0.24.2] - 2020-09-08
 
 ### Fixed
