@@ -4,6 +4,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import os
 import time
+from datetime import datetime
 
 import click
 import six
@@ -173,43 +174,71 @@ def wait_for_package_sync(
     def display_status(current):
         """Display current sync status."""
         # pylint: disable=unused-argument
-        if not stage_str:
+        if not stage_str or "Unknown" in stage_str:
             return status_str
         return click.style(
             "%(status)s / %(stage)s" % {"status": status_str, "stage": stage_str},
             fg="cyan",
         )
 
+    start = datetime.now()
     context_msg = "Failed to synchronise file!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
+        left = 100
         last_progress = 0
+        total_wait_interval = max(1.0, wait_interval)
+
         with click.progressbar(
-            length=100,
+            length=left,
             label=label,
             fill_char=click.style("#", fg="green"),
             empty_char=click.style("-", fg="red"),
             item_show_func=display_status,
         ) as pb:
+            first = True
+
             while True:
                 res = get_package_status(owner, repo, slug)
                 ok, failed, progress, status_str, stage_str, reason = res
+                progress = max(1, progress)
                 delta = progress - last_progress
+                pb.update(delta)
                 if delta > 0:
                     last_progress = progress
-                    pb.update(delta)
+                    left -= delta
                 if ok or failed:
                     break
-                time.sleep(wait_interval)
+                if not first:
+                    first = False
+                    time.sleep(total_wait_interval)
+                    total_wait_interval = min(
+                        300.0, total_wait_interval + wait_interval
+                    )
+
+            if left > 0:
+                pb.update(left)
+
+    end = datetime.now()
+    seconds = (end - start).total_seconds()
+
+    click.echo()
 
     if ok:
-        click.secho("Package synchronised successfully!", fg="green")
+        click.secho(
+            "Package synchronised successfully in %(seconds)s second(s)!"
+            % {"seconds": click.style(str(seconds), bold=True)},
+            fg="green",
+        )
         return
 
     click.secho(
-        "Package failed to synchronise during stage: %(stage)s"
-        % {"stage": click.style(stage_str or "Unknown", fg="yellow")},
+        "Package failed to synchronise in %(seconds)s during stage: %(stage)s"
+        % {
+            "seconds": click.style(str(seconds), bold=True),
+            "stage": click.style(stage_str or "Unknown", fg="yellow"),
+        },
         fg="red",
     )
 
