@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.25.1] - 2020-09-21
+
 ### Added
 
 - The push command will now display how long it took to sync/fail a package upload.
