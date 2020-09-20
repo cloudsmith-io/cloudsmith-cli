@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- The push command will now display how long it took to sync/fail a package upload.
+
+### Changed
+
+- The synch wait interval is now a minimum bound, and increases over time.
+
+### Fixed
+
+- The synch progress bar will now display immediately, instead of being delayed.
+
 ## [0.25.0] - 2020-09-16
 
 Note: This release requires `cloudsmith-api` >= `0.53.3`.

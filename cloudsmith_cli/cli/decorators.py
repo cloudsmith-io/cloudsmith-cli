@@ -30,10 +30,14 @@ def common_package_action_options(f):
     @click.option(
         "-I",
         "--wait-interval",
-        default=5.0,
+        default=2.5,
         type=float,
         show_default=True,
-        help="The time in seconds to wait between checking synchronisation.",
+        help=(
+            "The minimum time in seconds to wait between checking sync status after "
+            "uploading. This is cumulative, so that status checks happen with less "
+            "frequency over time, upto a maximum of 5 minutes of waiting."
+        ),
     )
     @click.option(
         "--sync-attempts",
@@ -219,7 +223,7 @@ def initialise_api(f):
         default=None,
         is_flag=True,
         help="Don't obey the suggested rate limit interval. The CLI will "
-        "automatically sleep between commands to ensure that you do "
+        "otherwise automatically sleep between commands to ensure that you do "
         "not hit the server-side rate limit.",
     )
     @click.option(
