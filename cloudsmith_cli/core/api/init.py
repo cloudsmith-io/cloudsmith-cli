@@ -26,6 +26,7 @@ def initialise_api(
     error_retry_cb=None,
 ):
     """Initialise the API."""
+    # FIXME: pylint: disable=too-many-arguments
     config = cloudsmith_api.Configuration()
     config.debug = debug
     config.host = host if host else config.host
