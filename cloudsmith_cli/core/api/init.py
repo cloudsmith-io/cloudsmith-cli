@@ -23,6 +23,7 @@ def initialise_api(
     error_retry_max=None,
     error_retry_backoff=None,
     error_retry_codes=None,
+    error_retry_cb=None,
 ):
     """Initialise the API."""
     config = cloudsmith_api.Configuration()
@@ -36,6 +37,7 @@ def initialise_api(
     config.error_retry_max = error_retry_max
     config.error_retry_backoff = error_retry_backoff
     config.error_retry_codes = error_retry_codes
+    config.error_retry_cb = error_retry_cb
     config.verify_ssl = ssl_verify
 
     if headers:
@@ -54,7 +56,10 @@ def get_api_client(cls):
     config = cloudsmith_api.Configuration()
     client = cls()
     client.config = config
-    client.api_client.rest_client = RestClient()
+    client.api_client.rest_client = RestClient(
+        error_retry_cb=getattr(config, "error_retry_cb", None),
+        respect_retry_after_header=getattr(config, "rate_limit", True),
+    )
 
     user_agent = getattr(config, "user_agent", None)
     if user_agent:
