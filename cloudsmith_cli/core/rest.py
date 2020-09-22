@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import re
+import time
 
 import requests
 import requests.exceptions
@@ -18,6 +19,38 @@ from six.moves.urllib.parse import urlencode
 logger = logging.getLogger(__name__)
 
 
+class RetryWithCallback(Retry):
+    """A urllib3 Retry with a callback on retries."""
+
+    def __init__(self, *args, **kwargs):
+        self.error_retry_cb = kwargs.pop("error_retry_cb", None)
+        super(RetryWithCallback, self).__init__(*args, **kwargs)
+
+    def new(self, **kw):
+        kw["error_retry_cb"] = self.error_retry_cb
+        return super(RetryWithCallback, self).new(**kw)
+
+    def sleep_for_retry(self, response=None):
+        retry_after = self.get_retry_after(response)
+        if retry_after:
+            self._sleep_with_callback(retry_after, context="retry-after")
+            return True
+
+        return False
+
+    def _sleep_backoff(self):
+        backoff = self.get_backoff_time()
+        if backoff <= 0:
+            return
+        self._sleep_with_callback(backoff, context="backoff")
+
+    def _sleep_with_callback(self, seconds, context=None):
+        """Sleep, but generate a callback before it."""
+        if self.error_retry_cb and callable(self.error_retry_cb):
+            self.error_retry_cb(seconds, context=context)
+        return time.sleep(seconds)
+
+
 def create_requests_session(
     retries=None,
     backoff_factor=None,
@@ -28,6 +61,8 @@ def create_requests_session(
     ssl_cert=None,
     proxy=None,
     session=None,
+    error_retry_cb=None,
+    respect_retry_after_header=True,
 ):
     """Create a requests session that retries some errors."""
     # pylint: disable=too-many-branches
@@ -70,13 +105,16 @@ def create_requests_session(
     if proxy:
         session.proxies = {"http": proxy, "https": proxy}
 
-    retry = Retry(
+    retry = RetryWithCallback(
         backoff_factor=backoff_factor,
         connect=retries,
         method_whitelist=False,
         read=retries,
         status_forcelist=tuple(status_forcelist),
+        status=retries,
         total=retries,
+        error_retry_cb=error_retry_cb,
+        respect_retry_after_header=respect_retry_after_header,
     )
 
     adapter = HTTPAdapter(

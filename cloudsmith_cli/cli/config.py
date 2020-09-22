@@ -317,7 +317,7 @@ class Options(object):
     @property
     def rate_limit_warning(self):
         """Get value for rate limiting warning (in seconds)."""
-        return self._get_option("rate_limit_warning", default=30)
+        return self._get_option("rate_limit_warning", default=10)
 
     @rate_limit_warning.setter
     def rate_limit_warning(self, value):
