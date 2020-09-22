@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- The builtin rate-limiting will no longer throttle at exit (prevents hanging on shutdown).
+- The builtin rate-limiting will display a message when throttled by 429 responses.
+
 ## [0.25.1] - 2020-09-21
 
 ### Added
