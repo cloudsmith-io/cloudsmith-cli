@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.25.2] - 2020-09-23
+
 ### Changed
 
 - The builtin rate-limiting will no longer throttle at exit (prevents hanging on shutdown).
