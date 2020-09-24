@@ -163,6 +163,103 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
+def print_entitlements_with_restrictions(
+    opts, data, page_info=None, show_list_info=True
+):
+    """Print entitlements (with restrictions) as a table or output in another format."""
+    if utils.maybe_print_as_json(opts, data, page_info):
+        return
+
+    headers = [
+        "Identifier",
+        "Name",
+        "Created / Updated",
+        "Active",
+        "Limited",
+        "Valid From",
+        "Valid To",
+        "Reset",
+        "Clients",
+        "Downloads",
+        "Bandwidth",
+        "Package Query",
+        "Path Query",
+    ]
+
+    rows = []
+    for entitlement in sorted(data, key=itemgetter("name")):
+        scheduled_reset_period = entitlement["scheduled_reset_period"]
+        limit_bandwidth = entitlement["limit_bandwidth"]
+        limit_bandwidth_unit = entitlement["limit_bandwidth_unit"]
+        limit_num_clients = entitlement["limit_num_clients"]
+        limit_num_downloads = entitlement["limit_num_downloads"]
+        limit_date_range_from = entitlement["limit_date_range_from"]
+        limit_date_range_to = entitlement["limit_date_range_to"]
+        limit_package_query = entitlement["limit_package_query"]
+        limit_path_query = entitlement["limit_path_query"]
+
+        # format fields for rendering
+        limit_num_clients = str(limit_num_clients) if limit_num_clients else "-"
+        limit_num_downloads = str(limit_num_downloads) if limit_num_downloads else "-"
+        limit_date_range_from = limit_date_range_from if limit_date_range_from else "-"
+        limit_date_range_to = limit_date_range_to if limit_date_range_to else "-"
+
+        restricted_bandwidth = "-"
+        if limit_bandwidth and limit_bandwidth_unit:
+            restricted_bandwidth = "%s %s" % (limit_bandwidth, limit_bandwidth_unit)
+
+        if limit_package_query:
+            if len(limit_package_query) > 20:
+                limit_package_query = limit_package_query[0:20] + "..."
+        else:
+            limit_package_query = "-"
+
+        if limit_path_query:
+            if len(limit_path_query) > 20:
+                limit_path_query = limit_path_query[0:20] + " ..."
+        else:
+            limit_path_query = "-"
+
+        rows.append(
+            [
+                click.style(entitlement["slug_perm"], fg="green"),
+                click.style(
+                    "%(name)s (%(type)s)"
+                    % {
+                        "name": click.style(entitlement["name"], fg="cyan"),
+                        "type": "user" if entitlement["user"] else "token",
+                    }
+                ),
+                click.style(
+                    entitlement["updated_at"] or entitlement["created_at"], fg="white"
+                ),
+                click.style("yes" if entitlement["is_active"] else "no", fg="yellow"),
+                click.style("yes" if entitlement["is_limited"] else "no", fg="yellow"),
+                click.style(limit_date_range_from, fg="yellow"),
+                click.style(limit_date_range_to, fg="yellow"),
+                click.style(scheduled_reset_period, fg="yellow"),
+                click.style(limit_num_clients, fg="magenta"),
+                click.style(limit_num_downloads, fg="magenta"),
+                click.style(restricted_bandwidth, fg="magenta"),
+                click.style(limit_package_query, fg="magenta"),
+                click.style(limit_path_query, fg="magenta"),
+            ]
+        )
+
+    if data:
+        click.echo()
+        utils.pretty_print_table(headers, rows)
+
+    if not show_list_info:
+        return
+
+    click.echo()
+
+    num_results = len(data)
+    list_suffix = "entitlement%s" % ("s" if num_results != 1 else "")
+    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
+
+
 @entitlements.command(aliases=["new"])
 @common_entitlements_options
 @decorators.common_cli_config_options
@@ -517,3 +614,177 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
     click.secho("OK", fg="green", err=use_stderr)
 
     print_entitlements(opts=opts, data=entitlements_, page_info=page_info)
+
+
+@entitlements.command()
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
+@click.argument(
+    "owner_repo_identifier",
+    metavar="OWNER/REPO/IDENTIFIER",
+    callback=validate_owner_repo_identifier,
+)
+@click.option(
+    "--refresh-token",
+    type=str,
+    required=False,
+    help="The unit of bandwidth used to calculate the restrictions applied to the entitlement token (e.g. "
+    "Never reset, Daily, Weekly, Fortnightly, Monthly, Bi-Monthly, Quarterly, Every 6 months, Annual).",
+    callback=validators.validate_scheduled_reset_period,
+)
+@click.option(
+    "--limit-num-clients",
+    type=int,
+    required=False,
+    help="The maximum number of unique clients allowed for the token. Please note that since clients are "
+    "calculated asynchronously (after the download happens), the limit may not be imposed immediately but "
+    "at a later point.",
+)
+@click.option(
+    "--limit-num-downloads",
+    type=int,
+    required=False,
+    help="The maximum number of downloads allowed for the token. Please note that since downloads are calculated "
+    "asynchronously (after the download happens), the limit may not be imposed immediately but at a later point.",
+)
+@click.option(
+    "--limit-bandwidth",
+    type=int,
+    required=False,
+    help="The maximum download bandwidth allowed for the token. Values are expressed as integers to express a "
+    "number of bandwidth units. Please note that since downloads are calculated asynchronously (after"
+    "the download happens), the limit may not be imposed immediately but at a later point",
+)
+@click.option(
+    "--limit-bandwidth-unit",
+    type=str,
+    required=False,
+    help="The unit of bandwidth used to calculate the restrictions applied to the entitlement token (e.g. "
+    "Byte, Kilobyte, Megabyte, Gigabyte, Terabyte, Petabyte)",
+    callback=validators.validate_bandwidth_unit,
+)
+@click.option(
+    "--limit-package-query",
+    type=str,
+    required=False,
+    help="The package-based search query to apply to restrict downloads to. This uses the same syntax as the "
+    "standard search used for repositories (see Searching / Filtering for more details). This will still allow "
+    "access to non-package files, such as metadata. For package formats that support dynamic metadata indexes, "
+    "the contents of the metadata will also be filtered.",
+)
+@click.option(
+    "--limit-path-query",
+    type=str,
+    required=False,
+    help="The path-based search query to apply to restrict downloads to. This supports boolean logic operators "
+    "such as OR/AND/NOT and parentheses for grouping. The path evaluated does not include the domain name, the "
+    "namespace, the entitlement code used, the package format, etc. and it always starts with a forward slash.",
+)
+@click.option(
+    "--limit-date-range-from",
+    type=str,
+    required=False,
+    help="An utc timestamp used to specify the valid 'from' date for this entitlement token.",
+    callback=validators.validate_optional_timestamp,
+)
+@click.option(
+    "--limit-date-range-to",
+    type=str,
+    required=False,
+    help="An utc timestamp used to specify the valid 'to' date for this entitlement token.",
+    callback=validators.validate_optional_timestamp,
+)
+@click.pass_context
+def restrict(
+    ctx,
+    opts,
+    owner_repo_identifier,
+    refresh_token,
+    limit_num_clients,
+    limit_num_downloads,
+    limit_bandwidth,
+    limit_bandwidth_unit,
+    limit_package_query,
+    limit_path_query,
+    limit_date_range_from,
+    limit_date_range_to,
+):
+    """
+    Restrict an Entitlement Token using the provided limits.
+
+    ***WARNING*** This will restrict a an existing entitlement token and will
+    prevent entitlement token users from downloading packages if a limit has
+    been exceeded.
+
+    - OWNER/REPO/IDENTIFIER: Specify the OWNER namespace (i.e. user or org),
+      and the REPO name that has an entitlement identified by IDENTIFIER. All
+      separated by a slash.
+
+        Example: 'your-org/your-repo/abcdef123456'
+
+    CLI example:
+
+      $ cloudsmith entitlements restrict your-org/your-repo/your-token-identifier
+
+    Full CLI example:
+
+      $ cloudsmith entitlements restrict cloudsmith/testing-private/9xGSdAxlIqIV \
+        --limit-bandwidth=1 \
+        --limit-bandwidth-unit=gigabyte \
+        --limit-num-clients=10 \
+        --limit-num-downloads=1000 \
+        --limit-package-query="package-darwin-amd64 OR package-windows-amd64 OR package-linux-amd64" \
+        --limit-path-query=tag:latest \
+        --limit-date-range-from=2020-01-01T00:00:00Z \
+        --limit-date-range-to=2077-01-01T00:00:00Z
+    """
+    owner, repo, identifier = owner_repo_identifier
+
+    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    use_stderr = opts.output != "pretty"
+
+    click.secho(
+        "Updating %(identifier)s entitlement for the %(repository)s "
+        "repository ... "
+        % {
+            "identifier": click.style(identifier, bold=True),
+            "repository": click.style(repo, bold=True),
+        },
+        nl=False,
+        err=use_stderr,
+    )
+
+    data = {}
+    if refresh_token:
+        data["scheduled_reset_period"] = refresh_token
+    if limit_num_clients:
+        data["limit_num_clients"] = limit_num_clients
+    if limit_num_downloads:
+        data["limit_num_downloads"] = limit_num_downloads
+    if limit_bandwidth:
+        data["limit_bandwidth"] = limit_bandwidth
+    if limit_bandwidth_unit:
+        data["limit_bandwidth_unit"] = limit_bandwidth_unit
+    if limit_package_query:
+        data["limit_package_query"] = limit_package_query
+    if limit_path_query:
+        data["limit_path_query"] = limit_path_query
+    if limit_date_range_from:
+        data["limit_date_range_from"] = limit_date_range_from
+    if limit_date_range_to:
+        data["limit_date_range_to"] = limit_date_range_to
+
+    context_msg = "Failed to update the entitlement!"
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+        with maybe_spinner(opts):
+            entitlement = api.restrict_entitlement(
+                owner=owner, repo=repo, identifier=identifier, data=data
+            )
+
+    click.secho("OK", fg="green", err=use_stderr)
+
+    print_entitlements_with_restrictions(
+        opts=opts, data=[entitlement], show_list_info=False
+    )

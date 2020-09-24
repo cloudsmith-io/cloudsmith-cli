@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.25.3] - 2020-09-25
+
+### Changed
+
+- Implements Bandwidth controls for Entitlment Tokens.
+
 ## [0.25.2] - 2020-09-23
 
 ### Changed
