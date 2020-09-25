@@ -199,7 +199,7 @@ def validate_bandwidth_unit(ctx, param, value):
                 return unit
 
         raise click.BadParameter(
-            "Bandwidth values must be one of the allow values "
+            "Bandwidth unit must be one of the allowed values "
             "(Byte, Kilobyte, Megabyte, Gigabyte, Terabyte, Petabyte, "
             "Exabyte, Zettabyte, Yottabyte).",
             param=param,
