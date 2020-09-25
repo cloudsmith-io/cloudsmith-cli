@@ -176,3 +176,63 @@ def validate_optional_timestamp(ctx, param, value):
             )
 
     return value
+
+
+def validate_bandwidth_unit(ctx, param, value):
+    """Ensure that a valid value for bandwidth unit is used."""
+
+    units = [
+        "Byte",
+        "Kilobyte",
+        "Megabyte",
+        "Gigabyte",
+        "Terabyte",
+        "Petabyte",
+        "Exabyte",
+        "Zettabyte",
+        "Yottabyte",
+    ]
+
+    if value:
+        for unit in units:
+            if value.lower() == unit.lower():
+                return unit
+
+        raise click.BadParameter(
+            "Bandwidth unit must be one of the allowed values "
+            "(Byte, Kilobyte, Megabyte, Gigabyte, Terabyte, Petabyte, "
+            "Exabyte, Zettabyte, Yottabyte).",
+            param=param,
+        )
+
+    return value
+
+
+def validate_scheduled_reset_period(ctx, param, value):
+    """Ensure that a valid value for scheduled reset period is used."""
+
+    periods = [
+        "Never Reset",
+        "Daily",
+        "Weekly",
+        "Fortnightly",
+        "Monthly",
+        "Bi-Monthly",
+        "Quarterly",
+        "Every 6 months",
+        "Annual",
+    ]
+
+    if value:
+        for period in periods:
+            if value.lower() == period.lower():
+                return period
+
+        raise click.BadParameter(
+            "The refresh token period must be one of the allowed values "
+            "(Never reset, Daily, Weekly, Fortnightly, Monthly "
+            "Bi-Monthly, Quarterly, Every 6 months, Annual).",
+            param=param,
+        )
+
+    return value
