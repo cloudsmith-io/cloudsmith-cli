@@ -229,7 +229,7 @@ def validate_scheduled_reset_period(ctx, param, value):
                 return period
 
         raise click.BadParameter(
-            "The refresh token period must be one of the allow values "
+            "The refresh token period must be one of the allowed values "
             "(Never reset, Daily, Weekly, Fortnightly, Monthly "
             "Bi-Monthly, Quarterly, Every 6 months, Annual).",
             param=param,
