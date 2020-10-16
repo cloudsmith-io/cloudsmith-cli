@@ -2,18 +2,10 @@
 """Core rate limit utilities."""
 from __future__ import absolute_import, print_function, unicode_literals
 
-import atexit as atexit_
-import copy
 import datetime
-import threading
 import time
 
 from future.utils import python_2_unicode_compatible
-
-LAST_CLIENT = threading.local()
-LAST_CLIENT = None
-LAST_HEADERS = threading.local()
-LAST_HEADERS = None
 
 
 @python_2_unicode_compatible
@@ -76,28 +68,12 @@ class RateLimitsInfo(object):
         return cls.from_dict(data)
 
 
-@atexit_.register
-def maybe_rate_limit_atexit():
-    """Pause the process at exit based on rate limit interval (if any)."""
-    rate_limit(LAST_CLIENT, LAST_HEADERS, atexit=True)
-
-
-def maybe_rate_limit(client, headers, atexit=False):
+def maybe_rate_limit(client, headers):
     """Optionally pause the process based on suggested rate interval."""
-    # pylint: disable=fixme
-    # pylint: disable=global-statement
-    # FIXME: Yes, I know this is not great. We'll fix it later. :-)
-    global LAST_CLIENT, LAST_HEADERS
-
-    if LAST_CLIENT and LAST_HEADERS:
-        # Wait based on previous client/headers
-        rate_limit(LAST_CLIENT, LAST_HEADERS, atexit=atexit)
-
-    LAST_CLIENT = copy.copy(client)
-    LAST_HEADERS = copy.copy(headers)
+    rate_limit(client, headers)
 
 
-def rate_limit(client, headers, atexit=False):
+def rate_limit(client, headers):
     """Pause the process based on suggested rate interval."""
     if not client or not headers:
         return False
@@ -112,6 +88,6 @@ def rate_limit(client, headers, atexit=False):
     if rate_info.interval:
         cb = getattr(client.config, "rate_limit_callback", None)
         if cb and callable(cb):
-            cb(rate_info, atexit=atexit)
+            cb(rate_info)
         time.sleep(rate_info.interval)
     return True

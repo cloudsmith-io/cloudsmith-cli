@@ -3,6 +3,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import base64
+from datetime import datetime
 
 import click
 
@@ -99,6 +100,13 @@ def validate_optional_owner_repo(ctx, param, value):
     )
 
 
+def validate_owner(ctx, param, value):
+    """Ensure that owner is formatted correctly."""
+    # pylint: disable=unused-argument
+    form = "OWNER"
+    return validate_slashes(param, value, minimum=1, maximum=1, form=form)
+
+
 def validate_owner_repo(ctx, param, value):
     """Ensure that owner/repo is formatted correctly."""
     # pylint: disable=unused-argument
@@ -135,4 +143,96 @@ def validate_page_size(ctx, param, value):
     # pylint: disable=unused-argument
     if value == 0:
         raise click.BadParameter("Page size must be non-zero or unset.", param=param)
+    return value
+
+
+def validate_optional_tokens(ctx, param, value):
+    """Ensure that a valid value for page size is chosen."""
+    if value:
+        for token in value.split(","):
+            if not token.isalnum() or len(token) != 12:
+                raise click.BadParameter(
+                    "Tokens must contain one or more valid entitlement token "
+                    "identifiers as a comma seperated string.",
+                    param=param,
+                )
+
+    return value
+
+
+def validate_optional_timestamp(ctx, param, value):
+    """Ensure that a valid value for a timestamp is used."""
+
+    if value:
+        try:
+            return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
+                hour=0, minute=0, second=0
+            )
+        except ValueError:
+            raise click.BadParameter(
+                "{} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` "
+                "e.g. `2020-12-31T00:00:00Z`".format(param.name),
+                param=param,
+            )
+
+    return value
+
+
+def validate_bandwidth_unit(ctx, param, value):
+    """Ensure that a valid value for bandwidth unit is used."""
+
+    units = [
+        "Byte",
+        "Kilobyte",
+        "Megabyte",
+        "Gigabyte",
+        "Terabyte",
+        "Petabyte",
+        "Exabyte",
+        "Zettabyte",
+        "Yottabyte",
+    ]
+
+    if value:
+        for unit in units:
+            if value.lower() == unit.lower():
+                return unit
+
+        raise click.BadParameter(
+            "Bandwidth unit must be one of the allowed values "
+            "(Byte, Kilobyte, Megabyte, Gigabyte, Terabyte, Petabyte, "
+            "Exabyte, Zettabyte, Yottabyte).",
+            param=param,
+        )
+
+    return value
+
+
+def validate_scheduled_reset_period(ctx, param, value):
+    """Ensure that a valid value for scheduled reset period is used."""
+
+    periods = [
+        "Never Reset",
+        "Daily",
+        "Weekly",
+        "Fortnightly",
+        "Monthly",
+        "Bi-Monthly",
+        "Quarterly",
+        "Every 6 months",
+        "Annual",
+    ]
+
+    if value:
+        for period in periods:
+            if value.lower() == period.lower():
+                return period
+
+        raise click.BadParameter(
+            "The refresh token period must be one of the allowed values "
+            "(Never reset, Daily, Weekly, Fortnightly, Monthly "
+            "Bi-Monthly, Quarterly, Every 6 months, Annual).",
+            param=param,
+        )
+
     return value

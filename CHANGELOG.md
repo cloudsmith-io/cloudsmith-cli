@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.25.3] - 2020-09-25
+
+### Changed
+
+- Implements Bandwidth controls for Entitlment Tokens.
+
+## [0.25.2] - 2020-09-23
+
+### Changed
+
+- The builtin rate-limiting will no longer throttle at exit (prevents hanging on shutdown).
+- The builtin rate-limiting will display a message when throttled by 429 responses.
+
+## [0.25.1] - 2020-09-21
+
+### Added
+
+- The push command will now display how long it took to sync/fail a package upload.
+
+### Changed
+
+- The synch wait interval is now a minimum bound, and increases over time.
+
+### Fixed
+
+- The synch progress bar will now display immediately, instead of being delayed.
+
+## [0.25.0] - 2020-09-16
+
+Note: This release requires `cloudsmith-api` >= `0.53.3`.
+
+### Added
+
+- Support for Quota API limits & history
+
+## [0.24.2] - 2020-09-08
+
+### Fixed
+
+- Fixed Python3 compatibility (removed f-string)
+
+## [0.24.1] - 2020-09-04
+
+Note: This release requires `cloudsmith-api` >= `0.52.92`.
+
+### Added
+
+- Support for Package Usage Metrics API
+
+## [0.24.0] - 2020-09-01
+
+Note: This release requires `cloudsmith-api` >= `0.52.79`.
+
+### Added
+
+- Support for Usage Metrics API
+
 ## [0.23.0] - 2020-07-07
 
 Note: This release requires `cloudsmith-api` >= `0.52.0`.

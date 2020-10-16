@@ -11,9 +11,10 @@
 
 The [Cloudsmith](https://cloudsmith.io) Command Line Interface (CLI) is a Py2/Py3 text-based interface to the [API](https://api.cloudsmith.io). This allows users, machines and other services to access and integrate smoothly with Cloudsmith without requiring explicit plugins or tools. [Be awesome. Automate Everything](https://cloudsmith.com/company/the-tao-of-cloudsmith/).
 
-The following (very out of date) GIF demonstrates a small slice of the CLI - [View the full video on YouTube](https://youtu.be/8nlstYU9J5M):
+The following asciinema video demonstrates some of the CLI commands:
+[![asciicast](https://asciinema.org/a/DkNXQWQGBjWkfGPAkDAPNz7xe.svg)](https://asciinema.org/a/DkNXQWQGBjWkfGPAkDAPNz7xe)
 
-[![CLI Demonstration](https://user-images.githubusercontent.com/2248287/33522274-c88416be-d7e0-11e7-86ab-518c53d6bf61.gif)](https://youtu.be/8nlstYU9J5M)
+We also have a [demo video on YouTube](https://youtu.be/R-g8ZhDwTKk):
 
 You can also read our [blog article](https://blog.cloudsmith.io/2017/11/25/automation-as-simple-as-a-b-cli/) that introduced the first version of the CLI and the Cloudsmith RESTful API.
 
@@ -45,6 +46,9 @@ The CLI currently supports the following commands (and sub-commands):
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
+- `metrics`:              Metrics and statistics for a repository.
+  - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
+  - `packages`:             Retrieve package usage for repository.
 - `move`|`mv`:            Move (promote) a package to another repo.
 - `push`|`upload`:        Push (upload) a new package to a repository.
   - `alpine`:               Push (upload) a new Alpine package upstream.
@@ -67,6 +71,9 @@ The CLI currently supports the following commands (and sub-commands):
   - `ruby`:                 Push (upload) a new Ruby package upstream.
   - `terraform`:            Push (upload) a new Terraform package upstream.
   - `vagrant`:              Push (upload) a new Vagrant package upstream.
+- `quota`:                Quota limits and history for a organisation.
+  - `limits`:               Display the Quota (bandwidth & storage usage/limits) for a specific organisation.
+  - `history`:              Display the Quota History (upload, download, and storage usage/limits) for a specific organisation.
 - `repositories`|`repos`: Manage repositories.
   - `create`|`new`:         Create a new repository in a namespace.
   - `get`|`list`|`ls`:      List repositories for a user, in a namespace or get details for a specific repository.

@@ -116,3 +116,17 @@ def sync_entitlements(owner, repo, source, show_tokens):
     page_info = PageInfo.from_headers(headers)
     entitlements = [ent.to_dict() for ent in data.tokens]
     return entitlements, page_info
+
+
+def restrict_entitlement(owner, repo, identifier, data):
+    """Restrict entitlement token using provided restrictions."""
+
+    client = get_entitlements_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.entitlements_partial_update_with_http_info(
+            owner=owner, repo=repo, identifier=identifier, data=data
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.to_dict()  # pylint: disable=no-member

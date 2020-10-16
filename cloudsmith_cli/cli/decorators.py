@@ -10,6 +10,15 @@ from ..core.api.init import initialise_api as _initialise_api
 from . import config, utils, validators
 
 
+def report_retry(seconds, context=None):
+    if context == "retry-after":
+        click.echo()
+        click.echo(
+            "Requested was throttled (429): Retrying after %(seconds)s second(s) ... "
+            % {"seconds": click.style(str(seconds), bold=True)}
+        )
+
+
 def common_package_action_options(f):
     """Add common options for package actions."""
 
@@ -30,10 +39,14 @@ def common_package_action_options(f):
     @click.option(
         "-I",
         "--wait-interval",
-        default=5.0,
+        default=2.5,
         type=float,
         show_default=True,
-        help="The time in seconds to wait between checking synchronisation.",
+        help=(
+            "The minimum time in seconds to wait between checking sync status after "
+            "uploading. This is cumulative, so that status checks happen with less "
+            "frequency over time, upto a maximum of 5 minutes of waiting."
+        ),
     )
     @click.option(
         "--sync-attempts",
@@ -219,7 +232,7 @@ def initialise_api(f):
         default=None,
         is_flag=True,
         help="Don't obey the suggested rate limit interval. The CLI will "
-        "automatically sleep between commands to ensure that you do "
+        "otherwise automatically sleep between commands to ensure that you do "
         "not hit the server-side rate limit.",
     )
     @click.option(
@@ -273,9 +286,10 @@ def initialise_api(f):
         opts.error_retry_max = kwargs.pop("error_retry_max")
         opts.error_retry_backoff = kwargs.pop("error_retry_backoff")
         opts.error_retry_codes = kwargs.pop("error_retry_codes")
+        opts.error_retry_cb = report_retry
 
-        def call_print_rate_limit_info_with_opts(rate_info, atexit=False):
-            utils.print_rate_limit_info(opts, rate_info, atexit=atexit)
+        def call_print_rate_limit_info_with_opts(rate_info):
+            utils.print_rate_limit_info(opts, rate_info)
 
         opts.api_config = _initialise_api(
             debug=opts.debug,
@@ -290,6 +304,7 @@ def initialise_api(f):
             error_retry_max=opts.error_retry_max,
             error_retry_backoff=opts.error_retry_backoff,
             error_retry_codes=opts.error_retry_codes,
+            error_retry_cb=opts.error_retry_cb,
         )
 
         kwargs["opts"] = opts
