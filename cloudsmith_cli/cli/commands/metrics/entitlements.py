@@ -20,13 +20,15 @@ def _print_total_usage_table(opts, data):
         "---------------------------------------------------------------", nl=False
     )
 
+    totals = data.get("totals", {})
+
     rows = []
     rows.append(
         [
-            click.style(str(data.totals.get("tokens", 0)), fg="blue"),
-            click.style(str(data.totals.get("active_tokens", 0)), fg="green"),
-            click.style(str(data.totals.get("inactive_tokens", 0)), fg="red"),
-            click.style(str(data.totals.get("bandwidth_used", 0)), fg="white"),
+            click.style(str(totals.get("tokens", 0)), fg="blue"),
+            click.style(str(totals.get("active_tokens", 0)), fg="green"),
+            click.style(str(totals.get("inactive_tokens", 0)), fg="red"),
+            click.style(str(totals.get("bandwidth_used", 0)), fg="white"),
         ]
     )
 
@@ -46,12 +48,14 @@ def _print_bandwith_usage_table(opts, data):
         "---------------------------------------------------------------", nl=False
     )
 
+    bandwidth_per_token = data.get("bandwidth_per_token", {})
+
     rows = []
     rows.append(
         [
-            click.style(str(data.bandwidth_per_token.get("lowest", 0)), fg="white"),
-            click.style(str(data.bandwidth_per_token.get("average", 0)), fg="white"),
-            click.style(str(data.bandwidth_per_token.get("highest", 0)), fg="white"),
+            click.style(str(bandwidth_per_token.get("lowest", 0)), fg="white"),
+            click.style(str(bandwidth_per_token.get("average", 0)), fg="white"),
+            click.style(str(bandwidth_per_token.get("highest", 0)), fg="white"),
         ]
     )
 
@@ -68,7 +72,7 @@ def print_metrics(opts, data):
     _print_bandwith_usage_table(opts, data)
 
 
-@metrics.command(name="tokens", aliases=["tokens"])
+@metrics.command(name="tokens", aliases=[])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -133,4 +137,6 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
     if utils.maybe_print_as_json(opts, metrics_):
         return
 
-    print_metrics(opts=opts, data=metrics_)
+    data = metrics_.usage.get("display", {})
+
+    print_metrics(opts=opts, data=data)

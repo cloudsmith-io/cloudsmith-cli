@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.25.4] - 2020-10-20
+
+Note: This release requires `cloudsmith-api` >= `0.53.79`.
+
+### Changed
+
+- Resolves breaking changes in Bandwidth Usage Metrics.
+
 ## [0.25.3] - 2020-09-25
 
 ### Changed
