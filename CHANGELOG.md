@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fixed formatting JSON results for the `metrics` and `quota` commands; `-F json` should work now.
+
 ## [0.25.4] - 2020-10-20
 
 Note: This release requires `cloudsmith-api` >= `0.53.79`.

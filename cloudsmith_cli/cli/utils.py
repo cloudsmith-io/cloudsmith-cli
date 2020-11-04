@@ -107,16 +107,35 @@ def maybe_print_as_json(opts, data, page_info=None):
     if opts.output not in ("json", "pretty_json"):
         return False
 
+    # Attempt to convert the data to dicts (usually from API objects)
+    try:
+        data = data.to_dict()
+    except AttributeError:
+        pass
+
+    if isinstance(data, list):
+        for k, item in enumerate(data):
+            try:
+                data[k] = item.to_dict()
+            except AttributeError:
+                pass
+
     root = {"data": data}
 
     if page_info is not None and page_info.is_valid:
         meta = root["meta"] = {}
         meta["pagination"] = page_info.as_dict(num_results=len(data))
 
-    if opts.output == "pretty_json":
-        dump = json.dumps(root, indent=4, sort_keys=True)
-    else:
-        dump = json.dumps(root, sort_keys=True)
+    try:
+        if opts.output == "pretty_json":
+            dump = json.dumps(root, indent=4, sort_keys=True)
+        else:
+            dump = json.dumps(root, sort_keys=True)
+    except (TypeError, ValueError) as e:
+        click.secho(
+            "Failed to convert to JSON: %(err)s" % {"err": str(e)}, fg="red", err=True
+        )
+        return True
 
     click.echo(dump)
     return True
