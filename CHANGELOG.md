@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.26.0] - 2020-11-18
+
+Note: This release requires `cloudsmith-api` >= `0.54.15`.
+
+### Added
+
+- Support for Organization Usage Metrics API
+
 ## [0.25.5] - 2020-11-05
 
 - Fixed formatting JSON results for the `metrics` and `quota` commands; `-F json` should work now.
