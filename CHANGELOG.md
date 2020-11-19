@@ -16,6 +16,7 @@ Note: This release requires `cloudsmith-api` >= `0.54.15`.
 ### Added
 
 - Support for Organization Usage Metrics API
+- Fix for rendering Entitlement Token restrictions via the CLI
 
 ## [0.25.5] - 2020-11-05
 
