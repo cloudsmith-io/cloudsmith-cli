@@ -79,8 +79,9 @@ def print_metrics(opts, data):
 @decorators.initialise_api
 @click.argument(
     "owner_repo",
-    metavar="OWNER/REPO",
-    callback=validators.validate_owner_repo,
+    metavar="OWNER or OWNER/REPO",
+    callback=validators.validate_required_owner_optional_repo,
+    default="",
     required=True,
 )
 @click.option(
@@ -113,6 +114,9 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
 
     OWNER/REPO: Specify the OWNER namespace (i.e user or org) and repository to retrieve the
     metrics for that namespace/repository combination.
+
+    If REPO isn't specified, all repositories will be included from the
+    OWNER namespace.
     """
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
@@ -121,16 +125,26 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
 
     owner = None
     repo = None
-    # owner/repo are required arguments
+
     if isinstance(owner_repo, list) and len(owner_repo) == 2:
         owner, repo = owner_repo
+    elif len(owner_repo) == 1:
+        owner = owner_repo[0]
+        repo = None
 
     context_msg = "Failed to get list of metrics!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            metrics_ = api.entitlement_usage_metrics(
-                owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
-            )
+
+            metrics_ = None
+            if owner and repo:
+                metrics_ = api.entitlement_usage_metrics(
+                    owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
+                )
+            elif owner:
+                metrics_ = api.organization_entitlement_usage_metrics(
+                    owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
+                )
 
     click.secho("OK", fg="green", err=use_stderr)
 

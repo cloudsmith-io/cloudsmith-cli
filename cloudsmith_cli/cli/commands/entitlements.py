@@ -166,6 +166,7 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
 def print_entitlements_with_restrictions(
     opts, data, page_info=None, show_list_info=True
 ):
+    # pylint: disable=too-many-locals
     """Print entitlements (with restrictions) as a table or output in another format."""
     if utils.maybe_print_as_json(opts, data, page_info):
         return
@@ -188,25 +189,41 @@ def print_entitlements_with_restrictions(
 
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
-        scheduled_reset_period = entitlement["scheduled_reset_period"]
-        limit_bandwidth = entitlement["limit_bandwidth"]
-        limit_bandwidth_unit = entitlement["limit_bandwidth_unit"]
-        limit_num_clients = entitlement["limit_num_clients"]
-        limit_num_downloads = entitlement["limit_num_downloads"]
-        limit_date_range_from = entitlement["limit_date_range_from"]
-        limit_date_range_to = entitlement["limit_date_range_to"]
-        limit_package_query = entitlement["limit_package_query"]
-        limit_path_query = entitlement["limit_path_query"]
+        name = entitlement.get("name", "")
+        user = entitlement.get("user", "")
+        updated_at = entitlement.get("updated_at", "")
+        created_at = entitlement.get("created_at", "")
+        is_active = entitlement.get("is_active", "")
+        is_limited = entitlement.get("is_limited", "")
 
-        # format fields for rendering
-        limit_num_clients = str(limit_num_clients) if limit_num_clients else "-"
-        limit_num_downloads = str(limit_num_downloads) if limit_num_downloads else "-"
-        limit_date_range_from = limit_date_range_from if limit_date_range_from else "-"
-        limit_date_range_to = limit_date_range_to if limit_date_range_to else "-"
+        scheduled_reset_period = entitlement.get("scheduled_reset_period", "")
+        limit_bandwidth = entitlement.get("limit_bandwidth", "")
+        limit_bandwidth_unit = entitlement.get("limit_bandwidth_unit", "")
+        limit_num_clients = entitlement.get("limit_num_clients", "")
+        limit_num_downloads = entitlement.get("limit_num_downloads", "")
+        limit_date_range_from = entitlement.get("limit_date_range_from", "")
+        limit_date_range_to = entitlement.get("limit_date_range_to", "")
+        limit_package_query = entitlement.get("limit_package_query", "")
+        limit_path_query = entitlement.get("limit_path_query", "")
 
         restricted_bandwidth = "-"
         if limit_bandwidth and limit_bandwidth_unit:
             restricted_bandwidth = "%s %s" % (limit_bandwidth, limit_bandwidth_unit)
+
+        # format fields for rendering
+        scheduled_reset_period = (
+            str(scheduled_reset_period) if scheduled_reset_period else "-"
+        )
+        limit_bandwidth = str(limit_bandwidth) if limit_bandwidth else "-"
+        limit_bandwidth_unit = (
+            str(limit_bandwidth_unit) if limit_bandwidth_unit else "-"
+        )
+        limit_package_query = str(limit_package_query) if limit_package_query else "-"
+        limit_path_query = str(limit_path_query) if limit_path_query else "-"
+        limit_num_clients = str(limit_num_clients) if limit_num_clients else "-"
+        limit_num_downloads = str(limit_num_downloads) if limit_num_downloads else "-"
+        limit_date_range_from = limit_date_range_from if limit_date_range_from else "-"
+        limit_date_range_to = limit_date_range_to if limit_date_range_to else "-"
 
         if limit_package_query:
             if len(limit_package_query) > 20:
@@ -226,15 +243,13 @@ def print_entitlements_with_restrictions(
                 click.style(
                     "%(name)s (%(type)s)"
                     % {
-                        "name": click.style(entitlement["name"], fg="cyan"),
-                        "type": "user" if entitlement["user"] else "token",
+                        "name": click.style(name, fg="cyan"),
+                        "type": "user" if user else "token",
                     }
                 ),
-                click.style(
-                    entitlement["updated_at"] or entitlement["created_at"], fg="white"
-                ),
-                click.style("yes" if entitlement["is_active"] else "no", fg="yellow"),
-                click.style("yes" if entitlement["is_limited"] else "no", fg="yellow"),
+                click.style(updated_at or created_at, fg="white"),
+                click.style("yes" if is_active else "no", fg="yellow"),
+                click.style("yes" if is_limited else "no", fg="yellow"),
                 click.style(limit_date_range_from, fg="yellow"),
                 click.style(limit_date_range_to, fg="yellow"),
                 click.style(scheduled_reset_period, fg="yellow"),
