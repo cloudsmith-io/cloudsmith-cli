@@ -70,7 +70,7 @@ def display_history(opts, data):
     utils.pretty_print_table(headers, rows)
 
 
-@quota.command(name="history", aliases=["history"])
+@quota.command(name="history", aliases=[])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options

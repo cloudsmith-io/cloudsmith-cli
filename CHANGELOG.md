@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.26.0] - 2020-11-18
+
+Note: This release requires `cloudsmith-api` >= `0.54.15`.
+
+### Added
+
+- Support for Organization Usage Metrics API
+- Fix for rendering Entitlement Token restrictions via the CLI
+
+## [0.25.5] - 2020-11-05
+
+- Fixed formatting JSON results for the `metrics` and `quota` commands; `-F json` should work now.
+
+## [0.25.4] - 2020-10-20
+
+Note: This release requires `cloudsmith-api` >= `0.53.79`.
+
+### Changed
+
+- Resolves breaking changes in Bandwidth Usage Metrics.
+
 ## [0.25.3] - 2020-09-25
 
 ### Changed

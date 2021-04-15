@@ -7,7 +7,7 @@ from ... import command, decorators
 from ..main import main
 
 
-@main.group(cls=command.AliasGroup, name="quota", aliases=["quota"])
+@main.group(cls=command.AliasGroup, name="quota", aliases=[])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options

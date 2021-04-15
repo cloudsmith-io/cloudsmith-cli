@@ -20,13 +20,15 @@ def _print_total_usage_table(opts, data):
         "---------------------------------------------------------------", nl=False
     )
 
+    totals = data.get("totals", {})
+
     rows = []
     rows.append(
         [
-            click.style(str(data.totals.get("tokens", 0)), fg="blue"),
-            click.style(str(data.totals.get("active_tokens", 0)), fg="green"),
-            click.style(str(data.totals.get("inactive_tokens", 0)), fg="red"),
-            click.style(str(data.totals.get("bandwidth_used", 0)), fg="white"),
+            click.style(str(totals.get("tokens", 0)), fg="blue"),
+            click.style(str(totals.get("active_tokens", 0)), fg="green"),
+            click.style(str(totals.get("inactive_tokens", 0)), fg="red"),
+            click.style(str(totals.get("bandwidth_used", 0)), fg="white"),
         ]
     )
 
@@ -46,12 +48,14 @@ def _print_bandwith_usage_table(opts, data):
         "---------------------------------------------------------------", nl=False
     )
 
+    bandwidth_per_token = data.get("bandwidth_per_token", {})
+
     rows = []
     rows.append(
         [
-            click.style(str(data.bandwidth_per_token.get("lowest", 0)), fg="white"),
-            click.style(str(data.bandwidth_per_token.get("average", 0)), fg="white"),
-            click.style(str(data.bandwidth_per_token.get("highest", 0)), fg="white"),
+            click.style(str(bandwidth_per_token.get("lowest", 0)), fg="white"),
+            click.style(str(bandwidth_per_token.get("average", 0)), fg="white"),
+            click.style(str(bandwidth_per_token.get("highest", 0)), fg="white"),
         ]
     )
 
@@ -68,15 +72,16 @@ def print_metrics(opts, data):
     _print_bandwith_usage_table(opts, data)
 
 
-@metrics.command(name="tokens", aliases=["tokens"])
+@metrics.command(name="tokens", aliases=[])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.argument(
     "owner_repo",
-    metavar="OWNER/REPO",
-    callback=validators.validate_owner_repo,
+    metavar="OWNER or OWNER/REPO",
+    callback=validators.validate_required_owner_optional_repo,
+    default="",
     required=True,
 )
 @click.option(
@@ -109,6 +114,9 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
 
     OWNER/REPO: Specify the OWNER namespace (i.e user or org) and repository to retrieve the
     metrics for that namespace/repository combination.
+
+    If REPO isn't specified, all repositories will be included from the
+    OWNER namespace.
     """
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
@@ -117,20 +125,32 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
 
     owner = None
     repo = None
-    # owner/repo are required arguments
+
     if isinstance(owner_repo, list) and len(owner_repo) == 2:
         owner, repo = owner_repo
+    elif len(owner_repo) == 1:
+        owner = owner_repo[0]
+        repo = None
 
     context_msg = "Failed to get list of metrics!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            metrics_ = api.entitlement_usage_metrics(
-                owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
-            )
+
+            metrics_ = None
+            if owner and repo:
+                metrics_ = api.entitlement_usage_metrics(
+                    owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
+                )
+            elif owner:
+                metrics_ = api.organization_entitlement_usage_metrics(
+                    owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
+                )
 
     click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, metrics_):
         return
 
-    print_metrics(opts=opts, data=metrics_)
+    data = metrics_.usage.get("display", {})
+
+    print_metrics(opts=opts, data=data)

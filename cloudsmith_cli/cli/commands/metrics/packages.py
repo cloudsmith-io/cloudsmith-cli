@@ -93,7 +93,7 @@ def _print_packages(opts, data, label):
     click.echo()
 
 
-@metrics.command(name="packages", aliases=["packages"])
+@metrics.command(name="packages", aliases=[])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options

@@ -57,7 +57,7 @@ def display_quota(opts, data):
     click.echo()
 
 
-@quota.command(name="limits", aliases=["limits"])
+@quota.command(name="limits", aliases=[])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
