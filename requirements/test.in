@@ -1,5 +1,4 @@
 # Test dependencies
-codecov>=2.0.9,<3.0.0
 docutils>=0.14,<1.0
 freezegun==0.3.11
 mock>=2.0.0,<3.0.0
