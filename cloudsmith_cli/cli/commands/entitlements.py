@@ -288,8 +288,11 @@ def print_entitlements_with_restrictions(
     "--name",
     type=str,
     required=True,
-    help="The name of the entitlement token (for informational purposes "
-    'only). Must be something other than "Default".',
+    help=(
+        "A name that identifies the token. This must be unique, as it both identifies "
+        "the user/client of the token, and is also usable as a username for "
+        "authentication in some contexts. * Note: May not apply to older repositories."
+    ),
 )
 @click.option(
     "--token",
@@ -416,8 +419,11 @@ def delete(ctx, opts, owner_repo_identifier, yes):
     "--name",
     type=str,
     required=False,
-    help="The name of the entitlement token (for informational purposes "
-    'only). Must be something other than "Default".',
+    help=(
+        "A name that identifies the token. This must be unique, as it both identifies "
+        "the user/client of the token, and is also usable as a username for "
+        "authentication in some contexts. * Note: May not apply to older repositories."
+    ),
 )
 @click.option(
     "--token",
