@@ -14,7 +14,7 @@ def report_retry(seconds, context=None):
     if context == "retry-after":
         click.echo()
         click.echo(
-            "Requested was throttled (429): Retrying after %(seconds)s second(s) ... "
+            "Request was throttled (429): Retrying after %(seconds)s second(s) ... "
             % {"seconds": click.style(str(seconds), bold=True)}
         )
 
@@ -39,7 +39,7 @@ def common_package_action_options(f):
     @click.option(
         "-I",
         "--wait-interval",
-        default=2.5,
+        default=5.0,
         type=float,
         show_default=True,
         help=(
@@ -250,19 +250,19 @@ def initialise_api(f):
     )
     @click.option(
         "--error-retry-backoff",
-        default=0.23,
+        default=1.0,
         type=float,
         help="The backoff factor determines how long to wait in seconds "
         "between error retries. The backoff factor is multiplied by the "
-        "amount of retries so far. So if 0.1, then the wait is 0.1s then "
-        "0.2s, then 0.4s, and so forth.",
+        "amount of retries so far. So if 1.0, then the wait is 1.0s then "
+        "2.0s, then 4.0s, and so forth.",
     )
     @click.option(
         "--error-retry-codes",
-        default="500,502,503,504",
+        default="429,500,502,503,504",
         help="The status codes that when received from the API will cause "
         "a retry (if --error-retry-max is > 0). By default this will be for "
-        "500, 502, 503 and 504 error codes.",
+        "429, 500, 502, 503 and 504 error codes.",
     )
     @click.pass_context
     @functools.wraps(f)

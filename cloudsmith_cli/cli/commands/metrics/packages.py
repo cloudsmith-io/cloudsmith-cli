@@ -1,8 +1,9 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """CLI/Commands - retrieve metrics."""
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
+import six
 
 from ....core.api import metrics as api
 from ... import decorators, utils, validators
@@ -11,89 +12,55 @@ from ...utils import maybe_spinner
 from .command import metrics
 
 
-def _print_total_usage_table(opts, data):
-    """ Print total usage metrics as a table. """
-    headers = [
-        "Total Downloads",
-        "Active Packages",
-        "Inactive Packages",
-        "Total Packages",
-    ]
-
-    click.echo(click.style("\nPackage Usage Totals", bold=True, fg="white"))
-    click.echo(
-        "---------------------------------------------------------------", nl=False
-    )
-
-    rows = []
-    rows.append(
-        [
-            click.style(str(data.get("total_downloads", 0)), fg="blue"),
-            click.style(str(data.get("active_packages", 0)), fg="green"),
-            click.style(str(data.get("inactive_packages", 0)), fg="red"),
-            click.style(str(data.get("total_packages", 0)), fg="white"),
-        ]
-    )
-
-    if data:
-        click.echo()
-        utils.pretty_print_table(headers, rows)
-
-    click.echo()
-
-
-def _print_statistics_table(opts, data):
-    """ Print usage metrics as a table. """
-    headers = ["Lowest usage", "Average usage", "Highest usage"]
-
-    click.echo(click.style("Package Usage Statistics", bold=True, fg="white"))
-    click.echo(
-        "---------------------------------------------------------------", nl=False
-    )
-
-    rows = []
-    rows.append(
-        [
-            click.style(str(data.get("lowest", 0)), fg="white"),
-            click.style(str(data.get("average", 0)), fg="white"),
-            click.style(str(data.get("highest", 0)), fg="white"),
-        ]
-    )
-
-    if data:
-        click.echo()
-        utils.pretty_print_table(headers, rows)
-
-    click.echo()
-
-
-def _print_packages(opts, data, label):
-    """ Print packages metrics as a table. """
-    headers = ["Name", "Version", "Slug"]
-
-    click.echo(click.style(label, bold=True, fg="white"))
-    click.echo(
-        "---------------------------------------------------------------", nl=False
-    )
-
-    rows = []
-    for metric in data:
-        rows.append(
+def _print_activity_table(opts, data):
+    """Print token activity as a table."""
+    utils.pretty_print_table(
+        headers=["Active", "Inactive", "Total"],
+        rows=[
             [
-                click.style(str(metric.name), fg="white"),
-                click.style(str(metric.version), fg="white"),
-                click.style(str(metric.slug), fg="white"),
+                click.style(str(data.get(k, 0)), fg="green")
+                for k in ("active", "inactive", "total")
             ]
-        )
-
-    if data:
-        click.echo()
-        utils.pretty_print_table(headers, rows)
+        ],
+        title="Activity Summary (Active = Has Downloads)",
+    )
 
     click.echo()
 
 
-@metrics.command(name="packages", aliases=[])
+def _print_metrics_table(opts, data):
+    """Print metrics as a table. """
+    category_keys = {"Bandwidth": "bandwidth", "Downloads": "downloads"}
+
+    metrics_keys = {
+        "Average": "average",
+        "Lowest": "lowest",
+        "Highest": "highest",
+        "Total": "total",
+    }
+
+    headers = ["Metric", *six.iterkeys(metrics_keys)]
+    rows = []
+
+    for category_header, category_key in six.iteritems(category_keys):
+        category_data = data.get(category_key)
+        cols = [category_header]
+        for metric_key in six.itervalues(metrics_keys):
+            metric_data = category_data.get(metric_key, {})
+            if "display" in metric_data:
+                value = metric_data.get("display")
+            else:
+                value = metric_data.get("value")
+            value = str(value or 0)
+            cols.append(click.style(value, fg="green"))
+        rows.append(cols)
+
+    utils.pretty_print_table(headers=headers, rows=rows, title="Entitlement Metrics")
+
+    click.echo()
+
+
+@metrics.command(name="packages", aliases=["pkgs"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -108,41 +75,32 @@ def _print_packages(opts, data, label):
     "--packages",
     type=str,
     required=False,
-    help="A comma seperated list of packages (identifiers). Each identifier is exactly 12 characters in "
-    "length and only contain alphanumerics. If a list is not specified then "
-    "all packages will be included for a given repository.",
-    callback=validators.validate_optional_tokens,
+    help=(
+        "A comma seperated list of package identifiers (i.e. slug_perm). "
+        "If a list is not specified then all package will be included for "
+        "a given repository."
+    ),
 )
 @click.option(
     "--start",
     type=str,
     required=False,
-    help="A UTC timestamp used to filter metrics starting from this period.",
-    callback=validators.validate_optional_timestamp,
+    help=(
+        "Include metrics from and including this UTC date or UTC datetime. "
+        "For example '2020-12-31' or '2021-12-13T00:00:00Z'."
+    ),
 )
 @click.option(
     "--finish",
     type=str,
     required=False,
-    help="A UTC timestamp used to filter metrics ending before this period.",
-    callback=validators.validate_optional_timestamp,
-)
-@click.option(
-    "--active-packages",
-    type=bool,
-    required=False,
-    help="A boolean flag used to include active packages.",
-)
-@click.option(
-    "--inactive-packages",
-    type=bool,
-    required=False,
-    help="A boolean flag used to include inactive packages.",
+    help=(
+        "Include metrics upto and including this UTC date or UTC datetime. "
+        "For example '2020-12-31' or '2021-12-13T00:00:00Z'."
+    ),
 )
 @click.pass_context
-def usage(
-    ctx, opts, owner_repo, packages, start, finish, active_packages, inactive_packages
-):
+def usage(ctx, opts, owner_repo, packages, start, finish):
     """
     Retrieve package usage metrics.
 
@@ -163,22 +121,16 @@ def usage(
     context_msg = "Failed to get list of metrics!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            metrics_ = api.package_usage_metrics(
+            data = api.get_repository_packages_metrics(
                 owner=owner, repo=repo, packages=packages, start=start, finish=finish
             )
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    if utils.maybe_print_as_json(opts, metrics_):
+    if utils.maybe_print_as_json(opts, data):
         return
 
-    _print_total_usage_table(opts=opts, data=metrics_.totals)
-    _print_statistics_table(opts=opts, data=metrics_.downloads_per_package)
-    if active_packages:
-        _print_packages(
-            opts=opts, data=metrics_.active_packages, label="Active Packages"
-        )
-    if inactive_packages:
-        _print_packages(
-            opts=opts, data=metrics_.inactive_packages, label="Inactive Packages"
-        )
+    click.echo()
+
+    _print_activity_table(opts, data)
+    _print_metrics_table(opts, data)

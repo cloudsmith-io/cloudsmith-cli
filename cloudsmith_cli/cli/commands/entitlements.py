@@ -707,14 +707,14 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
     "--limit-date-range-from",
     type=str,
     required=False,
-    help="An utc timestamp used to specify the valid 'from' date for this entitlement token.",
+    help="A UTC timestamp used to specify the valid 'from' date for this entitlement token.",
     callback=validators.validate_optional_timestamp,
 )
 @click.option(
     "--limit-date-range-to",
     type=str,
     required=False,
-    help="An utc timestamp used to specify the valid 'to' date for this entitlement token.",
+    help="A UTC timestamp used to specify the valid 'to' date for this entitlement token.",
     callback=validators.validate_optional_timestamp,
 )
 @click.pass_context
