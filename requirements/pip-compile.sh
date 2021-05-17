@@ -6,7 +6,7 @@ self_dir=$(dirname $self)
 cd $self_dir
 echo "Rebuilding Python 2.x requirements"
 if [ ! -d .venv/py2 ]; then
-  virtualenv -p python2.7 .venv/py2 --no-site-packages
+  virtualenv -p python2.7 .venv/py2
   .venv/py2/bin/pip install pip-tools
 fi
 
@@ -15,7 +15,7 @@ fi
 
 echo "Rebuild Python 3.x requirements"
 if [ ! -d .venv/py3 ]; then
-  virtualenv -p python3.6 .venv/py3 --no-site-packages
+  virtualenv -p python3 .venv/py3
   .venv/py3/bin/pip install pip-tools
 fi
 

@@ -3,8 +3,6 @@ services:
 
   cli:
     build: .
-    image: cloudsmith-cli
-    command: python cloudsmith-cli
-    working_dir: /usr/src/app/cloudsmith_cli
     environment:
       - DEBUG=true
+      - CLOUDSMITH_API_KEY=${CLOUDSMITH_API_KEY:-}

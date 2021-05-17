@@ -1,8 +1,9 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """CLI/Commands - retrieve metrics."""
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
+import six
 
 from ....core.api import metrics as api
 from ... import decorators, utils, validators
@@ -11,68 +12,55 @@ from ...utils import maybe_spinner
 from .command import metrics
 
 
-def _print_total_usage_table(opts, data):
-    """ Print total usage metrics as a table. """
-    headers = ["Total Tokens", "Active Tokens", "Inactive Tokens", "Bandwidth Used"]
-
-    click.echo(click.style("\nToken Usage Totals", bold=True, fg="white"))
-    click.echo(
-        "---------------------------------------------------------------", nl=False
+def _print_activity_table(opts, data):
+    """Print token activity as a table."""
+    utils.pretty_print_table(
+        headers=["Active", "Inactive", "Total"],
+        rows=[
+            [
+                click.style(str(data.get(k, 0)), fg="green")
+                for k in ("active", "inactive", "total")
+            ]
+        ],
+        title="Activity Summary (Active = Has Downloads)",
     )
-
-    totals = data.get("totals", {})
-
-    rows = []
-    rows.append(
-        [
-            click.style(str(totals.get("tokens", 0)), fg="blue"),
-            click.style(str(totals.get("active_tokens", 0)), fg="green"),
-            click.style(str(totals.get("inactive_tokens", 0)), fg="red"),
-            click.style(str(totals.get("bandwidth_used", 0)), fg="white"),
-        ]
-    )
-
-    if data:
-        click.echo()
-        utils.pretty_print_table(headers, rows)
 
     click.echo()
 
 
-def _print_bandwith_usage_table(opts, data):
-    """ Print bandwidth usage metrics as a table. """
-    headers = ["Lowest usage", "Average usage", "Highest usage"]
+def _print_metrics_table(opts, data):
+    """Print metrics as a table. """
+    category_keys = {"Bandwidth": "bandwidth", "Downloads": "downloads"}
 
-    click.echo(click.style("Bandwidth Usage Statistics", bold=True, fg="white"))
-    click.echo(
-        "---------------------------------------------------------------", nl=False
-    )
+    metrics_keys = {
+        "Average": "average",
+        "Lowest": "lowest",
+        "Highest": "highest",
+        "Total": "total",
+    }
 
-    bandwidth_per_token = data.get("bandwidth_per_token", {})
-
+    headers = ["Metric", *six.iterkeys(metrics_keys)]
     rows = []
-    rows.append(
-        [
-            click.style(str(bandwidth_per_token.get("lowest", 0)), fg="white"),
-            click.style(str(bandwidth_per_token.get("average", 0)), fg="white"),
-            click.style(str(bandwidth_per_token.get("highest", 0)), fg="white"),
-        ]
-    )
 
-    if data:
-        click.echo()
-        utils.pretty_print_table(headers, rows)
+    for category_header, category_key in six.iteritems(category_keys):
+        category_data = data.get(category_key)
+        cols = [category_header]
+        for metric_key in six.itervalues(metrics_keys):
+            metric_data = category_data.get(metric_key, {})
+            if "display" in metric_data:
+                value = metric_data.get("display")
+            else:
+                value = metric_data.get("value")
+            value = str(value or 0)
+            cols.append(click.style(value, fg="green"))
+        rows.append(cols)
+
+    utils.pretty_print_table(headers=headers, rows=rows, title="Entitlement Metrics")
 
     click.echo()
 
 
-def print_metrics(opts, data):
-    """ Print metrics as a table or output in another format. """
-    _print_total_usage_table(opts, data)
-    _print_bandwith_usage_table(opts, data)
-
-
-@metrics.command(name="tokens", aliases=[])
+@metrics.command(name="entitlements", aliases=["ents", "tokens"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -88,24 +76,29 @@ def print_metrics(opts, data):
     "--tokens",
     type=str,
     required=False,
-    help="A comma seperated list of entitlement tokens (identifiers). Each identifier is exactly 12 characters in "
-    "length and only contain alphanumerics. If a list is not specified then "
-    "all entitlement tokens will be included for a given repository.",
-    callback=validators.validate_optional_tokens,
+    help=(
+        "A comma seperated list of entitlement token identifiers (i.e. slug_perm) or "
+        "token secrets. If a list is not specified then all entitlement tokens will "
+        "be included for a given namespace or repository."
+    ),
 )
 @click.option(
     "--start",
     type=str,
     required=False,
-    help="An utc timestamp used to filter metrics starting from this period.",
-    callback=validators.validate_optional_timestamp,
+    help=(
+        "Include metrics from and including this UTC date or UTC datetime. "
+        "For example '2020-12-31' or '2021-12-13T00:00:00Z'."
+    ),
 )
 @click.option(
     "--finish",
     type=str,
     required=False,
-    help="An utc timestamp used to filter metrics ending before this period.",
-    callback=validators.validate_optional_timestamp,
+    help=(
+        "Include metrics upto and including this UTC date or UTC datetime. "
+        "For example '2020-12-31' or '2021-12-13T00:00:00Z'."
+    ),
 )
 @click.pass_context
 def usage(ctx, opts, owner_repo, tokens, start, finish):
@@ -135,22 +128,21 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
     context_msg = "Failed to get list of metrics!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-
-            metrics_ = None
             if owner and repo:
-                metrics_ = api.entitlement_usage_metrics(
+                data = api.get_repository_entitlements_metrics(
                     owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
                 )
             elif owner:
-                metrics_ = api.organization_entitlement_usage_metrics(
+                data = api.get_namespace_entitlements_metrics(
                     owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
                 )
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    if utils.maybe_print_as_json(opts, metrics_):
+    if utils.maybe_print_as_json(opts, data):
         return
 
-    data = metrics_.usage.get("display", {})
+    click.echo()
 
-    print_metrics(opts=opts, data=data)
+    _print_activity_table(opts, data)
+    _print_metrics_table(opts, data)

@@ -14,8 +14,8 @@ def get_metrics_api():
     return get_api_client(cloudsmith_api.MetricsApi)
 
 
-def organization_entitlement_usage_metrics(owner=None, **kwargs):
-    """List token usage metrics."""
+def get_namespace_entitlements_metrics(owner=None, **kwargs):
+    """Get repository entitlements metrics."""
     client = get_metrics_api()
 
     api_kwargs = {}
@@ -27,18 +27,17 @@ def organization_entitlement_usage_metrics(owner=None, **kwargs):
     res = None
 
     if owner:
-        if hasattr(client, "metrics_entitlements_usage_list_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.metrics_entitlements_usage_list_with_http_info(
-                    owner=owner, **api_kwargs
-                )
+        with catch_raise_api_exception():
+            res, _, headers = client.metrics_entitlements_list_with_http_info(
+                owner=owner, **api_kwargs
+            )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res[0]
+    return res.tokens if res else {}
 
 
-def entitlement_usage_metrics(owner=None, repo=None, **kwargs):
-    """List token usage metrics."""
+def get_repository_entitlements_metrics(owner=None, repo=None, **kwargs):
+    """Get repository entitlements metrics."""
     client = get_metrics_api()
 
     api_kwargs = {}
@@ -50,18 +49,17 @@ def entitlement_usage_metrics(owner=None, repo=None, **kwargs):
     res = None
 
     if owner and repo:
-        if hasattr(client, "metrics_entitlements_usage_list_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.metrics_entitlements_usage_list0_with_http_info(
-                    owner=owner, repo=repo, **api_kwargs
-                )
+        with catch_raise_api_exception():
+            res, _, headers = client.metrics_entitlements_list0_with_http_info(
+                owner=owner, repo=repo, **api_kwargs
+            )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res[0]
+    return res.tokens if res else {}
 
 
-def package_usage_metrics(owner=None, repo=None, **kwargs):
-    """List package usage metrics."""
+def get_repository_packages_metrics(owner=None, repo=None, **kwargs):
+    """Get repository packages metrics."""
     client = get_metrics_api()
 
     api_kwargs = {}
@@ -73,11 +71,10 @@ def package_usage_metrics(owner=None, repo=None, **kwargs):
     res = None
 
     if owner and repo:
-        if hasattr(client, "metrics_packages_usage_list_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.metrics_packages_usage_list_with_http_info(
-                    owner=owner, repo=repo, **api_kwargs
-                )
+        with catch_raise_api_exception():
+            res, _, headers = client.metrics_packages_list_with_http_info(
+                owner=owner, repo=repo, **api_kwargs
+            )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res[0]
+    return res.packages if res else {}

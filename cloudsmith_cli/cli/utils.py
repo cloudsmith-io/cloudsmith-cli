@@ -12,7 +12,7 @@ from click_spinner import spinner
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
-from .table import Table, make_table
+from .table import make_table
 
 
 def make_user_agent(prefix=None):
@@ -57,15 +57,9 @@ def pretty_print_list_info(num_results, page_info=None, suffix=None):
     )
 
 
-def pretty_print_table(headers, rows):
+def pretty_print_table(headers, rows, title=None):
     """Pretty print a table from headers and rows."""
     table = make_table(headers=headers, rows=rows)
-    pretty_print_table_instance(table)
-
-
-def pretty_print_table_instance(table):
-    """Pretty print a table instance."""
-    assert isinstance(table, Table)
 
     def pretty_print_row(styled, plain):
         """Pretty print a row."""
@@ -75,6 +69,10 @@ def pretty_print_table_instance(table):
                 for k, v in enumerate(styled)
             )
         )
+
+    if title:
+        click.secho(title, fg="white", bold=True)
+        click.secho("-" * 80, fg="yellow")
 
     pretty_print_row(table.headers, table.plain_headers)
     for k, row in enumerate(table.rows):

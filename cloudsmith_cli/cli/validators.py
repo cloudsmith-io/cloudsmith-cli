@@ -152,20 +152,6 @@ def validate_page_size(ctx, param, value):
     return value
 
 
-def validate_optional_tokens(ctx, param, value):
-    """Ensure that a valid value for page size is chosen."""
-    if value:
-        for token in value.split(","):
-            if not token.isalnum() or len(token) != 12:
-                raise click.BadParameter(
-                    "Tokens must contain one or more valid entitlement token "
-                    "identifiers as a comma seperated string.",
-                    param=param,
-                )
-
-    return value
-
-
 def validate_optional_timestamp(ctx, param, value):
     """Ensure that a valid value for a timestamp is used."""
 
