@@ -137,6 +137,8 @@ workflows:
           is_test_suite: true
       - publish:
           filters:
+            branches:
+              ignore: /.*/
             tags:
               only: /^v.*/
           name: cloudsmith
@@ -145,6 +147,8 @@ workflows:
           password: ${CLOUDSMITH_PASSWORD}
       - publish:
           filters:
+            branches:
+              ignore: /.*/
             tags:
               only: /^v.*/
           name: pypi
