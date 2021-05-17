@@ -14,7 +14,7 @@ def get_metrics_api():
     return get_api_client(cloudsmith_api.MetricsApi)
 
 
-def get_namespace_entitlement_metrics(owner=None, **kwargs):
+def get_namespace_entitlements_metrics(owner=None, **kwargs):
     """Get repository entitlements metrics."""
     client = get_metrics_api()
 
@@ -28,7 +28,7 @@ def get_namespace_entitlement_metrics(owner=None, **kwargs):
 
     if owner:
         with catch_raise_api_exception():
-            res, _, headers = client.metrics_entitlements_usage_list_with_http_info(
+            res, _, headers = client.metrics_entitlements_list_with_http_info(
                 owner=owner, **api_kwargs
             )
 
