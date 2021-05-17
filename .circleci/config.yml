@@ -26,8 +26,9 @@ jobs:
     steps:
       - checkout
       - run: pip install --user --upgrade setuptools twine wheel
-      - run: setup.py sdist bdist_wheel
-      - run: twine upload dist/*
+      - run: |
+          python setup.py sdist bdist_wheel
+          twine upload dist/*
 
 orbs:
   cloudsmith_ci:
@@ -143,8 +144,8 @@ workflows:
               only: /^v.*/
           name: cloudsmith
           registry_url: https://python.cloudsmith.io/cloudsmith/cli/
-          username: ${CLOUDSMITH_USERNAME}
-          password: ${CLOUDSMITH_PASSWORD}
+          username: $CLOUDSMITH_USERNAME
+          password: $CLOUDSMITH_PASSWORD
       - publish:
           filters:
             branches:
@@ -152,5 +153,5 @@ workflows:
             tags:
               only: /^v.*/
           name: pypi
-          username: ${PYPI_USERNAME}
-          password: ${PYPI_PASSWORD}
+          username: $PYPI_USERNAME
+          password: $PYPI_PASSWORD
