@@ -95,7 +95,7 @@ def _print_metrics_table(opts, data):
     type=str,
     required=False,
     help=(
-        "Include metrics upto and including this UTC date or UTC datetime. "
+        "Include metrics up to and including this UTC date or UTC datetime. "
         "For example '2020-12-31' or '2021-12-13T00:00:00Z'."
     ),
 )
