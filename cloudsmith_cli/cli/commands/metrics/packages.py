@@ -39,7 +39,8 @@ def _print_metrics_table(opts, data):
         "Total": "total",
     }
 
-    headers = ["Metric", *six.iterkeys(metrics_keys)]
+    headers = ["Metric"]
+    headers.extend(six.iterkeys(metrics_keys))
     rows = []
 
     for category_header, category_key in six.iteritems(category_keys):
