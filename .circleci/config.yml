@@ -23,13 +23,8 @@ jobs:
       - checkout
       - run: pip install --user --upgrade setuptools twine wheel
       - run: |
-          echo -e "[repository]" >> ~/.pypirc
-          echo -e "repository = <<parameters.registry_url>>" >> ~/.pypirc
-          echo -e "username = <<parameters.username>>" >> ~/.pypirc
-          echo -e "password = <<parameters.password>>" >> ~/.pypirc
-      - run: |
-          python setup.py sdist bdist_wheel
-          twine upload --repository repository --verbose dist/*
+          python setup.py bdist_wheel
+          twine upload --repository-url <<parameters.registry_url>> --username <<parameters.username>> --password <<parameters.password>> --verbose dist/*
 
 orbs:
   cloudsmith_ci:
