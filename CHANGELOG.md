@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.27.1] - 2021-05-18
+
+### Fixed
+
+- Support for Python 2 with the new package and token metrics changes
+
+## [0.27.0] - 2021-05-17
+
+Note: This release requires `cloudsmith-api` >= `0.57.1`.
+
+### Breaking change
+
+- Rework package and token metrics
+
 ## [0.26.0] - 2020-11-18
 
 Note: This release requires `cloudsmith-api` >= `0.54.15`.
