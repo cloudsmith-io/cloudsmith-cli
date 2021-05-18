@@ -19,16 +19,17 @@ jobs:
       password:
         description: Twine password
         type: string
-    environment:
-      TWINE_REPOSITORY_URL: <<parameters.registry_url>>
-      TWINE_USERNAME: <<parameters.username>>
-      TWINE_PASSWORD: <<parameters.password>>
     steps:
       - checkout
       - run: pip install --user --upgrade setuptools twine wheel
       - run: |
+          echo -e "[repository]" >> ~/.pypirc
+          echo -e "repository = <<parameters.registry_url>>" >> ~/.pypirc
+          echo -e "username = <<parameters.username>>" >> ~/.pypirc
+          echo -e "password = <<parameters.password>>" >> ~/.pypirc
+      - run: |
           python setup.py sdist bdist_wheel
-          twine upload dist/*
+          twine upload --repository repository --verbose dist/*
 
 orbs:
   cloudsmith_ci:
