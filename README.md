@@ -21,7 +21,7 @@ You can also read our [blog article](https://blog.cloudsmith.io/2017/11/25/autom
 
 ## Changelog
 
-Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CHANGELOG.md) for the list of changes by version. The current version is displayed in the PyPi badge at the top.
+Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/main/CHANGELOG.md) for the list of changes by version. The current version is displayed in the PyPi badge at the top.
 
 
 ## Features
@@ -141,7 +141,7 @@ api_key=1234567890abcdef1234567890abcdef
 
 ### Non-Credentials (config.ini)
 
-See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith_cli/data/config.ini) in GitHub:
+See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/main/cloudsmith_cli/data/config.ini) in GitHub:
 
 You can specify the following configuration options:
 
@@ -152,7 +152,7 @@ You can specify the following configuration options:
 
 ### Credentials (credentials.ini)
 
-See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith_cli/data/credentials.ini) in GitHub:
+See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/main/cloudsmith_cli/data/credentials.ini) in GitHub:
 
 You can specify the following configuration options:
 
@@ -207,7 +207,7 @@ cloudsmith push rpm --help
 
 ## Contributing
 
-Yes! Please do contribute, this is why we love open source.  Please see [CONTRIBUTING](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CONTRIBUTING.md) for contribution guidelines when making code changes or raising issues for bug reports, ideas, discussions and/or questions (i.e. help required).
+Yes! Please do contribute, this is why we love open source.  Please see [CONTRIBUTING](https://github.com/cloudsmith-io/cloudsmith-cli/blob/main/CONTRIBUTING.md) for contribution guidelines when making code changes or raising issues for bug reports, ideas, discussions and/or questions (i.e. help required).
 
 
 ## License
@@ -228,4 +228,4 @@ limitations under the License.
 
 ## EOF
 
-This quality product was brought to you by [Cloudsmith](https://cloudsmith.io) and the [fine folks who have contributed](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CONTRIBUTORS.md).
+This quality product was brought to you by [Cloudsmith](https://cloudsmith.io) and the [fine folks who have contributed](https://github.com/cloudsmith-io/cloudsmith-cli/blob/main/CONTRIBUTORS.md).
