@@ -154,8 +154,6 @@ pylint==1.9.4
     #   -r lint.py2.in
     #   pylint-django
     #   pylint-plugin-utils
-pypandoc==1.4
-    # via -r lint.in
 pytest-cov==2.6.1
     # via -r test.in
 pytest-forked==1.0.2
@@ -234,13 +232,10 @@ virtualenv==16.4.3
     # via
     #   pre-commit
     #   tox
-wheel==0.33.1
-    # via pypandoc
 wrapt==1.11.1
     # via astroid
 zipp==0.3.3
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-# pip
 # setuptools

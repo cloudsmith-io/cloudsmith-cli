@@ -28,13 +28,8 @@ def get_long_description():
     """Grok the readme, turn it into whine (rst)."""
     root_path = get_root_path()
     readme_path = os.path.join(root_path, "README.md")
-
-    try:
-        import pypandoc
-
-        return pypandoc.convert(readme_path, "rst").strip()
-    except ImportError:
-        return "Cloudsmith CLI"
+    with open(readme_path) as fp:
+        return fp.read()
 
 
 setup(
@@ -46,6 +41,7 @@ setup(
     author_email="support@cloudsmith.io",
     description="Cloudsmith Command-Line Interface (CLI)",
     long_description=get_long_description(),
+    long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
     package_data={"cloudsmith_cli": ["cloudsmith_cli/data/*"]},
     include_package_data=True,
