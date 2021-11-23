@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cloudsmith push` will now pause/sleep the process when calling the status endpoint during pushes (thanks to bagoston).
+
 ## [0.28.0] - 2021-05-18
 
 ### Fixed
