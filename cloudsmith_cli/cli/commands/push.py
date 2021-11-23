@@ -189,6 +189,7 @@ def wait_for_package_sync(
         left = 100
         last_progress = 0
         total_wait_interval = max(1.0, wait_interval)
+        first = True
 
         with click.progressbar(
             length=left,
@@ -197,8 +198,6 @@ def wait_for_package_sync(
             empty_char=click.style("-", fg="red"),
             item_show_func=display_status,
         ) as pb:
-            first = True
-
             while True:
                 res = get_package_status(owner, repo, slug)
                 ok, failed, progress, status_str, stage_str, reason = res
@@ -210,8 +209,10 @@ def wait_for_package_sync(
                     left -= delta
                 if ok or failed:
                     break
-                if not first:
+                if first:
                     first = False
+                else:
+                    # Sleep, but only after the first status call
                     time.sleep(total_wait_interval)
                     total_wait_interval = min(
                         300.0, total_wait_interval + wait_interval
