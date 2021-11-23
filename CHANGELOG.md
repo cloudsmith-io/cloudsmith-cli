@@ -9,9 +9,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.30.1] - 2021-11-32
+
 ### Fixed
 
 - `cloudsmith push` will now pause/sleep the process when calling the status endpoint during pushes (thanks to bagoston).
+
+## [0.30.0] - 2021-10-18
+
+### Fixed
+
+- Documentation generation for PyPi was broken; converted to markdown and fixed.
+
+## [0.29.0] - 2021-10-11
+
+Documentation release.
+
+## [0.28.2] - 2021-10-09
+
+Documentation release.
+
+## [0.28.1] - 2021-10-09
+
+### Fixed
+
+- Automatic releasing of CLI via CircleCI fixed.
 
 ## [0.28.0] - 2021-05-18
 
