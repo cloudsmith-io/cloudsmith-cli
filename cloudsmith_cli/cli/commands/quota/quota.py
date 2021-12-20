@@ -45,9 +45,9 @@ def display_quota(opts, data):
     rows = []
     rows.append(
         [
+            click.style(str(storage.get("used", "")), fg="white"),
             click.style(str(storage.get("configured", "")), fg="white"),
             click.style(str(storage.get("plan_limit", "")), fg="white"),
-            click.style(str(storage.get("used", "")), fg="white"),
             click.style(str(storage.get("percentage_used", "")), fg="white"),
         ]
     )
