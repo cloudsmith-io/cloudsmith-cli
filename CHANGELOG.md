@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.31.0] - 2021-12-21
+
 ### Added
 
 - Added the `cloudsmith dependencies` sub-command, to list package dependencies.
 
-## [0.30.2] - 2021-12-21
+## [0.30.2] - 2021-12-20
 
 ### Fixed
 
