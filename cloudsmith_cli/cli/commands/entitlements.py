@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""CLI/Commands - Push packages."""
+"""CLI/Commands - Entitlements."""
 from __future__ import absolute_import, print_function, unicode_literals
 
 import functools

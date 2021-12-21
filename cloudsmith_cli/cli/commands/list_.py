@@ -12,7 +12,7 @@ from ...core.api.packages import get_package_format_names_with_distros, list_pac
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
-from . import entitlements
+from . import dependencies, entitlements
 from .main import main
 from .repos import get as get_repos
 
@@ -29,6 +29,14 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 
     See the help for subcommands for more information on each.
     """
+
+
+@list_.command(name="dependencies", aliases=["deps"])
+@dependencies.list_dependencies_options
+@functools.wraps(entitlements.list_entitlements)
+@click.pass_context
+def dependencies_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+    return dependencies.list_dependencies(*args, **kwargs)
 
 
 @list_.command()

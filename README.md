@@ -31,6 +31,7 @@ The CLI currently supports the following commands (and sub-commands):
 - `check`:                Check rate limits and service status.
 - `copy`|`cp`:            Copy a package to another repository.
 - `delete`|`rm`:          Delete a package from a repository.
+- `dependencies`|`deps`:  List direct (non-transitive) dependencies for a package.
 - `docs`:                 Launch the help website in your browser.
 - `entitlements`|`ents`:  Manage the entitlements for a repository.
   - `create`|`new`:         Create a new entitlement in a repository.
@@ -41,8 +42,9 @@ The CLI currently supports the following commands (and sub-commands):
   - `update`|`set`:         Update (patch) a entitlement in a repository.
 - `help`:                 Display the delightful help message and exit.
 - `list`|`ls`:            List distros, packages, repos and entitlements.
+  - `dependencies`|`deps`   List direct (non-transitive) dependencies for a package.
   - `distros`:              List available distributions.
-  - `entitlements`:         List entitlements for a repository.
+  - `entitlements`|`ents`:  List entitlements for a repository.
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
