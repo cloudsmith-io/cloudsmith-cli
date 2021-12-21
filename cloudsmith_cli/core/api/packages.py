@@ -155,6 +155,23 @@ def get_package_status(owner, repo, identifier):
     )
 
 
+def get_package_dependencies(owner, repo, identifier, **kwargs):
+    """Get the direct dependencies for a package in a repository."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_dependencies_with_http_info(
+            owner=owner, repo=repo, identifier=identifier, **kwargs
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+
+    # pylint: disable=no-member
+    # Pylint detects the returned value as a tuple
+    page_info = PageInfo.from_headers(headers)
+    return [x.to_dict() for x in data.dependencies], page_info
+
+
 def get_package_tags(owner, repo, identifier):
     """Get the tags for a package in a repository."""
     client = get_packages_api()

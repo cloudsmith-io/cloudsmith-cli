@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 """CLI/Commands - create, retrieve, update or delete repositories."""
 from __future__ import absolute_import, print_function, unicode_literals
 
