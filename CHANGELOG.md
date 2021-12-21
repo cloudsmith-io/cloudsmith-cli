@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.30.2] - 2021-12-21
+
+### Fixed
+
+- The ordering of the columns in the quota command has been fixed.
+
 ## [0.30.1] - 2021-11-32
 
 ### Fixed
