@@ -63,6 +63,7 @@ def list_dependencies(ctx, opts, owner_repo_package):
             "package": click.style(identifier, bold=True),
         },
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to get dependencies of package!"

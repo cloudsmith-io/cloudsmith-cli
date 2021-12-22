@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed issue with JSON-based output for the `dependencies` command.
+
 ## [0.31.0] - 2021-12-21
 
 ### Added
