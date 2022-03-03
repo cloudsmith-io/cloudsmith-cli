@@ -48,7 +48,11 @@ def initialise_api(
             values = decoded.decode("utf-8")
             config.username, config.password = values.split(":")
 
-    set_api_key(config, key)
+    if key:
+        config.api_key["X-Api-Key"] = key
+
+    if hasattr(cloudsmith_api.Configuration, "set_default"):
+        cloudsmith_api.Configuration.set_default(config)
     return config
 
 
@@ -74,9 +78,14 @@ def get_api_client(cls):
     return client
 
 
-def set_api_key(config, key):
-    """Configure a new API key."""
-    if not key and "X-Api-Key" in config.api_key:
+def unset_api_key():
+    """Unset the API key."""
+    config = cloudsmith_api.Configuration()
+
+    try:
         del config.api_key["X-Api-Key"]
-    else:
-        config.api_key["X-Api-Key"] = key
+    except KeyError:
+        pass
+
+    if hasattr(cloudsmith_api.Configuration, "set_default"):
+        cloudsmith_api.Configuration.set_default(config)

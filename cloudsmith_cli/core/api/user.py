@@ -6,7 +6,7 @@ import cloudsmith_api
 
 from .. import ratelimits
 from .exceptions import catch_raise_api_exception
-from .init import get_api_client, set_api_key
+from .init import get_api_client, unset_api_key
 
 
 def get_user_api():
@@ -19,8 +19,7 @@ def get_user_token(login, password):
     client = get_user_api()
 
     # Never use API key for the token endpoint
-    config = cloudsmith_api.Configuration()
-    set_api_key(config, None)
+    unset_api_key()
 
     with catch_raise_api_exception():
         data, _, headers = client.user_token_create_with_http_info(
