@@ -45,7 +45,10 @@ class ConfigParam(Param):
 
 def get_default_config_path():
     """Get the default path to cloudsmith config files."""
-    return click.get_app_dir("cloudsmith")
+    return click.get_app_dir("cloudsmith")  # only returns a single path
+
+
+_CFG_SEARCH_PATHS = (".", os.path.expanduser('~/.cloudsmith'), get_default_config_path())
 
 
 class ConfigSchema(object):
@@ -71,7 +74,7 @@ class ConfigReader(ConfigFileReader):
 
     config_files = ["config.ini"]
     config_name = "standard"
-    config_searchpath = [".", get_default_config_path()]
+    config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
 
     @classmethod
@@ -199,7 +202,7 @@ class CredentialsReader(ConfigReader):
 
     config_files = ["credentials.ini"]
     config_name = "credentials"
-    config_searchpath = [".", get_default_config_path()]
+    config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
 
