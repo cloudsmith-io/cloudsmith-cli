@@ -48,7 +48,11 @@ def get_default_config_path():
     return click.get_app_dir("cloudsmith")  # only returns a single path
 
 
-_CFG_SEARCH_PATHS = (".", os.path.expanduser('~/.cloudsmith'), get_default_config_path())
+_CFG_SEARCH_PATHS = (
+    ".",
+    os.path.expanduser("~/.cloudsmith"),
+    get_default_config_path(),
+)
 
 
 class ConfigSchema(object):
