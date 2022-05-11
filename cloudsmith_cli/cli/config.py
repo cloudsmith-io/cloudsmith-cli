@@ -50,8 +50,8 @@ def get_default_config_path():
 
 _CFG_SEARCH_PATHS = (
     ".",
-    os.path.expanduser("~/.cloudsmith"),
     get_default_config_path(),
+    os.path.expanduser("~/.cloudsmith"),
 )
 
 
