@@ -71,7 +71,7 @@ class ConfigReader(ConfigFileReader):
 
     config_files = ["config.ini"]
     config_name = "standard"
-    config_searchpath = [get_default_config_path()]
+    config_searchpath = [".", get_default_config_path()]
     config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
 
     @classmethod
@@ -199,7 +199,7 @@ class CredentialsReader(ConfigReader):
 
     config_files = ["credentials.ini"]
     config_name = "credentials"
-    config_searchpath = [get_default_config_path()]
+    config_searchpath = [".", get_default_config_path()]
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
 
