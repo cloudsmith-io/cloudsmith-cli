@@ -12,7 +12,7 @@ from .command import quota
 
 
 def display_quota(opts, data):
-    """ Display Quota usage as a table. """
+    """Display Quota usage as a table."""
     bandwidth = data.usage.get("display", {}).get("bandwidth", {})
     storage = data.usage.get("display", {}).get("storage", {})
 

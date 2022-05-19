@@ -5,7 +5,7 @@ services:
     build:
       context: .
     image: cloudsmith-cli
-    command: isort -rc -c
+    command: isort . --check --diff
 
   black:
     build:

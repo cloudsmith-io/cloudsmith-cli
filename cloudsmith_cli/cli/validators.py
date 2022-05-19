@@ -62,9 +62,7 @@ def validate_api_headers(param, value):
     return headers
 
 
-def validate_slashes(
-    param, value, minimum=2, maximum=None, form=None, allow_blank=False
-):
+def validate_slashes(param, value, minimum=2, maximum=None, form=None, allow_blank=False):
     """Ensure that parameter has slashes and minimum parts."""
     try:
         value = value.split("/")

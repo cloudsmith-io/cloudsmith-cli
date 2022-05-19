@@ -99,8 +99,7 @@ def service(ctx, opts):
         % {"endpoint": click.style(config.host, bold=True)}
     )
     click.echo(
-        "The service status is:   %(status)s"
-        % {"status": click.style(status, bold=True)}
+        "The service status is:   %(status)s" % {"status": click.style(status, bold=True)}
     )
     click.echo(
         "The service version is:  %(version)s "

@@ -125,9 +125,7 @@ def entitlements_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
     "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_repo
 )
 @click.option(
-    "-q",
-    "--query",
-    help=("A boolean-like search term for querying package attributes."),
+    "-q", "--query", help=("A boolean-like search term for querying package attributes.")
 )
 @click.pass_context
 def packages(ctx, opts, owner_repo, page, page_size, query):

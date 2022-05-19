@@ -23,9 +23,7 @@ class ApiException(Exception):
         if status == 422:
             self.status_description = "Unprocessable Entity"
         else:
-            self.status_description = http_client.responses.get(
-                status, "Unknown Status"
-            )
+            self.status_description = http_client.responses.get(status, "Unknown Status")
         self.detail = detail
         self.headers = headers or {}
         self.body = body

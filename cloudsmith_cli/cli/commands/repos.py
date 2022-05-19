@@ -238,10 +238,7 @@ def update(ctx, opts, owner_repo, repo_config_file):
 
     click.secho(
         "Updating %(name)s repository in the %(owner)s namespace ..."
-        % {
-            "name": click.style(repo, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        % {"name": click.style(repo, bold=True), "owner": click.style(owner, bold=True)},
         nl=False,
         err=use_stderr,
     )

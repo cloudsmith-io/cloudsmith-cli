@@ -29,7 +29,7 @@ def _print_activity_table(opts, data):
 
 
 def _print_metrics_table(opts, data):
-    """Print metrics as a table. """
+    """Print metrics as a table."""
     category_keys = {"Bandwidth": "bandwidth", "Downloads": "downloads"}
 
     metrics_keys = {

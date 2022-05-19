@@ -163,9 +163,7 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
-def print_entitlements_with_restrictions(
-    opts, data, page_info=None, show_list_info=True
-):
+def print_entitlements_with_restrictions(opts, data, page_info=None, show_list_info=True):
     # pylint: disable=too-many-locals
     """Print entitlements (with restrictions) as a table or output in another format."""
     if utils.maybe_print_as_json(opts, data, page_info):
@@ -215,9 +213,7 @@ def print_entitlements_with_restrictions(
             str(scheduled_reset_period) if scheduled_reset_period else "-"
         )
         limit_bandwidth = str(limit_bandwidth) if limit_bandwidth else "-"
-        limit_bandwidth_unit = (
-            str(limit_bandwidth_unit) if limit_bandwidth_unit else "-"
-        )
+        limit_bandwidth_unit = str(limit_bandwidth_unit) if limit_bandwidth_unit else "-"
         limit_package_query = str(limit_package_query) if limit_package_query else "-"
         limit_path_query = str(limit_path_query) if limit_path_query else "-"
         limit_num_clients = str(limit_num_clients) if limit_num_clients else "-"

@@ -80,9 +80,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         filesize = utils.get_file_size(filepath=filename)
 
-        label = "Uploading %(filename)s:" % {
-            "filename": click.style(basename, bold=True)
-        }
+        label = "Uploading %(filename)s:" % {"filename": click.style(basename, bold=True)}
 
         with click.progressbar(
             length=filesize,
@@ -104,9 +102,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     return identifier
 
 
-def validate_create_package(
-    ctx, opts, owner, repo, package_type, skip_errors, **kwargs
-):
+def validate_create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     """Check new package parameters via the API."""
     click.echo(
         "Checking %(package_type)s package upload parameters ... "
@@ -214,9 +210,7 @@ def wait_for_package_sync(
                 else:
                     # Sleep, but only after the first status call
                     time.sleep(total_wait_interval)
-                    total_wait_interval = min(
-                        300.0, total_wait_interval + wait_interval
-                    )
+                    total_wait_interval = min(300.0, total_wait_interval + wait_interval)
 
             if left > 0:
                 pb.update(left)
@@ -273,12 +267,7 @@ def wait_for_package_sync(
         from .resync import resync_package
 
         resync_package(
-            ctx=ctx,
-            opts=opts,
-            owner=owner,
-            repo=repo,
-            slug=slug,
-            skip_errors=skip_errors,
+            ctx=ctx, opts=opts, owner=owner, repo=repo, slug=slug, skip_errors=skip_errors
         )
 
         wait_for_package_sync(
@@ -305,7 +294,7 @@ def upload_files_and_create_package(
     wait_interval,
     skip_errors,
     sync_attempts,
-    **kwargs
+    **kwargs,
 ):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
@@ -319,7 +308,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     # 2. Validate file upload parameters
@@ -365,7 +354,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     if no_wait_for_sync:
@@ -518,10 +507,7 @@ def create_push_handlers():
 
             option_name = option_name_fmt % {"key": k.replace("_", "-")}
             decorator = click.option(
-                option_name,
-                required=info["required"],
-                help=info["help"],
-                **option_kwargs
+                option_name, required=info["required"], help=info["help"], **option_kwargs
             )
             push_handler = decorator(push_handler)
 

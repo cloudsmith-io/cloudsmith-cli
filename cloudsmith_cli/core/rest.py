@@ -235,7 +235,7 @@ class RestClient(RESTClientObject):
                 timeout=_request_timeout,
                 stream=not _preload_content,
                 headers=headers,
-                **request_kwargs
+                **request_kwargs,
             )
         except requests.exceptions.RequestException as exc:
             msg = "{0}\n{1}".format(type(exc).__name__, str(exc))

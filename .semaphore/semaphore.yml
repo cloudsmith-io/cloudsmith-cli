@@ -9,27 +9,23 @@ blocks:
   - name: Run Tests
     task:
       jobs:
-      - name: py27-tests
+      - name: py37-tests
         commands:
           - checkout
-          - tox py27
-      - name: py36-tests
-        commands:
-          - checkout
-          - tox py36
+          - tox py37
       - name: isort
         commands:
           - checkout
-          - tox -e py36-isort
+          - tox -e py37-isort
       - name: flake8
         commands:
           - checkout
-          - tox -e py36-flake8
+          - tox -e py37-flake8
       - name: pylint
         commands:
           - checkout
-          - tox -e py36-pylint
+          - tox -e py37-pylint
       - name: black
         commands:
           - checkout
-          - tox -e py36-black
+          - tox -e py37-black

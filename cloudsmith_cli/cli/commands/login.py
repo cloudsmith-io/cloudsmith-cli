@@ -79,9 +79,7 @@ def create_config_files(ctx, opts, api_key):
 
         if not config.present and create:
             try:
-                ok = config.reader.create_default_file(
-                    data=config.data, mode=config.mode
-                )
+                ok = config.reader.create_default_file(data=config.data, mode=config.mode)
             except (OSError, IOError) as exc:
                 ok = False
                 error_message = exc.strerror
@@ -133,8 +131,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     click.secho("OK", fg="green")
 
     click.echo(
-        "Your API key/token is: %(token)s"
-        % {"token": click.style(api_key, fg="magenta")}
+        "Your API key/token is: %(token)s" % {"token": click.style(api_key, fg="magenta")}
     )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)

@@ -104,7 +104,7 @@ orbs:
     executors:
       cloudsmith_executor:
         docker:
-          - image: circleci/python:3.6.1
+          - image: circleci/python:3.7
 
 
 workflows:
@@ -113,7 +113,7 @@ workflows:
       - cloudsmith_ci/execute:
           name: isort
           service_name: isort
-          command: isort -rc -c
+          command: isort . --check --diff
       - cloudsmith_ci/execute:
           name: black
           service_name: black

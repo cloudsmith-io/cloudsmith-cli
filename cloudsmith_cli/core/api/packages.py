@@ -6,6 +6,7 @@ import inspect
 
 import cloudsmith_api
 import six
+from cloudsmith_api.models import PackagesQuarantine
 
 from .. import ratelimits, utils
 from ..pagination import PageInfo
@@ -53,9 +54,7 @@ def validate_create_package(package_format, owner, repo, **kwargs):
             client, "packages_validate_upload_%s_with_http_info" % package_format
         )
 
-        _, _, headers = check(
-            owner=owner, repo=repo, data=make_create_payload(**kwargs)
-        )
+        _, _, headers = check(owner=owner, repo=repo, data=make_create_payload(**kwargs))
 
     ratelimits.maybe_rate_limit(client, headers)
     return True
