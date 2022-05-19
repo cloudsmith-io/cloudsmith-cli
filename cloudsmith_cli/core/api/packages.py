@@ -6,6 +6,7 @@ import inspect
 
 import cloudsmith_api
 import six
+from cloudsmith_api.models import PackagesQuarantine
 
 from .. import ratelimits, utils
 from ..pagination import PageInfo
