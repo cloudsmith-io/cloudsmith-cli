@@ -35,7 +35,7 @@ def common_quarantine_options(f):
     return wrapper
 
 
-@main.group(cls=command.AliasGroup, aliases=["qu"])
+@main.group(cls=command.AliasGroup, aliases=["block"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
