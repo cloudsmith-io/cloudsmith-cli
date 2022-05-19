@@ -53,6 +53,7 @@ def quarantine(ctx, opts):  # pylint: disable=unused-argument
     See the help for subcommands for more information on each.
     """
 
+
 def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
     """
     Add a package to quarantine.
@@ -75,7 +76,8 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
     use_stderr = opts.output != "pretty"
 
     click.echo(
-        "Adding %(repository)s/%(package_slug)s to quarantine... " % {
+        "Adding %(repository)s/%(package_slug)s to quarantine... "
+        % {
             "repository": click.style(repo, bold=True),
             "package_slug": click.style(slug, bold=True),
         },
@@ -86,11 +88,7 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
     context_msg = "Failed quarantine!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            api.quarantine_package(
-                owner=owner,
-                repo=repo,
-                identifier=slug,
-            )
+            api.quarantine_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -125,7 +123,8 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
     use_stderr = opts.output != "pretty"
 
     click.echo(
-        "Removing %(repository)s/%(package_slug)s from quarantine... " % {
+        "Removing %(repository)s/%(package_slug)s from quarantine... "
+        % {
             "repository": click.style(repo, bold=True),
             "package_slug": click.style(slug, bold=True),
         },
@@ -136,11 +135,7 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
     context_msg = "Failed quarantine!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            api.quarantine_restore_package(
-                owner=owner,
-                repo=repo,
-                identifier=slug,
-            )
+            api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -151,4 +146,3 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
 @click.pass_context
 def remove(*args, **kwargs):  # noqa pylint: disable=missing-docstring
     return remove_quarantine(*args, **kwargs)
-

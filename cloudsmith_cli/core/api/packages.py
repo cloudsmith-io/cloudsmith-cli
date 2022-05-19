@@ -139,7 +139,10 @@ def quarantine_restore_package(owner, repo, identifier):
 
     with catch_raise_api_exception():
         data, _, headers = client.packages_quarantine_with_http_info(
-            owner=owner, repo=repo, identifier=identifier, data=PackagesQuarantine(restore=True)
+            owner=owner,
+            repo=repo,
+            identifier=identifier,
+            data=PackagesQuarantine(restore=True),
         )
 
     ratelimits.maybe_rate_limit(client, headers)
