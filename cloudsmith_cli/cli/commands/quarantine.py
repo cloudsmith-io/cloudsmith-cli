@@ -3,12 +3,11 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import functools
-from operator import itemgetter
 
 import click
 
 from ...core.api import packages as api
-from .. import command, decorators, utils, validators
+from .. import command, decorators, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
