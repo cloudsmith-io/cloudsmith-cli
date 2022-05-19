@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function, unicode_literals
 import inspect
 
 import cloudsmith_api
-from cloudsmith_api.models import PackagesQuarantine
 import six
 
 from .. import ratelimits, utils
