@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.33.0] - 2022-05-20
+
+### Fixed
+
+- add '.' to config search paths ([#78](https://github.com/cloudsmith-io/cloudsmith-cli/pull/78))
+
+### Preview
+
+- add quarantine add/rm command ([#80](https://github.com/cloudsmith-io/cloudsmith-cli/pull/80))
+
 ## [0.32.0] - 2022-03-03
 
 ### Fixed
