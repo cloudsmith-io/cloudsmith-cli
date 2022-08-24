@@ -134,7 +134,7 @@ def get_401_error_hint(ctx, opts, exc):
     if opts.api_key:
         return (
             "Since you have an API key set, this probably means "
-            "you don't have the permision to perform this action."
+            "you don't have the permission to perform this action."
         )
 
     if ctx.info_name == "token":
