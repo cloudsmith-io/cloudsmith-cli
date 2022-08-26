@@ -266,7 +266,7 @@ def remove_tags(ctx, opts, owner_repo_package, tags):
     tags = _parse_tags(tags)
 
     click.echo(
-        "Removing '%(tags)s' tag%(s)s to the '%(package)s' package ... "
+        "Removing '%(tags)s' tag%(s)s from the '%(package)s' package ... "
         % {
             "package": click.style(package, bold=True),
             "tags": click.style(", ".join(tags or [])),
