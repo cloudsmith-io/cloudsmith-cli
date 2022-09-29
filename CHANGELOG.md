@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.34.0] - 2022-09-30
+
+### Fixed
+
+- Fixed a typo in permission exceptions.
+- Removed linting noqas from help docs.
+
 ## [0.33.0] - 2022-05-20
 
 ### Fixed
