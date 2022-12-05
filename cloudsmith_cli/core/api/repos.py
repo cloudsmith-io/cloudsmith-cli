@@ -32,13 +32,13 @@ def list_repos(owner=None, **kwargs):
         else:
             api_kwargs["owner"] = owner
 
-            if hasattr(client, "repos_list_with_http_info"):
+            if hasattr(client, "repos_namespace_list_with_http_info"):
                 with catch_raise_api_exception():
-                    res, _, headers = client.repos_list_with_http_info(**api_kwargs)
+                    res, _, headers = client.repos_namespace_list_with_http_info(**api_kwargs)
     else:
-        if hasattr(client, "repos_all_list_with_http_info"):
+        if hasattr(client, "repos_user_list_with_http_info"):
             with catch_raise_api_exception():
-                res, _, headers = client.repos_all_list_with_http_info(**api_kwargs)
+                res, _, headers = client.repos_user_list_with_http_info(**api_kwargs)
 
     ratelimits.maybe_rate_limit(client, headers)
     page_info = PageInfo.from_headers(headers)
