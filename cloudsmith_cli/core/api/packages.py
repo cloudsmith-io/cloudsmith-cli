@@ -6,7 +6,7 @@ import inspect
 
 import cloudsmith_api
 import six
-from cloudsmith_api.models import PackagesQuarantine
+from cloudsmith_api.models import PackageQuarantineRequest
 
 from .. import ratelimits, utils
 from ..pagination import PageInfo
@@ -142,7 +142,7 @@ def quarantine_restore_package(owner, repo, identifier):
             owner=owner,
             repo=repo,
             identifier=identifier,
-            data=PackagesQuarantine(restore=True),
+            data=PackageQuarantineRequest(restore=True),
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -272,9 +272,9 @@ def get_package_formats():
         return params
 
     return {
-        key.replace("PackagesUpload", "").lower(): get_parameters(cls)
+        key.replace("PackageUploadRequest", "").lower(): get_parameters(cls)
         for key, cls in inspect.getmembers(cloudsmith_api.models)
-        if key.startswith("PackagesUpload")
+        if "PackageUploadRequest" in key
     }
 
 
