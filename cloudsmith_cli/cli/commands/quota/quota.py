@@ -13,8 +13,9 @@ from .command import quota
 
 def display_quota(opts, data):
     """ Display Quota usage as a table. """
-    bandwidth = data.usage.get("display", {}).get("bandwidth", {})
-    storage = data.usage.get("display", {}).get("storage", {})
+    display = getattr(data.usage, "display", {})
+    bandwidth = getattr(display, "bandwidth", {})
+    storage = getattr(display, "storage", {})
 
     click.echo()
     click.echo(click.style("Bandwidth Quota", bold=True, fg="white"))
@@ -26,10 +27,10 @@ def display_quota(opts, data):
     rows = []
     rows.append(
         [
-            click.style(str(bandwidth.get("used", "")), fg="white"),
-            click.style(str(bandwidth.get("configured", "")), fg="white"),
-            click.style(str(bandwidth.get("plan_limit", "")), fg="white"),
-            click.style(str(bandwidth.get("percentage_used", "")), fg="white"),
+            click.style(str(getattr(bandwidth, "used", "")), fg="white"),
+            click.style(str(getattr(bandwidth, "configured", "")), fg="white"),
+            click.style(str(getattr(bandwidth, "plan_limit", "")), fg="white"),
+            click.style(str(getattr(bandwidth, "percentage_used", "")), fg="white"),
         ]
     )
     click.echo()
@@ -45,10 +46,10 @@ def display_quota(opts, data):
     rows = []
     rows.append(
         [
-            click.style(str(storage.get("used", "")), fg="white"),
-            click.style(str(storage.get("configured", "")), fg="white"),
-            click.style(str(storage.get("plan_limit", "")), fg="white"),
-            click.style(str(storage.get("percentage_used", "")), fg="white"),
+            click.style(str(getattr(storage, "used", "")), fg="white"),
+            click.style(str(getattr(storage, "configured", "")), fg="white"),
+            click.style(str(getattr(storage, "plan_limit", "")), fg="white"),
+            click.style(str(getattr(storage, "percentage_used", "")), fg="white"),
         ]
     )
     click.echo()
