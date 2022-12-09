@@ -36,7 +36,6 @@ def display_history(opts, data):
 
     rows = []
     for history in histories:
-        
         display = getattr(history, "display", {})
         uploaded = getattr(display, "uploaded", {})
         uploaded_used = getattr(uploaded, "used", "")

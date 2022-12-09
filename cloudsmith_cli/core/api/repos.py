@@ -34,7 +34,9 @@ def list_repos(owner=None, **kwargs):
 
             if hasattr(client, "repos_namespace_list_with_http_info"):
                 with catch_raise_api_exception():
-                    res, _, headers = client.repos_namespace_list_with_http_info(**api_kwargs)
+                    res, _, headers = client.repos_namespace_list_with_http_info(
+                        **api_kwargs
+                    )
     else:
         if hasattr(client, "repos_user_list_with_http_info"):
             with catch_raise_api_exception():
