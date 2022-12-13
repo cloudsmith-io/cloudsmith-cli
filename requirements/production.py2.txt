@@ -23,7 +23,7 @@ click==7.0
     #   -r common.in
     #   click-configfile
     #   click-didyoumean
-cloudsmith-api==1.8.2
+cloudsmith-api==2.0.0
     # via -r common.in
 colorama==0.3.9
     # via -r common.in
