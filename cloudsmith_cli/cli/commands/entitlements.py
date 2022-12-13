@@ -132,9 +132,17 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
 
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
-        ent_updated_at = entitlement["updated_at"].strftime("%Y/%m/%d, %H:%M:%S") if entitlement["updated_at"] else None
-        ent_created_at = entitlement["created_at"].strftime("%Y/%m/%d, %H:%M:%S") if entitlement["created_at"] else None
-        
+        ent_updated_at = (
+            entitlement["updated_at"].strftime("%Y/%m/%d, %H:%M:%S")
+            if entitlement["updated_at"]
+            else None
+        )
+        ent_created_at = (
+            entitlement["created_at"].strftime("%Y/%m/%d, %H:%M:%S")
+            if entitlement["created_at"]
+            else None
+        )
+
         rows.append(
             [
                 click.style(
@@ -145,9 +153,7 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
                     }
                 ),
                 click.style(entitlement["token"], fg="yellow"),
-                click.style(
-                   ent_updated_at or ent_created_at, fg="blue"
-                ),
+                click.style(ent_updated_at or ent_created_at, fg="blue"),
                 click.style(entitlement["slug_perm"], fg="green"),
             ]
         )
@@ -193,11 +199,18 @@ def print_entitlements_with_restrictions(
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
 
-
         name = entitlement.get("name", "")
         user = entitlement.get("user", "")
-        updated_at = entitlement.get("updated_at").strftime("%Y/%m/%d, %H:%M:%S") if entitlement["updated_at"] else ""
-        created_at = entitlement.get("created_at").strftime("%Y/%m/%d, %H:%M:%S") if entitlement["created_at"] else ""
+        updated_at = (
+            entitlement.get("updated_at").strftime("%Y/%m/%d, %H:%M:%S")
+            if entitlement["updated_at"]
+            else ""
+        )
+        created_at = (
+            entitlement.get("created_at").strftime("%Y/%m/%d, %H:%M:%S")
+            if entitlement["created_at"]
+            else ""
+        )
         is_active = entitlement.get("is_active", "")
         is_limited = entitlement.get("is_limited", "")
 
@@ -206,8 +219,16 @@ def print_entitlements_with_restrictions(
         limit_bandwidth_unit = entitlement.get("limit_bandwidth_unit", "")
         limit_num_clients = entitlement.get("limit_num_clients", "")
         limit_num_downloads = entitlement.get("limit_num_downloads", "")
-        limit_date_range_from = entitlement.get("limit_date_range_from").strftime("%Y/%m/%d, %H:%M:%S") if entitlement["limit_date_range_from"] else ""
-        limit_date_range_to = entitlement.get("limit_date_range_to").strftime("%Y/%m/%d, %H:%M:%S") if entitlement["limit_date_range_to"] else ""
+        limit_date_range_from = (
+            entitlement.get("limit_date_range_from").strftime("%Y/%m/%d, %H:%M:%S")
+            if entitlement["limit_date_range_from"]
+            else ""
+        )
+        limit_date_range_to = (
+            entitlement.get("limit_date_range_to").strftime("%Y/%m/%d, %H:%M:%S")
+            if entitlement["limit_date_range_to"]
+            else ""
+        )
         limit_package_query = entitlement.get("limit_package_query", "")
         limit_path_query = entitlement.get("limit_path_query", "")
 
