@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.35.0] - 2022-12-14
+
+### Fixed
+
+- Updated to support cloudsmith-api v.2.0.0
+
 ## [0.34.0] - 2022-09-30
 
 ### Fixed
