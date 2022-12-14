@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 import json
 import platform
 from contextlib import contextmanager
+from datetime import date, datetime
 
 import click
 import six
@@ -99,6 +100,13 @@ def print_rate_limit_info(opts, rate_info):
         reset=False,
     )
 
+def json_serializer(obj):
+    """JSON serializer for objects not serializable by default."""
+
+    # convert date/datetime objects to strings 
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat().replace("+00:00", "Z")
+    raise TypeError ("Type %s not serializable." % type(obj))
 
 def maybe_print_as_json(opts, data, page_info=None):
     """Maybe print data as JSON."""
@@ -126,9 +134,9 @@ def maybe_print_as_json(opts, data, page_info=None):
 
     try:
         if opts.output == "pretty_json":
-            dump = json.dumps(root, indent=4, sort_keys=True)
+            dump = json.dumps(root, indent=4, sort_keys=True, default=json_serializer)
         else:
-            dump = json.dumps(root, sort_keys=True)
+            dump = json.dumps(root, sort_keys=True, default=json_serializer)
     except (TypeError, ValueError) as e:
         click.secho(
             "Failed to convert to JSON: %(err)s" % {"err": str(e)}, fg="red", err=True
