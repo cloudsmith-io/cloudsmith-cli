@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.35.1] - 2022-12-14
+
+### Fixed
+
+- Fixed an issue where datetime objects couldn't be serialised when outputting as JSON.
+
 ## [0.35.0] - 2022-12-14
 
 ### Fixed
