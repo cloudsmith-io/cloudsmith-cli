@@ -100,13 +100,15 @@ def print_rate_limit_info(opts, rate_info):
         reset=False,
     )
 
+
 def json_serializer(obj):
     """JSON serializer for objects not serializable by default."""
 
-    # convert date/datetime objects to strings 
+    # convert date/datetime objects to strings
     if isinstance(obj, (datetime, date)):
         return obj.isoformat().replace("+00:00", "Z")
-    raise TypeError ("Type %s not serializable." % type(obj))
+    raise TypeError("Type %s not serializable." % type(obj))
+
 
 def maybe_print_as_json(opts, data, page_info=None):
     """Maybe print data as JSON."""
