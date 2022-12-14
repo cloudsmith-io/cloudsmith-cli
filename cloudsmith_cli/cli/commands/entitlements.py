@@ -133,16 +133,12 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
         ent_updated_at = (
-            entitlement["updated_at"]
-            .strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-            .replace("+0000", "Z")
+            entitlement["updated_at"].isoformat().replace("+00:00", "Z")
             if entitlement["updated_at"]
             else None
         )
         ent_created_at = (
-            entitlement["created_at"]
-            .strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-            .replace("+0000", "Z")
+            entitlement["created_at"].isoformat().replace("+00:00", "Z")
             if entitlement["created_at"]
             else None
         )
@@ -206,16 +202,12 @@ def print_entitlements_with_restrictions(
         name = entitlement.get("name", "")
         user = entitlement.get("user", "")
         updated_at = (
-            entitlement.get("updated_at")
-            .strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-            .replace("+0000", "Z")
+            entitlement.get("updated_at").isoformat().replace("+00:00", "Z")
             if entitlement["updated_at"]
             else ""
         )
         created_at = (
-            entitlement.get("created_at")
-            .strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-            .replace("+0000", "Z")
+            entitlement.get("created_at").isoformat().replace("+00:00", "Z")
             if entitlement["created_at"]
             else ""
         )
@@ -228,16 +220,12 @@ def print_entitlements_with_restrictions(
         limit_num_clients = entitlement.get("limit_num_clients", "")
         limit_num_downloads = entitlement.get("limit_num_downloads", "")
         limit_date_range_from = (
-            entitlement.get("limit_date_range_from")
-            .strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-            .replace("+0000", "Z")
+            entitlement.get("limit_date_range_from").isoformat().replace("+00:00", "Z")
             if entitlement["limit_date_range_from"]
             else ""
         )
         limit_date_range_to = (
-            entitlement.get("limit_date_range_to")
-            .strftime("%Y-%m-%dT%H:%M:%S.%f%z")
-            .replace("+0000", "Z")
+            entitlement.get("limit_date_range_to").isoformat().replace("+00:00", "Z")
             if entitlement["limit_date_range_to"]
             else ""
         )
