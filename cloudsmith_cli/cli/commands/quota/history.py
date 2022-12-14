@@ -36,25 +36,28 @@ def display_history(opts, data):
 
     rows = []
     for history in histories:
+        display = getattr(history, "display", {})
+        uploaded = getattr(display, "uploaded", {})
+        uploaded_used = getattr(uploaded, "used", "")
 
-        uploaded = history.display.get("uploaded", {})
-        uploaded_used = uploaded.get("used", "")
+        downloaded = getattr(display, "downloaded", {})
+        downloaded_used = getattr(downloaded, "used", "")
+        downloaded_limit = getattr(downloaded, "limit", "")
+        downloaded_percentage = getattr(downloaded, "percentage", "")
 
-        downloaded = history.display.get("downloaded", {})
-        downloaded_used = downloaded.get("used", "")
-        downloaded_limit = downloaded.get("limit", "")
-        downloaded_percentage = downloaded.get("percentage", "")
+        storage = getattr(display, "storage_used", {})
+        storage_used = getattr(storage, "used", "")
+        storage_limit = getattr(storage, "limit", "")
+        storage_percentage = getattr(storage, "percentage", "")
 
-        storage = history.display.get("storage_used", {})
-        storage_used = storage.get("used", "")
-        storage_limit = storage.get("limit", "")
-        storage_percentage = storage.get("percentage", "")
+        history_start = str(history.start)[0:10]
+        history_end = str(history.end)[0:10]
 
         rows.append(
             [
                 click.style(str(history.plan), fg="green"),
-                click.style(str(history.start[0:10]), fg="white"),
-                click.style(str(history.end[0:10]), fg="white"),
+                click.style(history_start, fg="white"),
+                click.style(history_end, fg="white"),
                 click.style(str(history.days), fg="white"),
                 click.style(str(uploaded_used), fg="yellow"),
                 click.style(str(downloaded_used), fg="cyan"),

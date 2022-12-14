@@ -28,7 +28,7 @@ def get_namespace_entitlements_metrics(owner=None, **kwargs):
 
     if owner:
         with catch_raise_api_exception():
-            res, _, headers = client.metrics_entitlements_list_with_http_info(
+            res, _, headers = client.metrics_entitlements_account_list_with_http_info(
                 owner=owner, **api_kwargs
             )
 
@@ -50,7 +50,7 @@ def get_repository_entitlements_metrics(owner=None, repo=None, **kwargs):
 
     if owner and repo:
         with catch_raise_api_exception():
-            res, _, headers = client.metrics_entitlements_list0_with_http_info(
+            res, _, headers = client.metrics_entitlements_repo_list_with_http_info(
                 owner=owner, repo=repo, **api_kwargs
             )
 
