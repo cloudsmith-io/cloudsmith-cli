@@ -40,6 +40,7 @@ def initialise_api(
     config.error_retry_codes = error_retry_codes
     config.error_retry_cb = error_retry_cb
     config.verify_ssl = ssl_verify
+    config.client_side_validation = False
 
     if headers:
         if "Authorization" in config.headers:
