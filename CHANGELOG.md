@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.35.2] - 2022-12-15
+
+### Fixed
+
+- Temporarily disable client-side validation within the cloudsmith-api.
+
 ## [0.35.1] - 2022-12-14
 
 ### Fixed
