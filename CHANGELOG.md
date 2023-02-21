@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.36.1] - 2023-02-21
+
+### Fixed
+
+- Revert minimum allowed version of `click` to `7.0.0`.
+
 ## [0.36.0] - 2023-02-21
 
 ### Fixed
