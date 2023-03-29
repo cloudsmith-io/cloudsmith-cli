@@ -1,5 +1,6 @@
 # Development dependencies
 bumpversion==0.5.3
 pip-tools>=2.0.0,<3.0.0
-pre-commit>=1.14.3,<2.0.0
+pre-commit>=1.14.3,<2.0.0; python_version < '3'
+pre-commit>2.0.0; python_version >= '3'
 setuptools==37.0
