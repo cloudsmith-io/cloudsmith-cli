@@ -18,7 +18,7 @@ def _print_activity_table(opts, data):
         headers=["Active", "Inactive", "Total"],
         rows=[
             [
-                click.style(str(data.get(k, 0)), fg="green")
+                click.style(str(getattr(data, k, 0)), fg="green")
                 for k in ("active", "inactive", "total")
             ]
         ],
@@ -44,14 +44,14 @@ def _print_metrics_table(opts, data):
     rows = []
 
     for category_header, category_key in six.iteritems(category_keys):
-        category_data = data.get(category_key)
+        category_data = getattr(data, category_key)
         cols = [category_header]
         for metric_key in six.itervalues(metrics_keys):
-            metric_data = category_data.get(metric_key, {})
-            if "display" in metric_data:
-                value = metric_data.get("display")
+            metric_data = getattr(category_data, metric_key, {})
+            if hasattr(metric_data, "display"):
+                value = getattr(metric_data, "display")
             else:
-                value = metric_data.get("value")
+                value = getattr(metric_data, "value")
             value = str(value or 0)
             cols.append(click.style(value, fg="green"))
         rows.append(cols)

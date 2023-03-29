@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.36.1] - 2023-02-21
+
+### Fixed
+
+- Revert minimum allowed version of `click` to `7.0.0`.
+
+## [0.36.0] - 2023-02-21
+
+### Fixed
+
+- Bump minimum allowed version of `click` to `8.0.3`.
+
+## [0.35.2] - 2022-12-15
+
+### Fixed
+
+- Temporarily disable client-side validation within the cloudsmith-api.
+
+## [0.35.1] - 2022-12-14
+
+### Fixed
+
+- Fixed an issue where datetime objects couldn't be serialised when outputting as JSON.
+
+## [0.35.0] - 2022-12-14
+
+### Fixed
+
+- Updated to support cloudsmith-api v.2.0.0
+
+## [0.34.0] - 2022-09-30
+
+### Fixed
+
+- Fixed a typo in permission exceptions.
+- Removed linting noqas from help docs.
+
+## [0.33.0] - 2022-05-20
+
+### Fixed
+
+- add '.' to config search paths ([#78](https://github.com/cloudsmith-io/cloudsmith-cli/pull/78))
+
+### Preview
+
+- add quarantine add/rm command ([#80](https://github.com/cloudsmith-io/cloudsmith-cli/pull/80))
+
 ## [0.32.0] - 2022-03-03
 
 ### Fixed

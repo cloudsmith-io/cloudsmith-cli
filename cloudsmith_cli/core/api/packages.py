@@ -6,6 +6,7 @@ import inspect
 
 import cloudsmith_api
 import six
+from cloudsmith_api.models import PackageQuarantineRequest
 
 from .. import ratelimits, utils
 from ..pagination import PageInfo
@@ -113,6 +114,35 @@ def resync_package(owner, repo, identifier):
     with catch_raise_api_exception():
         data, _, headers = client.packages_resync_with_http_info(
             owner=owner, repo=repo, identifier=identifier
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.slug_perm, data.slug
+
+
+def quarantine_package(owner, repo, identifier):
+    """Quarantine a package."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_quarantine_with_http_info(
+            owner=owner, repo=repo, identifier=identifier
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.slug_perm, data.slug
+
+
+def quarantine_restore_package(owner, repo, identifier):
+    """Restorea a package from quarantine."""
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_quarantine_with_http_info(
+            owner=owner,
+            repo=repo,
+            identifier=identifier,
+            data=PackageQuarantineRequest(restore=True),
         )
 
     ratelimits.maybe_rate_limit(client, headers)
@@ -242,9 +272,9 @@ def get_package_formats():
         return params
 
     return {
-        key.replace("PackagesUpload", "").lower(): get_parameters(cls)
+        key.replace("PackageUploadRequest", "").lower(): get_parameters(cls)
         for key, cls in inspect.getmembers(cloudsmith_api.models)
-        if key.startswith("PackagesUpload")
+        if "PackageUploadRequest" in key
     }
 
 
