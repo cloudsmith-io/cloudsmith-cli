@@ -136,6 +136,7 @@ By default, the CLI will look for these in the following locations:
     - `C:\Users\<user>\AppData\Roaming\cloudsmith` (Win7+, roaming)
     - `C:\Documents and Settings\<user>\Application Data\cloudsmith` (WinXP, not roaming)
     - `C:\Documents and Settings\<user>\Local Settings\Application Data\cloudsmith` (WinXP, roaming)
+    - `C:\Documents and Settings\<user>\.cloudsmith`
 
 Both configuration files use the simple INI format, such as:
 

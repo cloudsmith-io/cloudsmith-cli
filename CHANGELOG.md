@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.37.0] - 2023-03-29
+
+### Fixed
+
+- Try harder to find a user's `~/.cloudsmith` across operating systems, so config files are found.
+
 ## [0.36.1] - 2023-02-21
 
 ### Fixed
