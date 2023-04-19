@@ -16,6 +16,10 @@ from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
 
+SIMPLE_UPLOAD_MAX_FILE_SIZE = 1024 * 1024 * 1024 * 5  # 5GB
+MULTIPART_CHUNK_SIZE = 1024 * 1024 * 100  # 100MB
+FILES_API_BASE_URL = "https://api.cloudsmith.io/v1/files"
+
 
 def get_files_api():
     """Get the files API client."""
