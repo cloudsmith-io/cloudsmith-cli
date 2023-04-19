@@ -7,19 +7,18 @@ import time
 from datetime import datetime
 
 import click
-import six
-
 import requests
+import six
 
 from ...core import utils
 from ...core.api.exceptions import ApiException
 from ...core.api.files import (
+    FILES_API_BASE_URL,
+    MULTIPART_CHUNK_SIZE,
+    SIMPLE_UPLOAD_MAX_FILE_SIZE,
     request_file_upload,
     upload_file as api_upload_file,
     validate_request_file_upload,
-    SIMPLE_UPLOAD_MAX_FILE_SIZE,
-    MULTIPART_CHUNK_SIZE,
-    FILES_API_BASE_URL,
 )
 from ...core.api.packages import (
     create_package as api_create_package,
@@ -61,22 +60,19 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
 
 def init_multipart_upload(opts, owner, repo, filepath):
     """
-        Initialize a multipart upload.
-        Returns a tuple of (identifier, upload_url, upload_headers)
+    Initialize a multipart upload.
+    Returns a tuple of (identifier, upload_url, upload_headers)
     """
 
     filename = os.path.basename(filepath)
     resp = requests.post(
         f"{FILES_API_BASE_URL}/{owner}/{repo}/",
-        headers={
-            "X-Api-Key": opts.api_key,
-            'accept': 'application/json'
-        },
+        headers={"X-Api-Key": opts.api_key, "accept": "application/json"},
         json={
             "method": "put_parts",
             "filename": filename,
-            "md5_checksum": utils.calculate_file_md5(filepath)
-        }
+            "md5_checksum": utils.calculate_file_md5(filepath),
+        },
     )
     resp.raise_for_status()
 
@@ -87,10 +83,19 @@ def init_multipart_upload(opts, owner, repo, filepath):
     return identifier, upload_url, upload_headers
 
 
-def do_multipart_upload(opts, owner, repo, filepath, identifier, upload_url, upload_headers, progress_callback):
+def do_multipart_upload(
+    opts,
+    owner,
+    repo,
+    filepath,
+    identifier,
+    upload_url,
+    upload_headers,
+    progress_callback,
+):
     """
-        Upload a file in multiple parts.
-        Returns the identifier of the uploaded file.
+    Upload a file in multiple parts.
+    Returns the identifier of the uploaded file.
     """
     filesize = utils.get_file_size(filepath)
     headers = {"X-Api-Key": opts.api_key}
@@ -108,7 +113,7 @@ def do_multipart_upload(opts, owner, repo, filepath, identifier, upload_url, upl
                 data=chunk,
                 params={
                     "upload_id": upload_headers["Upload-Id"],
-                    "part_number": part_number
+                    "part_number": part_number,
                 },
             )
             resp.raise_for_status()
@@ -121,10 +126,7 @@ def do_multipart_upload(opts, owner, repo, filepath, identifier, upload_url, upl
     resp = requests.post(
         f"{FILES_API_BASE_URL}/{owner}/{repo}/{identifier}/complete/",
         headers=headers,
-        params={
-            "upload_id": upload_headers["Upload-Id"],
-            "complete": "true"
-        },
+        params={"upload_id": upload_headers["Upload-Id"], "complete": "true"},
     )
     resp.raise_for_status()
     identifier = resp.json()["identifier"]
@@ -184,8 +186,19 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
                 def progress_callback(chunksize):
                     pb.update(chunksize)
 
-                identifier, upload_url, upload_headers = init_multipart_upload(opts, owner, repo, filepath)
-                identifier = do_multipart_upload(opts, owner, repo, filepath, identifier, upload_url, upload_headers, progress_callback)
+                identifier, upload_url, upload_headers = init_multipart_upload(
+                    opts, owner, repo, filepath
+                )
+                identifier = do_multipart_upload(
+                    opts,
+                    owner,
+                    repo,
+                    filepath,
+                    identifier,
+                    upload_url,
+                    upload_headers,
+                    progress_callback,
+                )
 
     return identifier
 
@@ -391,7 +404,7 @@ def upload_files_and_create_package(
     wait_interval,
     skip_errors,
     sync_attempts,
-    **kwargs
+    **kwargs,
 ):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
@@ -405,7 +418,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     # 2. Validate file upload parameters
@@ -451,7 +464,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     if no_wait_for_sync:
@@ -607,7 +620,7 @@ def create_push_handlers():
                 option_name,
                 required=info["required"],
                 help=info["help"],
-                **option_kwargs
+                **option_kwargs,
             )
             push_handler = decorator(push_handler)
 
