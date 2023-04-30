@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pinned urllib3 due to it dropping support for py2.
+
 ## [0.37.0] - 2023-03-29
 
 ### Fixed

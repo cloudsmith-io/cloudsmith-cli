@@ -60,6 +60,7 @@ setup(
         "semver>=2.7.9",
         "simplejson>=3.12.0",
         "six>=1.11.0",
+        "urllib3<2.0",
     ],
     entry_points={
         "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
