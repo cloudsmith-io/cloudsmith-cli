@@ -254,7 +254,9 @@ def get_package_formats():
 
         for k, v in six.iteritems(cls.swagger_types):
             attr = getattr(cls, k)
-            docs = [doc.strip() for doc in attr.__doc__.strip().split("\n") if doc.strip()]
+            docs = [
+                doc.strip() for doc in attr.__doc__.strip().split("\n") if doc.strip()
+            ]
             doc = (docs[1] if docs[1] else docs[0]).strip()
 
             try:
