@@ -254,8 +254,8 @@ def get_package_formats():
 
         for k, v in six.iteritems(cls.swagger_types):
             attr = getattr(cls, k)
-            docs = attr.__doc__.strip().split("\n")
-            doc = (docs[2].lstrip() if docs[2] else docs[0]).strip()
+            docs = [doc.lstrip() for  doc in attr.__doc__.strip().split("\n") if doc]
+            doc = (docs[1] if docs[1] else docs[0]).strip()
 
             try:
                 setattr(instance, k, None)
