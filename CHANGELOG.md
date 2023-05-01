@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.37.2] - 2023-05-01
+
+### Fixed
+
+- Updated incorrect push format parameter descriptions.
+
 ## [0.37.1] - 2023-04-30
 
 ### Fixed
