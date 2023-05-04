@@ -12,7 +12,7 @@ from .. import command, decorators
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-PY2_DEPRECATION_WARNING_MSG = "DEPRECATION: Please upgrade your Python as Python 2.7 is no longer maintained. Python 2.7 support will end as of cloudsmith-cli v0.40.0."
+PY2_DEPRECATION_WARNING_MSG = "DEPRECATION: Please upgrade your Python as Python 2.7 is no longer maintained. Python 2.7 support will end as of cloudsmith-cli v1.0.0."
 
 
 def print_version():
