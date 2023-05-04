@@ -32,7 +32,7 @@ class TestMainCommand(object):
         expected = (
             six.PY2
             and (not suppress_warning)
-            and (not (get_version_info() >= parse_version("0.40.0")))
+            and (not (get_version_info() >= parse_version("1.0.0")))
         )
         args = []
         if suppress_warning:
