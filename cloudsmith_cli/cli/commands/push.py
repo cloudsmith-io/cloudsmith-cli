@@ -16,6 +16,8 @@ from ...core.api.files import (
     FILES_API_BASE_URL,
     MULTIPART_CHUNK_SIZE,
     SIMPLE_UPLOAD_MAX_FILE_SIZE,
+    init_multipart_upload,
+    do_multipart_upload,
     request_file_upload,
     upload_file as api_upload_file,
     validate_request_file_upload,
@@ -58,82 +60,6 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     return md5_checksum
 
 
-def init_multipart_upload(opts, owner, repo, filepath):
-    """
-    Initialize a multipart upload.
-    Returns a tuple of (identifier, upload_url, upload_headers)
-    """
-
-    filename = os.path.basename(filepath)
-    resp = requests.post(
-        f"{FILES_API_BASE_URL}/{owner}/{repo}/",
-        headers={"X-Api-Key": opts.api_key, "accept": "application/json"},
-        json={
-            "method": "put_parts",
-            "filename": filename,
-            "md5_checksum": utils.calculate_file_md5(filepath),
-        },
-    )
-    resp.raise_for_status()
-
-    identifier = resp.json()["identifier"]
-    upload_url = resp.json()["upload_url"]
-    upload_headers = resp.json()["upload_headers"]
-
-    return identifier, upload_url, upload_headers
-
-
-def do_multipart_upload(
-    opts,
-    owner,
-    repo,
-    filepath,
-    identifier,
-    upload_url,
-    upload_headers,
-    progress_callback,
-):
-    """
-    Upload a file in multiple parts.
-    Returns the identifier of the uploaded file.
-    """
-    filesize = utils.get_file_size(filepath)
-    headers = {"X-Api-Key": opts.api_key}
-
-    with open(filepath, "rb") as f:
-        offset = 0
-        part_number = 1
-        while offset < filesize:
-            chunk_size = min(filesize, offset + MULTIPART_CHUNK_SIZE) - offset
-            chunk = f.read(chunk_size)
-
-            resp = requests.put(
-                upload_url,
-                headers=headers,
-                data=chunk,
-                params={
-                    "upload_id": upload_headers["Upload-Id"],
-                    "part_number": part_number,
-                },
-            )
-            resp.raise_for_status()
-
-            offset += chunk_size
-            part_number += 1
-
-            progress_callback(chunk_size)
-
-    resp = requests.post(
-        f"{FILES_API_BASE_URL}/{owner}/{repo}/{identifier}/complete/",
-        headers=headers,
-        params={"upload_id": upload_headers["Upload-Id"], "complete": "true"},
-    )
-    resp.raise_for_status()
-    identifier = resp.json()["identifier"]
-
-    return identifier
-
-
 def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     """Upload a package file via the API."""
     filename = click.format_filename(filepath)
@@ -170,7 +96,19 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
             empty_char=click.style("-", fg="red"),
         ) as pb:
             # check file size before upload
-            if filesize < SIMPLE_UPLOAD_MAX_FILE_SIZE:
+            explicit_multi_part = False
+            if ctx.params.get("multi_part"):
+                explicit_multi_part = True
+            
+            multi_part_chunk_size = MULTIPART_CHUNK_SIZE
+            if ctx.params.get("multi_part_chunk"):
+                multi_part_chunk_size = int(ctx.params.get("multi_part_chunk"))
+                multi_part_chunk_size = multi_part_chunk_size * 1024 * 1024  # convert to bytes
+            
+            if all([
+                not explicit_multi_part,
+                filesize < SIMPLE_UPLOAD_MAX_FILE_SIZE
+            ]):
                 # simple upload
                 def progress_callback(monitor):
                     pb.update(monitor.bytes_read)
@@ -182,7 +120,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
                     callback=progress_callback,
                 )
             else:
-                # multipart upload
+                # multi-part upload
                 def progress_callback(chunksize):
                     pb.update(chunksize)
 
@@ -193,11 +131,14 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
                     opts,
                     owner,
                     repo,
-                    filepath,
-                    identifier,
-                    upload_url,
-                    upload_headers,
-                    progress_callback,
+                    **{
+                        'filepath': filepath,
+                        'identifier': identifier,
+                        'upload_url': upload_url,
+                        'upload_headers': upload_headers,
+                        'progress_callback': progress_callback,
+                        'multi_part_chunk_size': multi_part_chunk_size
+                    },
                 )
 
     return identifier
@@ -560,6 +501,20 @@ def create_push_handlers():
             type=ExpandPath(
                 dir_okay=False, exists=True, writable=False, resolve_path=True
             ),
+        )
+        @click.option(
+            "-m",
+            "--multi-part",
+            default=False,
+            is_flag=True,
+            help="Upload the package as a multi-part upload.",
+        )
+        @click.option(
+            "-c",
+            "--multi-part-chunk",
+            default=100,
+            show_default=True,
+            help="In multi-part mode, the chunk size to use in MB. Default: 100MB.",
         )
         @click.option(
             "-n",

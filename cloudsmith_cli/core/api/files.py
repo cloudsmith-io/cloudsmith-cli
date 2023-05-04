@@ -12,7 +12,7 @@ from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from .. import ratelimits
 from ..rest import create_requests_session
-from ..utils import calculate_file_md5
+from ..utils import calculate_file_md5, calculate_file_md5, get_file_size
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
 
@@ -89,3 +89,161 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
         raise ApiException(
             resp.status_code, headers=exc.response.headers, body=exc.response.content
         )
+
+
+def init_multipart_upload(opts, owner, repo, filepath):
+    """
+    Initialize a multipart upload.
+    Returns a tuple of (identifier, upload_url, upload_headers)
+    """
+
+    filename = os.path.basename(filepath)
+    resp = requests.post(
+        f"{FILES_API_BASE_URL}/{owner}/{repo}/",
+        headers={"X-Api-Key": opts.api_key, "accept": "application/json"},
+        json={
+            "method": "put_parts",
+            "filename": filename,
+            "md5_checksum": calculate_file_md5(filepath),
+        },
+    )
+    resp.raise_for_status()
+
+    identifier = resp.json()["identifier"]
+    upload_url = resp.json()["upload_url"]
+    upload_headers = resp.json()["upload_headers"]
+
+    return identifier, upload_url, upload_headers
+
+
+def do_multipart_upload(
+    opts,
+    owner,
+    repo,
+    **kwargs,
+):
+    """
+    Upload a file in multiple parts.
+    Returns the identifier of the uploaded file.
+    """
+    filepath = kwargs["filepath"]
+    identifier = kwargs["identifier"]
+    upload_url = kwargs["upload_url"]
+    upload_headers = kwargs["upload_headers"]
+    progress_callback = kwargs["progress_callback"]
+    
+    filesize = get_file_size(filepath)
+    headers = {"X-Api-Key": opts.api_key}
+
+    with open(filepath, "rb") as f:
+        offset = 0
+        part_number = 1
+        while offset < filesize:
+            chunk_size = min(filesize, offset + MULTIPART_CHUNK_SIZE) - offset
+            chunk = f.read(chunk_size)
+
+            resp = requests.put(
+                upload_url,
+                headers=headers,
+                data=chunk,
+                params={
+                    "upload_id": upload_headers["Upload-Id"],
+                    "part_number": part_number,
+                },
+            )
+            resp.raise_for_status()
+
+            offset += chunk_size
+            part_number += 1
+
+            progress_callback(chunk_size)
+
+    resp = requests.post(
+        f"{FILES_API_BASE_URL}/{owner}/{repo}/{identifier}/complete/",
+        headers=headers,
+        params={"upload_id": upload_headers["Upload-Id"], "complete": "true"},
+    )
+    resp.raise_for_status()
+    identifier = resp.json()["identifier"]
+
+    return identifier
+
+
+def init_multipart_upload(opts, owner, repo, filepath):
+    """
+    Initialize a multipart upload.
+    Returns a tuple of (identifier, upload_url, upload_headers)
+    """
+
+    filename = os.path.basename(filepath)
+    resp = requests.post(
+        f"{FILES_API_BASE_URL}/{owner}/{repo}/",
+        headers={"X-Api-Key": opts.api_key, "accept": "application/json"},
+        json={
+            "method": "put_parts",
+            "filename": filename,
+            "md5_checksum": calculate_file_md5(filepath),
+        },
+    )
+    resp.raise_for_status()
+
+    identifier = resp.json()["identifier"]
+    upload_url = resp.json()["upload_url"]
+    upload_headers = resp.json()["upload_headers"]
+
+    return identifier, upload_url, upload_headers
+
+
+def do_multipart_upload(
+    opts,
+    owner,
+    repo,
+    **kwargs,
+):
+    """
+    Upload a file in multiple parts.
+    Returns the identifier of the uploaded file.
+    """
+    filepath = kwargs["filepath"]
+    identifier = kwargs["identifier"]
+    upload_url = kwargs["upload_url"]
+    upload_headers = kwargs["upload_headers"]
+    progress_callback = kwargs["progress_callback"]
+    multi_part_chunk_size = kwargs["multi_part_chunk_size"]
+    
+    filesize = get_file_size(filepath)
+    headers = {"X-Api-Key": opts.api_key}
+
+    with open(filepath, "rb") as f:
+        offset = 0
+        part_number = 1
+        while offset < filesize:
+            chunk_size = min(filesize, offset + multi_part_chunk_size) - offset
+            chunk = f.read(chunk_size)
+
+            resp = requests.put(
+                upload_url,
+                headers=headers,
+                data=chunk,
+                params={
+                    "upload_id": upload_headers["Upload-Id"],
+                    "part_number": part_number,
+                },
+            )
+            resp.raise_for_status()
+
+            offset += chunk_size
+            part_number += 1
+
+            progress_callback(chunk_size)
+
+    resp = requests.post(
+        f"{FILES_API_BASE_URL}/{owner}/{repo}/{identifier}/complete/",
+        headers=headers,
+        params={"upload_id": upload_headers["Upload-Id"], "complete": "true"},
+    )
+    resp.raise_for_status()
+    identifier = resp.json()["identifier"]
+
+    return identifier
+
