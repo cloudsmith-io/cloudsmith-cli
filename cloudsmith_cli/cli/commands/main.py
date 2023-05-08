@@ -3,6 +3,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import click
+import six
 
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
@@ -10,6 +11,8 @@ from ...core.version import get_version as get_cli_version
 from .. import command, decorators
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+
+PY2_DEPRECATION_WARNING_MSG = "DEPRECATION: Please upgrade your Python as Python 2.7 is no longer maintained. Python 2.7 support will end as of cloudsmith-cli v1.0.0."
 
 
 def print_version():
@@ -53,11 +56,21 @@ For issues/contributing: %(github_website)s
     is_flag=True,
     is_eager=True,
 )
+@click.option(
+    "--no-python-version-warning",
+    is_flag=True,
+    help="Silence deprecation warnings for upcoming unsupported Pythons.",
+)
 @decorators.common_cli_config_options
 @click.pass_context
-def main(ctx, opts, version):
+def main(ctx, opts, version, no_python_version_warning):
     """Handle entrypoint to CLI."""
     # pylint: disable=unused-argument
+
+    if not no_python_version_warning:
+        if six.PY2:
+            click.echo(click.style(PY2_DEPRECATION_WARNING_MSG, fg="yellow"))
+
     if version:
         print_version()
     elif ctx.invoked_subcommand is None:
