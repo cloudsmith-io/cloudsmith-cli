@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.38.0] - 2023-05-08
+
+### Added
+
+- Added deprecation warning to output for Python 2. ([#106](https://github.com/cloudsmith-io/cloudsmith-cli/pull/106))
+
 ## [0.37.2] - 2023-05-01
 
 ### Fixed
