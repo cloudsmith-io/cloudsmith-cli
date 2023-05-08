@@ -34,3 +34,6 @@ reports/
 
 # Pytest
 .pytest_cache
+
+# Jetbrains IDEs
+.idea
