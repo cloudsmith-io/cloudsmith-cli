@@ -2,7 +2,8 @@
 import pytest
 import six
 
-from ....core.version import get_version_info, parse_version
+from ....core.api.version import get_version as get_api_version
+from ....core.version import get_version, get_version_info, parse_version
 from ...commands.main import PY2_DEPRECATION_WARNING_MSG, main
 
 
@@ -14,8 +15,8 @@ class TestMainCommand(object):
         assert result.exit_code == 0
         assert (
             result.output == "Versions:\n"
-            "CLI Package Version: 0.37.2\n"
-            "API Package Version: 2.0.0\n"
+            "CLI Package Version: " + get_version() + "\n"
+            "API Package Version: " + get_api_version() + "\n"
         )
 
     @pytest.mark.parametrize("option", ["-h", "--help"])
