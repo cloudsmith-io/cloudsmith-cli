@@ -69,7 +69,7 @@ def main(ctx, opts, version, no_python_version_warning):
 
     if not no_python_version_warning:
         if six.PY2:
-            click.echo(click.style(PY2_DEPRECATION_WARNING_MSG, fg="yellow"))
+            click.echo(click.style(PY2_DEPRECATION_WARNING_MSG, fg="yellow"), err=True)
 
     if version:
         print_version()

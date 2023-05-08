@@ -41,4 +41,13 @@ class TestMainCommand(object):
 
         result = runner.invoke(main, args=args)
 
-        assert (PY2_DEPRECATION_WARNING_MSG in result.output) is expected
+        # Click raises ValueError when result.stderr is accessed
+        # and result.stderr_bytes hasn't been set.
+        # This assertion can be simplified when we upgrade click.
+        # https://github.com/pallets/click/pull/1194
+        if expected:
+            assert PY2_DEPRECATION_WARNING_MSG in result.stderr
+        else:
+            assert not result.stderr_bytes
+
+        assert PY2_DEPRECATION_WARNING_MSG not in result.stdout
