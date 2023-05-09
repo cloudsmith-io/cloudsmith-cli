@@ -13,6 +13,7 @@ from . import list_  # noqa
 from . import login  # noqa
 from . import metrics  # noqa
 from . import move  # noqa
+from . import policy  # noqa
 from . import push  # noqa
 from . import quarantine  # noqa
 from . import quota  # noqa
