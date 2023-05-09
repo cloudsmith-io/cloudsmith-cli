@@ -38,7 +38,7 @@ repos:
         cloudsmith/.*/tests/forms\.py|
         cloudsmith/.*/tests/models\.py|
         cloudsmith/.*/tests/mixins\.py|
-        cloudsmith/.*/tests/utils\.py|
+        cloudsmith_cli/.*/tests/utils\.py|
         cloudsmith/.*/tests/views\.py
       )$
   - id: flake8

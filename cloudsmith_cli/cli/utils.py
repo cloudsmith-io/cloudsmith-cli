@@ -58,6 +58,20 @@ def pretty_print_list_info(num_results, page_info=None, suffix=None):
     )
 
 
+def fmt_datetime(value):
+    """Convert a datetime value to string."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat().replace("+00:00", "Z")
+    return value
+
+
+def fmt_bool(value):
+    """Convert a boolean value to string."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    return value
+
+
 def pretty_print_table(headers, rows, title=None):
     """Pretty print a table from headers and rows."""
     table = make_table(headers=headers, rows=rows)
@@ -106,7 +120,7 @@ def json_serializer(obj):
 
     # convert date/datetime objects to strings
     if isinstance(obj, (datetime, date)):
-        return obj.isoformat().replace("+00:00", "Z")
+        return fmt_datetime(obj)
     raise TypeError("Type %s not serializable." % type(obj))
 
 

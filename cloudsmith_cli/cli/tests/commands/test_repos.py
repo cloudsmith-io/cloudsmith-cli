@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 import json
-from uuid import uuid4
 
 import pytest
 import six
 
 from ...commands.repos import create, delete, get, update
-
-
-def random_str():
-    """Return a random string."""
-    return "cli-test-" + str(uuid4())
+from ..utils import random_str
 
 
 def create_repo_config_file(directory, name, description, repository_type_str, slug):

@@ -10,7 +10,7 @@ import click
 from ...core.api import entitlements as api
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner
+from ..utils import fmt_datetime, maybe_spinner
 from .main import main
 
 
@@ -132,16 +132,8 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
 
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
-        ent_updated_at = (
-            entitlement["updated_at"].isoformat().replace("+00:00", "Z")
-            if entitlement["updated_at"]
-            else None
-        )
-        ent_created_at = (
-            entitlement["created_at"].isoformat().replace("+00:00", "Z")
-            if entitlement["created_at"]
-            else None
-        )
+        ent_updated_at = fmt_datetime(entitlement["updated_at"])
+        ent_created_at = fmt_datetime(entitlement["created_at"])
 
         rows.append(
             [
@@ -201,16 +193,8 @@ def print_entitlements_with_restrictions(
 
         name = entitlement.get("name", "")
         user = entitlement.get("user", "")
-        updated_at = (
-            entitlement.get("updated_at").isoformat().replace("+00:00", "Z")
-            if entitlement["updated_at"]
-            else ""
-        )
-        created_at = (
-            entitlement.get("created_at").isoformat().replace("+00:00", "Z")
-            if entitlement["created_at"]
-            else ""
-        )
+        updated_at = fmt_datetime(entitlement.get("updated_at", ""))
+        created_at = fmt_datetime(entitlement.get("created_at", ""))
         is_active = entitlement.get("is_active", "")
         is_limited = entitlement.get("is_limited", "")
 
@@ -219,16 +203,10 @@ def print_entitlements_with_restrictions(
         limit_bandwidth_unit = entitlement.get("limit_bandwidth_unit", "")
         limit_num_clients = entitlement.get("limit_num_clients", "")
         limit_num_downloads = entitlement.get("limit_num_downloads", "")
-        limit_date_range_from = (
-            entitlement.get("limit_date_range_from").isoformat().replace("+00:00", "Z")
-            if entitlement["limit_date_range_from"]
-            else ""
+        limit_date_range_from = fmt_datetime(
+            entitlement.get("limit_date_range_from", "")
         )
-        limit_date_range_to = (
-            entitlement.get("limit_date_range_to").isoformat().replace("+00:00", "Z")
-            if entitlement["limit_date_range_to"]
-            else ""
-        )
+        limit_date_range_to = fmt_datetime(entitlement.get("limit_date_range_to", ""))
         limit_package_query = entitlement.get("limit_package_query", "")
         limit_path_query = entitlement.get("limit_path_query", "")
 

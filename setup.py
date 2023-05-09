@@ -52,7 +52,7 @@ setup(
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
-        "cloudsmith-api>=2.0.0,<3.0",  # Compatible upto (but excluding) 3.0+
+        "cloudsmith-api>=2.0.2,<3.0",  # Compatible upto (but excluding) 3.0+
         "colorama>=0.3.9",
         "future>=0.16.0",
         "requests>=2.18.4",
