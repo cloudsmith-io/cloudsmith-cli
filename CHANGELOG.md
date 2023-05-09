@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.39.0] - 2023-05-09
+
+### Added
+
+- Added support for vulnerability policy management ([#111](https://github.com/cloudsmith-io/cloudsmith-cli/pull/111))
+
 ## [0.38.1] - 2023-05-08
 
 ### Fixed
