@@ -20,11 +20,11 @@ def print_licence_policies(policies):
     headers = [
         "Name",
         "Description",
-        "Allow Unknown licences",
+        "Allow Unknown Licences",
         "Quarantine On Violation",
         "SPDX Identifiers",
-        "Created At",
-        "Updated At",
+        "Created",
+        "Updated",
         "Identifier",
     ]
 
@@ -33,7 +33,7 @@ def print_licence_policies(policies):
             click.style(policy["name"], fg="cyan"),
             click.style(policy["description"], fg="yellow"),
             click.style(fmt_bool(policy["allow_unknown_licenses"]), fg="yellow"),
-            click.style(six.text_type(policy["on_violation_quarantine"]), fg="blue"),
+            click.style(fmt_bool(policy["on_violation_quarantine"]), fg="yellow"),
             click.style(six.text_type(policy["spdx_identifiers"]), fg="blue"),
             click.style(fmt_datetime(policy["created_at"]), fg="blue"),
             click.style(fmt_datetime(policy["updated_at"]), fg="blue"),
@@ -163,6 +163,11 @@ def create(ctx, opts, owner, policy_config_file):
             param="spdx_identifiers",
         )
 
+    if len(spdx_identifiers) > len(set(spdx_identifiers)):
+        raise click.BadParameter(
+            "SPDX Identifiers must be unique.", param="spdx_identifiers"
+        )
+
     click.secho(
         "Creating %(name)s licence policy for the %(owner)s namespace ..."
         % {
@@ -172,6 +177,12 @@ def create(ctx, opts, owner, policy_config_file):
         nl=False,
         err=use_stderr,
     )
+
+    # Convert `allow_unknown_licences` to `allow_unknown_licenses` (avoiding license keyword)
+    if "allow_unknown_licences" in policy_config:
+        policy_config["allow_unknown_licenses"] = policy_config.pop(
+            "allow_unknown_licences"
+        )
 
     context_msg = "Failed to create the licence policy!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
@@ -240,6 +251,18 @@ def update(ctx, opts, owner, identifier, policy_config_file):
         nl=False,
         err=use_stderr,
     )
+
+    spdx_identifiers = policy_config.get("spdx_identifiers", None)
+    if len(spdx_identifiers) > len(set(spdx_identifiers)):
+        raise click.BadParameter(
+            "SPDX Identifiers must be unique.", param="spdx_identifiers"
+        )
+
+    # Convert `allow_unknown_licences` to `allow_unknown_licenses` (avoiding license keyword)
+    if "allow_unknown_licences" in policy_config:
+        policy_config["allow_unknown_licenses"] = policy_config.pop(
+            "allow_unknown_licences"
+        )
 
     context_msg = "Failed to update the licence policy!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):

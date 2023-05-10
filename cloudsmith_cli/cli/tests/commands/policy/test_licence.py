@@ -23,7 +23,7 @@ def create_licence_policy_config_file(
         "description": description,
         "spdx_identifiers": list(spdx_identifiers),
         "allow_unknown_licences": allow_unknown_licences,
-        "quarantine_on_violation": on_violation_quarantine,
+        "on_violation_quarantine": on_violation_quarantine,
     }
 
     file_path = directory / "LICENCE-POLICY-CONFIG.json"
@@ -58,7 +58,7 @@ def parse_table_from_output(output):
         raise Exception("Table not found in output!")
 
     if not row:
-        raise Exception("No license policies found - expected 1.")
+        raise Exception("No licence policies found - expected 1.")
 
     return dict(zip(headers, row))
 
@@ -79,7 +79,7 @@ def assert_output_matches_policy_config(output, config_file_path):
     )
     assert (
         output_table["Quarantine On Violation"]
-        == str(config["quarantine_on_violation"]).lower()
+        == str(config["on_violation_quarantine"]).lower()
     )
 
     # We just require non-configurable values to be truthy
