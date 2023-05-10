@@ -72,7 +72,7 @@ def assert_output_matches_policy_config(output, config_file_path):
     # Assert that configurable values are set correctly
     assert output_table["Name"] == config["name"]
     assert output_table["Description"] == config["description"]
-    assert output_table["SPDX Identifiers"] == config["spdx_identifiers"]
+    assert output_table["SPDX Identifiers"] == str(config["spdx_identifiers"])
     assert (
         output_table["Allow Unknown Licences"]
         == str(config["allow_unknown_licences"]).lower()
