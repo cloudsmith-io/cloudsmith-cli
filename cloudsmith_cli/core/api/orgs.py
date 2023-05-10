@@ -67,8 +67,8 @@ def delete_vulnerability_policy(owner, slug_perm):
     ratelimits.maybe_rate_limit(client, headers)
 
 
-def list_license_policies(owner, page, page_size):
-    """List license policies in a namespace."""
+def list_licence_policies(owner, page, page_size):
+    """List licence policies in a namespace."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
@@ -81,8 +81,8 @@ def list_license_policies(owner, page, page_size):
     return [policy.to_dict() for policy in policies], page_info
 
 
-def create_license_policy(owner, policy_config):
-    """Create a license policy in a namespace."""
+def create_licence_policy(owner, policy_config):
+    """Create a licence policy in a namespace."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
@@ -94,8 +94,8 @@ def create_license_policy(owner, policy_config):
     return policy.to_dict()
 
 
-def update_license_policy(owner, slug_perm, policy_config):
-    """Update a license policy in a namespace."""
+def update_licence_policy(owner, slug_perm, policy_config):
+    """Update a licence policy in a namespace."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
@@ -107,8 +107,8 @@ def update_license_policy(owner, slug_perm, policy_config):
     return policy.to_dict()
 
 
-def delete_license_policy(owner, slug_perm):
-    """Delete a license policy from a namespace."""
+def delete_licence_policy(owner, slug_perm):
+    """Delete a licence policy from a namespace."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
