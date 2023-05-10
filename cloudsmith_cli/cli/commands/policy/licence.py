@@ -252,7 +252,7 @@ def update(ctx, opts, owner, identifier, policy_config_file):
         err=use_stderr,
     )
 
-    spdx_identifiers = policy_config.get("spdx_identifiers", None)
+    spdx_identifiers = policy_config.get("spdx_identifiers", [])
     if len(spdx_identifiers) > len(set(spdx_identifiers)):
         raise click.BadParameter(
             "SPDX Identifiers must be unique.", param="spdx_identifiers"

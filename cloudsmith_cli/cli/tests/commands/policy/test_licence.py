@@ -95,7 +95,7 @@ def assert_output_matches_policy_config(output, config_file_path):
 def test_licence_policy_commands(runner, organization, tmp_path):
     """Test CRUD operations for licence policies."""
 
-    # Generate the vulnerability policy configuration file.
+    # Generate the licence policy configuration file.
     policy_name = random_str()
 
     policy_config_file_path = create_licence_policy_config_file(
