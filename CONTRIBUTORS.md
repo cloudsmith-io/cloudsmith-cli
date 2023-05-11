@@ -21,3 +21,4 @@ We'd also like to say thank you to the following people (in alphabetical order),
 - Michal Nowak ([@Mno-hime](https://github.com/Mno-hime))
 - Rob Madole ([@robmadole](https://github.com/robmadole))
 - Sean Allen ([@SeanTAllen](https://github.com/SeanTAllen))
+- Jesse Rhoads ([@JesseRhoads-PD](https://github.com/JesseRhoads-PD))
