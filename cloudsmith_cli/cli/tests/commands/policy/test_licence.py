@@ -26,7 +26,7 @@ def create_license_policy_config_file(
         "on_violation_quarantine": on_violation_quarantine,
     }
 
-    file_path = directory / "License-POLICY-CONFIG.json"
+    file_path = directory / "LICENSE-POLICY-CONFIG.json"
     file_path.write_text(six.text_type(json.dumps(data)))
     return file_path
 
@@ -133,7 +133,7 @@ def test_license_policy_commands(runner, organization, tmp_path):
     # Change the values in the config file
     policy_config_file_path = create_license_policy_config_file(
         directory=tmp_path,
-        name=policy_name,
+        name=random_str(),
         description=random_str(),
         allow_unknown_licenses=random_bool(),
         on_violation_quarantine=random_bool(),

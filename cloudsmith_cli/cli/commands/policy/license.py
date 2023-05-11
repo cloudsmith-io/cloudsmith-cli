@@ -163,11 +163,6 @@ def create(ctx, opts, owner, policy_config_file):
             param="spdx_identifiers",
         )
 
-    if len(spdx_identifiers) > len(set(spdx_identifiers)):
-        raise click.BadParameter(
-            "SPDX Identifiers must be unique.", param="spdx_identifiers"
-        )
-
     click.secho(
         "Creating %(name)s license policy for the %(owner)s namespace ..."
         % {
@@ -245,12 +240,6 @@ def update(ctx, opts, owner, identifier, policy_config_file):
         nl=False,
         err=use_stderr,
     )
-
-    spdx_identifiers = policy_config.get("spdx_identifiers", [])
-    if len(spdx_identifiers) > len(set(spdx_identifiers)):
-        raise click.BadParameter(
-            "SPDX Identifiers must be unique.", param="spdx_identifiers"
-        )
 
     context_msg = "Failed to update the license policy!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
