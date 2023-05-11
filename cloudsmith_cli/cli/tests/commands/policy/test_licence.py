@@ -4,35 +4,35 @@ import json
 import pytest
 import six
 
-from ....commands.policy.licence import create, delete, ls, update
+from ....commands.policy.license import create, delete, ls, update
 from ...utils import random_bool, random_str
 
 
-def create_licence_policy_config_file(
+def create_license_policy_config_file(
     directory,
     name,
     description,
-    allow_unknown_licences,
+    allow_unknown_licenses,
     spdx_identifiers,
     on_violation_quarantine,
 ):
-    """Create a licence policy config file in `directory` and return its path."""
+    """Create a license policy config file in `directory` and return its path."""
 
     data = {
         "name": name,
         "description": description,
         "spdx_identifiers": list(spdx_identifiers),
-        "allow_unknown_licences": allow_unknown_licences,
+        "allow_unknown_licenses": allow_unknown_licenses,
         "on_violation_quarantine": on_violation_quarantine,
     }
 
-    file_path = directory / "LICENCE-POLICY-CONFIG.json"
+    file_path = directory / "License-POLICY-CONFIG.json"
     file_path.write_text(six.text_type(json.dumps(data)))
     return file_path
 
 
 def parse_table_from_output(output):
-    """Return a dict of licence policy properties parsed from tabular cli output.
+    """Return a dict of license policy properties parsed from tabular cli output.
 
     Note that this excludes any policies whose name doesn't start with the 'cli-test-'
     prefix, in an effort to not interfere too much with the environment in which we are
@@ -51,14 +51,14 @@ def parse_table_from_output(output):
             headers = [header.strip() for header in line.split(separator)]
         elif line.startswith("cli-test-"):
             if row:
-                raise Exception("Multiple licence policies detected - expected 1.")
+                raise Exception("Multiple license policies detected - expected 1.")
             row = [val.strip() for val in line.split(separator)]
 
     if not headers:
         raise Exception("Table not found in output!")
 
     if not row:
-        raise Exception("No licence policies found - expected 1.")
+        raise Exception("No license policies found - expected 1.")
 
     return dict(zip(headers, row))
 
@@ -74,8 +74,8 @@ def assert_output_matches_policy_config(output, config_file_path):
     assert output_table["Description"] == config["description"]
     assert output_table["SPDX Identifiers"] == str(config["spdx_identifiers"])
     assert (
-        output_table["Allow Unknown Licences"]
-        == str(config["allow_unknown_licences"]).lower()
+        output_table["Allow Unknown Licenses"]
+        == str(config["allow_unknown_licenses"]).lower()
     )
     assert (
         output_table["Quarantine On Violation"]
@@ -92,50 +92,50 @@ def assert_output_matches_policy_config(output, config_file_path):
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
-def test_licence_policy_commands(runner, organization, tmp_path):
-    """Test CRUD operations for licence policies."""
+def test_license_policy_commands(runner, organization, tmp_path):
+    """Test CRUD operations for license policies."""
 
-    # Generate the licence policy configuration file.
+    # Generate the license policy configuration file.
     policy_name = random_str()
 
-    policy_config_file_path = create_licence_policy_config_file(
+    policy_config_file_path = create_license_policy_config_file(
         directory=tmp_path,
         name=policy_name,
         description=random_str(),
-        allow_unknown_licences=random_bool(),
+        allow_unknown_licenses=random_bool(),
         on_violation_quarantine=random_bool(),
         spdx_identifiers=["Apache-2.0"],
     )
 
-    # Create the licence policy
+    # Create the license policy
     result = runner.invoke(
         create,
         args=[organization, str(policy_config_file_path)],
         catch_exceptions=False,
     )
     assert (
-        "Creating " + policy_name + " licence policy for the cloudsmith namespace ...OK"
+        "Creating " + policy_name + " license policy for the cloudsmith namespace ...OK"
         in result.output
     )
-    assert "Results: 1 licence policy" in result.output
+    assert "Results: 1 license policy" in result.output
     slug_perm = assert_output_matches_policy_config(
         result.output, policy_config_file_path
     )
 
     # Use the cli to get the policy
     result = runner.invoke(ls, args=[organization], catch_exceptions=False)
-    assert "Getting licence policies ... OK" in result.output
+    assert "Getting license policies ... OK" in result.output
     # Ignoring the exact number of results and pluralization of the word "policy"
     # here, because we may be in a system with pre-existing policies.
     assert "Results:" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
 
     # Change the values in the config file
-    policy_config_file_path = create_licence_policy_config_file(
+    policy_config_file_path = create_license_policy_config_file(
         directory=tmp_path,
         name=policy_name,
         description=random_str(),
-        allow_unknown_licences=random_bool(),
+        allow_unknown_licenses=random_bool(),
         on_violation_quarantine=random_bool(),
         spdx_identifiers=["Apache-1.0"],
     )
@@ -147,10 +147,10 @@ def test_licence_policy_commands(runner, organization, tmp_path):
         catch_exceptions=False,
     )
     assert (
-        "Updating " + slug_perm + " licence policy in the cloudsmith namespace ...OK"
+        "Updating " + slug_perm + " license policy in the cloudsmith namespace ...OK"
         in result.output
     )
-    assert "Results: 1 licence policy" in result.output
+    assert "Results: 1 license policy" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
 
     # Check that delete prompts for confirmation
@@ -160,7 +160,7 @@ def test_licence_policy_commands(runner, organization, tmp_path):
     assert (
         "Are you absolutely certain you want to delete the "
         + slug_perm
-        + " licence policy from the cloudsmith namespace? [y/N]: N"
+        + " license policy from the cloudsmith namespace? [y/N]: N"
         in result.output
     )
     assert "OK, phew! Close call. :-)" in result.output
@@ -172,7 +172,7 @@ def test_licence_policy_commands(runner, organization, tmp_path):
     assert (
         "Are you absolutely certain you want to delete the "
         + slug_perm
-        + " licence policy from the cloudsmith namespace? [y/N]: Y"
+        + " license policy from the cloudsmith namespace? [y/N]: Y"
         in result.output
     )
     assert (
