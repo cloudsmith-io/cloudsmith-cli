@@ -25,17 +25,24 @@ def whoami(ctx, opts):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             is_auth, username, email, name = get_user_brief()
-
     click.secho("OK", fg="green")
     click.echo("You are authenticated as:")
     if not is_auth:
         click.secho("Nobody (i.e. anonymous user)", fg="yellow")
     else:
         click.secho(
-            "%(name)s (slug: %(username)s, email: %(email)s)"
+            "%(name)s (slug: %(username)s"
             % {
                 "name": click.style(name, fg="cyan"),
                 "username": click.style(username, fg="magenta"),
-                "email": click.style(email, fg="green"),
-            }
+            },
+            nl=False,
         )
+
+        if email:
+            click.secho(
+                ", email: %(email)s" % {"email": click.style(email, fg="green")},
+                nl=False,
+            )
+
+        click.echo(")")
