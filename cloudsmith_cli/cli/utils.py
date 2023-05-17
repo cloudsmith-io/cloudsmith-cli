@@ -163,6 +163,20 @@ def maybe_print_as_json(opts, data, page_info=None):
     return True
 
 
+def maybe_truncate_string(data: str, max_len=50):
+    """Maybe truncate a string"""
+    if data is not None and len(data) > max_len:
+        return data[: max_len - 3] + "..."
+    return data
+
+
+def maybe_truncate_list(data: list, max_len=5):
+    """Maybe truncate list"""
+    if data is not None and len(data) > max_len:
+        return data[:max_len] + ["..."]
+    return data
+
+
 def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     """Prompt the user for confirmation for dangerous actions."""
     if assume_yes:

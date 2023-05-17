@@ -10,7 +10,13 @@ import six
 from ....core.api import orgs as api
 from ... import command, decorators, utils, validators
 from ...exceptions import handle_api_exceptions
-from ...utils import fmt_bool, fmt_datetime, maybe_spinner
+from ...utils import (
+    fmt_bool,
+    fmt_datetime,
+    maybe_spinner,
+    maybe_truncate_list,
+    maybe_truncate_string,
+)
 from .command import policy
 
 
@@ -35,8 +41,14 @@ def print_license_policies(policies):
             click.style(policy["description"], fg="yellow"),
             click.style(fmt_bool(policy["allow_unknown_licenses"]), fg="yellow"),
             click.style(fmt_bool(policy["on_violation_quarantine"]), fg="yellow"),
-            click.style(six.text_type(policy["package_query_string"]), fg="yellow"),
-            click.style(six.text_type(policy["spdx_identifiers"]), fg="blue"),
+            click.style(
+                six.text_type(maybe_truncate_string(policy["package_query_string"])),
+                fg="yellow",
+            ),
+            click.style(
+                six.text_type(maybe_truncate_list(policy["spdx_identifiers"])),
+                fg="blue",
+            ),
             click.style(fmt_datetime(policy["created_at"]), fg="blue"),
             click.style(fmt_datetime(policy["updated_at"]), fg="blue"),
             click.style(policy["slug_perm"], fg="green"),
