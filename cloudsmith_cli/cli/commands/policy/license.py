@@ -22,6 +22,7 @@ def print_license_policies(policies):
         "Description",
         "Allow Unknown Licenses",
         "Quarantine On Violation",
+        "Package Query",
         "SPDX Identifiers",
         "Created",
         "Updated",
@@ -34,6 +35,7 @@ def print_license_policies(policies):
             click.style(policy["description"], fg="yellow"),
             click.style(fmt_bool(policy["allow_unknown_licenses"]), fg="yellow"),
             click.style(fmt_bool(policy["on_violation_quarantine"]), fg="yellow"),
+            click.style(six.text_type(policy["package_query_string"]), fg="yellow"),
             click.style(six.text_type(policy["spdx_identifiers"]), fg="blue"),
             click.style(fmt_datetime(policy["created_at"]), fg="blue"),
             click.style(fmt_datetime(policy["updated_at"]), fg="blue"),
@@ -138,6 +140,7 @@ def create(ctx, opts, owner, policy_config_file):
           "name": "your-license-policy",
           "description": "your license policy description",
           "spdx_identifiers" : ["your_licenses"],
+          "package_query_string" : "format:python AND downloads:>50",
           "allow_unknown_licenses": false,
           "quarantine_on_violation": true
         }
@@ -218,6 +221,7 @@ def update(ctx, opts, owner, identifier, policy_config_file):
           "name": "your-license-policy",
           "description": "your license policy description",
           "spdx_identifiers" : ["your_licenses"],
+          "package_query_string" : "format:python AND downloads:>50",
           "allow_unknown_licenses": false,
           "quarantine_on_violation": true
         }
