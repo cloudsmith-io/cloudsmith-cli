@@ -83,6 +83,7 @@ def assert_output_matches_policy_config(output, config_file_path):
         output_table["Quarantine On Violation"]
         == str(config["on_violation_quarantine"]).lower()
     )
+    assert output_table["Package Query"] == str(config["package_query_string"])
 
     # We just require non-configurable values to be truthy
     assert output_table["Created"]
