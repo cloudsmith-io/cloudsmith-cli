@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.40.0] - 2023-05-11
+
+### Added
+
+- Added support for `package_query_string` to license and vulnerability policy management ([#118](https://github.com/cloudsmith-io/cloudsmith-cli/pull/118))
+
+
 ## [0.40.1] - 2023-05-11
 
 ### Fixed
