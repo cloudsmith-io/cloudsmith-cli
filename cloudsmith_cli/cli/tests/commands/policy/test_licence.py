@@ -13,6 +13,7 @@ def create_license_policy_config_file(
     name,
     description,
     allow_unknown_licenses,
+    package_query_string,
     spdx_identifiers,
     on_violation_quarantine,
 ):
@@ -23,6 +24,7 @@ def create_license_policy_config_file(
         "description": description,
         "spdx_identifiers": list(spdx_identifiers),
         "allow_unknown_licenses": allow_unknown_licenses,
+        "package_query_string": package_query_string,
         "on_violation_quarantine": on_violation_quarantine,
     }
 
@@ -81,6 +83,7 @@ def assert_output_matches_policy_config(output, config_file_path):
         output_table["Quarantine On Violation"]
         == str(config["on_violation_quarantine"]).lower()
     )
+    assert output_table["Package Query"] == str(config["package_query_string"])
 
     # We just require non-configurable values to be truthy
     assert output_table["Created"]
@@ -104,6 +107,7 @@ def test_license_policy_commands(runner, organization, tmp_path):
         description=random_str(),
         allow_unknown_licenses=random_bool(),
         on_violation_quarantine=random_bool(),
+        package_query_string="format:python AND downloads:>50",
         spdx_identifiers=["Apache-2.0"],
     )
 
@@ -137,6 +141,7 @@ def test_license_policy_commands(runner, organization, tmp_path):
         description=random_str(),
         allow_unknown_licenses=random_bool(),
         on_violation_quarantine=random_bool(),
+        package_query_string="format:go AND downloads:>15",
         spdx_identifiers=["Apache-1.0"],
     )
 
