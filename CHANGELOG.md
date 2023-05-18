@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+
+
+## [0.41.1] - 2023-05-18
+
+### Fixed
+
+- Removed type annotations from `maybe_truncate_list` and `maybe_truncate_string` to fix python 2.7 support ([#120](https://github.com/cloudsmith-io/cloudsmith-cli/pull/120))
+
+
+
+
 ## [0.41.0] - 2023-05-18
 
 ### Added
