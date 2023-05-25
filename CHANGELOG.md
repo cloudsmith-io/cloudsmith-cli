@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.42.0] - 2023-05-25
 
+### Added
+
+- Added `--ivy-file` support for maven upload ([#125](https://github.com/cloudsmith-io/cloudsmith-cli/pull/125))
 
 ## [0.41.1] - 2023-05-18
 
@@ -17,15 +21,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Removed type annotations from `maybe_truncate_list` and `maybe_truncate_string` to fix python 2.7 support ([#120](https://github.com/cloudsmith-io/cloudsmith-cli/pull/120))
 
-
-
-
 ## [0.41.0] - 2023-05-18
 
 ### Added
 
 - Added support for `package_query_string` to license and vulnerability policy management ([#118](https://github.com/cloudsmith-io/cloudsmith-cli/pull/118))
-
 
 ## [0.40.1] - 2023-05-11
 
