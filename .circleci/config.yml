@@ -7,7 +7,7 @@ version: 2.1
 jobs:
   publish:
     docker:
-      - image: circleci/python:3.9
+      - image: cimg/python:3.9
     parameters:
       registry_url:
         description: Registry URL to upload the CLI to
