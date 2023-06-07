@@ -141,8 +141,6 @@ pyflakes==2.1.1
     # via
     #   -r lint.in
     #   flake8
-pygraphviz==1.5
-    # via -r test.in
 pylint-django==0.11.1
     # via -r lint.py2.in
 pylint-plugin-utils==0.5

@@ -45,20 +45,32 @@ orbs:
             description: Should the job collect test results and coverage?
             type: boolean
             default: false
-        executor: cloudsmith_executor
+          version:
+            description: "Python version"
+            type: string
+            default: "3.6"
+          requirements_file:
+            description: The requirements.txt to use
+            type: string
+            default: "requirements/development.py3.txt"
+        executor:
+          name: cloudsmith_executor
+          version: <<parameters.version>>
         working_directory: ~/repo
         steps:
           - checkout
           - restore_cache:
               keys:
-                - v1-dependencies-{{ checksum "requirements/development.py3.txt" }}
+                - v1-dependencies-<<parameters.version>>-{{ checksum "requirements/development.py3.txt" }}
                 - v1-dependencies-
           - run:
               name: Install dependencies
               command: |
-                python3 -m venv .venv
+                pip install -U virtualenv
+                python -m virtualenv .venv
                 . .venv/bin/activate
-                pip install -r requirements/development.py3.txt
+                pip install -U pip wheel
+                pip install -r <<parameters.requirements_file>>
           - when:
               condition: <<parameters.is_test_suite>>
               steps:
@@ -78,7 +90,7 @@ orbs:
           - save_cache:
               paths:
                 - .venv
-              key: v1-dependencies-{{ checksum "requirements/development.py3.txt" }}
+              key: v1-dependencies-<<parameters.version>>-{{ checksum "requirements/development.py3.txt" }}
           - run:
               name: Run <<parameters.service_name>>
               command: |
@@ -103,8 +115,13 @@ orbs:
 
     executors:
       cloudsmith_executor:
+        parameters:
+          version:
+            description: "Python version"
+            type: string
+            default: "3.6"
         docker:
-          - image: circleci/python:3.6.1
+          - image: cimg/python:<<parameters.version>>
 
 
 workflows:
@@ -128,10 +145,47 @@ workflows:
           command: pylint --rcfile=.pylintrc cloudsmith_cli
           no_output_timeout: 1200
       - cloudsmith_ci/execute:
-          name: pytest
-          service_name: pytest
+          name: pytest-2.7
+          service_name: pytest-2.7
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
-          is_test_suite: true
+          version: "2.7"
+          requirements_file: "requirements/development.py2.txt"
+      - cloudsmith_ci/execute:
+          name: pytest-3.5
+          service_name: pytest-3.5
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.5"
+      - cloudsmith_ci/execute:
+          name: pytest-3.6
+          service_name: pytest-3.6
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.6"
+#          is_test_suite: true
+      - cloudsmith_ci/execute:
+          name: pytest-3.7
+          service_name: pytest-3.7
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.7"
+      - cloudsmith_ci/execute:
+          name: pytest-3.8
+          service_name: pytest-3.8
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.8"
+      - cloudsmith_ci/execute:
+          name: pytest-3.9
+          service_name: pytest-3.9
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.9"
+      - cloudsmith_ci/execute:
+          name: pytest-3.10
+          service_name: pytest-3.10
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.10"
+      - cloudsmith_ci/execute:
+          name: pytest-3.11
+          service_name: pytest=3.11
+          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          version: "3.11"
       - publish:
           filters:
             branches:
