@@ -1,2 +1,4 @@
 # Test dependencies
+# TODO remove mock after 1.0 release and 2.7 is no longer supported
+mock
 pytest-cov==2.12.1

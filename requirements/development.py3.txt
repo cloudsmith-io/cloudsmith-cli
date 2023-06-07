@@ -65,6 +65,8 @@ isort[pyproject]==4.3.15
     # via -r lint.in
 mccabe==0.6.1
     # via flake8
+mock==5.0.2
+    # via -r test.in
 nodeenv==1.3.3
     # via pre-commit
 packaging==21.3
