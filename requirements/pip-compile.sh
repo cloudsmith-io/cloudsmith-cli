@@ -11,7 +11,7 @@ if [ ! -d .venv/py2 ]; then
 fi
 
 .venv/py2/bin/pip-compile --pre --output-file production.py2.txt common.in
-.venv/py2/bin/pip-compile --pre --output-file development.py2.txt common.in development.in test.in lint.in lint.py2.in
+.venv/py2/bin/pip-compile --pre --output-file development.py2.txt common.in development.in test.in lint.in
 
 echo "Rebuild Python 3.x requirements"
 if [ ! -d .venv/py3 ]; then
@@ -20,4 +20,4 @@ if [ ! -d .venv/py3 ]; then
 fi
 
 .venv/py3/bin/pip-compile --pre --output-file production.py3.txt common.in
-.venv/py3/bin/pip-compile --pre --output-file development.py3.txt common.in development.in test.in lint.in lint.py3.in
+.venv/py3/bin/pip-compile --pre --output-file development.py3.txt common.in development.in test.in lint.in
