@@ -160,7 +160,7 @@ workflows:
           service_name: pytest-3.6
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
           version: "3.6"
-#          is_test_suite: true
+          is_test_suite: true
       - cloudsmith_ci/execute:
           name: pytest-3.7
           service_name: pytest-3.7
