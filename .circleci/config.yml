@@ -62,7 +62,6 @@ orbs:
           - restore_cache:
               keys:
                 - v1-dependencies-<<parameters.version>>-{{ checksum "requirements/development.py3.txt" }}
-                - v1-dependencies-
           - run:
               name: Install dependencies
               command: |
