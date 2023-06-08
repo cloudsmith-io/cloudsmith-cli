@@ -1,3 +1,0 @@
-# Lint-only dependencies (common)
-isort==4.3.15
-isort[pyproject]

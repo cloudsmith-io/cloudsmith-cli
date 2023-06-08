@@ -130,7 +130,7 @@ workflows:
       - cloudsmith_ci/execute:
           name: isort
           service_name: isort
-          command: isort -rc -c
+          command: pre-commit run -a isort
       - cloudsmith_ci/execute:
           name: black
           service_name: black
