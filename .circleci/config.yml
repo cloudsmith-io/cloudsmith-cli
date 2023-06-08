@@ -134,7 +134,7 @@ workflows:
       - cloudsmith_ci/execute:
           name: black
           service_name: black
-          command: black --check .
+          command: pre-commit run -a black
       - cloudsmith_ci/execute:
           name: flake8
           service_name: flake8
