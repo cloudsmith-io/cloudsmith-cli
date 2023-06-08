@@ -138,7 +138,7 @@ workflows:
       - cloudsmith_ci/execute:
           name: flake8
           service_name: flake8
-          command: flake8
+          command: pre-commit run -a flake8
       - cloudsmith_ci/execute:
           name: pylint
           service_name: pylint
