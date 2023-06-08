@@ -136,7 +136,7 @@ requests==2.21.0
     # via
     #   -r common.in
     #   requests-toolbelt
-requests_toolbelt==0.8.0
+requests_toolbelt==1.0.0
     # via -r common.in
 scandir==1.10.0
     # via pathlib2
