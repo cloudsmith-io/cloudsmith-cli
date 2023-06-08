@@ -40,12 +40,8 @@ configparser==3.7.4
     # via click-configfile
 coverage==6.2
     # via pytest-cov
-entrypoints==0.3
-    # via flake8
 first==2.0.2
     # via pip-tools
-flake8==3.7.7
-    # via -r lint.in
 future==0.17.1
     # via -r common.in
 identify==1.4.1
@@ -63,8 +59,6 @@ iniconfig==1.1.1
     # via pytest
 isort[pyproject]==4.3.15
     # via -r lint.in
-mccabe==0.6.1
-    # via flake8
 mock==5.0.2
     # via -r test.in
 nodeenv==1.3.3
@@ -81,12 +75,8 @@ pre-commit==1.15.1
     # via -r development.in
 py==1.11.0
     # via pytest
-pycodestyle==2.5.0
-    # via flake8
 pyflakes==2.1.1
-    # via
-    #   -r lint.in
-    #   flake8
+    # via -r lint.in
 pyparsing==3.1.0b2
     # via packaging
 pytest==7.0.1
