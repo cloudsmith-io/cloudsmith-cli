@@ -120,7 +120,7 @@ orbs:
             type: string
             default: "3.6"
         docker:
-          - image: cimg/python:<<parameters.version>>
+          - image: circleci/python:<<parameters.version>>
 
 
 workflows:
