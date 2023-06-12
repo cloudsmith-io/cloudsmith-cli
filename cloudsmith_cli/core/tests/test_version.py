@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 from unittest import TestCase
 
-from mock import ANY, patch
+from unittest.mock import ANY, patch
 
 from .. import utils, version
 

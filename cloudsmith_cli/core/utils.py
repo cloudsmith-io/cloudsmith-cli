@@ -35,7 +35,7 @@ def read_file(*path):
         return fp.read()
 
 
-def calculate_file_md5(filepath, blocksize=2 ** 20):
+def calculate_file_md5(filepath, blocksize=2**20):
     """Calculate an MD5 hash for a file."""
     checksum = hashlib.md5()
 

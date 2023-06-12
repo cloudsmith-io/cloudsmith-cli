@@ -37,3 +37,6 @@ reports/
 
 # Jetbrains IDEs
 .idea
+
+# dotenv
+.env
