@@ -49,11 +49,7 @@ orbs:
           version:
             description: "Python version"
             type: string
-            default: "3.6"
-          requirements_file:
-            description: The requirements.txt to use
-            type: string
-            default: "requirements/development.py3.txt"
+            default: "3.7"
         executor:
           name: cloudsmith_executor
           version: <<parameters.version>>
@@ -62,7 +58,7 @@ orbs:
           - checkout
           - restore_cache:
               keys:
-                - v1-dependencies-<<parameters.version>>-{{ checksum "requirements/development.py3.txt" }}
+                - v1-dependencies-<<parameters.version>>-{{ checksum requirements.txt }}
           - run:
               name: Install dependencies
               command: |
@@ -71,7 +67,7 @@ orbs:
                 python -m virtualenv .venv
                 . .venv/bin/activate
                 pip install -U pip wheel
-                pip install -r <<parameters.requirements_file>>
+                pip install -r requirements.txt
           - when:
               condition: <<parameters.is_test_suite>>
               steps:
@@ -91,7 +87,7 @@ orbs:
           - save_cache:
               paths:
                 - .venv
-              key: v1-dependencies-<<parameters.version>>-{{ checksum "requirements/development.py3.txt" }}
+              key: v1-dependencies-<<parameters.version>>-{{ checksum requirements.txt }}
           - run:
               name: Run <<parameters.service_name>>
               command: |
@@ -148,15 +144,23 @@ workflows:
       - python/test:
           name: pytest-python3.7
           version: "3.7"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
       - python/test:
           name: pytest-python3.8
           version: "3.8"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
       - python/test:
           name: pytest-python3.9
           version: "3.9"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
       - python/test:
           name: pytest-python3.10
           version: "3.10"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
       - python/test:
           name: pytest-python3.11
           version: "3.11"
