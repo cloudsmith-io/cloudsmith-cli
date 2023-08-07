@@ -4,6 +4,8 @@ import os
 import click.testing
 import pytest
 
+from cloudsmith_cli.cli.tests.utils import random_str
+
 
 def _get_env_var_or_skip(key):
     """Return the environment variable value if set, otherwise skip the test."""
@@ -43,6 +45,16 @@ def organization():
     This is the name of the organization to use for pytest runs.
     """
     return _get_env_var_or_skip("PYTEST_CLOUDSMITH_ORGANIZATION")
+
+
+@pytest.fixture()
+def tmp_repository(organization):
+    """Yield a temporary repository."""
+    from ...core.api.repos import create_repo, delete_repo
+
+    repo_data = create_repo(organization, {"name": random_str()})
+    yield repo_data
+    delete_repo(organization, repo_data["slug"])
 
 
 @pytest.fixture()

@@ -127,6 +127,13 @@ def validate_owner_repo_package(ctx, param, value):
     return validate_slashes(param, value, minimum=3, maximum=3, form=form)
 
 
+def validate_owner_repo_slug_perm(ctx, param, value):
+    """Ensure that owner/repo/slug_perm is formatted correctly."""
+    # pylint: disable=unused-argument
+    form = "OWNER/REPO/SLUG_PERM"
+    return validate_slashes(param, value, minimum=3, maximum=3, form=form)
+
+
 def validate_owner_repo_distro(ctx, param, value):
     """Ensure that owner/repo/distro/version is formatted correctly."""
     # pylint: disable=unused-argument
