@@ -11,11 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.44.0] - 2023-08-07
 
-- Added `upstream` commands ([#131](https://github.com/cloudsmith-io/cloudsmith-cli/pull/131))
-
 ### Added
 
-- Added `--sbt-version` and `--scala-version` support for maven upload ([#128](https://github.com/cloudsmith-io/cloudsmith-cli/pull/128))
+- Added `upstream` commands ([#131](https://github.com/cloudsmith-io/cloudsmith-cli/pull/131))
 
 ## [0.43.0] - 2023-06-03
 
