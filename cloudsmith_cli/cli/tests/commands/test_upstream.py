@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import json
 
 import pytest
-import six
+
 
 from ...commands.upstream import UPSTREAM_FORMATS, upstream
 from ..utils import random_str
@@ -28,9 +25,9 @@ def test_upstream_commands(
     }
 
     upstream_config_file = tmp_path / ("cli-test-upstream-%s.json" % upstream_format)
-    upstream_config_file.write_text(six.text_type(json.dumps(upstream_config)))
+    upstream_config_file.write_text(str(json.dumps(upstream_config)))
 
-    org_repo = "%s/%s" % (organization, tmp_repository["slug"])
+    org_repo = "{}/{}".format(organization, tmp_repository["slug"])
 
     # Invoke the upstream list command
     result = runner.invoke(
@@ -77,11 +74,11 @@ def test_upstream_commands(
 
     slug_perm = result_data["slug_perm"]
     assert slug_perm
-    org_repo_slug_perm = "%s/%s" % (org_repo, slug_perm)
+    org_repo_slug_perm = "{}/{}".format(org_repo, slug_perm)
 
     # Update an upstream
     upstream_config["name"] = random_str()
-    upstream_config_file.write_text(six.text_type(json.dumps(upstream_config)))
+    upstream_config_file.write_text(str(json.dumps(upstream_config)))
 
     result = runner.invoke(
         upstream,

@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - retrieve metrics."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import click
-import six
 
 from ....core.api import metrics as api
 from ... import decorators, utils, validators
@@ -40,13 +37,13 @@ def _print_metrics_table(opts, data):
     }
 
     headers = ["Metric"]
-    headers.extend(six.iterkeys(metrics_keys))
+    headers.extend(metrics_keys.keys())
     rows = []
 
-    for category_header, category_key in six.iteritems(category_keys):
+    for category_header, category_key in category_keys.items():
         category_data = getattr(data, category_key)
         cols = [category_header]
-        for metric_key in six.itervalues(metrics_keys):
+        for metric_key in metrics_keys.values():
             metric_data = getattr(category_data, metric_key, {})
             if hasattr(metric_data, "display"):
                 value = getattr(metric_data, "display")

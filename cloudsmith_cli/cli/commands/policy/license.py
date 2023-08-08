@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - create, retrieve, update or delete license policies."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import json
 
 import click
-import six
 
 from ....core.api import orgs as api
 from ... import command, decorators, utils, validators
@@ -42,11 +39,11 @@ def print_license_policies(policies):
             click.style(fmt_bool(policy["allow_unknown_licenses"]), fg="yellow"),
             click.style(fmt_bool(policy["on_violation_quarantine"]), fg="yellow"),
             click.style(
-                six.text_type(maybe_truncate_string(policy["package_query_string"])),
+                str(maybe_truncate_string(policy["package_query_string"])),
                 fg="yellow",
             ),
             click.style(
-                six.text_type(maybe_truncate_list(policy["spdx_identifiers"])),
+                str(maybe_truncate_list(policy["spdx_identifiers"])),
                 fg="blue",
             ),
             click.style(fmt_datetime(policy["created_at"]), fg="blue"),

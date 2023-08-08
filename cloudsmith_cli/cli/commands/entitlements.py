@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Entitlements."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import functools
 from operator import itemgetter
@@ -211,7 +209,7 @@ def print_entitlements_with_restrictions(
 
         restricted_bandwidth = "-"
         if limit_bandwidth and limit_bandwidth_unit:
-            restricted_bandwidth = "%s %s" % (limit_bandwidth, limit_bandwidth_unit)
+            restricted_bandwidth = "{} {}".format(limit_bandwidth, limit_bandwidth_unit)
 
         # format fields for rendering
         scheduled_reset_period = (

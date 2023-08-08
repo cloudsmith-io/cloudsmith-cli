@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """Cloudsmith API - Initialisation."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import base64
 
 import cloudsmith_api
-import six
 
 from ..rest import RestClient
 
@@ -73,7 +70,7 @@ def get_api_client(cls):
 
     headers = getattr(config, "headers", None)
     if headers:
-        for k, v in six.iteritems(headers):
+        for k, v in headers.items():
             client.api_client.set_default_header(k, v)
 
     return client

@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Get an API token."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 
@@ -41,7 +39,7 @@ def whoami(ctx, opts):
 
         if email:
             click.secho(
-                ", email: %(email)s" % {"email": click.style(email, fg="green")},
+                ", email: {email}".format(email=click.style(email, fg="green")),
                 nl=False,
             )
 

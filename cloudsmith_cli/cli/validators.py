@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI - Validators."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import base64
 from datetime import datetime
@@ -22,7 +20,7 @@ def transform_api_header_authorization(param, value):
             param=param,
         )
 
-    value = "%s:%s" % (username.strip(), password)
+    value = "{}:{}".format(username.strip(), password)
     value = base64.b64encode(bytes(value.encode()))
     return "Basic %s" % value.decode("utf-8")
 
@@ -45,7 +43,7 @@ def validate_api_headers(param, value):
             for bad_header in BAD_API_HEADERS:
                 if bad_header == k:
                     raise click.BadParameter(
-                        "%(key)s is not an allowed header" % {"key": bad_header},
+                        "{key} is not an allowed header".format(key=bad_header),
                         param=param,
                     )
 
@@ -80,7 +78,7 @@ def validate_slashes(
     if not value:
         form = form or "/".join("VALUE" for _ in range(minimum))
         raise click.BadParameter(
-            "Must be in the form of %(form)s" % {"form": form}, param=param
+            "Must be in the form of {form}".format(form=form), param=param
         )
 
     value = [v.strip() for v in value]

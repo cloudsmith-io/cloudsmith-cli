@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Get an API token."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 import cloudsmith_api
 import semver
-import six
 
 from ...core.api.rates import get_rate_limits
 from ...core.api.status import get_status
@@ -44,7 +41,7 @@ def rates(ctx, opts):
     headers = ["Resource", "Throttled", "Remaining", "Interval (Seconds)", "Reset"]
 
     rows = []
-    for resource, limits in six.iteritems(resources_limits):
+    for resource, limits in resources_limits.items():
         rows.append(
             [
                 click.style(resource, fg="cyan"),
@@ -54,13 +51,11 @@ def rates(ctx, opts):
                 ),
                 "%(remaining)s/%(limit)s"
                 % {
-                    "remaining": click.style(
-                        six.text_type(limits.remaining), fg="yellow"
-                    ),
-                    "limit": click.style(six.text_type(limits.limit), fg="yellow"),
+                    "remaining": click.style(str(limits.remaining), fg="yellow"),
+                    "limit": click.style(str(limits.limit), fg="yellow"),
                 },
-                click.style(six.text_type(limits.interval), fg="blue"),
-                click.style(six.text_type(limits.reset), fg="magenta"),
+                click.style(str(limits.interval), fg="blue"),
+                click.style(str(limits.reset), fg="magenta"),
             ]
         )
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pytest
 
 from ..utils import maybe_truncate_list, maybe_truncate_string

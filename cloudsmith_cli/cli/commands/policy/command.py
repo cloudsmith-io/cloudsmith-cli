@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Import all policy commands."""
 
 import click

@@ -1,15 +1,10 @@
-# -*- coding: utf-8 -*-
 """Core rate limit utilities."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import datetime
 import time
 
-from future.utils import python_2_unicode_compatible
 
-
-@python_2_unicode_compatible
-class RateLimitsInfo(object):
+class RateLimitsInfo:
     """Data for rate limits."""
 
     interval = None

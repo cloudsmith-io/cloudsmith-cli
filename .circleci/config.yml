@@ -123,6 +123,10 @@ workflows:
           service_name: flake8
           command: pre-commit run -a flake8
       - cloudsmith_ci/execute:
+          name: pyupgrade
+          service_name: pyupgrade
+          command: pre-commit run -a pyupgrade
+      - cloudsmith_ci/execute:
           name: pylint
           service_name: pylint
           command: pylint --rcfile=.pylintrc cloudsmith_cli

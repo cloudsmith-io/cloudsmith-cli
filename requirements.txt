@@ -104,7 +104,6 @@ six==1.16.0
     # via
     #   click-configfile
     #   cloudsmith-api
-    #   cloudsmith-cli (setup.py)
     #   python-dateutil
 tomli==2.0.1
     # via

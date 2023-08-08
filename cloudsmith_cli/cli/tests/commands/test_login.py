@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 import pytest
 
 from ...commands.login import login
 
 
 @pytest.mark.usefixtures("set_api_host_env_var")
-class TestLoginCommand(object):
+class TestLoginCommand:
     def test_login_via_prompt(self, runner, username, password, api_key):
         """Test that a user can `cloudsmith login` with interactive prompts."""
         expected = "Your API key/token is: %s" % api_key

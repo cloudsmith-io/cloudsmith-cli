@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """Core rate limit utilities."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 from collections import namedtuple
 
 # pylint: disable=ungrouped-imports
 import click
-import six
 from click.utils import strip_ansi
 
 Table = namedtuple(
@@ -24,14 +21,14 @@ def make_table(headers=None, rows=None):
     assert isinstance(rows, list)
     assert all(len(row) == len(headers) for row in rows)
 
-    plain_headers = [strip_ansi(six.text_type(v)) for v in headers]
-    plain_rows = [row for row in [strip_ansi(six.text_type(v)) for v in rows]]
+    plain_headers = [strip_ansi(str(v)) for v in headers]
+    plain_rows = [row for row in [strip_ansi(str(v)) for v in rows]]
 
     plain_headers = []
     column_widths = []
 
     for k, v in enumerate(headers):
-        v = six.text_type(v)
+        v = str(v)
         plain = strip_ansi(v)
         plain_headers.append(plain)
         column_widths.append(len(plain))
@@ -46,7 +43,7 @@ def make_table(headers=None, rows=None):
     for row in rows:
         plain_row = []
         for k, v in enumerate(row):
-            v = six.text_type(v)
+            v = str(v)
             plain = strip_ansi(v)
             plain_row.append(plain)
             column_widths[k] = max(column_widths[k], len(plain))

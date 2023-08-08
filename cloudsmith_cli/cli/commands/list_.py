@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - List objects."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import functools
 from operator import itemgetter
@@ -258,7 +256,7 @@ def _get_package_status(package):
     stage = package["stage_str"] or "Unknown"
     if stage == "Fully Synchronised":
         return status
-    return "%(status)s / %(stage)s" % {"status": status, "stage": stage}
+    return "{status} / {stage}".format(status=status, stage=stage)
 
 
 def _get_package_version(package):

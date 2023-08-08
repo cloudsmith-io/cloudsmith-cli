@@ -1,13 +1,10 @@
-# -*- coding: utf-8 -*-
 """CLI - Configuration."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import os
 import re
 import threading
 
 import click
-import six
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
 
 from ..core.utils import get_data_path, read_file
@@ -19,7 +16,7 @@ OPTIONS = threading.local()
 class ConfigParam(Param):
     # For compatibility with click>=7.0
     def __init__(self, *args, **kwargs):
-        super(ConfigParam, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.ctx = None
 
     def parse(self, text):
@@ -28,7 +25,7 @@ class ConfigParam(Param):
         if self.type.name == "boolean":
             if not text:
                 return None
-        return super(ConfigParam, self).parse(text)
+        return super().parse(text)
 
     def get_error_hint(self, ctx):
         if self.ctx:
@@ -37,9 +34,9 @@ class ConfigParam(Param):
                 for filename in self.ctx.config_files:
                     files.append(os.path.join(path, filename))
             files = " or ".join(files)
-            msg = "%s in %s" % (self.name, files)
+            msg = "{} in {}".format(self.name, files)
         else:
-            msg = "%s in a config file" % (self.name,)
+            msg = "{} in a config file".format(self.name)
         return msg
 
 
@@ -55,7 +52,7 @@ _CFG_SEARCH_PATHS = (
 )
 
 
-class ConfigSchema(object):
+class ConfigSchema:
     """Schema for standard configuration."""
 
     @matches_section("default")
@@ -83,8 +80,8 @@ class ConfigReader(ConfigFileReader):
 
     @classmethod
     def select_config_schema_for(cls, section_name):
-        section_schema = super(ConfigReader, cls).select_config_schema_for(section_name)
-        for v in six.itervalues(section_schema.__dict__):
+        section_schema = super().select_config_schema_for(section_name)
+        for v in section_schema.__dict__.values():
             if isinstance(v, ConfigParam):
                 v.ctx = cls
         return section_schema
@@ -119,11 +116,11 @@ class ConfigReader(ConfigFileReader):
 
         # Find and replace data in default config
         data = data or {}
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             v = v or ""
             config = re.sub(
-                r"^(%(key)s)\s*=\s*$" % {"key": k},
-                "%(key)s = %(value)s" % {"key": k, "value": v},
+                r"^({key})\s*=\s*$".format(key=k),
+                "{key} = {value}".format(key=k, value=v),
                 config,
                 flags=re.MULTILINE,
             )
@@ -171,10 +168,10 @@ class ConfigReader(ConfigFileReader):
 
     @staticmethod
     def _load_values_into_opts(opts, values):
-        for k, v in six.iteritems(values):
+        for k, v in values.items():
             if v is None:
                 continue
-            if isinstance(v, six.string_types):
+            if isinstance(v, str):
                 if v.startswith('"') or v.startswith("'"):
                     v = v[1:]
                 if v.endswith('"') or v.endswith("'"):
@@ -187,7 +184,7 @@ class ConfigReader(ConfigFileReader):
             setattr(opts, k, v)
 
 
-class CredentialsSchema(object):
+class CredentialsSchema:
     """Schema for credentials configuration."""
 
     @matches_section("default")
@@ -210,14 +207,14 @@ class CredentialsReader(ConfigReader):
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
 
-class Options(object):
+class Options:
     """Options object that holds config for the application."""
 
     def __init__(self, *args, **kwargs):
         """Initialise a new Options object."""
-        super(Options, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.opts = {}
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
     @staticmethod
@@ -399,7 +396,7 @@ class Options(object):
     @error_retry_codes.setter
     def error_retry_codes(self, value):
         """Set value for error_retry_codes."""
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             value = [int(x) for x in value.split(",")]
         self._set_option("error_retry_codes", value)
 

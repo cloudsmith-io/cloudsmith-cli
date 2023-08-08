@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI - Utilities."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import json
 import platform
@@ -8,7 +6,6 @@ from contextlib import contextmanager
 from datetime import date, datetime
 
 import click
-import six
 from click_spinner import spinner
 
 from ..core.api.version import get_version as get_api_version
@@ -19,11 +16,11 @@ from .table import make_table
 def make_user_agent(prefix=None):
     """Get a suitable user agent for identifying the CLI process."""
     prefix = (prefix or platform.platform(terse=1)).strip().lower()
-    return "cloudsmith-cli/%(prefix)s cli:%(version)s api:%(api_version)s" % {
-        "version": get_cli_version(),
-        "api_version": get_api_version(),
-        "prefix": prefix,
-    }
+    return "cloudsmith-cli/{prefix} cli:{version} api:{api_version}".format(
+        version=get_cli_version(),
+        api_version=get_api_version(),
+        prefix=prefix,
+    )
 
 
 def pretty_print_list_info(num_results, page_info=None, suffix=None):
@@ -33,11 +30,11 @@ def pretty_print_list_info(num_results, page_info=None, suffix=None):
 
     if page_info and page_info.is_valid:
         page_range = page_info.calculate_range(num_results)
-        page_info_text = "page: %(page)s/%(page_total)s, page size: %(page_size)s" % {
-            "page": click.style(str(page_info.page), bold=True),
-            "page_size": click.style(str(page_info.page_size), bold=True),
-            "page_total": click.style(str(page_info.page_total), bold=True),
-        }
+        page_info_text = "page: {page}/{page_total}, page size: {page_size}".format(
+            page=click.style(str(page_info.page), bold=True),
+            page_size=click.style(str(page_info.page_size), bold=True),
+            page_total=click.style(str(page_info.page_total), bold=True),
+        )
         range_results_text = "%(from)s-%(to)s (%(num_results)s) of %(total)s" % {
             "num_results": num_results_text,
             "from": click.style(str(page_range[0]), fg=num_results_fg),
@@ -109,7 +106,7 @@ def print_rate_limit_info(opts, rate_info):
     click.echo(err=True)
     click.secho(
         "Throttling (rate limited) for: %(throttle)s seconds ... "
-        % {"throttle": click.style(six.text_type(rate_info.interval), reverse=True)},
+        % {"throttle": click.style(str(rate_info.interval), reverse=True)},
         err=True,
         reset=False,
     )
@@ -155,7 +152,7 @@ def maybe_print_as_json(opts, data, page_info=None):
             dump = json.dumps(root, sort_keys=True, default=json_serializer)
     except (TypeError, ValueError) as e:
         click.secho(
-            "Failed to convert to JSON: %(err)s" % {"err": str(e)}, fg="red", err=True
+            "Failed to convert to JSON: {err}".format(err=str(e)), fg="red", err=True
         )
         return True
 
@@ -186,7 +183,7 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
         "Are you %s certain you want to" % (click.style("absolutely", bold=True))
     )
 
-    prompt = "%(prefix)s %(prompt)s?" % {"prefix": prefix, "prompt": prompt}
+    prompt = "{prefix} {prompt}?".format(prefix=prefix, prompt=prompt)
 
     if click.confirm(prompt, err=err):
         return True

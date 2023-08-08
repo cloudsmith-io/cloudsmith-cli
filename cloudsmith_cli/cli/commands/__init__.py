@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Import all commands."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 from . import check  # noqa
 from . import copy  # noqa

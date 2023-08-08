@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """Cloudsmith Command Line Interface (CLI)."""
-from __future__ import absolute_import, print_function
 
 import os
 
@@ -20,7 +18,7 @@ def read(path, root_path=None):
         real_path = os.path.realpath(os.path.join(root_path, path))
         with open(real_path) as fp:
             return fp.read().strip()
-    except IOError:
+    except OSError:
         return ""
 
 
@@ -60,7 +58,6 @@ setup(
         "requests_toolbelt>=0.8.0",
         "semver>=2.7.9",
         "simplejson>=3.12.0",
-        "six>=1.11.0",
         "urllib3<2.0",
     ],
     entry_points={

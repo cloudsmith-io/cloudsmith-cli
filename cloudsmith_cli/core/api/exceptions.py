@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """API - Exceptions."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import contextlib
 
@@ -18,7 +16,7 @@ class ApiException(Exception):
 
     def __init__(self, status, detail=None, headers=None, body=None, fields=None):
         """Create a new APIException."""
-        super(ApiException, self).__init__()
+        super().__init__()
         self.status = status
         if status == 422:
             self.status_description = "Unprocessable Entity"

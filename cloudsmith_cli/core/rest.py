@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """A RESTful API client with retry builtin."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import io
 import json
 import logging
 import re
 import time
+from urllib.parse import urlencode
 
 import requests
 import requests.exceptions
@@ -14,7 +13,6 @@ from cloudsmith_api.configuration import Configuration
 from cloudsmith_api.rest import ApiException, RESTClientObject
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry  # pylint: disable=import-error
-from six.moves.urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +22,11 @@ class RetryWithCallback(Retry):
 
     def __init__(self, *args, **kwargs):
         self.error_retry_cb = kwargs.pop("error_retry_cb", None)
-        super(RetryWithCallback, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def new(self, **kw):
         kw["error_retry_cb"] = self.error_retry_cb
-        return super(RetryWithCallback, self).new(**kw)
+        return super().new(**kw)
 
     def sleep_for_retry(self, response=None):
         retry_after = self.get_retry_after(response)
@@ -69,22 +67,22 @@ def create_requests_session(
     config = Configuration()
 
     if retries is None:
-        if config.error_retry_max is None:
+        if config.error_retry_max is None:  # pylint: disable=no-member
             retries = 5
         else:
-            retries = config.error_retry_max
+            retries = config.error_retry_max  # pylint: disable=no-member
 
     if backoff_factor is None:
-        if config.error_retry_backoff is None:
+        if config.error_retry_backoff is None:  # pylint: disable=no-member
             backoff_factor = 0.23
         else:
-            backoff_factor = config.error_retry_backoff
+            backoff_factor = config.error_retry_backoff  # pylint: disable=no-member
 
     if status_forcelist is None:
-        if config.error_retry_codes is None:
+        if config.error_retry_codes is None:  # pylint: disable=no-member
             status_forcelist = [500, 502, 503, 504]
         else:
-            status_forcelist = config.error_retry_codes
+            status_forcelist = config.error_retry_codes  # pylint: disable=no-member
 
     if ssl_verify is None:
         ssl_verify = config.verify_ssl
@@ -134,7 +132,7 @@ class RestResponse(io.IOBase):
     """A urllib3 adapter for a requests response."""
 
     def __init__(self, response):
-        super(RestResponse, self).__init__()
+        super().__init__()
         self.response = response
         self.status = response.status_code
         self.reason = response.reason
@@ -238,7 +236,7 @@ class RestClient(RESTClientObject):
                 **request_kwargs
             )
         except requests.exceptions.RequestException as exc:
-            msg = "{0}\n{1}".format(type(exc).__name__, str(exc))
+            msg = "{}\n{}".format(type(exc).__name__, str(exc))
             raise ApiException(status=0, reason=msg)
 
         resp.encoding = resp.apparent_encoding or "utf-8"

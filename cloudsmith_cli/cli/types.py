@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Custom types."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import os
 
@@ -13,4 +11,4 @@ class ExpandPath(click.Path):
     def convert(self, value, *args, **kwargs):  # pylint: disable=arguments-differ
         """Take a path with $HOME variables and resolve it to full path."""
         value = os.path.expanduser(value)
-        return super(ExpandPath, self).convert(value, *args, **kwargs)
+        return super().convert(value, *args, **kwargs)
