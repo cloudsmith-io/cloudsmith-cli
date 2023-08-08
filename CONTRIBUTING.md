@@ -8,15 +8,19 @@ Please refer to Cloudsmith's standard guide on [Open-Source Contributing](https:
 By making any contributions to Cloudsmith Ltd projects you agree to be bound by the terms of the Cloudsmith Ltd [Contributor License Agreement](https://help.cloudsmith.io/docs/contributor-license-agreement).
 
 
-## Requirements
+## Development Environment
 
-The standard requirements are python (2.7+/3.5+) and the ability to install PyPi packages (either system-wide or via virtualenv, of which the latter is preferred).
+The basic requirements are:
+- Any [current version](https://endoflife.date/python) of Python.
+- The ability to install PyPI packages (preferably in a virtual environment).
 
-You can refer to the following requirements files to see what is required:
+Production requirements are declared in [setup.py](./setup.py).
 
-- Common/Runtime: `requirements/common.txt`
-- Development: `requirements/dev.txt`
-- Test: `requirements/test.txt`
+Development requirements are declared in [requirements.in](./requirements.in).
+
+For most purposes, you probably just want `pip install -r requirements.txt`.
+
+Our [direnv config](./.envrc) file codifies the development environment setup which we use internally.
 
 
 ## Coding Conventions
@@ -26,13 +30,15 @@ Please ensure code conforms to [PEP-8](https://www.python.org/dev/peps/pep-0008/
 
 ## Releasing
 
-To make a new release for `cloudsmith-cli` follow the procedure for virtualenv setup then:
+To make a new release for `cloudsmith-cli`:
 
 ```
 $ bumpversion <major|minor|revision>
 ```
 
 A tag will automatically created along with the version bump commit.
+
+Please ensure that [CHANGELOG.md](./CHANGELOG.md) is updated appropriately with each release.
 
 
 ## Need Help?
