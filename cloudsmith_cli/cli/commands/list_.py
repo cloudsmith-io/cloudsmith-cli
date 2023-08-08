@@ -33,7 +33,7 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 @dependencies.list_dependencies_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
-def dependencies_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def dependencies_(*args, **kwargs):  # pylint: disable=missing-docstring
     return dependencies.list_dependencies(*args, **kwargs)
 
 
@@ -109,7 +109,7 @@ def distros(ctx, opts, package_format):
 @entitlements.list_entitlements_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
-def entitlements_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     return entitlements.list_entitlements(*args, **kwargs)
 
 

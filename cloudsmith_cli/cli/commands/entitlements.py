@@ -117,7 +117,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
 @list_entitlements_options
 @functools.wraps(list_entitlements)
 @click.pass_context
-def list_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def list_(*args, **kwargs):  # pylint: disable=missing-docstring
     return list_entitlements(*args, **kwargs)
 
 
