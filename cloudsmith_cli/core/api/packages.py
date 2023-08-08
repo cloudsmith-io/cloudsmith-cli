@@ -238,6 +238,7 @@ def list_packages(owner, repo, **kwargs):
 
 def get_package_formats():
     """Get the list of available package formats and parameters."""
+
     # pylint: disable=fixme
     # HACK: This obviously isn't great, and it is subject to change as
     # the API changes, but it'll do for now as a interim method of

@@ -51,14 +51,14 @@ orbs:
           - checkout
           - restore_cache:
               keys:
-                - v1-dependencies-{{ checksum "requirements/development.py3.txt" }}
+                - v1-dependencies-{{ checksum "requirements.txt" }}
                 - v1-dependencies-
           - run:
               name: Install dependencies
               command: |
                 python3 -m venv .venv
                 . .venv/bin/activate
-                pip install -r requirements/development.py3.txt
+                pip install -r requirements.txt
           - when:
               condition: <<parameters.is_test_suite>>
               steps:
@@ -78,7 +78,7 @@ orbs:
           - save_cache:
               paths:
                 - .venv
-              key: v1-dependencies-{{ checksum "requirements/development.py3.txt" }}
+              key: v1-dependencies-{{ checksum "requirements.txt" }}
           - run:
               name: Run <<parameters.service_name>>
               command: |
@@ -104,7 +104,7 @@ orbs:
     executors:
       cloudsmith_executor:
         docker:
-          - image: circleci/python:3.6.1
+          - image: circleci/python:3.8
 
 
 workflows:

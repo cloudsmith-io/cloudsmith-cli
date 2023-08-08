@@ -15,7 +15,6 @@ from ..utils import random_str
 def test_upstream_commands(
     runner, organization, upstream_format, tmp_repository, tmp_path
 ):
-
     upstream_config = {
         # "name" and "upstream_url" are the only required properties for most formats.
         "name": "cli-test-upstream-%s" % upstream_format,

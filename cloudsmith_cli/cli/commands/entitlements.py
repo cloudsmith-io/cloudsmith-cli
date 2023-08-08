@@ -190,7 +190,6 @@ def print_entitlements_with_restrictions(
 
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
-
         name = entitlement.get("name", "")
         user = entitlement.get("user", "")
         updated_at = fmt_datetime(entitlement.get("updated_at", ""))

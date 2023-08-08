@@ -47,6 +47,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
+    python_requires=">=3.8.0",
     install_requires=[
         "click>=7.0,!=8.0.2",
         "click-configfile>=0.2.3",
@@ -81,7 +82,6 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 3",
         "Topic :: Internet",
         "Topic :: System :: Systems Administration",
