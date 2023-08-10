@@ -233,10 +233,10 @@ class RestClient(RESTClientObject):
                 timeout=_request_timeout,
                 stream=not _preload_content,
                 headers=headers,
-                **request_kwargs
+                **request_kwargs,
             )
         except requests.exceptions.RequestException as exc:
-            msg = "{}\n{}".format(type(exc).__name__, str(exc))
+            msg = f"{type(exc).__name__}\n{str(exc)}"
             raise ApiException(status=0, reason=msg)
 
         resp.encoding = resp.apparent_encoding or "utf-8"

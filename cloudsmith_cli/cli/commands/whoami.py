@@ -39,7 +39,7 @@ def whoami(ctx, opts):
 
         if email:
             click.secho(
-                ", email: {email}".format(email=click.style(email, fg="green")),
+                f", email: {click.style(email, fg='green')}",
                 nl=False,
             )
 

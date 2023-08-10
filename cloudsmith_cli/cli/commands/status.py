@@ -53,10 +53,7 @@ def status(ctx, opts, owner_repo_package):
     if not stage_str:
         package_status = status_str
     else:
-        package_status = "{status} / {stage}".format(
-            status=status_str,
-            stage=stage_str,
-        )
+        package_status = f"{status_str} / {stage_str}"
 
     if ok:
         status_colour = "green"
@@ -72,6 +69,6 @@ def status(ctx, opts, owner_repo_package):
 
     if reason:
         click.secho(
-            "Reason given: {reason}".format(reason=click.style(reason, fg="yellow")),
+            f"Reason given: {click.style(reason, fg='yellow')}",
             fg=status_colour,
         )

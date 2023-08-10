@@ -183,8 +183,8 @@ def build_upstream_list_command(upstream_fmt):
 
         print_upstreams(upstreams, upstream_fmt)
 
-    func.__doc__ = """
-        List {upstream_format} upstreams for a repository.
+    func.__doc__ = f"""
+        List {upstream_fmt} upstreams for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -194,10 +194,8 @@ def build_upstream_list_command(upstream_fmt):
 
         Full CLI example:
 
-          $ cloudsmith upstream {upstream_format} ls your-org/your-repo
-        """.format(
-        upstream_format=upstream_fmt
-    )
+          $ cloudsmith upstream {upstream_fmt} ls your-org/your-repo
+        """
     return func
 
 
@@ -252,8 +250,8 @@ def build_upstream_create_command(upstream_fmt):
 
         print_upstreams([upstream_resp_data], upstream_fmt)
 
-    func.__doc__ = """
-        Create a {upstream_format} upstream for a repository.
+    func.__doc__ = f"""
+        Create a {upstream_fmt} upstream for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -265,7 +263,7 @@ def build_upstream_create_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://help.cloudsmith.io/reference/repos_upstream_{upstream_format}_create
+          https://help.cloudsmith.io/reference/repos_upstream_{upstream_fmt}_create
 
           \b
           Example:
@@ -280,10 +278,8 @@ def build_upstream_create_command(upstream_fmt):
 
         Full CLI example:
 
-          $ cloudsmith upstream {upstream_format} create your-org/your-repo ./path/to/upstream-config.json
-        """.format(
-        upstream_format=upstream_fmt
-    )
+          $ cloudsmith upstream {upstream_fmt} create your-org/your-repo ./path/to/upstream-config.json
+        """
 
     return func
 
@@ -333,8 +329,8 @@ def build_upstream_update_command(upstream_fmt):
 
         print_upstreams([upstream_resp_data], upstream_fmt)
 
-    func.__doc__ = """
-        Update a {upstream_format} upstream for a repository.
+    func.__doc__ = f"""
+        Update a {upstream_fmt} upstream for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -346,7 +342,7 @@ def build_upstream_update_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://help.cloudsmith.io/reference/repos_upstream_{upstream_format}_partial_update
+          https://help.cloudsmith.io/reference/repos_upstream_{upstream_fmt}_partial_update
 
           \b
           Example:
@@ -361,10 +357,8 @@ def build_upstream_update_command(upstream_fmt):
 
         Full CLI example:
 
-          $ cloudsmith upstream {upstream_format} update your-org/your-repo/abcdefg ./path/to/upstream-config.json
-        """.format(
-        upstream_format=upstream_fmt
-    )
+          $ cloudsmith upstream {upstream_fmt} update your-org/your-repo/abcdefg ./path/to/upstream-config.json
+        """
 
     return func
 
@@ -420,8 +414,8 @@ def build_upstream_delete_command(upstream_fmt):
 
         click.secho("OK", fg="green", err=use_stderr)
 
-    func.__doc__ = """
-        Delete a {upstream_format} upstream for a repository.
+    func.__doc__ = f"""
+        Delete a {upstream_fmt} upstream for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -431,10 +425,8 @@ def build_upstream_delete_command(upstream_fmt):
 
         Full CLI example:
 
-          $ cloudsmith upstream {upstream_format} delete your-org/your-repo/abcdefg
-        """.format(
-        upstream_format=upstream_fmt
-    )
+          $ cloudsmith upstream {upstream_fmt} delete your-org/your-repo/abcdefg
+        """
 
     return func
 

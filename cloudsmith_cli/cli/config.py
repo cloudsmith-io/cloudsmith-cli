@@ -34,9 +34,9 @@ class ConfigParam(Param):
                 for filename in self.ctx.config_files:
                     files.append(os.path.join(path, filename))
             files = " or ".join(files)
-            msg = "{} in {}".format(self.name, files)
+            msg = f"{self.name} in {files}"
         else:
-            msg = "{} in a config file".format(self.name)
+            msg = f"{self.name} in a config file"
         return msg
 
 
@@ -119,8 +119,8 @@ class ConfigReader(ConfigFileReader):
         for k, v in data.items():
             v = v or ""
             config = re.sub(
-                r"^({key})\s*=\s*$".format(key=k),
-                "{key} = {value}".format(key=k, value=v),
+                rf"^({k})\s*=\s*$",
+                f"{k} = {v}",
                 config,
                 flags=re.MULTILINE,
             )

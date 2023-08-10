@@ -256,7 +256,7 @@ def _get_package_status(package):
     stage = package["stage_str"] or "Unknown"
     if stage == "Fully Synchronised":
         return status
-    return "{status} / {stage}".format(status=status, stage=stage)
+    return f"{status} / {stage}"
 
 
 def _get_package_version(package):

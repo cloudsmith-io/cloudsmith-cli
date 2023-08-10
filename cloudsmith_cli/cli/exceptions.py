@@ -66,7 +66,7 @@ def handle_api_exceptions(
         hint = get_error_hint(ctx, opts, exc)
         if hint:
             click.echo(
-                "Hint: {hint}".format(hint=click.style(hint, fg="yellow")),
+                f"Hint: {click.style(hint, fg='yellow')}",
                 err=use_stderr,
             )
 
@@ -75,7 +75,7 @@ def handle_api_exceptions(
                 click.echo(err=use_stderr)
                 click.echo("Headers in Reply:", err=use_stderr)
                 for k, v in exc.headers.items():
-                    click.echo("{key} = {value}".format(key=k, value=v), err=use_stderr)
+                    click.echo(f"{k} = {v}", err=use_stderr)
 
         if reraise_on_error:
             raise

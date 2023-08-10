@@ -36,7 +36,7 @@ class AliasGroup(DYMGroup):
         if getattr(ctx, "showing_help", False):
             for k, v in enumerate(commands):
                 try:
-                    commands[k] = "{}|{}".format(v, "|".join(self.aliases[v]))
+                    commands[k] = f"{v}|{'|'.join(self.aliases[v])}"
                 except KeyError:
                     pass
 

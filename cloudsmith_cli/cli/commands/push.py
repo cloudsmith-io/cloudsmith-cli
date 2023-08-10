@@ -77,9 +77,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         filesize = utils.get_file_size(filepath=filename)
 
-        label = "Uploading {filename}:".format(
-            filename=click.style(basename, bold=True)
-        )
+        label = f"Uploading {click.style(basename, bold=True)}:"
 
         with click.progressbar(
             length=filesize,
@@ -163,7 +161,7 @@ def wait_for_package_sync(
     # pylint: disable=too-many-locals
     attempts -= 1
     click.echo()
-    label = "Synchronising {package}:".format(package=click.style(slug, fg="green"))
+    label = f"Synchronising {click.style(slug, fg='green')}:"
 
     status_str = "Waiting"
     stage_str = None
@@ -174,7 +172,7 @@ def wait_for_package_sync(
         if not stage_str or "Unknown" in stage_str:
             return status_str
         return click.style(
-            "{status} / {stage}".format(status=status_str, stage=stage_str),
+            f"{status_str} / {stage_str}",
             fg="cyan",
         )
 
@@ -242,7 +240,7 @@ def wait_for_package_sync(
 
     if reason:
         click.secho(
-            "Reason given: {reason}".format(reason=click.style(reason, fg="yellow")),
+            f"Reason given: {click.style(reason, fg='yellow')}",
             fg="red",
         )
 
@@ -302,7 +300,7 @@ def upload_files_and_create_package(
     wait_interval,
     skip_errors,
     sync_attempts,
-    **kwargs
+    **kwargs,
 ):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
@@ -316,7 +314,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     # 2. Validate file upload parameters
@@ -362,7 +360,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     if no_wait_for_sync:
@@ -403,11 +401,9 @@ def create_push_handlers():
 
         has_additional_params = len(kwargs) > 0
 
-        help_text = """
-            Push/upload a new {type} package upstream.
-            """.format(
-            type=key.capitalize()
-        )
+        help_text = f"""
+            Push/upload a new {key.capitalize()} package upstream.
+            """
 
         if has_additional_params:
             help_text += """
@@ -518,7 +514,7 @@ def create_push_handlers():
                 option_name,
                 required=info["required"],
                 help=info["help"],
-                **option_kwargs
+                **option_kwargs,
             )
             push_handler = decorator(push_handler)
 

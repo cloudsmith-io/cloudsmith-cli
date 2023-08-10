@@ -209,7 +209,7 @@ def print_entitlements_with_restrictions(
 
         restricted_bandwidth = "-"
         if limit_bandwidth and limit_bandwidth_unit:
-            restricted_bandwidth = "{} {}".format(limit_bandwidth, limit_bandwidth_unit)
+            restricted_bandwidth = f"{limit_bandwidth} {limit_bandwidth_unit}"
 
         # format fields for rendering
         scheduled_reset_period = (
