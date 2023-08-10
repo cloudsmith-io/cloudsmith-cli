@@ -1,13 +1,10 @@
-# -*- coding: utf-8 -*-
 """CLI - Exceptions."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import collections
 import contextlib
 import sys
 
 import click
-import six
 
 from ..core.api.exceptions import ApiException
 
@@ -55,7 +52,7 @@ def handle_api_exceptions(
                 )
 
             if fields:
-                for k, v in six.iteritems(fields):
+                for k, v in fields.items():
                     field = "%s Field" % k.capitalize()
                     click.secho(
                         "%(field)s: %(message)s"
@@ -69,7 +66,7 @@ def handle_api_exceptions(
         hint = get_error_hint(ctx, opts, exc)
         if hint:
             click.echo(
-                "Hint: %(hint)s" % {"hint": click.style(hint, fg="yellow")},
+                f"Hint: {click.style(hint, fg='yellow')}",
                 err=use_stderr,
             )
 
@@ -77,13 +74,11 @@ def handle_api_exceptions(
             if exc.headers:
                 click.echo(err=use_stderr)
                 click.echo("Headers in Reply:", err=use_stderr)
-                for k, v in six.iteritems(exc.headers):
-                    click.echo(
-                        "%(key)s = %(value)s" % {"key": k, "value": v}, err=use_stderr
-                    )
+                for k, v in exc.headers.items():
+                    click.echo(f"{k} = {v}", err=use_stderr)
 
         if reraise_on_error:
-            six.reraise(*sys.exc_info())
+            raise
 
         if exit_on_error:
             ctx.exit(exc.status or 1)
@@ -98,7 +93,7 @@ def get_details(exc):
         detail = exc.detail
 
     if exc.fields:
-        for k, v in six.iteritems(exc.fields):
+        for k, v in exc.fields.items():
             try:
                 field_detail = v["detail"]
             except (TypeError, KeyError):

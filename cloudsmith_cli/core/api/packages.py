@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """API - Packages endpoints."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import inspect
 
 import cloudsmith_api
-import six
 from cloudsmith_api.models import PackageQuarantineRequest
 
 from .. import ratelimits, utils
@@ -23,7 +20,7 @@ def make_create_payload(**kwargs):
     """Create payload for upload/check-upload operations."""
     payload = {}
     # Add non-empty arguments
-    for k, v in six.iteritems(kwargs):
+    for k, v in kwargs.items():
         if v is not None:
             payload[k] = v
 
@@ -238,6 +235,7 @@ def list_packages(owner, repo, **kwargs):
 
 def get_package_formats():
     """Get the list of available package formats and parameters."""
+
     # pylint: disable=fixme
     # HACK: This obviously isn't great, and it is subject to change as
     # the API changes, but it'll do for now as a interim method of
@@ -252,7 +250,7 @@ def get_package_formats():
         dummy_kwargs = {k: "dummy" for k in cls.swagger_types}
         instance = cls(**dummy_kwargs)
 
-        for k, v in six.iteritems(cls.swagger_types):
+        for k, v in cls.swagger_types.items():
             attr = getattr(cls, k)
             docs = [
                 doc.strip() for doc in attr.__doc__.strip().split("\n") if doc.strip()
@@ -283,9 +281,7 @@ def get_package_formats():
 def get_package_format_names(predicate=None):
     """Get names for available package formats."""
     return [
-        k
-        for k, v in six.iteritems(get_package_formats())
-        if not predicate or predicate(k, v)
+        k for k, v in get_package_formats().items() if not predicate or predicate(k, v)
     ]
 
 

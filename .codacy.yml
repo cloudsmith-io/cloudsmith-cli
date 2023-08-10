@@ -1,5 +1,0 @@
----
-exclude_paths:
-  - ".git/**"
-  - ".venv/**"
-  - "**/tests/**"

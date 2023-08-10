@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Status."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import click
 
@@ -55,10 +53,7 @@ def status(ctx, opts, owner_repo_package):
     if not stage_str:
         package_status = status_str
     else:
-        package_status = "%(status)s / %(stage)s" % {
-            "status": status_str,
-            "stage": stage_str,
-        }
+        package_status = f"{status_str} / {stage_str}"
 
     if ok:
         status_colour = "green"
@@ -74,6 +69,6 @@ def status(ctx, opts, owner_repo_package):
 
     if reason:
         click.secho(
-            "Reason given: %(reason)s" % {"reason": click.style(reason, fg="yellow")},
+            f"Reason given: {click.style(reason, fg='yellow')}",
             fg=status_colour,
         )

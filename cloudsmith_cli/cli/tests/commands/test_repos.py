@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 import json
 
 import pytest
-import six
+
 
 from ...commands.repos import create, delete, get, update
 from ..utils import random_str
@@ -17,7 +16,7 @@ def create_repo_config_file(directory, name, description, repository_type_str, s
         "repository_type_str": repository_type_str,
         "slug": slug,
     }
-    file_path.write_text(six.text_type(json.dumps(data)))
+    file_path.write_text(str(json.dumps(data)))
     return file_path
 
 

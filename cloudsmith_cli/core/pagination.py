@@ -1,12 +1,7 @@
-# -*- coding: utf-8 -*-
 """Core pagination utilities."""
-from __future__ import absolute_import, print_function, unicode_literals
-
-from future.utils import python_2_unicode_compatible
 
 
-@python_2_unicode_compatible
-class PageInfo(object):
+class PageInfo:
     """Data for pagination results."""
 
     count = None

@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - create, retrieve, update or delete repositories."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import json
 from operator import itemgetter
 
 import click
-import six
 
 from ...core.api import repos as api
 from .. import command, decorators, utils, validators
@@ -33,10 +30,10 @@ def print_repositories(opts, data, page_info=None, show_list_info=True):
             [
                 click.style(repo["name"], fg="cyan"),
                 click.style(repo["repository_type_str"], fg="yellow"),
-                click.style(six.text_type(repo["package_count"]), fg="blue"),
-                click.style(six.text_type(repo["package_group_count"]), fg="blue"),
-                click.style(six.text_type(repo["num_downloads"]), fg="blue"),
-                click.style(six.text_type(repo["size_str"]), fg="blue"),
+                click.style(str(repo["package_count"]), fg="blue"),
+                click.style(str(repo["package_group_count"]), fg="blue"),
+                click.style(str(repo["num_downloads"]), fg="blue"),
+                click.style(str(repo["size_str"]), fg="blue"),
                 "%(owner_slug)s/%(slug)s"
                 % {
                     "owner_slug": click.style(repo["namespace"], fg="magenta"),

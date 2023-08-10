@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI - Validators."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import base64
 from datetime import datetime
@@ -22,7 +20,7 @@ def transform_api_header_authorization(param, value):
             param=param,
         )
 
-    value = "%s:%s" % (username.strip(), password)
+    value = f"{username.strip()}:{password}"
     value = base64.b64encode(bytes(value.encode()))
     return "Basic %s" % value.decode("utf-8")
 
@@ -45,7 +43,7 @@ def validate_api_headers(param, value):
             for bad_header in BAD_API_HEADERS:
                 if bad_header == k:
                     raise click.BadParameter(
-                        "%(key)s is not an allowed header" % {"key": bad_header},
+                        f"{bad_header} is not an allowed header",
                         param=param,
                     )
 
@@ -79,9 +77,7 @@ def validate_slashes(
 
     if not value:
         form = form or "/".join("VALUE" for _ in range(minimum))
-        raise click.BadParameter(
-            "Must be in the form of %(form)s" % {"form": form}, param=param
-        )
+        raise click.BadParameter(f"Must be in the form of {form}", param=param)
 
     value = [v.strip() for v in value]
     if not allow_blank and not all(value):
@@ -169,8 +165,7 @@ def validate_optional_timestamp(ctx, param, value):
             )
         except ValueError:
             raise click.BadParameter(
-                "{} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` "
-                "e.g. `2020-12-31T00:00:00Z`".format(param.name),
+                f"{param.name} must be a valid utc timestamp formatted as `%Y-%m-%dT%H:%M:%SZ` e.g. `2020-12-31T00:00:00Z`",
                 param=param,
             )
 

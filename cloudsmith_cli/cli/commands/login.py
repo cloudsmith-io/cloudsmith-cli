@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Get an API token."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import collections
 import stat
@@ -82,7 +80,7 @@ def create_config_files(ctx, opts, api_key):
                 ok = config.reader.create_default_file(
                     data=config.data, mode=config.mode
                 )
-            except (OSError, IOError) as exc:
+            except OSError as exc:
                 ok = False
                 error_message = exc.strerror
                 has_errors = True

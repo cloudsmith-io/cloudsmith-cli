@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """Core utilities."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import hashlib
 import os
@@ -35,7 +33,7 @@ def read_file(*path):
         return fp.read()
 
 
-def calculate_file_md5(filepath, blocksize=2 ** 20):
+def calculate_file_md5(filepath, blocksize=2**20):
     """Calculate an MD5 hash for a file."""
     checksum = hashlib.md5()
 

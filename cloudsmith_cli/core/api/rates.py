@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """API - Status endpoints."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
-import six
 
 from .. import ratelimits
 from ..ratelimits import RateLimitsInfo
@@ -27,5 +24,5 @@ def get_rate_limits():
 
     return {
         k: RateLimitsInfo.from_dict(v)
-        for k, v in six.iteritems(data.to_dict().get("resources", {}))
+        for k, v in data.to_dict().get("resources", {}).items()
     }

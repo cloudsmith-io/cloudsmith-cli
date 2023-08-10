@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """API - Packages endpoints."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
 

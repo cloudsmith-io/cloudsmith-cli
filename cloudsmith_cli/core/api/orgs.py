@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """API - Packages endpoints."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import cloudsmith_api
 
@@ -47,7 +45,11 @@ def update_vulnerability_policy(owner, slug_perm, policy_config):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.orgs_vulnerability_policy_partial_update_with_http_info(
+        (
+            data,
+            _,
+            headers,
+        ) = client.orgs_vulnerability_policy_partial_update_with_http_info(
             owner, slug_perm, data=policy_config
         )
 

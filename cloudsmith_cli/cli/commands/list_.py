@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - List objects."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import functools
 from operator import itemgetter
@@ -35,7 +33,7 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 @dependencies.list_dependencies_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
-def dependencies_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def dependencies_(*args, **kwargs):  # pylint: disable=missing-docstring
     return dependencies.list_dependencies(*args, **kwargs)
 
 
@@ -111,7 +109,7 @@ def distros(ctx, opts, package_format):
 @entitlements.list_entitlements_options
 @functools.wraps(entitlements.list_entitlements)
 @click.pass_context
-def entitlements_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     return entitlements.list_entitlements(*args, **kwargs)
 
 
@@ -258,7 +256,7 @@ def _get_package_status(package):
     stage = package["stage_str"] or "Unknown"
     if stage == "Fully Synchronised":
         return status
-    return "%(status)s / %(stage)s" % {"status": status, "stage": stage}
+    return f"{status} / {stage}"
 
 
 def _get_package_version(package):

@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Quarantine."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import functools
 
@@ -96,7 +94,7 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
 @common_quarantine_options
 @functools.wraps(add_quarantine)
 @click.pass_context
-def add(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def add(*args, **kwargs):  # pylint: disable=missing-docstring
     return add_quarantine(*args, **kwargs)
 
 
@@ -143,5 +141,5 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
 @common_quarantine_options
 @functools.wraps(remove_quarantine)
 @click.pass_context
-def remove(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def remove(*args, **kwargs):  # pylint: disable=missing-docstring
     return remove_quarantine(*args, **kwargs)

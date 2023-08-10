@@ -1,13 +1,10 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Push packages."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import os
 import time
 from datetime import datetime
 
 import click
-import six
 
 from ...core import utils
 from ...core.api.exceptions import ApiException
@@ -80,9 +77,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         filesize = utils.get_file_size(filepath=filename)
 
-        label = "Uploading %(filename)s:" % {
-            "filename": click.style(basename, bold=True)
-        }
+        label = f"Uploading {click.style(basename, bold=True)}:"
 
         with click.progressbar(
             length=filesize,
@@ -166,7 +161,7 @@ def wait_for_package_sync(
     # pylint: disable=too-many-locals
     attempts -= 1
     click.echo()
-    label = "Synchronising %(package)s:" % {"package": click.style(slug, fg="green")}
+    label = f"Synchronising {click.style(slug, fg='green')}:"
 
     status_str = "Waiting"
     stage_str = None
@@ -177,7 +172,7 @@ def wait_for_package_sync(
         if not stage_str or "Unknown" in stage_str:
             return status_str
         return click.style(
-            "%(status)s / %(stage)s" % {"status": status_str, "stage": stage_str},
+            f"{status_str} / {stage_str}",
             fg="cyan",
         )
 
@@ -245,7 +240,7 @@ def wait_for_package_sync(
 
     if reason:
         click.secho(
-            "Reason given: %(reason)s" % {"reason": click.style(reason, fg="yellow")},
+            f"Reason given: {click.style(reason, fg='yellow')}",
             fg="red",
         )
 
@@ -263,7 +258,7 @@ def wait_for_package_sync(
         click.secho(
             "Attempts left: %(left)s (%(action)s)"
             % {
-                "left": click.style(six.text_type(attempts), bold=True),
+                "left": click.style(str(attempts), bold=True),
                 "action": "trying again" if attempts > 0 else "giving up",
             }
         )
@@ -305,7 +300,7 @@ def upload_files_and_create_package(
     wait_interval,
     skip_errors,
     sync_attempts,
-    **kwargs
+    **kwargs,
 ):
     """Upload package files and create a new package."""
     # pylint: disable=unused-argument
@@ -319,7 +314,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     # 2. Validate file upload parameters
@@ -365,7 +360,7 @@ def upload_files_and_create_package(
         repo=repo,
         package_type=package_type,
         skip_errors=skip_errors,
-        **kwargs
+        **kwargs,
     )
 
     if no_wait_for_sync:
@@ -393,7 +388,7 @@ def create_push_handlers():
     handlers = create_push_handlers.handlers = {}
     context = create_push_handlers.context = get_package_formats()
 
-    for key, parameters in six.iteritems(context):
+    for key, parameters in context.items():
         kwargs = parameters.copy()
 
         # Remove standard arguments
@@ -406,11 +401,9 @@ def create_push_handlers():
 
         has_additional_params = len(kwargs) > 0
 
-        help_text = """
-            Push/upload a new %(type)s package upstream.
-            """ % {
-            "type": key.capitalize()
-        }
+        help_text = f"""
+            Push/upload a new {key.capitalize()} package upstream.
+            """
 
         if has_additional_params:
             help_text += """
@@ -497,7 +490,7 @@ def create_push_handlers():
                 click.echo()
 
         # Add any additional arguments
-        for k, info in six.iteritems(kwargs):
+        for k, info in kwargs.items():
             option_kwargs = {}
             option_name_fmt = "--%(key)s"
 
@@ -521,7 +514,7 @@ def create_push_handlers():
                 option_name,
                 required=info["required"],
                 help=info["help"],
-                **option_kwargs
+                **option_kwargs,
             )
             push_handler = decorator(push_handler)
 

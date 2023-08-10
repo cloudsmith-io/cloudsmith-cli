@@ -1,12 +1,8 @@
-# -*- coding: utf-8 -*-
 """CLI - Group/Command classes."""
-from __future__ import absolute_import, print_function, unicode_literals
 
-import sys
 from collections import OrderedDict
 
 import click.exceptions
-import six
 from click_didyoumean import DYMGroup
 
 
@@ -14,13 +10,13 @@ class AliasGroup(DYMGroup):
     """A command group with DYM and alias support."""
 
     def __init__(self, *args, **kwargs):
-        super(AliasGroup, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.aliases = OrderedDict()
         self.inverse = {}
 
     def resolve_command(self, ctx, args):
         try:
-            return super(AliasGroup, self).resolve_command(ctx, args)
+            return super().resolve_command(ctx, args)
         except click.exceptions.UsageError:
             # Before DYM kicks in, check to see if the command prefix matches
             # exactly one command, then use that instead.
@@ -30,23 +26,23 @@ class AliasGroup(DYMGroup):
                 matched = [cmd for cmd in cmds if cmd.startswith(cmd_name)]
                 if len(matched) == 1 and len(cmd_name) > 1:
                     args[0] = matched[0]
-                    return super(AliasGroup, self).resolve_command(ctx, args)
+                    return super().resolve_command(ctx, args)
 
-            six.reraise(*sys.exc_info())
+            raise
 
     def list_commands(self, ctx):
-        commands = super(AliasGroup, self).list_commands(ctx)
+        commands = super().list_commands(ctx)
 
         if getattr(ctx, "showing_help", False):
             for k, v in enumerate(commands):
                 try:
-                    commands[k] = "%s|%s" % (v, "|".join(self.aliases[v]))
+                    commands[k] = f"{v}|{'|'.join(self.aliases[v])}"
                 except KeyError:
                     pass
 
             return commands
 
-        for k in six.iterkeys(self.inverse):
+        for k in self.inverse:
             commands.append(k)
 
         return commands
@@ -61,7 +57,7 @@ class AliasGroup(DYMGroup):
         except KeyError:
             pass
 
-        return super(AliasGroup, self).get_command(ctx, cmd_name)
+        return super().get_command(ctx, cmd_name)
 
     def command(self, *args, **kwargs):
         def decorator(f):
@@ -95,4 +91,4 @@ class AliasGroup(DYMGroup):
 
     def format_commands(self, ctx, formatter):
         ctx.showing_help = True
-        return super(AliasGroup, self).format_commands(ctx, formatter)
+        return super().format_commands(ctx, formatter)

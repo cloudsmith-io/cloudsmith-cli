@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - create, retrieve, update or delete repository upstreams."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import json
 
 import click
-import six
 
 from ...core.api import upstreams as api
 from .. import command, decorators, utils, validators
@@ -40,20 +37,20 @@ def print_upstreams(upstreams, upstream_fmt):
         row = [
             click.style(u["name"], fg="cyan"),
             click.style(maybe_truncate_string(u["upstream_url"]), fg="cyan"),
-            click.style(six.text_type(u["auth_mode"]), fg="yellow"),
+            click.style(str(u["auth_mode"]), fg="yellow"),
             click.style(
-                maybe_truncate_string(six.text_type(u["auth_secret"] or "")),
+                maybe_truncate_string(str(u["auth_secret"] or "")),
                 fg="yellow",
             ),
-            click.style(six.text_type(u["auth_username"] or ""), fg="yellow"),
+            click.style(str(u["auth_username"] or ""), fg="yellow"),
             click.style(fmt_datetime(u["created_at"]), fg="blue"),
-            click.style(six.text_type(u["extra_header_1"] or ""), fg="yellow"),
-            click.style(six.text_type(u["extra_header_2"] or ""), fg="yellow"),
-            click.style(six.text_type(u["extra_value_1"] or ""), fg="yellow"),
-            click.style(six.text_type(u["extra_value_2"] or ""), fg="yellow"),
+            click.style(str(u["extra_header_1"] or ""), fg="yellow"),
+            click.style(str(u["extra_header_2"] or ""), fg="yellow"),
+            click.style(str(u["extra_value_1"] or ""), fg="yellow"),
+            click.style(str(u["extra_value_2"] or ""), fg="yellow"),
             click.style(fmt_bool(u["is_active"]), fg="green"),
             click.style(u["mode"], fg="green"),
-            click.style(six.text_type(u["priority"]), fg="green"),
+            click.style(str(u["priority"]), fg="green"),
             click.style(u["slug_perm"], fg="green"),
             click.style(fmt_datetime(u["updated_at"]), fg="blue"),
             click.style(fmt_bool(u["verify_ssl"]), fg="green"),
@@ -61,26 +58,20 @@ def print_upstreams(upstreams, upstream_fmt):
 
         if upstream_fmt == "deb":
             # `Component`, `Distribution Versions` and `Upstream Distribution` are deb-only
-            row.append(
-                click.style(six.text_type(u.get("component", None)), fg="yellow")
-            )
+            row.append(click.style(str(u.get("component", None)), fg="yellow"))
             row.append(
                 click.style(
-                    six.text_type(maybe_truncate_list(u.get("distro_versions", []))),
+                    str(maybe_truncate_list(u.get("distro_versions", []))),
                     fg="yellow",
                 )
             )
             row.append(
-                click.style(
-                    six.text_type(u.get("upstream_distribution", None)), fg="yellow"
-                )
+                click.style(str(u.get("upstream_distribution", None)), fg="yellow")
             )
 
         if upstream_fmt == "rpm":
             # `Distribution Version` is rpm-only
-            row.append(
-                click.style(six.text_type(u.get("distro_version", "")), fg="yellow")
-            )
+            row.append(click.style(str(u.get("distro_version", "")), fg="yellow"))
 
         return row
 
@@ -192,8 +183,8 @@ def build_upstream_list_command(upstream_fmt):
 
         print_upstreams(upstreams, upstream_fmt)
 
-    func.__doc__ = """
-        List %(upstream_format)s upstreams for a repository.
+    func.__doc__ = f"""
+        List {upstream_fmt} upstreams for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -203,10 +194,8 @@ def build_upstream_list_command(upstream_fmt):
 
         Full CLI example:
 
-          $ cloudsmith upstream %(upstream_format)s ls your-org/your-repo
-        """ % {
-        "upstream_format": upstream_fmt
-    }
+          $ cloudsmith upstream {upstream_fmt} ls your-org/your-repo
+        """
     return func
 
 
@@ -261,8 +250,8 @@ def build_upstream_create_command(upstream_fmt):
 
         print_upstreams([upstream_resp_data], upstream_fmt)
 
-    func.__doc__ = """
-        Create a %(upstream_format)s upstream for a repository.
+    func.__doc__ = f"""
+        Create a {upstream_fmt} upstream for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -274,25 +263,23 @@ def build_upstream_create_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://help.cloudsmith.io/reference/repos_upstream_%(upstream_format)s_create
+          https://help.cloudsmith.io/reference/repos_upstream_{upstream_fmt}_create
 
           \b
           Example:
-            {
+            {{
               "name": "Some Upstream",
               "upstream_url": "https://someupstream.net",
               "mode": "Proxy Only",
               "auth_mode": "None",
               "priority": 5,
               ...
-            }
+            }}
 
         Full CLI example:
 
-          $ cloudsmith upstream %(upstream_format)s create your-org/your-repo ./path/to/upstream-config.json
-        """ % {
-        "upstream_format": upstream_fmt
-    }
+          $ cloudsmith upstream {upstream_fmt} create your-org/your-repo ./path/to/upstream-config.json
+        """
 
     return func
 
@@ -342,8 +329,8 @@ def build_upstream_update_command(upstream_fmt):
 
         print_upstreams([upstream_resp_data], upstream_fmt)
 
-    func.__doc__ = """
-        Update a %(upstream_format)s upstream for a repository.
+    func.__doc__ = f"""
+        Update a {upstream_fmt} upstream for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -355,25 +342,23 @@ def build_upstream_update_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://help.cloudsmith.io/reference/repos_upstream_%(upstream_format)s_partial_update
+          https://help.cloudsmith.io/reference/repos_upstream_{upstream_fmt}_partial_update
 
           \b
           Example:
-            {
+            {{
               "name": "Some Upstream",
               "upstream_url": "https://someupstream.net",
               "mode": "Proxy Only",
               "auth_mode": "None",
               "priority": 5,
               ...
-            }
+            }}
 
         Full CLI example:
 
-          $ cloudsmith upstream %(upstream_format)s update your-org/your-repo/abcdefg ./path/to/upstream-config.json
-        """ % {
-        "upstream_format": upstream_fmt
-    }
+          $ cloudsmith upstream {upstream_fmt} update your-org/your-repo/abcdefg ./path/to/upstream-config.json
+        """
 
     return func
 
@@ -429,8 +414,8 @@ def build_upstream_delete_command(upstream_fmt):
 
         click.secho("OK", fg="green", err=use_stderr)
 
-    func.__doc__ = """
-        Delete a %(upstream_format)s upstream for a repository.
+    func.__doc__ = f"""
+        Delete a {upstream_fmt} upstream for a repository.
 
         This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
 
@@ -440,10 +425,8 @@ def build_upstream_delete_command(upstream_fmt):
 
         Full CLI example:
 
-          $ cloudsmith upstream %(upstream_format)s delete your-org/your-repo/abcdefg
-        """ % {
-        "upstream_format": upstream_fmt
-    }
+          $ cloudsmith upstream {upstream_fmt} delete your-org/your-repo/abcdefg
+        """
 
     return func
 

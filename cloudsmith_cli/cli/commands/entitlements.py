@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """CLI/Commands - Entitlements."""
-from __future__ import absolute_import, print_function, unicode_literals
 
 import functools
 from operator import itemgetter
@@ -119,7 +117,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
 @list_entitlements_options
 @functools.wraps(list_entitlements)
 @click.pass_context
-def list_(*args, **kwargs):  # noqa pylint: disable=missing-docstring
+def list_(*args, **kwargs):  # pylint: disable=missing-docstring
     return list_entitlements(*args, **kwargs)
 
 
@@ -190,7 +188,6 @@ def print_entitlements_with_restrictions(
 
     rows = []
     for entitlement in sorted(data, key=itemgetter("name")):
-
         name = entitlement.get("name", "")
         user = entitlement.get("user", "")
         updated_at = fmt_datetime(entitlement.get("updated_at", ""))
@@ -212,7 +209,7 @@ def print_entitlements_with_restrictions(
 
         restricted_bandwidth = "-"
         if limit_bandwidth and limit_bandwidth_unit:
-            restricted_bandwidth = "%s %s" % (limit_bandwidth, limit_bandwidth_unit)
+            restricted_bandwidth = f"{limit_bandwidth} {limit_bandwidth_unit}"
 
         # format fields for rendering
         scheduled_reset_period = (
