@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [1.0.0] - 2023-08-10
 
-#### Fixed
+### Breaking change
 
 - Dropped support for EOL versions of Python (<3.8). ([#134](https://github.com/cloudsmith-io/cloudsmith-cli/pull/134))
 
