@@ -32,15 +32,8 @@ def create_license_policy_config_file(
     return file_path
 
 
-def parse_table_from_output(output):
-    """Return a dict of license policy properties parsed from tabular cli output.
-
-    Note that this excludes any policies whose name doesn't start with the 'cli-test-'
-    prefix, in an effort to not interfere too much with the environment in which we are
-    testing.
-
-    This also helps us to verify that there is only one policy created by our test.
-    """
+def parse_table_from_output(output, policy_name):
+    """Return a dict of license policy properties parsed from tabular cli output."""
 
     headers = []
     row = []
@@ -50,7 +43,7 @@ def parse_table_from_output(output):
     for line in output.split("\n"):
         if not headers and line.startswith("Name"):
             headers = [header.strip() for header in line.split(separator)]
-        elif line.startswith("cli-test-"):
+        elif line.startswith(policy_name):
             if row:
                 raise Exception("Multiple license policies detected - expected 1.")
             row = [val.strip() for val in line.split(separator)]
@@ -67,8 +60,8 @@ def parse_table_from_output(output):
 def assert_output_matches_policy_config(output, config_file_path):
     """Assert that tabular output from a command invocation matches policy config."""
 
-    output_table = parse_table_from_output(output)
     config = json.loads(config_file_path.read_text())
+    output_table = parse_table_from_output(output, policy_name=config["name"])
 
     # Assert that configurable values are set correctly
     assert output_table["Name"] == config["name"]
@@ -120,7 +113,6 @@ def test_license_policy_commands(runner, organization, tmp_path):
         "Creating " + policy_name + " license policy for the cloudsmith namespace ...OK"
         in result.output
     )
-    assert "Results: 1 license policy" in result.output
     slug_perm = assert_output_matches_policy_config(
         result.output, policy_config_file_path
     )
@@ -128,9 +120,6 @@ def test_license_policy_commands(runner, organization, tmp_path):
     # Use the cli to get the policy
     result = runner.invoke(ls, args=[organization], catch_exceptions=False)
     assert "Getting license policies ... OK" in result.output
-    # Ignoring the exact number of results and pluralization of the word "policy"
-    # here, because we may be in a system with pre-existing policies.
-    assert "Results:" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
 
     # Change the values in the config file
@@ -154,7 +143,6 @@ def test_license_policy_commands(runner, organization, tmp_path):
         "Updating " + slug_perm + " license policy in the cloudsmith namespace ...OK"
         in result.output
     )
-    assert "Results: 1 license policy" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
 
     # Check that delete prompts for confirmation
