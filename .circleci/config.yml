@@ -27,6 +27,7 @@ jobs:
           twine upload --repository-url <<parameters.registry_url>> --username <<parameters.username>> --password <<parameters.password>> --verbose dist/*
 
 orbs:
+  python: circleci/python@2.1.1
   cloudsmith_ci:
     jobs:
       execute:
@@ -136,6 +137,21 @@ workflows:
           service_name: pytest
           command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
           is_test_suite: true
+      - python/test:
+          name: pytest-python3.9
+          version: "3.9"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
+      - python/test:
+          name: pytest-python3.10
+          version: "3.10"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
+      - python/test:
+          name: pytest-python3.11
+          version: "3.11"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
       - publish:
           filters:
             branches:
