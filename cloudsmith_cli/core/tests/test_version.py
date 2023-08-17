@@ -1,7 +1,6 @@
 """Core version utilities - Tests."""
 
 from unittest import TestCase
-
 from unittest.mock import ANY, patch
 
 from .. import utils, version

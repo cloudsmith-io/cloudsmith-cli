@@ -1,6 +1,5 @@
 import pytest
 
-
 from ....core.api.version import get_version as get_api_version
 from ....core.version import get_version
 from ...commands.main import main

@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-
 from ....commands.policy.license import create, delete, ls, update
 from ...utils import random_bool, random_str
 
