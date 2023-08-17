@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-
 from ...commands.repos import create, delete, get, update
 from ..utils import random_str
 

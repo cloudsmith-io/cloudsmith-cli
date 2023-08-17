@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-
 from ...commands.upstream import UPSTREAM_FORMATS, upstream
 from ..utils import random_str
 
