@@ -89,17 +89,10 @@ def service(ctx, opts):
     config = cloudsmith_api.Configuration()
 
     click.echo()
+    click.echo(f"The service endpoint is: {click.style(config.host, bold=True)}")
+    click.echo(f"The service status is:   {click.style(status, bold=True)}")
     click.echo(
-        "The service endpoint is: %(endpoint)s"
-        % {"endpoint": click.style(config.host, bold=True)}
-    )
-    click.echo(
-        "The service status is:   %(status)s"
-        % {"status": click.style(status, bold=True)}
-    )
-    click.echo(
-        "The service version is:  %(version)s "
-        % {"version": click.style(version, bold=True)},
+        f"The service version is:  {click.style(version, bold=True)} ",
         nl=False,
     )
 
@@ -110,9 +103,7 @@ def service(ctx, opts):
 
         click.echo()
         click.secho(
-            "The API library used by this CLI tool is built against "
-            "service version: %(version)s"
-            % {"version": click.style(api_version, bold=True)},
+            f"The API library used by this CLI tool is built against service version: {click.style(api_version, bold=True)}",
             fg="yellow",
         )
     else:
