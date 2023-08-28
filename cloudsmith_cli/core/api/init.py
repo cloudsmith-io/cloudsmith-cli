@@ -23,7 +23,7 @@ def initialise_api(
     error_retry_codes=None,
     error_retry_cb=None,
 ):
-    """Initialise the API."""
+    """Initialise the cloudsmith_api.Configuration."""
     # FIXME: pylint: disable=too-many-arguments
     config = cloudsmith_api.Configuration()
     config.debug = debug
@@ -50,8 +50,12 @@ def initialise_api(
     if key:
         config.api_key["X-Api-Key"] = key
 
-    if hasattr(cloudsmith_api.Configuration, "set_default"):
-        cloudsmith_api.Configuration.set_default(config)
+    # Important! Some of the attributes set above (e.g. error_retry_max) are not
+    # present in the cloudsmith_api.Configuration class declaration.
+    # By calling the set_default() method, we ensure that future instances of that
+    # class will include those attributes, and their (default) values.
+    cloudsmith_api.Configuration.set_default(config)
+
     return config
 
 
