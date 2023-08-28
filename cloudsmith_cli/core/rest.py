@@ -12,7 +12,7 @@ import requests.exceptions
 from cloudsmith_api.configuration import Configuration
 from cloudsmith_api.rest import ApiException, RESTClientObject
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry  # pylint: disable=import-error
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
