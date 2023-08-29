@@ -98,7 +98,7 @@ def service(ctx, opts):
 
     api_version = get_api_version_info()
 
-    if semver.compare(version, api_version) > 0:
+    if semver.Version.parse(version).compare(api_version) > 0:
         click.secho("(maybe out-of-date)", fg="yellow")
 
         click.echo()

@@ -1,13 +1,13 @@
 """API version utilities."""
 
-import pkg_resources
+import importlib.metadata
+
 import semver
 
 
 def get_version():
     """Get the raw/unparsed version of the API as a string."""
-    package = pkg_resources.require("cloudsmith_api")[0]
-    return package.version
+    return importlib.metadata.version("cloudsmith_api")
 
 
 def get_version_info():
