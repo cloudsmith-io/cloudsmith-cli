@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed more unused dependencies relating to python 2.7 compatibility ([#142](https://github.com/cloudsmith-io/cloudsmith-cli/pull/142))
+
 ## [1.0.0] - 2023-08-10
 
 ### Breaking change
