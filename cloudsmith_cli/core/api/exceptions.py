@@ -1,14 +1,10 @@
 """API - Exceptions."""
 
 import contextlib
+import http.client
+import json
 
 from cloudsmith_api.rest import ApiException as _ApiException
-from six.moves import http_client
-
-try:
-    import simplejson as json
-except ImportError:
-    import json
 
 
 class ApiException(Exception):
@@ -21,7 +17,7 @@ class ApiException(Exception):
         if status == 422:
             self.status_description = "Unprocessable Entity"
         else:
-            self.status_description = http_client.responses.get(
+            self.status_description = http.client.responses.get(
                 status, "Unknown Status"
             )
         self.detail = detail
