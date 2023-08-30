@@ -34,8 +34,6 @@ click-spinner==0.1.10
     # via cloudsmith-cli (setup.py)
 cloudsmith-api==2.0.7
     # via cloudsmith-cli (setup.py)
-colorama==0.4.6
-    # via cloudsmith-cli (setup.py)
 configparser==6.0.0
     # via click-configfile
 coverage[toml]==7.2.7
@@ -48,8 +46,6 @@ exceptiongroup==1.1.2
     # via pytest
 filelock==3.12.2
     # via virtualenv
-future==0.18.3
-    # via cloudsmith-cli (setup.py)
 httpretty==1.1.4
     # via -r requirements.in
 identify==2.5.26
@@ -99,8 +95,6 @@ requests==2.31.0
 requests-toolbelt==1.0.0
     # via cloudsmith-cli (setup.py)
 semver==3.0.1
-    # via cloudsmith-cli (setup.py)
-simplejson==3.19.1
     # via cloudsmith-cli (setup.py)
 six==1.16.0
     # via
