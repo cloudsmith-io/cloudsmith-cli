@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added support for large file uploads ([#143](https://github.com/cloudsmith-io/cloudsmith-cli/pull/143))
+
 ### Fixed
 
 - Removed more unused dependencies relating to python 2.7 compatibility ([#142](https://github.com/cloudsmith-io/cloudsmith-cli/pull/142))
