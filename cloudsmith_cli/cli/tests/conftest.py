@@ -3,7 +3,9 @@ import os
 import click.testing
 import pytest
 
-from cloudsmith_cli.cli.tests.utils import random_str
+from ...core.api.init import initialise_api
+from ...core.api.repos import create_repo, delete_repo
+from .utils import random_str
 
 
 def _get_env_var_or_skip(key):
@@ -47,10 +49,9 @@ def organization():
 
 
 @pytest.fixture()
-def tmp_repository(organization):
+def tmp_repository(organization, api_host, api_key):
     """Yield a temporary repository."""
-    from ...core.api.repos import create_repo, delete_repo
-
+    initialise_api(host=api_host, key=api_key)
     repo_data = create_repo(organization, {"name": random_str()})
     yield repo_data
     delete_repo(organization, repo_data["slug"])

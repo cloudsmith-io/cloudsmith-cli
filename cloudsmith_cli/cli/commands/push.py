@@ -1,5 +1,5 @@
 """CLI/Commands - Push packages."""
-
+import math
 import os
 import time
 from datetime import datetime
@@ -9,6 +9,8 @@ import click
 from ...core import utils
 from ...core.api.exceptions import ApiException
 from ...core.api.files import (
+    CHUNK_SIZE,
+    multi_part_upload_file,
     request_file_upload,
     upload_file as api_upload_file,
     validate_request_file_upload,
@@ -56,6 +58,10 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     filename = click.format_filename(filepath)
     basename = os.path.basename(filename)
 
+    filesize = utils.get_file_size(filepath=filename)
+    projected_chunks = math.floor(filesize / CHUNK_SIZE) + 1
+    is_multi_part_upload = projected_chunks > 1
+
     click.echo(
         "Requesting file upload for %(filename)s ... "
         % {"filename": click.style(basename, bold=True)},
@@ -68,33 +74,58 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     ):
         with maybe_spinner(opts):
             identifier, upload_url, upload_fields = request_file_upload(
-                owner=owner, repo=repo, filepath=filename, md5_checksum=md5_checksum
+                owner=owner,
+                repo=repo,
+                filepath=filename,
+                md5_checksum=md5_checksum,
+                is_multi_part_upload=is_multi_part_upload,
             )
 
     click.secho("OK", fg="green")
 
     context_msg = "Failed to upload file!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        filesize = utils.get_file_size(filepath=filename)
-
         label = f"Uploading {click.style(basename, bold=True)}:"
 
-        with click.progressbar(
-            length=filesize,
-            label=label,
-            fill_char=click.style("#", fg="green"),
-            empty_char=click.style("-", fg="red"),
-        ) as pb:
+        if not is_multi_part_upload:
+            # We can upload the whole file in one go.
+            with click.progressbar(
+                length=filesize,
+                label=label,
+                fill_char=click.style("#", fg="green"),
+                empty_char=click.style("-", fg="red"),
+            ) as pb:
 
-            def progress_callback(monitor):
-                pb.update(monitor.bytes_read)
+                def progress_callback(monitor):
+                    pb.update(monitor.bytes_read)
 
-            api_upload_file(
-                upload_url=upload_url,
-                upload_fields=upload_fields,
-                filepath=filename,
-                callback=progress_callback,
-            )
+                api_upload_file(
+                    upload_url=upload_url,
+                    upload_fields=upload_fields,
+                    filepath=filename,
+                    callback=progress_callback,
+                )
+        else:
+            # The file is sufficiently large that we need to upload in chunks.
+            with click.progressbar(
+                length=projected_chunks,
+                label=label,
+                fill_char=click.style("#", fg="green"),
+                empty_char=click.style("-", fg="red"),
+            ) as pb:
+
+                def progress_callback():
+                    pb.update(1)
+
+                multi_part_upload_file(
+                    opts=opts,
+                    upload_url=upload_url,
+                    owner=owner,
+                    repo=repo,
+                    filepath=filename,
+                    callback=progress_callback,
+                    upload_id=identifier,
+                )
 
     return identifier
 
