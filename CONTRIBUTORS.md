@@ -22,3 +22,4 @@ We'd also like to say thank you to the following people (in alphabetical order),
 - Rob Madole ([@robmadole](https://github.com/robmadole))
 - Sean Allen ([@SeanTAllen](https://github.com/SeanTAllen))
 - Jesse Rhoads ([@JesseRhoads-PD](https://github.com/JesseRhoads-PD))
+- Pierre Gergondet ([@gergondet](https://github.com/gergondet))
