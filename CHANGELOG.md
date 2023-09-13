@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.1.0] - 2023-09-08
+## [1.1.1] - 2023-09-13
 
 ### Fixed
 
 - Revert change to urllib3 Retry constructor `method_whitelist`/`allowed_methods` kwarg ([#148](https://github.com/cloudsmith-io/cloudsmith-cli/pull/148))
+
+## [1.1.0] - 2023-09-08
 
 ### Added
 
