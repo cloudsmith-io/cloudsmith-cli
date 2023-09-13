@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [1.1.0] - 2023-09-08
 
+### Fixed
+
+- Revert change to urllib3 Retry constructor `method_whitelist`/`allowed_methods` kwarg ([#148](https://github.com/cloudsmith-io/cloudsmith-cli/pull/148))
+
 ### Added
 
 - Added support for large file uploads ([#143](https://github.com/cloudsmith-io/cloudsmith-cli/pull/143))
