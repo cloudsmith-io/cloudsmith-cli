@@ -61,14 +61,14 @@ def parse_table(output):
     return dict(zip(column_headers, row_values))
 
 
-def assert_output_is_equal_to_repo_config(output, organisation, repo_config_file_path):
+def assert_output_is_equal_to_repo_config(output, organization, repo_config_file_path):
     output_table = parse_table(output)
     repo_config = json.loads(repo_config_file_path.read_text())
     assert output_table["Name"] == repo_config["name"]
     assert output_table["Type"] == repo_config["repository_type_str"]
     assert (
         output_table["Owner / Repository (Identifier)"]
-        == organisation + "/" + repo_config["slug"]
+        == organization + "/" + repo_config["slug"]
     )
 
 

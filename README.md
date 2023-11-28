@@ -76,9 +76,9 @@ The CLI currently supports the following commands (and sub-commands):
 - `quarantine`|`block`:   Manage quarantined packages in a repository.
   - `add`:                  Add a package to quarantine.
   - `remove`|`rm`|`restore`: Add a package to quarantine.
-- `quota`:                Quota limits and history for a organisation.
-  - `limits`:               Display the Quota (bandwidth & storage usage/limits) for a specific organisation.
-  - `history`:              Display the Quota History (upload, download, and storage usage/limits) for a specific organisation.
+- `quota`:                Quota limits and history for a organization.
+  - `limits`:               Display the Quota (bandwidth & storage usage/limits) for a specific organization.
+  - `history`:              Display the Quota History (upload, download, and storage usage/limits) for a specific organization.
 - `repositories`|`repos`: Manage repositories.
   - `create`|`new`:         Create a new repository in a namespace.
   - `get`|`list`|`ls`:      List repositories for a user, in a namespace or get details for a specific repository.
