@@ -75,7 +75,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `vagrant`:              Push (upload) a new Vagrant package upstream.
 - `quarantine`|`block`:   Manage quarantined packages in a repository.
   - `add`:                  Add a package to quarantine.
-  - `remove`|`rm`|`restore`: Add a package to quarantine.
+  - `remove`|`rm`|`restore`: Remove a package from quarantine.
 - `quota`:                Quota limits and history for a organization.
   - `limits`:               Display the Quota (bandwidth & storage usage/limits) for a specific organization.
   - `history`:              Display the Quota History (upload, download, and storage usage/limits) for a specific organization.
