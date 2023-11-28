@@ -32,7 +32,7 @@ def common_package_action_options(f):
         "--no-wait-for-sync",
         default=False,
         is_flag=True,
-        help="Don't wait for package synchronisation to complete before exiting.",
+        help="Don't wait for package synchronization to complete before exiting.",
     )
     @click.option(
         "-I",
@@ -50,9 +50,9 @@ def common_package_action_options(f):
         "--sync-attempts",
         default=3,
         type=int,
-        help="Number of times to attempt package synchronisation. If the "
+        help="Number of times to attempt package synchronization. If the "
         "package fails the first time, the client will attempt to "
-        "automatically resynchronise it.",
+        "automatically resynchronize it.",
     )
     @click.pass_context
     @functools.wraps(f)

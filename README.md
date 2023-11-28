@@ -84,8 +84,8 @@ The CLI currently supports the following commands (and sub-commands):
   - `get`|`list`|`ls`:      List repositories for a user, in a namespace or get details for a specific repository.
   - `update`:               Update a repository in a namespace.
   - `delete`|`rm`:          Delete a repository from a namespace.
-- `resync`:               Resynchronise a package in a repository.
-- `status`:               Get the synchronisation status for a package.
+- `resync`:               Resynchronize a package in a repository.
+- `status`:               Get the synchronization status for a package.
 - `tags`:                 Manage the tags for a package in a repository.
   - `add`:                  Add tags to a package in a repository.
   - `clear`:                Clear all existing (non-immutable) tags from a package in a repository.

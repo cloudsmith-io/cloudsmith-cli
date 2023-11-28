@@ -254,7 +254,7 @@ def _get_package_status(package):
     """Get the status for a package."""
     status = package["status_str"] or "Unknown"
     stage = package["stage_str"] or "Unknown"
-    if stage == "Fully Synchronised":
+    if stage == "Fully Synchronized":
         return status
     return f"{status} / {stage}"
 

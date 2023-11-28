@@ -55,7 +55,7 @@ def test_push_and_delete_raw_package(
     for _ in range(10):
         time.sleep(5)
         result = runner.invoke(status, args=[org_repo_package], catch_exceptions=False)
-        if "Fully Synchronised" in result.output:
+        if "Fully Synchronized" in result.output:
             break
     else:
         raise TimeoutError("Test timed out waiting for package sync")
