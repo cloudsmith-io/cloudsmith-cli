@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.1.2] - 2024-09-13
+
+- Pinned cloudsmith-api version to less than or equal 2.0.7.
+
+### Fixed
+
+- Revert change to urllib3 Retry constructor `method_whitelist`/`allowed_methods` kwarg ([#148](https://github.com/cloudsmith-io/cloudsmith-cli/pull/148))
+
 ## [1.1.1] - 2023-09-13
 
 ### Fixed
