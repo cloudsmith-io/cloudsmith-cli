@@ -32,12 +32,14 @@ click-didyoumean==0.3.0
     # via cloudsmith-cli (setup.py)
 click-spinner==0.1.10
     # via cloudsmith-cli (setup.py)
-cloudsmith-api==2.0.7
+cloudsmith-api==2.0.11
     # via cloudsmith-cli (setup.py)
 configparser==6.0.0
     # via click-configfile
 coverage[toml]==7.2.7
-    # via pytest-cov
+    # via
+    #   coverage
+    #   pytest-cov
 dill==0.3.7
     # via pylint
 distlib==0.3.7
