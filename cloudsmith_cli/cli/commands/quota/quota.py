@@ -77,7 +77,7 @@ def usage(ctx, opts, owner, oss):
     Retrieve Quota limits.
 
     This requires appropriate permissions for the owner (a member of the
-    organisation and a valid API key).
+    organization and a valid API key).
 
     - OWNER: Specify the OWNER namespace (i.e. org)
 
