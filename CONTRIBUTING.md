@@ -36,7 +36,7 @@ To make a new release for `cloudsmith-cli`:
 $ bumpversion <major|minor|revision>
 ```
 
-A tag will automatically created along with the version bump commit.
+A tag will automatically created along with the version bump commit. Push the tag with `git push origin {version}`
 
 Please ensure that [CHANGELOG.md](./CHANGELOG.md) is updated appropriately with each release.
 
