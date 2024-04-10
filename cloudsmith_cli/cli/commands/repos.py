@@ -127,7 +127,9 @@ def get(ctx, opts, owner_repo, page, page_size):
     if utils.maybe_print_as_json(opts, repos_, page_info):
         return
 
-    print_repositories(opts=opts, data=repos_, show_list_info=False)
+    print_repositories(
+        opts=opts, data=repos_, show_list_info=False, page_info=page_info
+    )
 
 
 @repositories.command(aliases=["new"])
