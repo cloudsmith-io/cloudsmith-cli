@@ -40,3 +40,6 @@ reports/
 
 # dotenv
 .env
+
+# Zipapp
+*.pyz
