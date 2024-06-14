@@ -9,11 +9,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.2.1] - 2024-04-05
+## [1.2.5] - 2024-06-11
 
 ### Added
 
-- Support for Swift package format
+- Produce CLI zipapp artefact on release ([#164](https://github.com/cloudsmith-io/cloudsmith-cli/pull/164))
+
+## [1.2.3] - 2024-04-10
+
+### Fixed
+
+- Show pagination info for `repos get` ([#163](https://github.com/cloudsmith-io/cloudsmith-cli/pull/163))
+
+## [1.2.2] - 2024-04-05
+
+### Added
+
+- Support for Swift package uploads ([#161](https://github.com/cloudsmith-io/cloudsmith-cli/pull/161))
+
+## [1.2.0] - 2024-03-13
+
+### Added
+
+- Support for CRAN upstreams ([#157](https://github.com/cloudsmith-io/cloudsmith-cli/pull/157))
 
 ## [1.1.1] - 2023-09-13
 
