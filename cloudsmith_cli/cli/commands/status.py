@@ -22,7 +22,7 @@ from .main import main
 @click.pass_context
 def status(ctx, opts, owner_repo_package):
     """
-    Get the synchronisation status for a package.
+    Get the synchronization status for a package.
 
     - OWNER/REPO/PACKAGE: Specify the OWNER namespace (i.e. user or org), the
     REPO name where the package is stored, and the PACKAGE name (slug) of the
