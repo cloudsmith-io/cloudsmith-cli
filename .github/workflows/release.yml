@@ -45,7 +45,7 @@ jobs:
                   asset_name: cloudsmith-${{ env.VERSION }}.pyz
                   asset_content_type: application/zip
             - name: Rename asses to cloudsmith.pyz
-              run: mv cloudsmith-${{ env.VERSION }}.pyz cloudsmith.pyz
+              run: mv ./cloudsmith-${{ env.VERSION }}.pyz cloudsmith.pyz
             - name: Upload to Cloudsmith
               run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/${{ vars.CLOUDSMITH_REPO }} cloudsmith.pyz --name "cloudsmith-cli" --version ${{ env.VERSION }}
               env:
