@@ -2,6 +2,7 @@
 # All production dependencies should be declared in setup.py `install_requires`.
 bumpversion
 httpretty
+keyring
 pip-tools
 pre-commit
 pylint
