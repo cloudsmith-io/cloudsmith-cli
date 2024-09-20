@@ -174,11 +174,26 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of packages!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            packages_, page_info = list_packages(
-                owner=owner, repo=repo, page=page, page_size=page_size, query=query
-            )
+    if page != -1:
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                packages_, page_info = list_packages(
+                    owner=owner, repo=repo, page=page, page_size=page_size, query=query
+                )
+    else:
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                packages_ = []
+                page_number = 1
+                page_max = 999999999999  # Infinity... until we get the first page and know the real size
+                while page_number <= page_max:
+                    partial_packages, page_info = list_packages(
+                        owner=owner, repo=repo, page=page_number, page_size=page_size, query=query
+                    )
+                    packages_.extend(partial_packages)
+                    page_number += 1
+                    page_max = page_info.page_total
+                page_info = None
 
     click.secho("OK", fg="green", err=use_stderr)
 

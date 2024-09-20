@@ -117,10 +117,24 @@ def get(ctx, opts, owner_repo, page, page_size):
 
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repos_, page_info = api.list_repos(
-                owner=owner, repo=repo, page=page, page_size=page_size
-            )
+        if page != -1:
+            with maybe_spinner(opts):
+                repos_, page_info = api.list_repos(
+                    owner=owner, repo=repo, page=page, page_size=page_size
+                )
+        else:
+            with maybe_spinner(opts):
+                repos_ = []
+                page_number = 1
+                page_max = 999999999999  # Infinity... until we get the first page and know the real size
+                while page_number <= page_max:
+                    partial_repos, page_info = api.list_repos(
+                        owner=owner, repo=repo, page=page_number, page_size=page_size
+                    )
+                    repos_.extend(partial_repos)
+                    page_number += 1
+                    page_max = page_info.page_total
+                page_info = None
 
     click.secho("OK", fg="green", err=use_stderr)
 
