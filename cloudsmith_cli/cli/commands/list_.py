@@ -188,7 +188,11 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
                 page_max = 999999999999  # Infinity... until we get the first page and know the real size
                 while page_number <= page_max:
                     partial_packages, page_info = list_packages(
-                        owner=owner, repo=repo, page=page_number, page_size=page_size, query=query
+                        owner=owner,
+                        repo=repo,
+                        page=page_number,
+                        page_size=page_size,
+                        query=query,
                     )
                     packages_.extend(partial_packages)
                     page_number += 1
