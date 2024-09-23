@@ -5,6 +5,7 @@ from typing import Type, TypeVar
 
 import cloudsmith_api
 
+from ..keyring import get_access_token
 from ..rest import RestClient
 
 
@@ -46,6 +47,12 @@ def initialise_api(
             decoded = base64.b64decode(encoded)
             values = decoded.decode("utf-8")
             config.username, config.password = values.split(":")
+
+    access_token = get_access_token()
+    if access_token:
+        config.headers["Authorization"] = "Bearer {access_token}".format(
+            access_token=access_token
+        )
 
     if key:
         config.api_key["X-Api-Key"] = key

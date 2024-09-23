@@ -1,5 +1,4 @@
 """CLI - Utilities."""
-
 import json
 import platform
 from contextlib import contextmanager
