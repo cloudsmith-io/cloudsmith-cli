@@ -49,12 +49,13 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         )
 
     def _exchange_2fa_token(self, two_factor_token):
-        totp_token = click.prompt("Please enter your 2FA token", type=str)
+        totp_token = click.prompt(
+            "Please enter your 2FA token", hide_input=True, type=str
+        )
 
         exchange_data = {"two_factor_token": two_factor_token, "totp_token": totp_token}
         exchange_url = "{api_host}/user/two-factor/".format(api_host=self.api_host)
 
-        click.echo(f"Exchanging 2FA token with request to {exchange_url}")
         exchange_response = requests.post(exchange_url, data=exchange_data, timeout=5)
 
         exchange_data = exchange_response.json()
