@@ -49,7 +49,7 @@ def initialise_api(
             config.username, config.password = values.split(":")
 
     access_token = get_access_token()
-    if access_token:
+    if headers and access_token:
         config.headers["Authorization"] = "Bearer {access_token}".format(
             access_token=access_token
         )
