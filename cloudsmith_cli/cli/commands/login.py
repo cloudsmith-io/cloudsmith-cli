@@ -1,9 +1,11 @@
 """CLI/Commands - Get an API token."""
 
 import collections
+import getpass
 import stat
 
 import click
+import keyring
 
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
@@ -99,6 +101,30 @@ def create_config_files(ctx, opts, api_key):
         click.secho("EXISTS" if config.present else "NOT CREATED", fg="yellow")
 
     return create, has_errors
+
+
+def get_username():
+    return getpass.getuser()
+
+
+def store_access_token(access_token):
+    username = get_username()
+    keyring.set_password("cloudsmith_cli-access_token", username, access_token)
+
+
+def get_access_token():
+    username = get_username()
+    return keyring.get_password("cloudsmith_cli-access_token", username)
+
+
+def store_refresh_token(refresh_token):
+    username = get_username()
+    keyring.set_password("cloudsmith_cli-refresh_token", username, refresh_token)
+
+
+def get_refresh_token():
+    username = get_username()
+    return keyring.get_password("cloudsmith_cli-refresh_token", username)
 
 
 @main.command(aliases=["token"])
