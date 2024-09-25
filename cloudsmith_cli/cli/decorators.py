@@ -160,6 +160,12 @@ def common_cli_list_options(f):
         help="The amount of items to view per page for lists.",
         callback=validators.validate_page_size,
     )
+    @click.option(
+        "--show-all",
+        default=False,
+        type=bool,
+        help="Get all pages of results, not just the first page (ls repos/pkgs only).",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
