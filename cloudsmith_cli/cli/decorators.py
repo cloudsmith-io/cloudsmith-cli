@@ -142,31 +142,33 @@ def common_cli_output_options(f):
 
 
 def common_cli_list_options(f):
-    """Add common list options to commands."""
+    """Add common options for list commands."""
 
     @click.option(
         "-p",
         "--page",
         default=1,
-        type=int,
-        help="The page to view for lists, where 1 is the first page",
+        help="The page of results to show.",
+        type=click.INT,
         callback=validators.validate_page,
     )
     @click.option(
         "-l",
         "--page-size",
-        default=30,
-        type=int,
-        help="The amount of items to view per page for lists.",
+        default=None,
+        help="The number of results to return per page.",
+        type=click.INT,
         callback=validators.validate_page_size,
     )
-    @click.pass_context
+    @click.option(
+        "--show-all",
+        is_flag=True,
+        default=False,
+        help="Show all results by automatically paginating through all pages.",
+    )
     @functools.wraps(f)
-    def wrapper(ctx, *args, **kwargs):
-        # pylint: disable=missing-docstring
-        opts = config.get_or_create_options(ctx)
-        kwargs["opts"] = opts
-        return ctx.invoke(f, *args, **kwargs)
+    def wrapper(*args, **kwargs):
+        return f(*args, **kwargs)
 
     return wrapper
 

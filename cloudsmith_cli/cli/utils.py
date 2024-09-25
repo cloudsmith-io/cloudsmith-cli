@@ -19,20 +19,24 @@ def make_user_agent(prefix=None):
     return f"cloudsmith-cli/{prefix} cli:{get_cli_version()} api:{get_api_version()}"
 
 
-def pretty_print_list_info(num_results, page_info=None, suffix=None):
+def pretty_print_list_info(num_results, page_info=None, suffix=None, show_all=False):
     """Pretty print list info, with pagination, for user display."""
     num_results_fg = "green" if num_results else "red"
     num_results_text = click.style(str(num_results), fg=num_results_fg)
 
     if page_info and page_info.is_valid:
-        page_range = page_info.calculate_range(num_results)
-        page_info_text = f"page: {click.style(str(page_info.page), bold=True)}/{click.style(str(page_info.page_total), bold=True)}, page size: {click.style(str(page_info.page_size), bold=True)}"
-        range_results_text = "%(from)s-%(to)s (%(num_results)s) of %(total)s" % {
-            "num_results": num_results_text,
-            "from": click.style(str(page_range[0]), fg=num_results_fg),
-            "to": click.style(str(page_range[1]), fg=num_results_fg),
-            "total": click.style(str(page_info.count), fg=num_results_fg),
-        }
+        if show_all:
+            range_results_text = f"{num_results_text} of {click.style(str(page_info.count), fg=num_results_fg)}"
+            page_info_text = "all pages"
+        else:
+            page_range = page_info.calculate_range(num_results)
+            page_info_text = f"page: {click.style(str(page_info.page), bold=True)}/{click.style(str(page_info.page_total), bold=True)}, page size: {click.style(str(page_info.page_size), bold=True)}"
+            range_results_text = "%(from)s-%(to)s (%(num_results)s) of %(total)s" % {
+                "num_results": num_results_text,
+                "from": click.style(str(page_range[0]), fg=num_results_fg),
+                "to": click.style(str(page_range[1]), fg=num_results_fg),
+                "total": click.style(str(page_info.count), fg=num_results_fg),
+            }
     else:
         page_info_text = ""
         range_results_text = num_results_text
@@ -192,3 +196,16 @@ def maybe_spinner(opts):
     else:
         with spinner() as spin:
             yield spin
+
+
+def get_all_pages(func, **kwargs):
+    """Retrieve all pages for a paginated API call."""
+    all_items = []
+    page = 1
+    while True:
+        items, page_info = func(page=page, **kwargs)
+        all_items.extend(items)
+        if page >= page_info.page_total:
+            break
+        page += 1
+    return all_items, page_info
