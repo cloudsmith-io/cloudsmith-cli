@@ -56,7 +56,12 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         exchange_data = {"two_factor_token": two_factor_token, "totp_token": totp_token}
         exchange_url = "{api_host}/user/two-factor/".format(api_host=self.api_host)
 
-        exchange_response = requests.post(exchange_url, data=exchange_data, timeout=5)
+        exchange_response = requests.post(
+            exchange_url,
+            data=exchange_data,
+            headers={"Authorization": f"Bearer {two_factor_token}"},
+            timeout=30,
+        )
 
         exchange_data = exchange_response.json()
         access_token = exchange_data.get("access_token")

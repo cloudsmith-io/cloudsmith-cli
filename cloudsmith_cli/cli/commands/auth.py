@@ -37,7 +37,7 @@ def authenticate(ctx, opts, owner):
     )
     org_saml_url += urlencode({"redirect_url": "http://localhost:12400"})
 
-    org_saml_response = requests.get(org_saml_url, timeout=5)
+    org_saml_response = requests.get(org_saml_url, timeout=30)
     idp_url = org_saml_response.json().get("redirect_url")
 
     click.echo(
@@ -55,5 +55,7 @@ def authenticate(ctx, opts, owner):
     )
     auth_server.handle_request()
 
+    click.echo()
     click.echo(f"Access token: {get_access_token()}")
+    click.echo()
     click.echo(f"Refresh token: {get_refresh_token()}")
