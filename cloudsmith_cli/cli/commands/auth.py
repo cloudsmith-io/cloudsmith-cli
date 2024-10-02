@@ -1,12 +1,11 @@
 """CLI/Commands - Authenticate the user."""
 import webbrowser
-from urllib.parse import urlencode
 
 import click
-import requests
 
-from ...core.keyring import get_access_token, get_refresh_token
 from .. import decorators, validators
+from ..exceptions import handle_api_exceptions
+from ..saml import get_idp_url
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 from .main import main
 
@@ -30,32 +29,30 @@ def authenticate(ctx, opts, owner):
     # TODO: Why is a single arg a list?
     owner = owner[0]
 
-    # TODO: best way to consistently get API host?
-    org_saml_url = "{api_host}/orgs/{owner}/saml/?".format(
-        api_host=opts.api_config.host,
-        owner=owner,
-    )
-    org_saml_url += urlencode({"redirect_url": "http://localhost:12400"})
-
-    org_saml_response = requests.get(org_saml_url, timeout=30)
-    idp_url = org_saml_response.json().get("redirect_url")
-
     click.echo(
-        "Opening your organization's SAML IDP URL in your browser: %(idp_url)s"
-        % {"idp_url": idp_url}
+        "Beginning authentication for the {owner} org ... ".format(
+            owner=click.style(owner, bold=True)
+        )
     )
-    webbrowser.open(idp_url)
-    click.echo("Starting webserver to begin authentication ... ")
 
-    auth_server = AuthenticationWebServer(
-        ("0.0.0.0", 12400),
-        AuthenticationWebRequestHandler,
-        api_host=opts.api_config.host,
-        owner=owner,
-    )
-    auth_server.handle_request()
+    context_message = "Failed to authenticate via SSO!"
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
+        idp_url = get_idp_url(opts.api_host, owner)
+        click.echo(
+            "Opening your organization's SAML IDP URL in your browser: %(idp_url)s"
+            % {"idp_url": click.style(idp_url, bold=True)}
+        )
+        click.echo()
+        webbrowser.open(idp_url)
+        click.echo("Starting webserver to begin authentication ... ")
 
-    click.echo()
-    click.echo(f"Access token: {get_access_token()}")
-    click.echo()
-    click.echo(f"Refresh token: {get_refresh_token()}")
+        auth_server = AuthenticationWebServer(
+            ("0.0.0.0", 12400),
+            AuthenticationWebRequestHandler,
+            api_host=opts.api_host,
+            owner=owner,
+        )
+        auth_server.handle_request()
+
+        click.echo()
+        click.secho("Authentication complete", fg="green")

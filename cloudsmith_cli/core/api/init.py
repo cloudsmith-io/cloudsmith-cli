@@ -48,13 +48,12 @@ def initialise_api(
             values = decoded.decode("utf-8")
             config.username, config.password = values.split(":")
 
-    access_token = get_access_token()
-    if headers and access_token:
-        config.headers["Authorization"] = "Bearer {access_token}".format(
+    access_token = get_access_token(config.host)
+    if access_token:
+        config.api_key["Authorization"] = "Bearer {access_token}".format(
             access_token=access_token
         )
-
-    if key:
+    elif key:
         config.api_key["X-Api-Key"] = key
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
