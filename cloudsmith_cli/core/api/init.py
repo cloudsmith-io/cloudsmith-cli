@@ -3,10 +3,13 @@
 import base64
 from typing import Type, TypeVar
 
+import click
 import cloudsmith_api
 
-from ..keyring import get_access_token
+from ...cli import saml
+from .. import keyring
 from ..rest import RestClient
+from .exceptions import ApiException
 
 
 def initialise_api(
@@ -31,7 +34,7 @@ def initialise_api(
     config.host = host if host else config.host
     config.proxy = proxy if proxy else config.proxy
     config.user_agent = user_agent
-    config.headers = headers
+    config.headers = headers if headers else {}
     config.rate_limit = rate_limit
     config.rate_limit_callback = rate_limit_callback
     config.error_retry_max = error_retry_max
@@ -41,20 +44,51 @@ def initialise_api(
     config.verify_ssl = ssl_verify
     config.client_side_validation = False
 
-    if headers:
-        if "Authorization" in config.headers:
-            encoded = config.headers["Authorization"].split(" ")[1]
-            decoded = base64.b64decode(encoded)
-            values = decoded.decode("utf-8")
-            config.username, config.password = values.split(":")
-
-    access_token = get_access_token(config.host)
+    access_token = keyring.get_access_token(config.host)
     if access_token:
-        config.api_key["Authorization"] = "Bearer {access_token}".format(
-            access_token=access_token
-        )
+        auth_header = config.headers.get("Authorization")
+
+        # overwrite auth header if empty or is basic auth without username or password
+        if not auth_header or auth_header == config.get_basic_auth_token():
+            refresh_token = keyring.get_refresh_token(config.host)
+
+            try:
+                if keyring.should_refresh_access_token(config.host):
+                    new_access_token, new_refresh_token = saml.refresh_access_token(
+                        config.host, access_token, refresh_token
+                    )
+                    keyring.store_sso_tokens(
+                        config.host, new_access_token, new_refresh_token
+                    )
+            except ApiException:
+                keyring.update_refresh_attempted_at(config.host)
+
+                # try falling back to API key auth if refresh fails
+                if key:
+                    config.api_key["X-Api-Key"] = key
+
+            config.headers["Authorization"] = "Bearer {access_token}".format(
+                access_token=access_token
+            )
+
+            if config.debug:
+                click.echo("SSO access token config value set")
     elif key:
         config.api_key["X-Api-Key"] = key
+
+        if config.debug:
+            click.echo("User API key config value set")
+
+    if headers:
+        if "Authorization" in config.headers:
+            auth_type, encoded = config.headers["Authorization"].split(" ")
+            if auth_type == "Basic":
+                decoded = base64.b64decode(encoded)
+                values = decoded.decode("utf-8")
+                config.username, config.password = values.split(":")
+
+                if config.debug:
+                    click.echo("Username and password config values set")
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
     # present in the cloudsmith_api.Configuration class declaration.
