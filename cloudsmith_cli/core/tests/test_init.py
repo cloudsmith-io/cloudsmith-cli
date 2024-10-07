@@ -70,6 +70,7 @@ class TestInitialiseApi:
         """Assert that the extra attributes we add to the cloudsmith_cli.Configuration class
         are present on newly-created instances of that class.
         """
+        mocked_get_access_token.return_value = None
 
         # Read and understand the Configuration class's initialiser.
         # Notice how the _default class attribute is used if not None.
