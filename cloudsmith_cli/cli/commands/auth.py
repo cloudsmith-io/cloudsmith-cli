@@ -47,7 +47,7 @@ def authenticate(ctx, opts, owner):
         click.echo("Starting webserver to begin authentication ... ")
 
         auth_server = AuthenticationWebServer(
-            ("0.0.0.0", 12400),
+            ("127.0.0.1", 12400),
             AuthenticationWebRequestHandler,
             api_host=api_host,
             owner=owner,
