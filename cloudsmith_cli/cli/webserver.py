@@ -41,11 +41,10 @@ class AuthenticationWebServer(HTTPServer):
         if self.verify_request(request, client_address):
             try:
                 self.process_request(request, client_address)
-            except ApiException as exc:
-                self.handle_error(request, client_address)
-                self.exception = exc
-                self.shutdown_request(request)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
+            except (  # pylint: disable=broad-exception-caught
+                Exception,
+                ApiException,
+            ) as exc:
                 self.handle_error(request, client_address)
                 self.exception = exc
                 self.shutdown_request(request)
