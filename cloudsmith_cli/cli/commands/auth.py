@@ -26,7 +26,6 @@ from .main import main
 @click.pass_context
 def authenticate(ctx, opts, owner):
     """Authenticate to Cloudsmith using the org's SAML setup."""
-    # TODO: Why is a single arg a list?
     owner = owner[0]
 
     click.echo(
