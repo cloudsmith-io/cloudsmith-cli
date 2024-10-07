@@ -27,6 +27,7 @@ from .main import main
 def authenticate(ctx, opts, owner):
     """Authenticate to Cloudsmith using the org's SAML setup."""
     owner = owner[0]
+    api_host = opts.api_config.host
 
     click.echo(
         "Beginning authentication for the {owner} org ... ".format(
@@ -36,7 +37,7 @@ def authenticate(ctx, opts, owner):
 
     context_message = "Failed to authenticate via SSO!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
-        idp_url = get_idp_url(opts.api_host, owner)
+        idp_url = get_idp_url(api_host, owner)
         click.echo(
             "Opening your organization's SAML IDP URL in your browser: %(idp_url)s"
             % {"idp_url": click.style(idp_url, bold=True)}
@@ -48,7 +49,7 @@ def authenticate(ctx, opts, owner):
         auth_server = AuthenticationWebServer(
             ("0.0.0.0", 12400),
             AuthenticationWebRequestHandler,
-            api_host=opts.api_host,
+            api_host=api_host,
             owner=owner,
         )
         auth_server.handle_request()
