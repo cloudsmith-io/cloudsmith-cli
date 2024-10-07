@@ -169,6 +169,16 @@ class TestKeyring:
             "cloudsmith_cli-refresh_token-https://example.com", "test_user"
         )
 
+    def test_get_refresh_token_when_error_raised(
+        self, mock_get_user, mock_get_password
+    ):
+        mock_get_password.side_effect = KeyringError("A keyring error occurred")
+
+        assert get_refresh_token(self.api_host) is None
+        mock_get_password.assert_called_once_with(
+            "cloudsmith_cli-refresh_token-https://example.com", "test_user"
+        )
+
     @freeze_time("2024-06-01 10:00:00")
     def test_store_sso_tokens(self, mock_get_user, mock_set_password):
         refresh_attempted_at = datetime.utcnow().isoformat()
