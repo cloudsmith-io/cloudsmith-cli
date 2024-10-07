@@ -2,6 +2,7 @@ import getpass
 from datetime import datetime, timedelta
 
 import keyring
+from keyring.errors import KeyringError
 
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY = (
@@ -23,7 +24,11 @@ def store_access_token(api_host, access_token):
 def get_access_token(api_host):
     username = _get_username()
     key = ACCESS_TOKEN_KEY.format(api_host=api_host)
-    return keyring.get_password(key, username)
+
+    try:
+        return keyring.get_password(key, username)
+    except KeyringError:
+        return None
 
 
 def update_refresh_attempted_at(api_host, refresh_time=None):
@@ -40,12 +45,16 @@ def update_refresh_attempted_at(api_host, refresh_time=None):
 def get_refresh_attempted_at(api_host):
     username = _get_username()
     key = ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY.format(api_host=api_host)
-    value = keyring.get_password(key, username)
 
-    if value:
+    try:
+        value = keyring.get_password(key, username)
+    except KeyringError:
+        return None
+
+    try:
         return datetime.fromisoformat(value)
-
-    return None
+    except ValueError:
+        return None
 
 
 def should_refresh_access_token(api_host):
