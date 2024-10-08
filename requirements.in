@@ -3,7 +3,6 @@
 bumpversion
 freezegun
 httpretty
-keyring
 pip-tools
 pre-commit
 pylint
