@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.3.0] - 2024-10-08
+
+### Added
+
+- The `auth` command, enabling users to authenticate against the API with their organization's configured SAML provider ([#174](https://github.com/cloudsmith-io/cloudsmith-cli/pull/174)
+
 ## [1.2.5] - 2024-06-11
 
 ### Added
