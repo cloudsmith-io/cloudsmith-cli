@@ -146,9 +146,9 @@ def get_401_error_hint(ctx, opts, exc):
         )
 
     return (
-        "You don't have an API key set, but it seems this action "
+        "You don't have an API key or access token set, but it seems this action "
         "requires authentication - Try getting your API key via "
-        "'cloudsmith token' first then try again."
+        "'cloudsmith token', or access token via 'cloudsmith auth', then try again."
     )
 
 

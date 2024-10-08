@@ -63,6 +63,11 @@ def initialise_api(
             except ApiException:
                 keyring.update_refresh_attempted_at(config.host)
 
+                click.secho(
+                    "An error occurred when attempting to refresh your SSO access token. To refresh this session, run 'cloudsmith auth'",
+                    fg="yellow",
+                )
+
                 # try falling back to API key auth if refresh fails
                 if key:
                     config.api_key["X-Api-Key"] = key
