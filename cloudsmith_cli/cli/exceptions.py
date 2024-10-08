@@ -7,6 +7,7 @@ import sys
 import click
 
 from ..core.api.exceptions import ApiException
+from ..core.keyring import get_access_token
 
 
 @contextlib.contextmanager
@@ -132,6 +133,10 @@ def get_401_error_hint(ctx, opts, exc):
             "you don't have the permission to perform this action."
         )
 
+    access_token = get_access_token(opts.api_host)
+    if access_token:
+        return "Since you have an SSO access token set, this probably means that it has expired. Try getting a new token with 'cloudsmith auth', then try again."
+
     if ctx.info_name == "token":
         # This is already the token command
         return (
@@ -141,9 +146,9 @@ def get_401_error_hint(ctx, opts, exc):
         )
 
     return (
-        "You don't have an API key set, but it seems this action "
+        "You don't have an API key or access token set, but it seems this action "
         "requires authentication - Try getting your API key via "
-        "'cloudsmith token' first then try again."
+        "'cloudsmith token', or access token via 'cloudsmith auth', then try again."
     )
 
 
