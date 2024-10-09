@@ -128,7 +128,7 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     help=("A boolean-like search term for querying package attributes."),
 )
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query):
+def packages(ctx, opts, owner_repo, page, page_size, query, show_all):
     """
     List packages for a repository.
 
@@ -176,9 +176,29 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            packages_, page_info = list_packages(
-                owner=owner, repo=repo, page=page, page_size=page_size, query=query
-            )
+            if show_all:
+                packages_ = []
+                current_page = 1
+                while True:
+                    page_packages, page_info = list_packages(
+                        owner=owner,
+                        repo=repo,
+                        page=current_page,
+                        page_size=page_size,
+                        query=query,
+                    )
+                    packages_.extend(page_packages)
+                    if (
+                        len(page_packages) < page_size
+                        or current_page >= page_info.page_total
+                    ):
+                        break
+                    current_page += 1
+                page_info.count = len(packages_)
+            else:
+                packages_, page_info = list_packages(
+                    owner=owner, repo=repo, page=page, page_size=page_size, query=query
+                )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -209,10 +229,17 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     click.echo()
 
     num_results = len(packages_)
-    list_suffix = "package%s visible" % ("s" if num_results != 1 else "")
-    utils.pretty_print_list_info(
-        num_results=num_results, page_info=page_info, suffix=list_suffix
-    )
+    list_suffix = "package%s" % ("s" if num_results != 1 else "")
+    if show_all:
+        utils.pretty_print_list_info(
+            num_results=num_results, suffix=f"{list_suffix} retrieved", show_all=True
+        )
+    else:
+        utils.pretty_print_list_info(
+            num_results=num_results,
+            page_info=page_info,
+            suffix=f"{list_suffix} visible",
+        )
 
 
 @list_.command()
@@ -229,7 +256,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     required=False,
 )
 @click.pass_context
-def repos(ctx, opts, owner_repo, page, page_size):
+def repos(ctx, opts, owner_repo, page, page_size, show_all):
     """
     List repositories for a namespace (owner).
 
@@ -242,7 +269,7 @@ def repos(ctx, opts, owner_repo, page, page_size):
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
     """
-    ctx.forward(get_repos)
+    ctx.forward(get_repos, show_all=show_all)
 
 
 def _get_package_name(package):
