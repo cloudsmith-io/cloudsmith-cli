@@ -269,7 +269,7 @@ def repos(ctx, opts, owner_repo, page, page_size, show_all):
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
     """
-    ctx.forward(get_repos, show_all=show_all)
+    ctx.forward(get_repos)
 
 
 def _get_package_name(package):
