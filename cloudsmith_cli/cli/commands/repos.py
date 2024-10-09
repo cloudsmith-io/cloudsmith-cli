@@ -12,7 +12,7 @@ from ..utils import maybe_spinner
 from .main import main
 
 
-def print_repositories(opts, data, page_info=None, show_list_info=True, show_all=False):
+def print_repositories(opts, data, page_info=None, show_list_info=True):
     """Print repositories as a table or output in another format."""
     headers = [
         "Name",
@@ -51,10 +51,7 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, show_all
     num_results = len(data)
     list_suffix = "repositor%s visible" % ("ies" if num_results != 1 else "y")
     utils.pretty_print_list_info(
-        num_results=num_results,
-        page_info=page_info,
-        suffix=list_suffix,
-        show_all=show_all,
+        num_results=num_results, page_info=page_info, suffix=list_suffix
     )
 
 
@@ -86,7 +83,7 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
     required=False,
 )
 @click.pass_context
-def get(ctx, opts, owner_repo, page, page_size, show_all):
+def get(ctx, opts, owner_repo, page, page_size):
     """
     List repositories for a namespace (owner).
 
@@ -98,22 +95,11 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
 
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
-
-    Options:
-      -p, --page INTEGER     The page of results to show.
-      -l, --page-size INTEGER  The number of results to return per page.
-      --show-all             Show all results by automatically paginating through all pages.
     """
-    if show_all:
-        if page is not None or page_size is not None:
-            raise click.UsageError(
-                "--show-all cannot be used with --page or --page-size"
-            )
-    elif page is None and page_size is None:
-        show_all = True
-
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
+
+    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
     if isinstance(owner_repo, list):
         if len(owner_repo) == 1:
@@ -123,37 +109,18 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
             owner, repo = owner_repo
     if isinstance(owner_repo, str):
         repo = None
+
         if owner_repo:
             owner = owner_repo
         else:
             owner = None
 
-    if show_all:
-        if owner:
-            click.echo(
-                f"Retrieving all repositories for {owner}. This may take a while...",
-                err=use_stderr,
-            )
-        else:
-            click.echo(
-                "Retrieving all repositories. This may take a while...", err=use_stderr
-            )
-    else:
-        click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
-
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            if show_all:
-                repos_, page_info = utils.get_all_pages(
-                    api.list_repos,
-                    owner=owner,
-                    repo=repo,
-                )
-            else:
-                repos_, page_info = api.list_repos(
-                    owner=owner, repo=repo, page=page, page_size=page_size
-                )
+            repos_, page_info = api.list_repos(
+                owner=owner, repo=repo, page=page, page_size=page_size
+            )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -161,11 +128,7 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
         return
 
     print_repositories(
-        opts=opts,
-        data=repos_,
-        show_list_info=False,
-        page_info=page_info,
-        show_all=show_all,
+        opts=opts, data=repos_, show_list_info=False, page_info=page_info
     )
 
 
