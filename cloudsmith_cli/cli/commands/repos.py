@@ -12,7 +12,7 @@ from ..utils import maybe_spinner
 from .main import main
 
 
-def print_repositories(opts, data, page_info=None, show_list_info=True):
+def print_repositories(opts, data, page_info=None, show_list_info=True, show_all=False):
     """Print repositories as a table or output in another format."""
     headers = [
         "Name",
@@ -46,13 +46,23 @@ def print_repositories(opts, data, page_info=None, show_list_info=True):
         click.echo()
         utils.pretty_print_table(headers, rows)
 
+    if not show_list_info:
+        return
+
     click.echo()
 
     num_results = len(data)
-    list_suffix = "repositor%s visible" % ("ies" if num_results != 1 else "y")
-    utils.pretty_print_list_info(
-        num_results=num_results, page_info=page_info, suffix=list_suffix
-    )
+    list_suffix = "repositor%s" % ("ies" if num_results != 1 else "y")
+    if show_all:
+        utils.pretty_print_list_info(
+            num_results=num_results, suffix=f"{list_suffix} retrieved", show_all=True
+        )
+    else:
+        utils.pretty_print_list_info(
+            num_results=num_results,
+            page_info=page_info,
+            suffix=f"{list_suffix} visible",
+        )
 
 
 @main.group(cls=command.AliasGroup, name="repositories", aliases=["repos"])
@@ -83,7 +93,7 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
     required=False,
 )
 @click.pass_context
-def get(ctx, opts, owner_repo, page, page_size):
+def get(ctx, opts, owner_repo, page, page_size, show_all):
     """
     List repositories for a namespace (owner).
 
@@ -118,9 +128,25 @@ def get(ctx, opts, owner_repo, page, page_size):
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            repos_, page_info = api.list_repos(
-                owner=owner, repo=repo, page=page, page_size=page_size
-            )
+            if show_all:
+                repos_ = []
+                current_page = 1
+                while True:
+                    page_repos, page_info = api.list_repos(
+                        owner=owner, repo=repo, page=current_page, page_size=page_size
+                    )
+                    repos_.extend(page_repos)
+                    if (
+                        len(page_repos) < page_size
+                        or current_page >= page_info.page_total
+                    ):
+                        break
+                    current_page += 1
+                page_info.count = len(repos_)
+            else:
+                repos_, page_info = api.list_repos(
+                    owner=owner, repo=repo, page=page, page_size=page_size
+                )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -128,7 +154,11 @@ def get(ctx, opts, owner_repo, page, page_size):
         return
 
     print_repositories(
-        opts=opts, data=repos_, show_list_info=False, page_info=page_info
+        opts=opts,
+        data=repos_,
+        show_list_info=True,
+        page_info=page_info,
+        show_all=show_all,
     )
 
 

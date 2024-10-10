@@ -160,6 +160,12 @@ def common_cli_list_options(f):
         help="The amount of items to view per page for lists.",
         callback=validators.validate_page_size,
     )
+    @click.option(
+        "--show-all",
+        is_flag=True,
+        default=False,
+        help="Show all results by automatically paginating",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
