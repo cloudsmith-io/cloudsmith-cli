@@ -13,6 +13,7 @@ from ..utils import (
     maybe_spinner,
     maybe_truncate_list,
     maybe_truncate_string,
+    paginate_results,
 )
 from .main import main
 
@@ -174,33 +175,15 @@ def build_upstream_list_command(upstream_fmt):
         context_msg = "Failed to get upstreams!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
-                if show_all:
-                    upstreams = []
-                    current_page = 1
-                    while True:
-                        page_upstreams, page_info = api.list_upstreams(
-                            owner=owner,
-                            repo=repo,
-                            upstream_format=upstream_fmt,
-                            page=current_page,
-                            page_size=page_size,
-                        )
-                        upstreams.extend(page_upstreams)
-                        if (
-                            len(page_upstreams) < page_size
-                            or current_page >= page_info.page_total
-                        ):
-                            break
-                        current_page += 1
-                    page_info.count = len(upstreams)
-                else:
-                    upstreams, page_info = api.list_upstreams(
-                        owner=owner,
-                        repo=repo,
-                        upstream_format=upstream_fmt,
-                        page=page,
-                        page_size=page_size,
-                    )
+                upstreams, page_info = paginate_results(
+                    api.list_upstreams,
+                    show_all,
+                    page,
+                    page_size,
+                    owner=owner,
+                    repo=repo,
+                    upstream_format=upstream_fmt,
+                )
 
         click.secho("OK", fg="green", err=use_stderr)
 

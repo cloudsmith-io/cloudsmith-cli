@@ -9,7 +9,7 @@ from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner
+from ..utils import maybe_spinner, paginate_results
 from . import dependencies, entitlements
 from .main import main
 from .repos import get as get_repos
@@ -176,29 +176,15 @@ def packages(ctx, opts, owner_repo, page, page_size, query, show_all):
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            if show_all:
-                packages_ = []
-                current_page = 1
-                while True:
-                    page_packages, page_info = list_packages(
-                        owner=owner,
-                        repo=repo,
-                        page=current_page,
-                        page_size=page_size,
-                        query=query,
-                    )
-                    packages_.extend(page_packages)
-                    if (
-                        len(page_packages) < page_size
-                        or current_page >= page_info.page_total
-                    ):
-                        break
-                    current_page += 1
-                page_info.count = len(packages_)
-            else:
-                packages_, page_info = list_packages(
-                    owner=owner, repo=repo, page=page, page_size=page_size, query=query
-                )
+            packages_, page_info = paginate_results(
+                list_packages,
+                show_all,
+                page,
+                page_size,
+                owner=owner,
+                repo=repo,
+                query=query,
+            )
 
     click.secho("OK", fg="green", err=use_stderr)
 

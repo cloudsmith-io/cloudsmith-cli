@@ -134,6 +134,14 @@ def test_repos_commands(runner, organization, tmp_path):
         update, [owner_slash_repo, str(repo_config_file_path)], catch_exceptions=False
     )
     assert result.exit_code == 0
+    assert (
+        "Updating "
+        + repository_slug
+        + " repository in the "
+        + organization
+        + " namespace ...OK"
+        in result.output
+    )
     assert "Results: 1 repository visible" in result.output
     assert_output_is_equal_to_repo_config(
         result.output, organization, repo_config_file_path

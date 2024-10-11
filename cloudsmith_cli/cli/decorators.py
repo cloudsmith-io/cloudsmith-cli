@@ -5,7 +5,7 @@ import functools
 import click
 
 from ..core.api.init import initialise_api as _initialise_api
-from . import config, utils, validators
+from . import config, utils
 
 
 def report_retry(seconds, context=None):
@@ -142,39 +142,25 @@ def common_cli_output_options(f):
 
 
 def common_cli_list_options(f):
-    """Add common list options to commands."""
-
-    @click.option(
-        "-p",
+    """Common CLI options for list commands."""
+    f = click.option(
         "--page",
         default=1,
-        type=int,
-        help="The page to view for lists, where 1 is the first page",
-        callback=validators.validate_page,
-    )
-    @click.option(
-        "-l",
+        help="The page of results to show.",
+        type=click.INT,
+    )(f)
+    f = click.option(
         "--page-size",
-        default=30,
-        type=int,
-        help="The amount of items to view per page for lists.",
-        callback=validators.validate_page_size,
-    )
-    @click.option(
+        default=None,
+        help="The number of results to return per page.",
+        type=click.INT,
+    )(f)
+    f = click.option(
         "--show-all",
         is_flag=True,
-        default=False,
-        help="Show all results by automatically paginating",
-    )
-    @click.pass_context
-    @functools.wraps(f)
-    def wrapper(ctx, *args, **kwargs):
-        # pylint: disable=missing-docstring
-        opts = config.get_or_create_options(ctx)
-        kwargs["opts"] = opts
-        return ctx.invoke(f, *args, **kwargs)
-
-    return wrapper
+        help="Show all results (unpaginated)",
+    )(f)
+    return f
 
 
 def common_api_auth_options(f):

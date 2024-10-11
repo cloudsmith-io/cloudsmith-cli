@@ -8,7 +8,7 @@ import click
 from ...core.api import repos as api
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner
+from ..utils import maybe_spinner, paginate_results
 from .main import main
 
 
@@ -128,25 +128,9 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            if show_all:
-                repos_ = []
-                current_page = 1
-                while True:
-                    page_repos, page_info = api.list_repos(
-                        owner=owner, repo=repo, page=current_page, page_size=page_size
-                    )
-                    repos_.extend(page_repos)
-                    if (
-                        len(page_repos) < page_size
-                        or current_page >= page_info.page_total
-                    ):
-                        break
-                    current_page += 1
-                page_info.count = len(repos_)
-            else:
-                repos_, page_info = api.list_repos(
-                    owner=owner, repo=repo, page=page, page_size=page_size
-                )
+            repos_, page_info = paginate_results(
+                api.list_repos, show_all, page, page_size, owner=owner, repo=repo
+            )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -222,7 +206,10 @@ def create(ctx, opts, owner, repo_config_file):
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    print_repositories(opts=opts, data=[repository], show_list_info=False)
+    if utils.maybe_print_as_json(opts, [repository]):
+        return
+
+    print_repositories(opts=opts, data=[repository], show_list_info=True)
 
 
 @repositories.command()
@@ -282,7 +269,10 @@ def update(ctx, opts, owner_repo, repo_config_file):
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    print_repositories(opts=opts, data=[repository], show_list_info=False)
+    if utils.maybe_print_as_json(opts, [repository]):
+        return
+
+    print_repositories(opts=opts, data=[repository], show_list_info=True)
 
 
 @repositories.command(aliases=["rm"])
