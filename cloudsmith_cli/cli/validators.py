@@ -140,6 +140,8 @@ def validate_owner_repo_distro(ctx, param, value):
 def validate_page(ctx, param, value):
     """Ensure that a valid value for page is chosen."""
     # pylint: disable=unused-argument
+    if value == -1:
+        return value
     if value == 0:
         raise click.BadParameter(
             "Page is not zero-based, please set a value to 1 or higher.", param=param
