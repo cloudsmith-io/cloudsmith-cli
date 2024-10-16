@@ -109,7 +109,11 @@ def test_license_policy_commands(runner, organization, tmp_path):
         catch_exceptions=False,
     )
     assert (
-        "Creating " + policy_name + " license policy for the cloudsmith namespace ...OK"
+        "Creating "
+        + policy_name
+        + " license policy for the "
+        + organization
+        + " namespace ...OK"
         in result.output
     )
     slug_perm = assert_output_matches_policy_config(
@@ -120,6 +124,14 @@ def test_license_policy_commands(runner, organization, tmp_path):
     result = runner.invoke(ls, args=[organization], catch_exceptions=False)
     assert "Getting license policies ... OK" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
+
+    # List policies with --show-all flag
+    result = runner.invoke(
+        ls, args=[organization, "--show-all"], catch_exceptions=False
+    )
+    assert "Getting license policies ... OK" in result.output
+
+    assert "Results: " in result.output and " license policy" in result.output
 
     # Change the values in the config file
     policy_config_file_path = create_license_policy_config_file(
@@ -139,7 +151,11 @@ def test_license_policy_commands(runner, organization, tmp_path):
         catch_exceptions=False,
     )
     assert (
-        "Updating " + slug_perm + " license policy in the cloudsmith namespace ...OK"
+        "Updating "
+        + slug_perm
+        + " license policy in the "
+        + organization
+        + " namespace ...OK"
         in result.output
     )
     assert_output_matches_policy_config(result.output, policy_config_file_path)
@@ -151,7 +167,9 @@ def test_license_policy_commands(runner, organization, tmp_path):
     assert (
         "Are you absolutely certain you want to delete the "
         + slug_perm
-        + " license policy from the cloudsmith namespace? [y/N]: N"
+        + " license policy from the "
+        + organization
+        + " namespace? [y/N]: N"
         in result.output
     )
     assert "OK, phew! Close call. :-)" in result.output
@@ -163,10 +181,12 @@ def test_license_policy_commands(runner, organization, tmp_path):
     assert (
         "Are you absolutely certain you want to delete the "
         + slug_perm
-        + " license policy from the cloudsmith namespace? [y/N]: Y"
+        + " license policy from the "
+        + organization
+        + " namespace? [y/N]: Y"
         in result.output
     )
     assert (
-        "Deleting " + slug_perm + " from the cloudsmith namespace ... OK"
+        "Deleting " + slug_perm + " from the " + organization + " namespace ... OK"
         in result.output
     )
