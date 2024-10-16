@@ -123,7 +123,7 @@ def test_repos_commands(runner, organization, tmp_path):
     result = runner.invoke(get, [organization, "--show-all"], catch_exceptions=False)
     assert "Getting list of repositories ... OK" in result.output
     # A static number cannot be used here because we are performing this test in cloudsmith org which is active.
-    assert "Results: " in result.output and " repository" in result.output
+    assert "Results: " in result.output and " repositories retrieved" in result.output
 
     # Change the repository description in the repo config file.
     repository_description = random_str()

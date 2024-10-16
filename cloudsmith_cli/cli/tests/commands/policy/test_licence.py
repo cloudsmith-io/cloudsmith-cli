@@ -131,7 +131,7 @@ def test_license_policy_commands(runner, organization, tmp_path):
     )
     assert "Getting license policies ... OK" in result.output
 
-    assert "Results: " in result.output and " license policy" in result.output
+    assert "Results: " in result.output and " license policies" in result.output
 
     # Change the values in the config file
     policy_config_file_path = create_license_policy_config_file(
