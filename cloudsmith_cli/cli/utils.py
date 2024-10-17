@@ -199,14 +199,14 @@ def maybe_spinner(opts):
             yield spin
 
 
-def paginate_results(api_function, show_all, page, page_size, **kwargs):
+def paginate_results(api_function, show_all, page, page_size=1000, **kwargs):
     """
     Paginate results from an API function.
 
     :param api_function: The API function to call for retrieving results
     :param show_all: Boolean flag to show all results
     :param page: The page number to start from
-    :param page_size: The number of items per page
+    :param page_size: The number of items per page (default: 1000)
     :param kwargs: Additional keyword arguments to pass to the API function
     :return: A tuple of (results, page_info)
     """
