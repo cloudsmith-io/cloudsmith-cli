@@ -71,6 +71,15 @@ def test_upstream_commands(
     assert result_data["name"] == upstream_config["name"]
     assert result_data["upstream_url"] == upstream_config["upstream_url"]
 
+    # List upstreams with --show-all flag
+    result = runner.invoke(
+        upstream,
+        args=[upstream_format, "ls", org_repo, "--show-all"],
+        catch_exceptions=False,
+    )
+    assert "Getting upstreams... OK" in result.output
+    assert "Results: 1 upstream" in result.output
+
     slug_perm = result_data["slug_perm"]
     assert slug_perm
     org_repo_slug_perm = f"{org_repo}/{slug_perm}"

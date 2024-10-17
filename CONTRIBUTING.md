@@ -22,7 +22,6 @@ For most purposes, you probably just want `pip install -r requirements.txt`.
 
 Our [direnv config](./.envrc) file codifies the development environment setup which we use internally.
 
-
 ## Coding Conventions
 
 Please ensure code conforms to [PEP-8](https://www.python.org/dev/peps/pep-0008/) and [PEP-257](https://www.python.org/dev/peps/pep-0257/).
