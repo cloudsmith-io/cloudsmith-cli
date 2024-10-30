@@ -206,13 +206,13 @@ def paginate_results(api_function, show_all, page, page_size=1000, **kwargs):
     :param api_function: The API function to call for retrieving results
     :param show_all: Boolean flag to show all results
     :param page: The page number to start from
-    :param page_size: The number of items per page (default: 1000)
+    :param page_size: The number of items per page
     :param kwargs: Additional keyword arguments to pass to the API function
     :return: A tuple of (results, page_info)
     """
     if show_all:
         all_results = []
-        current_page = page
+        current_page = 1
         while True:
             page_results, page_info = api_function(
                 page=current_page, page_size=page_size, **kwargs

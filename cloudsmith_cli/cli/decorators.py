@@ -4,6 +4,8 @@ import functools
 
 import click
 
+from cloudsmith_cli.cli import validators
+
 from ..core.api.init import initialise_api as _initialise_api
 from . import config, utils
 
@@ -142,25 +144,49 @@ def common_cli_output_options(f):
 
 
 def common_cli_list_options(f):
-    """Common CLI options for list commands."""
-    f = click.option(
+    """Add common list options to commands."""
+
+    @click.option(
+        "-p",
         "--page",
         default=1,
-        help="The page of results to show.",
-        type=click.INT,
-    )(f)
-    f = click.option(
+        type=int,
+        help="The page to view for lists, where 1 is the first page",
+        callback=validators.validate_page,
+    )
+    @click.option(
+        "-l",
         "--page-size",
-        default=None,
-        help="The number of results to return per page.",
-        type=click.INT,
-    )(f)
-    f = click.option(
+        default=30,
+        type=int,
+        help="The amount of items to view per page for lists.",
+        callback=validators.validate_page_size,
+    )
+    @click.option(
         "--show-all",
+        default=False,
         is_flag=True,
-        help="Show all results (unpaginated)",
-    )(f)
-    return f
+        help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
+    )
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
+        opts = config.get_or_create_options(ctx)
+
+        # Check for mutually exclusive parameters
+        show_all = kwargs.get("show_all")
+        page = kwargs.get("page")
+        page_size = kwargs.get("page_size")
+
+        if show_all and (page or page_size):
+            raise click.UsageError(
+                "--show-all cannot be used with --page (-p) or --page-size (-l)"
+            )
+        kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
 
 
 def common_api_auth_options(f):
