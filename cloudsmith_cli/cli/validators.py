@@ -155,6 +155,15 @@ def validate_page_size(ctx, param, value):
     return value
 
 
+def validate_show_all(ctx, param, value):
+    """Ensure that --show-all is not used with --page (-p) or --page-size (-l)."""
+    if value and (ctx.params.get("page") or ctx.params.get("page_size")):
+        raise click.UsageError(
+            "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+        )
+    return value
+
+
 def validate_optional_timestamp(ctx, param, value):
     """Ensure that a valid value for a timestamp is used."""
 

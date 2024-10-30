@@ -167,22 +167,13 @@ def common_cli_list_options(f):
         default=False,
         is_flag=True,
         help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
+        callback=validators.validate_show_all,
     )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
-
-        # Check for mutually exclusive parameters
-        show_all = kwargs.get("show_all")
-        page = kwargs.get("page")
-        page_size = kwargs.get("page_size")
-
-        if show_all and (page or page_size):
-            raise click.UsageError(
-                "--show-all cannot be used with --page (-p) or --page-size (-l)"
-            )
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
