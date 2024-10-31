@@ -80,12 +80,6 @@ def licence(*args, **kwargs):
 @click.argument(
     "owner", metavar="OWNER", callback=validators.validate_owner, required=True
 )
-@click.option(
-    "--show-all",
-    "-a",
-    is_flag=True,
-    help="Show all results, not just the current page",
-)
 @click.pass_context
 def ls(ctx, opts, owner, page, page_size, show_all):
     """

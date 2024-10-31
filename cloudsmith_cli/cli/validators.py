@@ -157,10 +157,12 @@ def validate_page_size(ctx, param, value):
 
 def validate_show_all(ctx, param, value):
     """Ensure that --show-all is not used with --page (-p) or --page-size (-l)."""
-    if value and (ctx.params.get("page") or ctx.params.get("page_size")):
-        raise click.UsageError(
-            "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
-        )
+    if value:
+        # Check if either page or page_size parameters were provided, regardless of value
+        if any(param in ctx.params for param in ["page", "page_size"]):
+            raise click.UsageError(
+                "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+            )
     return value
 
 
