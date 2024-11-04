@@ -139,7 +139,6 @@ class TestInitialiseApi:
         mocked_store_sso_tokens.assert_called_once_with(
             "https://example.com", "new_access_token", "new_refresh_token"
         )
-        mocked_update_refresh_attempted_at.called_once()
 
     def test_initialise_api_with_recently_refreshed_access_token_and_empty_basic_auth_set(
         self,
@@ -160,7 +159,7 @@ class TestInitialiseApi:
         assert config.password == ""
         mocked_refresh_access_token.assert_not_called()
         mocked_store_sso_tokens.assert_not_called()
-        mocked_update_refresh_attempted_at.not_called()
+        mocked_update_refresh_attempted_at.assert_not_called()
 
     def test_initialise_api_with_recently_refreshed_access_token_and_present_basic_auth(
         self,
@@ -184,4 +183,4 @@ class TestInitialiseApi:
         assert config.password == "password"
         mocked_refresh_access_token.assert_not_called()
         mocked_store_sso_tokens.assert_not_called()
-        mocked_update_refresh_attempted_at.not_called()
+        mocked_update_refresh_attempted_at.assert_not_called()
