@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.4.0] - 2024-11-04
+
 ### Added
 
 - Dropped support for Python 3.8. ([#137](https://github.com/cloudsmith-io/cloudsmith-cli/pull/137))
