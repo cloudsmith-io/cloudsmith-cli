@@ -80,6 +80,18 @@ def test_upstream_commands(
     assert "Getting upstreams... OK" in result.output
     assert "Results: 1 upstream" in result.output
 
+    # Fail to use --show-all with --page or --page-size
+    result = runner.invoke(
+        upstream,
+        [upstream_format, "ls", org_repo, "--show-all", "--page", "1"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 2
+    assert (
+        "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+        in result.output
+    )
+
     slug_perm = result_data["slug_perm"]
     assert slug_perm
     org_repo_slug_perm = f"{org_repo}/{slug_perm}"

@@ -213,14 +213,15 @@ def paginate_results(api_function, show_all, page, page_size=1000, **kwargs):
     if show_all:
         all_results = []
         current_page = 1
+        max_page_size = 1000
         while True:
             page_results, page_info = api_function(
-                page=current_page, page_size=page_size, **kwargs
+                page=current_page, page_size=max_page_size, **kwargs
             )
             all_results.extend(page_results)
             if not page_results:
                 break
-            if page_size is not None and len(page_results) < page_size:
+            if len(page_results) < max_page_size:
                 break
             if (
                 page_info.page_total is not None

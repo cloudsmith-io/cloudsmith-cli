@@ -133,6 +133,16 @@ def test_license_policy_commands(runner, organization, tmp_path):
 
     assert "Results: " in result.output and " license policies" in result.output
 
+    # Fail to use --show-all with --page or --page-size
+    result = runner.invoke(
+        ls, [organization, "--show-all", "--page", "1"], catch_exceptions=False
+    )
+    assert result.exit_code == 2
+    assert (
+        "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+        in result.output
+    )
+
     # Change the values in the config file
     policy_config_file_path = create_license_policy_config_file(
         directory=tmp_path,

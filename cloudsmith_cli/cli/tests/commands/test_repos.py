@@ -125,6 +125,16 @@ def test_repos_commands(runner, organization, tmp_path):
     # A static number cannot be used here because we are performing this test in cloudsmith org which is active.
     assert "Results: " in result.output and " repositories retrieved" in result.output
 
+    # Fail to use --show-all with --page or --page-size
+    result = runner.invoke(
+        get, [organization, "--show-all", "--page", "1"], catch_exceptions=False
+    )
+    assert result.exit_code == 2
+    assert (
+        "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+        in result.output
+    )
+
     # Change the repository description in the repo config file.
     repository_description = random_str()
     repo_config_file_path = create_repo_config_file(
