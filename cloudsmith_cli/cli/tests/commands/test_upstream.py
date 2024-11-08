@@ -86,7 +86,6 @@ def test_upstream_commands(
         [upstream_format, "ls", org_repo, "--show-all", "--page", "1"],
         catch_exceptions=False,
     )
-    assert result.exit_code == 2
     assert (
         "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
         in result.output

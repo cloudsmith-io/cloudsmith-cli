@@ -156,21 +156,19 @@ def validate_page_size(ctx, param, value):
 
 
 def validate_show_all(ctx, param, value):
-    """Validate the show-all parameter."""
+    """Ensure that --show-all is not used with --page (-p) or --page-size (-l)."""
     if not value:
         return value
 
-    # Get other pagination parameters if they exist
-    params = ctx.params if ctx else {}
-    page = params.get("page")
-    page_size = params.get("page_size")
+    # Check both ctx.params and sys.argv for pagination flags
+    import sys
 
-    if page is not None and page != 1:
-        raise click.BadParameter(
-            "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
-        )
-    if page_size is not None and page_size != 30:  # 30 is the default value
-        raise click.BadParameter(
+    has_pagination = any(param in ctx.params for param in ["page", "page_size"]) or any(
+        flag in sys.argv for flag in ["--page", "-p", "--page-size", "-l"]
+    )
+
+    if has_pagination:
+        raise click.UsageError(
             "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
         )
 
