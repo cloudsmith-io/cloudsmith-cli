@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+
+## [1.4.1] - 2024-11-26
+
 ### Added
 
  - Update cloudsmith-api to v2.0.16 ([#181](https://github.com/cloudsmith-io/cloudsmith-cli/pull/181))
