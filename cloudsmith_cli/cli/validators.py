@@ -155,6 +155,26 @@ def validate_page_size(ctx, param, value):
     return value
 
 
+def validate_show_all(ctx, param, value):
+    """Ensure that --show-all is not used with --page (-p) or --page-size (-l)."""
+    if not value:
+        return value
+
+    # Check both ctx.params and sys.argv for pagination flags
+    import sys
+
+    has_pagination = any(param in ctx.params for param in ["page", "page_size"]) or any(
+        flag in sys.argv for flag in ["--page", "-p", "--page-size", "-l"]
+    )
+
+    if has_pagination:
+        raise click.UsageError(
+            "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+        )
+
+    return value
+
+
 def validate_optional_timestamp(ctx, param, value):
     """Ensure that a valid value for a timestamp is used."""
 

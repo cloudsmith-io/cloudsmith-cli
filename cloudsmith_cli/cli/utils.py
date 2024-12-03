@@ -18,32 +18,38 @@ def make_user_agent(prefix=None):
     return f"cloudsmith-cli/{prefix} cli:{get_cli_version()} api:{get_api_version()}"
 
 
-def pretty_print_list_info(num_results, page_info=None, suffix=None):
-    """Pretty print list info, with pagination, for user display."""
-    num_results_fg = "green" if num_results else "red"
-    num_results_text = click.style(str(num_results), fg=num_results_fg)
-
-    if page_info and page_info.is_valid:
-        page_range = page_info.calculate_range(num_results)
-        page_info_text = f"page: {click.style(str(page_info.page), bold=True)}/{click.style(str(page_info.page_total), bold=True)}, page size: {click.style(str(page_info.page_size), bold=True)}"
-        range_results_text = "%(from)s-%(to)s (%(num_results)s) of %(total)s" % {
-            "num_results": num_results_text,
-            "from": click.style(str(page_range[0]), fg=num_results_fg),
-            "to": click.style(str(page_range[1]), fg=num_results_fg),
-            "total": click.style(str(page_info.count), fg=num_results_fg),
-        }
+def pretty_print_list_info(num_results, page_info=None, suffix="", show_all=False):
+    """Print information about list results."""
+    if show_all:
+        click.echo(
+            "Results: %(num_results)d %(suffix)s"
+            % {
+                "num_results": num_results,
+                "suffix": suffix,
+            }
+        )
+    elif page_info and page_info.page is not None and page_info.page_size is not None:
+        start = (page_info.page - 1) * page_info.page_size + 1
+        end = min(start + num_results - 1, page_info.count or 0)
+        click.echo(
+            "Results: %(start)d-%(end)d (%(count)d) of %(total)d %(suffix)s "
+            "(page: %(page)d/%(pages)d, page size: %(page_size)d)"
+            % {
+                "start": start,
+                "end": end,
+                "count": num_results,
+                "total": page_info.count or 0,
+                "suffix": suffix,
+                "page": page_info.page,
+                "pages": page_info.page_total or 1,
+                "page_size": page_info.page_size,
+            }
+        )
     else:
-        page_info_text = ""
-        range_results_text = num_results_text
-
-    click.secho(
-        "Results: %(range_results)s %(suffix)s%(page_info)s"
-        % {
-            "range_results": range_results_text,
-            "page_info": " (%s)" % page_info_text if page_info_text else "",
-            "suffix": suffix or "item(s)",
-        }
-    )
+        click.echo(
+            "Results: %(num_results)d %(suffix)s"
+            % {"num_results": num_results, "suffix": suffix}
+        )
 
 
 def fmt_datetime(value):
@@ -191,3 +197,38 @@ def maybe_spinner(opts):
     else:
         with spinner() as spin:
             yield spin
+
+
+def paginate_results(api_function, show_all, page, page_size=1000, **kwargs):
+    """
+    Paginate results from an API function.
+
+    :param api_function: The API function to call for retrieving results
+    :param show_all: Boolean flag to show all results
+    :param page: The page number to start from
+    :param page_size: The number of items per page
+    :param kwargs: Additional keyword arguments to pass to the API function
+    :return: A tuple of (results, page_info)
+    """
+    if show_all:
+        all_results = []
+        current_page = 1
+        max_page_size = 1000
+        while True:
+            page_results, page_info = api_function(
+                page=current_page, page_size=max_page_size, **kwargs
+            )
+            all_results.extend(page_results)
+            if not page_results:
+                break
+            if len(page_results) < max_page_size:
+                break
+            if (
+                page_info.page_total is not None
+                and current_page >= page_info.page_total
+            ):
+                break
+            current_page += 1
+        page_info.count = len(all_results)
+        return all_results, page_info
+    return api_function(page=page, page_size=page_size, **kwargs)

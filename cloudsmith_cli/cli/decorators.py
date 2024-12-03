@@ -4,8 +4,10 @@ import functools
 
 import click
 
+from cloudsmith_cli.cli import validators
+
 from ..core.api.init import initialise_api as _initialise_api
-from . import config, utils, validators
+from . import config, utils
 
 
 def report_retry(seconds, context=None):
@@ -145,12 +147,11 @@ def common_cli_list_options(f):
     """Add common list options to commands."""
 
     @click.option(
-        "-p",
-        "--page",
-        default=1,
-        type=int,
-        help="The page to view for lists, where 1 is the first page",
-        callback=validators.validate_page,
+        "--show-all",
+        default=False,
+        is_flag=True,
+        help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
+        callback=validators.validate_show_all,
     )
     @click.option(
         "-l",
@@ -159,6 +160,14 @@ def common_cli_list_options(f):
         type=int,
         help="The amount of items to view per page for lists.",
         callback=validators.validate_page_size,
+    )
+    @click.option(
+        "-p",
+        "--page",
+        default=1,
+        type=int,
+        help="The page to view for lists, where 1 is the first page",
+        callback=validators.validate_page,
     )
     @click.pass_context
     @functools.wraps(f)
