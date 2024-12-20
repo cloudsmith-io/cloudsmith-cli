@@ -106,7 +106,9 @@ def validate_owner(ctx, param, value):
     """Ensure that owner is formatted correctly."""
     # pylint: disable=unused-argument
     form = "OWNER"
-    return validate_slashes(param, value, minimum=1, maximum=1, form=form)
+    result = validate_slashes(param, value, minimum=1, maximum=1, form=form)
+    # Return just the string value from the list
+    return result[0] if isinstance(result, list) else value
 
 
 def validate_owner_repo(ctx, param, value):
