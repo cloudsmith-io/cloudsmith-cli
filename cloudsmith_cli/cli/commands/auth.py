@@ -26,8 +26,7 @@ from .main import main
 @click.pass_context
 def authenticate(ctx, opts, owner):
     """Authenticate to Cloudsmith using the org's SAML setup."""
-    # Ensure we have a clean string value
-    owner = owner[0] if isinstance(owner, list) else owner
+    owner = owner[0].strip("'[]'")
     api_host = opts.api_config.host
 
     click.echo(
