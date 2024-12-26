@@ -28,6 +28,7 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
+- `auth`:                 Authenticate the CLI against an organization's SAML configuration.
 - `check`:                Check rate limits and service status.
 - `copy`|`cp`:            Copy a package to another repository.
 - `delete`|`rm`:          Delete a package from a repository.
@@ -145,6 +146,10 @@ Both configuration files use the simple INI format, such as:
 api_key=1234567890abcdef1234567890abcdef
 ```
 
+Additionally, the CLI will store SSO access and refresh tokens in the system keyring
+using the [`keyring`](https://github.com/jaraco/keyring) library.
+
+
 ### Non-Credentials (config.ini)
 
 See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith_cli/data/config.ini) in GitHub:
@@ -165,11 +170,26 @@ You can specify the following configuration options:
 - `api_key`: The API key for authenticating with the API.
 
 
-### Getting Your API Key
+### Authenticating
 
 You'll need to provide authentication to Cloudsmith for any CLI actions that result in accessing private data or making changes to resources (such as pushing a new package to a repository)..
 
-With the CLI this is simple to do. You can retrieve your API key using the `cloudsmith login` command:
+#### SAML authentication
+
+You can authenticate using your organization's SAML provider, if configured, with the `cloudsmith auth` command:
+```
+cloudsmith auth --owner example
+Beginning authentication for the example org ...
+Opening your organization's SAML IDP URL in your browser: https://example.com/some-saml-idp
+
+Starting webserver to begin authentication ...
+
+Authentication complete
+```
+
+#### Getting Your API Key
+
+You can retrieve your API key using the `cloudsmith login` command:
 
 ```
 cloudsmith login

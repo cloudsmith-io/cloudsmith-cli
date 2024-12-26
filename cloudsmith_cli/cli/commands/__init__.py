@@ -1,6 +1,7 @@
 """CLI/Commands - Import all commands."""
 
 from . import (
+    auth,
     check,
     copy,
     delete,
