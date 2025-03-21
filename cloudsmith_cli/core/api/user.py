@@ -6,8 +6,11 @@ import click
 from cloudsmith_api.rest import ApiException
 
 from .. import ratelimits
-from .exceptions import catch_raise_api_exception
+from .exceptions import catch_raise_api_exception, TwoFactorRequiredException
 from .init import get_api_client, unset_api_key
+
+
+
 
 
 def get_user_api():
@@ -39,35 +42,19 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
         ratelimits.maybe_rate_limit(client, headers)
         return data.token
     except ApiException as e:
-        # Check if this is a 2FA required response TODO: Is this right way to go? Feels wrong
+        # Check if this is a 2FA required response
         if e.status == 422:
             try:
                 response_data = json.loads(e.body)
                 if response_data.get("two_factor_required"):
-                    # Clear the current line 
-                    click.echo("\r\003[k", nl=False)
-
-                    # Notify that 2FA required
-                    click.echo("Two-factor authentication is required.")
                     two_factor_token = response_data.get("two_factor_token")
-
-                    # Prompt user for their 2FA code
-                    totp_token = click.prompt("Enter your two-factor authentication code", type=str)
-
-                    click.echo(
-                        "Verifying two-factor code for %(login)s ... " 
-                        % {"login": click.style(login, bold=True)},
-                        nl=False
-                    )
-
-                    return get_user_token(
-                        login=login,
-                        password=password,
-                        totp_token=totp_token,
-                        two_factor_token=two_factor_token,
-                    )
+                    if isinstance(two_factor_token, list) and two_factor_token:
+                        two_factor_token = two_factor_token[0]
+                    
+                    # Raise custom exception for 2FA requirement
+                    raise TwoFactorRequiredException(two_factor_token)
             except (ValueError, KeyError):
-                # If we can't parse the response body as JSON or it doesn't have the expected structure
+                # If we can't parse as JSON or doesn't have expected structure
                 pass
         raise
 
