@@ -188,7 +188,7 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
 def wait_for_package_sync(
     ctx, opts, owner, repo, slug, wait_interval, skip_errors, attempts=3
 ):
-    """Wait for a package to synchronise (or fail)."""
+    """Wait for a package to synchronize (or fail)."""
     # pylint: disable=too-many-locals
     attempts -= 1
     click.echo()
@@ -208,7 +208,7 @@ def wait_for_package_sync(
         )
 
     start = datetime.now()
-    context_msg = "Failed to synchronise file!"
+    context_msg = "Failed to synchronize file!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
@@ -254,14 +254,14 @@ def wait_for_package_sync(
 
     if ok:
         click.secho(
-            "Package synchronised successfully in %(seconds)s second(s)!"
+            "Package synchronized successfully in %(seconds)s second(s)!"
             % {"seconds": click.style(str(seconds), bold=True)},
             fg="green",
         )
         return
 
     click.secho(
-        "Package failed to synchronise in %(seconds)s during stage: %(stage)s"
+        "Package failed to synchronize in %(seconds)s during stage: %(stage)s"
         % {
             "seconds": click.style(str(seconds), bold=True),
             "stage": click.style(stage_str or "Unknown", fg="yellow"),
@@ -397,7 +397,7 @@ def upload_files_and_create_package(
     if no_wait_for_sync:
         return
 
-    # 5. (optionally) Wait for the package to synchronise
+    # 5. (optionally) Wait for the package to synchronize
     wait_for_package_sync(
         ctx=ctx,
         opts=opts,

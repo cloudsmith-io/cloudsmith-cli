@@ -91,7 +91,7 @@ def ls(ctx, opts, owner, page, page_size):
     List license policies.
 
     This requires appropriate permissions for the owner (a member of the
-    organisation and a valid API key).
+    organization and a valid API key).
 
     - OWNER: Specify the OWNER namespace (i.e. org)
 

@@ -14,7 +14,7 @@ from ..main import main
 @click.pass_context
 def quota(ctx, opts):  # pylink: disable=unused-argument
     """
-    Display Quota limits and history for an organisation.
+    Display Quota limits and history for an organization.
 
     See the help for subcommands for more information on each.
     """
