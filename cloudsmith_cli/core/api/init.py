@@ -55,7 +55,10 @@ def initialise_api(
             try:
                 if keyring.should_refresh_access_token(config.host):
                     new_access_token, new_refresh_token = saml.refresh_access_token(
-                        config.host, access_token, refresh_token
+                        config.host,
+                        access_token,
+                        refresh_token,
+                        session=saml.create_configured_session(config),
                     )
                     keyring.store_sso_tokens(
                         config.host, new_access_token, new_refresh_token
