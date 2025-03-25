@@ -48,8 +48,6 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
                 response_data = json.loads(e.body)
                 if response_data.get("two_factor_required"):
                     two_factor_token = response_data.get("two_factor_token")
-                    if isinstance(two_factor_token, list) and two_factor_token:
-                        two_factor_token = two_factor_token[0]
                     
                     # Raise custom exception for 2FA requirement
                     raise TwoFactorRequiredException(two_factor_token)
