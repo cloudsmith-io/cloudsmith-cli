@@ -127,8 +127,34 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     "--query",
     help=("A boolean-like search term for querying package attributes."),
 )
+@click.option(
+    "--sort",
+    type=click.Choice(
+        [
+            "date",
+            "-date",
+            "downloads",
+            "-downloads",
+            "format",
+            "-format",
+            "name",
+            "-name",
+            "scan",
+            "-scan",
+            "scan_date",
+            "-scan_date",
+            "size",
+            "-size",
+            "status",
+            "-status",
+            "version",
+            "-version",
+        ]
+    ),
+    help=("Sort packages by field. Prefix with '-' for descending order."),
+)
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query):
+def packages(ctx, opts, owner_repo, page, page_size, query, sort):
     """
     List packages for a repository.
 
@@ -165,6 +191,18 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 
     --query 'name:^foo$ filename:.zip$ architecture:~x86'
 
+    You can sort the results using --sort with these fields:
+      - date/-date: Sort by creation date
+      - downloads/-downloads: Sort by download count
+      - format/-format: Sort by package format
+      - name/-name: Sort by package name
+      - scan/-scan: Sort by scan status
+      - scan_date/-scan_date: Sort by last scan date
+      - size/-size: Sort by package size
+      - status/-status: Sort by package status
+      - version/-version: Sort by version
+
+    Prefix any field with '-' for descending order (e.g. -date for newest first).
     """
     owner, repo = owner_repo
 
@@ -177,7 +215,12 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             packages_, page_info = list_packages(
-                owner=owner, repo=repo, page=page, page_size=page_size, query=query
+                owner=owner,
+                repo=repo,
+                page=page,
+                page_size=page_size,
+                query=query,
+                sort=sort,
             )
 
     click.secho("OK", fg="green", err=use_stderr)
