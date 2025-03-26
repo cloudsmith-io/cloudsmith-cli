@@ -1,16 +1,14 @@
 """API - User endpoints."""
 
-import cloudsmith_api
 import json
+
 import click
+import cloudsmith_api
 from cloudsmith_api.rest import ApiException
 
 from .. import ratelimits
-from .exceptions import catch_raise_api_exception, TwoFactorRequiredException
+from .exceptions import TwoFactorRequiredException, catch_raise_api_exception
 from .init import get_api_client, unset_api_key
-
-
-
 
 
 def get_user_api():
