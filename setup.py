@@ -41,7 +41,9 @@ setup(
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"cloudsmith_cli": ["cloudsmith_cli/data/*"]},
+    package_data={
+        "cloudsmith_cli": ["cloudsmith_cli/data/*", "cloudsmith_cli/templates/*"]
+    },
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
