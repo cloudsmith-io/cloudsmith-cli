@@ -5,7 +5,7 @@ import click
 from ...core.api.user import get_user_brief
 from .. import decorators
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner
+from ..utils import maybe_print_as_json, maybe_spinner
 from .main import main
 
 
@@ -17,13 +17,30 @@ from .main import main
 @click.pass_context
 def whoami(ctx, opts):
     """Retrieve your current authentication status."""
-    click.echo("Retrieving your authentication status from the API ... ", nl=False)
+    use_stderr = opts.output in ("json", "pretty_json")
+
+    click.echo(
+        "Retrieving your authentication status from the API ... ",
+        nl=False,
+        err=use_stderr,
+    )
 
     context_msg = "Failed to retrieve your authentication status!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             is_auth, username, email, name = get_user_brief()
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
+
+    data = {
+        "is_authenticated": is_auth,
+        "username": username,
+        "email": email,
+        "name": name,
+    }
+
+    if maybe_print_as_json(opts, data):
+        return
+
     click.echo("You are authenticated as:")
     if not is_auth:
         click.secho("Nobody (i.e. anonymous user)", fg="yellow")

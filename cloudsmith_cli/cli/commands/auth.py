@@ -1,11 +1,12 @@
 """CLI/Commands - Authenticate the user."""
+
 import webbrowser
 
 import click
 
 from .. import decorators, validators
 from ..exceptions import handle_api_exceptions
-from ..saml import get_idp_url
+from ..saml import create_configured_session, get_idp_url
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 from .main import main
 
@@ -35,9 +36,11 @@ def authenticate(ctx, opts, owner):
         )
     )
 
+    session = create_configured_session(opts)
+
     context_message = "Failed to authenticate via SSO!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
-        idp_url = get_idp_url(api_host, owner)
+        idp_url = get_idp_url(api_host, owner, session=session)
         click.echo(
             "Opening your organization's SAML IDP URL in your browser: %(idp_url)s"
             % {"idp_url": click.style(idp_url, bold=True)}
@@ -51,8 +54,7 @@ def authenticate(ctx, opts, owner):
             AuthenticationWebRequestHandler,
             api_host=api_host,
             owner=owner,
+            session=session,
+            debug=opts.debug,
         )
         auth_server.handle_request()
-
-        click.echo()
-        click.secho("Authentication complete", fg="green")
