@@ -5,6 +5,8 @@ from datetime import datetime
 
 import click
 
+from .types import ExpandPath
+
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
@@ -230,3 +232,32 @@ def validate_scheduled_reset_period(ctx, param, value):
         )
 
     return value
+
+
+def validate_extra_files_parameter(ctx, param, value):
+    """Validate and resolve paths for all extra files."""
+
+    if not value:
+        return []
+
+    path_obj = ExpandPath(
+        exists=True,
+        dir_okay=False,
+        writable=False,
+        resolve_path=True,
+    )
+
+    files = []
+    for v in value:
+        for path in v.split(","):
+            path = path.strip()
+            if not path:
+                continue
+
+            try:
+                resolved_path = path_obj.convert(path, param, ctx)
+                files.append(resolved_path)
+            except click.BadParameter as e:
+                raise click.BadParameter(f"Invalid file path '{path}': {e}")
+
+    return files
