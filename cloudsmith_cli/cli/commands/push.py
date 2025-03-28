@@ -569,6 +569,9 @@ def create_push_handlers():
                 option_kwargs["type"] = str
                 option_kwargs["multiple"] = True
                 option_kwargs["callback"] = validators.validate_extra_files_parameter
+                info["help"] = (
+                    info["help"] + " Accepts a comma-separated list of values."
+                )
             elif info["type"] == "bool":
                 option_name_fmt = "--%(key)s/--no-%(key)s"
                 option_kwargs["is_flag"] = True
