@@ -5,6 +5,7 @@ import stat
 
 import click
 
+from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
 from .. import decorators
@@ -124,9 +125,27 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     )
 
     context_msg = "Failed to retrieve the API token!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api_key = get_user_token(login=login, password=password)
+    try:
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                api_key = get_user_token(login=login, password=password)
+    except TwoFactorRequiredException as e:
+        click.echo("\r\033[K", nl=False)
+        click.echo("Two-factor authentication is required.")
+        totp_token = click.prompt("Enter your two-factor authentication code", type=str)
+        click.echo(
+            "Verifying two-factor code for %(login)s ... " 
+            % {"login": click.style(login, bold=True)},
+            nl=False
+        )
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                api_key = get_user_token(
+                    login=login,
+                    password=password,
+                    totp_token=totp_token,
+                    two_factor_token=e.two_factor_token
+                )
 
     click.secho("OK", fg="green")
 
