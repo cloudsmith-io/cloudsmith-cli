@@ -53,7 +53,7 @@ setup(
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
-        "cloudsmith-api>=2.0.16,<3.0",  # Compatible upto (but excluding) 3.0+
+        "cloudsmith-api>=2.0.17,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "requests>=2.18.4",
         "requests_toolbelt>=0.8.0",

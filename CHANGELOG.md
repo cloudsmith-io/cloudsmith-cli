@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.7.0] - 2025-03-31
+
+### Added
+
+- Added `--extra-files` parameter for Maven upload command ([#190](https://github.com/cloudsmith-io/cloudsmith-cli/pull/190))
+
 ## [1.6.2] - 2025-03-27
 
 - Added html templates for saml response endpoints
