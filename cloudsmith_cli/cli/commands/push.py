@@ -352,17 +352,33 @@ def upload_files_and_create_package(
     # 2. Validate file upload parameters
     md5_checksums = {}
     for k, v in kwargs.items():
-        if not v or not k.endswith("_file"):
+        if not v:
             continue
 
-        md5_checksums[k] = validate_upload_file(
-            ctx=ctx,
-            opts=opts,
-            owner=owner,
-            repo=repo,
-            filepath=v,
-            skip_errors=skip_errors,
-        )
+        # Handle a single file
+        if k.endswith("_file"):
+            md5_checksums[k] = validate_upload_file(
+                ctx=ctx,
+                opts=opts,
+                owner=owner,
+                repo=repo,
+                filepath=v,
+                skip_errors=skip_errors,
+            )
+
+        # Check if the key is "extra_files" (to handle multiple files)
+        if k == "extra_files" and isinstance(v, list):
+            md5_checksums[k] = [
+                validate_upload_file(
+                    ctx=ctx,
+                    opts=opts,
+                    owner=owner,
+                    repo=repo,
+                    filepath=file,
+                    skip_errors=skip_errors,
+                )
+                for file in v
+            ]
 
     if dry_run:
         click.echo()
@@ -371,18 +387,35 @@ def upload_files_and_create_package(
 
     # 3. Upload any arguments that look like files
     for k, v in kwargs.items():
-        if not v or not k.endswith("_file"):
+        if not v:
             continue
 
-        kwargs[k] = upload_file(
-            ctx=ctx,
-            opts=opts,
-            owner=owner,
-            repo=repo,
-            filepath=v,
-            skip_errors=skip_errors,
-            md5_checksum=md5_checksums[k],
-        )
+        # Handle a single file
+        if k.endswith("_file"):
+            kwargs[k] = upload_file(
+                ctx=ctx,
+                opts=opts,
+                owner=owner,
+                repo=repo,
+                filepath=v,
+                skip_errors=skip_errors,
+                md5_checksum=md5_checksums[k],
+            )
+
+        # Check if the key is "extra_files" (to handle multiple files)
+        if k == "extra_files" and isinstance(v, list):
+            kwargs[k] = [
+                upload_file(
+                    ctx=ctx,
+                    opts=opts,
+                    owner=owner,
+                    repo=repo,
+                    filepath=file,
+                    skip_errors=skip_errors,
+                    md5_checksum=md5_checksums[k][idx],
+                )
+                for idx, file in enumerate(v)
+            ]
 
     # 4. Create the package with package files and additional arguments
     _, slug = create_package(
@@ -530,6 +563,14 @@ def create_push_handlers():
                 # Treat parameters that end with _file as uploadable filepaths.
                 option_kwargs["type"] = ExpandPath(
                     dir_okay=False, exists=True, writable=False, resolve_path=True
+                )
+            elif k == "extra_files":
+                # Handle multiple files for extra_files parameter.
+                option_kwargs["type"] = str
+                option_kwargs["multiple"] = True
+                option_kwargs["callback"] = validators.validate_extra_files_parameter
+                info["help"] = (
+                    info["help"] + " Accepts a comma-separated list of values."
                 )
             elif info["type"] == "bool":
                 option_name_fmt = "--%(key)s/--no-%(key)s"
