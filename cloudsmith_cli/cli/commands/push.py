@@ -565,7 +565,7 @@ def create_push_handlers():
                     dir_okay=False, exists=True, writable=False, resolve_path=True
                 )
             elif k == "extra_files":
-                # Handle mutliple files for extra_files parameter.
+                # Handle multiple files for extra_files parameter.
                 option_kwargs["type"] = str
                 option_kwargs["multiple"] = True
                 option_kwargs["callback"] = validators.validate_extra_files_parameter
