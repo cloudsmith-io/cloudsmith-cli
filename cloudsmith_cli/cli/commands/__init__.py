@@ -21,6 +21,7 @@ from . import (
     resync,
     status,
     tags,
+    tokens,
     upstream,
     whoami,
 )
