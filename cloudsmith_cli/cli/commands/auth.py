@@ -93,7 +93,17 @@ def authenticate(ctx, opts, owner, token):
 
         context_msg = "Failed to refresh the token!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            token_slug = user.list_user_tokens()[0]["slug_perm"]
+            api_tokens = user.list_user_tokens()
+        for t in api_tokens:
+            click.echo("Current tokens:")
+            click.echo(
+                f"Token: {click.style(t['key'], fg='magenta')}, "
+                f"Created: {click.style(t['created'], fg='green')}, "
+                f"slug_perm: {click.style(t['slug_perm'], fg='cyan')}"
+            )
+        token_slug = click.prompt(
+            "Please enter the slug_perm of the token you would like to refresh"
+        )
 
         click.echo(f"Refreshing token {token_slug}... ", nl=False)
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
