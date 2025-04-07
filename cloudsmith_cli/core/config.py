@@ -86,6 +86,7 @@ def create_config_files(ctx, opts, api_key):
 
 
 def new_config_messaging(has_errors, opts, create, api_key):
+    """Provide messaging to user after generating new configs"""
     if has_errors:
         click.echo()
         click.secho("Oops, please fix the errors and try again!", fg="red")
