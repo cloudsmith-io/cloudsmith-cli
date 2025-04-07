@@ -45,7 +45,10 @@ def list_tokens(ctx, opts):
 
 
 @tokens.command()
-@click.argument("token_slug")
+@click.argument(
+    "token_slug",
+    required=False,
+)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
@@ -53,9 +56,24 @@ def list_tokens(ctx, opts):
 @click.pass_context
 def refresh(ctx, opts, token_slug):
     """Refresh a specific API token by its slug."""
-    click.echo(f"Refreshing token {token_slug}... ", nl=False)
-
     context_msg = "Failed to refresh the token!"
+
+    if not token_slug:
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                api_tokens = api.list_user_tokens()
+        for t in api_tokens:
+            click.echo("Current tokens:")
+            click.echo(
+                f"Token: {click.style(t['key'], fg='magenta')}, "
+                f"Created: {click.style(t['created'], fg='green')}, "
+                f"slug_perm: {click.style(t['slug_perm'], fg='cyan')}"
+            )
+        token_slug = click.prompt(
+            "Please enter the slug_perm of the token you would like to refresh"
+        )
+
+    click.echo(f"Refreshing token {token_slug}... ", nl=False)
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             new_token = api.refresh_user_token(token_slug)
