@@ -91,7 +91,8 @@ def authenticate(ctx, opts, owner, token):
                         "User already has a token. Would you like to recreate it?",
                         abort=True,
                     )
-                raise
+                else:
+                    raise
 
         context_msg = "Failed to refresh the token!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
