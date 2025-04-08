@@ -86,10 +86,12 @@ def authenticate(ctx, opts, owner, token):
             return
         except exceptions.ApiException as exc:
             if exc.status == 400:
-                click.confirm(
-                    "User already has a token. Would you like to recreate it?",
-                    abort=True,
-                )
+                if "User has already created an API key" in exc.detail:
+                    click.confirm(
+                        "User already has a token. Would you like to recreate it?",
+                        abort=True,
+                    )
+                raise
 
         context_msg = "Failed to refresh the token!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
