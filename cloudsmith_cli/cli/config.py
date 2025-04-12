@@ -77,6 +77,7 @@ class ConfigReader(ConfigFileReader):
     config_name = "standard"
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
+    config_warning_issued = False
 
     @classmethod
     def select_config_schema_for(cls, section_name):
@@ -148,7 +149,20 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
-    def load_config(cls, opts, path=None, profile=None):
+    def config_already_warned(cls):
+        """
+        Check if a configuration file warning has been issued.
+        This is required as configs are gathered at the root of the
+        command chain as well as for command verbs
+        """
+        if cls.config_warning_issued:
+            return True
+
+        cls.config_warning_issued = True
+        return False
+
+    @classmethod
+    def load_config(cls, opts, path=None, profile=None, no_warn=False):
         """Load a configuration file into an options object."""
         if path and os.path.exists(path):
             if os.path.isdir(path):
@@ -160,9 +174,36 @@ class ConfigReader(ConfigFileReader):
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
 
-        if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
-            cls._load_values_into_opts(opts, values)
+        warn = not no_warn and not cls.config_already_warned()
+
+        if profile and profile != "default" and warn:
+            try:
+                values = config["profile:%s" % profile]
+                cls._load_values_into_opts(opts, values)
+            except KeyError:
+                if warn:
+                    click.secho(
+                        f"Warning: profile {profile} not found in config files {cls.config_files}",
+                        fg="yellow",
+                    )
+
+        existing_config_paths = {
+            path: os.path.exists(path) for path in cls.config_files
+        }
+        if not any(existing_config_paths.values()) and warn:
+            click.secho(
+                "Warning: No config files found in search paths. Tried the following:",
+                fg="yellow",
+            )
+            for tested_path, exists in existing_config_paths.items():
+                if exists:
+                    click.secho(f"{tested_path} - file exists", fg="green")
+                else:
+                    click.secho(f"{tested_path} - file does not exist", fg="yellow")
+            click.secho(
+                "You may need to run `cloudsmith login` to authenticate and create a config file.",
+                fg="yellow",
+            )
 
         return values
 
@@ -206,7 +247,31 @@ class CredentialsReader(ConfigReader):
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
+    @classmethod
+    def load_config(cls, opts, path=None, profile=None, no_warn=False):
+        """
+        Load a credentials configuration file into an options object.
+        We overload the load_config command in CredentialsReader as
+        credentials files have their own specific default functionality.
+        """
+        if path and os.path.exists(path):
+            if os.path.isdir(path):
+                cls.config_searchpath.insert(0, path)
+            else:
+                cls.config_files.insert(0, path)
 
+        config = cls.read_config()
+        values = config.get("default", {})
+        cls._load_values_into_opts(opts, values)
+
+        if profile and profile != "default":
+            values = config.get("profile:%s" % profile, {})
+            cls._load_values_into_opts(opts, values)
+
+        return values
+
+
+# pylint: disable=too-many-public-methods
 class Options:
     """Options object that holds config for the application."""
 
@@ -227,15 +292,15 @@ class Options:
         """Get the credentials config reader class."""
         return CredentialsReader
 
-    def load_config_file(self, path, profile=None):
+    def load_config_file(self, path, profile=None, no_warn=False):
         """Load the standard config file."""
         config_cls = self.get_config_reader()
-        return config_cls.load_config(self, path, profile=profile)
+        return config_cls.load_config(self, path, profile=profile, no_warn=no_warn)
 
-    def load_creds_file(self, path, profile=None):
+    def load_creds_file(self, path, profile=None, no_warn=False):
         """Load the credentials config file."""
         config_cls = self.get_creds_reader()
-        return config_cls.load_config(self, path, profile=profile)
+        return config_cls.load_config(self, path, profile=profile, no_warn=no_warn)
 
     @property
     def api_config(self):
@@ -267,6 +332,16 @@ class Options:
     def api_host(self, value):
         """Set value for API host."""
         self._set_option("api_host", value)
+
+    @property
+    def no_warn(self):
+        """Get value for API host."""
+        return self._get_option("no_warn")
+
+    @no_warn.setter
+    def no_warn(self, value):
+        """Set value for API host."""
+        self._set_option("no_warn", value)
 
     @property
     def api_key(self):
