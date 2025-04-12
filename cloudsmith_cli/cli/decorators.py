@@ -5,6 +5,7 @@ import functools
 import click
 
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.api.user import get_user_brief
 from . import config, utils, validators
 
 
@@ -306,6 +307,30 @@ def initialise_api(f):
         )
 
         kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
+
+
+def verify_authenticated(f):
+    """Verify that the user is authenticated and warn if not."""
+
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        cloudsmith_host = kwargs["opts"].opts["api_config"].host
+        is_auth, _, _, _ = get_user_brief()
+        if not is_auth:
+            click.secho(
+                "Warning: You are not authenticated with the API. "
+                "Please verify your config files, API key and "
+                "run `cloudsmith login` if necessary to authenticate.",
+                fg="yellow",
+            )
+            click.secho(
+                f"You're currently attemping to connect to Cloudsmith instance {cloudsmith_host}",
+                fg="yellow",
+            )
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper

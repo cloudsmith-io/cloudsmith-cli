@@ -60,6 +60,7 @@ def print_repositories(opts, data, page_info=None, show_list_info=True):
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
+@decorators.verify_authenticated
 @click.pass_context
 def repositories(ctx, opts):  # pylink: disable=unused-argument
     """
@@ -100,6 +101,9 @@ def get(ctx, opts, owner_repo, page, page_size):
     use_stderr = opts.output != "pretty"
 
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
+
+    repo = None
+    owner = None
 
     if isinstance(owner_repo, list):
         if len(owner_repo) == 1:
