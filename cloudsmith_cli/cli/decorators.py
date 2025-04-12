@@ -5,6 +5,7 @@ import functools
 import click
 
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.api.user import get_user_brief
 from . import config, utils, validators
 
 
@@ -86,6 +87,12 @@ def common_cli_config_options(f):
         envvar="CLOUDSMITH_PROFILE",
         help="The name of the profile to use for configuration.",
     )
+    @click.option(
+        "--no-warn",
+        is_flag=True,
+        default=None,
+        help="Don't warn on misconfiguration issues",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -94,8 +101,11 @@ def common_cli_config_options(f):
         profile = kwargs.pop("profile")
         config_file = kwargs.pop("config_file")
         creds_file = kwargs.pop("credentials_file")
-        opts.load_config_file(path=config_file, profile=profile)
-        opts.load_creds_file(path=creds_file, profile=profile)
+        no_warn = kwargs.pop("no_warn")
+        if no_warn:
+            opts.no_warn = no_warn
+        opts.load_config_file(path=config_file, profile=profile, no_warn=opts.no_warn)
+        opts.load_creds_file(path=creds_file, profile=profile, no_warn=opts.no_warn)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -304,6 +314,22 @@ def initialise_api(f):
             error_retry_codes=opts.error_retry_codes,
             error_retry_cb=opts.error_retry_cb,
         )
+
+        cloudsmith_host = kwargs["opts"].opts["api_config"].host
+        no_warn = opts.no_warn
+        is_auth, _, _, _ = get_user_brief()
+        if not is_auth and not no_warn:
+            click.secho(
+                "Warning: You are not authenticated with the API. "
+                "Please verify your config files, API key and "
+                "run `cloudsmith login` if necessary to authenticate.",
+                fg="yellow",
+            )
+            click.secho(
+                f"You're currently attempting to connect to Cloudsmith instance {cloudsmith_host}",
+                fg="yellow",
+            )
+            opts.no_warn = True
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
