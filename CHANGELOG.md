@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.5.0] - 2025-03-21
+
+### Added
+
+- Added `--sort` flag for package list command ([#185](https://github.com/cloudsmith-io/cloudsmith-cli/pull/185))
+
+### Fixed
+
+- Fixed `cloudsmith auth` command where it results in `403` ([#183](https://github.com/cloudsmith-io/cloudsmith-cli/pull/183))
 
 ## [1.4.1] - 2024-11-26
 
