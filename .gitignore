@@ -42,3 +42,4 @@ reports/
 .env
 
 # Zipapp
+*.pyz
