@@ -134,9 +134,9 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
         click.echo("Two-factor authentication is required.")
         totp_token = click.prompt("Enter your two-factor authentication code", type=str)
         click.echo(
-            "Verifying two-factor code for %(login)s ... " 
+            "Verifying two-factor code for %(login)s ... "
             % {"login": click.style(login, bold=True)},
-            nl=False
+            nl=False,
         )
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
@@ -144,7 +144,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
                     login=login,
                     password=password,
                     totp_token=totp_token,
-                    two_factor_token=e.two_factor_token
+                    two_factor_token=e.two_factor_token,
                 )
 
     click.secho("OK", fg="green")

@@ -36,7 +36,9 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
         }
 
     try:
-        data, response, headers = client.user_token_create_with_http_info(data=data_dict)
+        data, response, headers = client.user_token_create_with_http_info(
+            data=data_dict
+        )
         ratelimits.maybe_rate_limit(client, headers)
         return data.token
     except ApiException as e:
@@ -46,7 +48,7 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
                 response_data = json.loads(e.body)
                 if response_data.get("two_factor_required"):
                     two_factor_token = response_data.get("two_factor_token")
-                    
+
                     # Raise custom exception for 2FA requirement
                     raise TwoFactorRequiredException(two_factor_token)
             except (ValueError, KeyError):
