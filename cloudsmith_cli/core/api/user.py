@@ -35,9 +35,7 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
         }
 
     try:
-        data, _, headers = client.user_token_create_with_http_info(
-            data=data_dict
-        )
+        data, _, headers = client.user_token_create_with_http_info(data=data_dict)
         ratelimits.maybe_rate_limit(client, headers)
         return data.token
     except ApiException as e:
