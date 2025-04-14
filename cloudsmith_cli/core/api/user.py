@@ -35,7 +35,7 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
         }
 
     try:
-        data, response, headers = client.user_token_create_with_http_info(
+        data, _, headers = client.user_token_create_with_http_info(
             data=data_dict
         )
         ratelimits.maybe_rate_limit(client, headers)
