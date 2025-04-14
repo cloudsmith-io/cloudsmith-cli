@@ -2,7 +2,6 @@
 
 import json
 
-import click
 import cloudsmith_api
 from cloudsmith_api.rest import ApiException
 
