@@ -4,6 +4,7 @@ import collections
 import stat
 
 import click
+import cloudsmith_api
 
 from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
@@ -12,7 +13,6 @@ from .. import decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
-import cloudsmith_api
 
 
 ConfigValues = collections.namedtuple(
@@ -134,7 +134,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     except TwoFactorRequiredException as e:
         click.echo("\r\033[K", nl=False)
         click.echo("Two-factor authentication is required.")
-        
+
         totp_token = click.prompt("Enter your two-factor authentication code", type=str)
         click.echo(
             "Verifying two-factor code for %(login)s ... "
@@ -151,12 +151,12 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
                         totp_token=totp_token,
                         two_factor_token=e.two_factor_token,
                     )
-        except cloudsmith_api.rest.ApiException as e:
+        except cloudsmith_api.rest.ApiException:
             click.echo("\r\033[K", nl=False)
             click.secho("Authentication failed: The entered TOTP token is not valid.", fg="red")
             ctx.exit(1)
 
-    except cloudsmith_api.rest.ApiException as e:
+    except cloudsmith_api.rest.ApiException:
         click.echo("\r\033[K", nl=False)
         click.secho("Authentication failed: Invalid username/password.", fg="red")
         ctx.exit(1)
