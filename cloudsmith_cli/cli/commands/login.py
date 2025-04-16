@@ -14,7 +14,6 @@ from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
 
-
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]
 )
@@ -153,7 +152,9 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
                     )
         except cloudsmith_api.rest.ApiException:
             click.echo("\r\033[K", nl=False)
-            click.secho("Authentication failed: The entered TOTP token is not valid.", fg="red")
+            click.secho(
+                "Authentication failed: The entered TOTP token is not valid.", fg="red"
+            )
             ctx.exit(1)
 
     except cloudsmith_api.rest.ApiException:
