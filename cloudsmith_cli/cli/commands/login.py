@@ -13,7 +13,7 @@ from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
 import cloudsmith_api
-# from cloudsmith_api.rest import ApiException
+
 
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]
