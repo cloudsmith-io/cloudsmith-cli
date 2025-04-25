@@ -39,19 +39,20 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
         ratelimits.maybe_rate_limit(client, headers)
         return data.token
     except ApiException as e:
-        # Check if this is a 2FA required response
-        if e.status == 422:
+        # Check for 2FA requirement
+        if e.status == 422 and e.body:
             try:
                 response_data = json.loads(e.body)
                 if response_data.get("two_factor_required"):
                     two_factor_token = response_data.get("two_factor_token")
-
                     # Raise custom exception for 2FA requirement
                     raise TwoFactorRequiredException(two_factor_token)
             except (ValueError, KeyError):
-                # If we can't parse as JSON or doesn't have expected structure
                 pass
-        raise
+        
+        # If not 2FA, use the context manager to handle other API exceptions
+        with catch_raise_api_exception():
+            raise
 
 
 def get_user_brief():
