@@ -49,7 +49,7 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
                     raise TwoFactorRequiredException(two_factor_token)
             except (ValueError, KeyError):
                 pass
-        
+
         # If not 2FA, use the context manager to handle other API exceptions
         with catch_raise_api_exception():
             raise

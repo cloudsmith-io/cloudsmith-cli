@@ -6,7 +6,7 @@ import stat
 import click
 import cloudsmith_api
 
-from ...core.api.exceptions import TwoFactorRequiredException, AuthenticationError
+from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
 from ...core.utils import get_help_website
 from .. import decorators
