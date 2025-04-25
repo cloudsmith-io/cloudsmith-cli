@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.7.1] - 2025-04-25
+
+### Added
+
+- Added support for 2FA authentication when logging in ([#188](https://github.com/cloudsmith-io/cloudsmith-cli/pull/188))
+
 ## [1.7.0] - 2025-03-31
 
 ### Added
