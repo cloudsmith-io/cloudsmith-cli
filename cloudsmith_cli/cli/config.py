@@ -179,10 +179,11 @@ class ConfigReader(ConfigFileReader):
                 values = config["profile:%s" % profile]
                 cls._load_values_into_opts(opts, values)
             except KeyError:
-                click.secho(
-                    f"Warning: profile {profile} not found in config files {cls.config_files}",
-                    fg="yellow",
-                )
+                if not cls.config_already_warned():
+                    click.secho(
+                        f"Warning: profile {profile} not found in config files {cls.config_files}",
+                        fg="yellow",
+                    )
 
         existing_config_paths = {
             path: os.path.exists(path) for path in cls.config_files

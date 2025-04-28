@@ -60,7 +60,6 @@ def print_repositories(opts, data, page_info=None, show_list_info=True):
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
-@decorators.verify_authenticated
 @click.pass_context
 def repositories(ctx, opts):  # pylink: disable=unused-argument
     """
@@ -76,6 +75,7 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
+@decorators.verify_authenticated
 @click.argument(
     "owner_repo",
     metavar="OWNER/REPO",
