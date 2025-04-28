@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.7.2] - 2025-04-28
+
+### Added
+
+- Added a fix for certain login error messages being suppressed ([#188](https://github.com/cloudsmith-io/cloudsmith-cli/pull/196))
+
 ## [1.7.1] - 2025-04-25
 
 ### Added
