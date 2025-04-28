@@ -157,9 +157,9 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
             )
             ctx.exit(1)
 
-    except cloudsmith_api.rest.ApiException:
+    except cloudsmith_api.rest.ApiException as e:
         click.echo("\r\033[K", nl=False)
-        click.secho("Authentication failed: Invalid username/password.", fg="red")
+        click.secho(f"Authentication failed: {str(e)}", fg="red")
         ctx.exit(1)
 
     click.secho("OK", fg="green")
