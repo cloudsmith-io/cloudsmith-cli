@@ -61,22 +61,6 @@ orbs:
                 uv venv .venv
                 uv pip install -r requirements.txt
                 . .venv/bin/activate
-          - when:
-              condition: <<parameters.is_test_suite>>
-              steps:
-                - run:
-                    name: Setup Code Climate coverage reporter
-                    command: |
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter;
-                        chmod +x ./cc-test-reporter;
-                      }
-                - run:
-                    name: Notify Code Climate of pending test report
-                    command:
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        ./cc-test-reporter before-build;
-                      }
           - save_cache:
               paths:
                 - .venv
@@ -95,13 +79,6 @@ orbs:
                     path: ./reports
                 - store_artifacts:
                     path: ./reports
-                - deploy:
-                    command: |
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        . .venv/bin/activate
-                        cp ./reports/coverage.xml .;
-                        ./cc-test-reporter after-build -t coverage.py --exit-code $(cat /tmp/run_exit_code);
-                      }
 
     executors:
       cloudsmith_executor:
