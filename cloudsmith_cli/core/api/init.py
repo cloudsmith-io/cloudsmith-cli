@@ -12,14 +12,6 @@ from ..rest import RestClient
 from .exceptions import ApiException
 
 
-class BaseApi:
-    def __init__(self, api_client=None):
-        if api_client is None:
-            api_client = cloudsmith_api.ApiClient()
-        self.api_client = api_client
-        self.config = cloudsmith_api.Configuration()
-
-
 def initialise_api(
     debug=False,
     host=None,
