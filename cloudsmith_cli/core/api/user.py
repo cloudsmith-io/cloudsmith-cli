@@ -57,15 +57,10 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
 
 def create_user_token_saml() -> dict:
     """Create a new user API token using SAML."""
-    client = get_api_client(BaseApi)
+    client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.api_client.call_api(
-            "/user/tokens/",
-            "POST",
-            auth_settings=["apikey"],
-            response_type="object",
-        )
+        data, _, headers = client.user_tokens_create_with_http_info()
 
     ratelimits.maybe_rate_limit(client, headers)
     return data
@@ -84,31 +79,20 @@ def get_user_brief():
 
 def list_user_tokens() -> list[dict]:
     """List all user API tokens."""
-    client = get_api_client(BaseApi)
+    client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.api_client.call_api(
-            "/user/tokens/",
-            "GET",
-            auth_settings=["apikey", "basic"],
-            response_type="object",
-        )
+        data, _, headers = client.user_tokens_list_with_http_info()
 
     ratelimits.maybe_rate_limit(client, headers)
-    return data["results"]
-
+    return data.results
 
 def refresh_user_token(token_slug: str) -> dict:
     """Refresh user API token."""
-    client = get_api_client(BaseApi)
+    client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.api_client.call_api(
-            f"/user/tokens/{token_slug}/refresh/",
-            "PUT",
-            auth_settings=["apikey", "basic"],
-            response_type="object",
-        )
+        data, _, headers = client.user_tokens_refresh_with_http_info(token_slug)
 
     ratelimits.maybe_rate_limit(client, headers)
     return data

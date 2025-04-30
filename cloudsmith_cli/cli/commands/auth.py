@@ -77,12 +77,12 @@ def authenticate(ctx, opts, owner, token):
         try:
             api_token = user.create_user_token_saml()
             click.echo(
-                f"New token value: {click.style(api_token['key'], fg='magenta')}"
+                f"New token value: {click.style(api_token.key, fg='magenta')}"
             )
             create, has_errors = create_config_files(
-                ctx, opts, api_key=api_token["key"]
+                ctx, opts, api_key=api_token.key
             )
-            new_config_messaging(has_errors, opts, create, api_key=api_token["key"])
+            new_config_messaging(has_errors, opts, create, api_key=api_token.key)
             return
         except exceptions.ApiException as exc:
             if exc.status == 400:
@@ -100,9 +100,9 @@ def authenticate(ctx, opts, owner, token):
         for t in api_tokens:
             click.echo("Current tokens:")
             click.echo(
-                f"Token: {click.style(t['key'], fg='magenta')}, "
-                f"Created: {click.style(t['created'], fg='green')}, "
-                f"slug_perm: {click.style(t['slug_perm'], fg='cyan')}"
+                f"Token: {click.style(t.key, fg='magenta')}, "
+                f"Created: {click.style(t.created, fg='green')}, "
+                f"slug_perm: {click.style(t.slug_perm, fg='cyan')}"
             )
         token_slug = click.prompt(
             "Please enter the slug_perm of the token you would like to refresh"
@@ -111,8 +111,8 @@ def authenticate(ctx, opts, owner, token):
         click.echo(f"Refreshing token {token_slug}... ", nl=False)
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
-                new_token = user.refresh_user_token("token_slug")
+                new_token = user.refresh_user_token(token_slug)
         click.secho("OK", fg="green")
-        click.echo(f"New token value: {click.style(new_token['key'], fg='magenta')}")
-        create, has_errors = create_config_files(ctx, opts, api_key=new_token["key"])
-        new_config_messaging(has_errors, opts, create, api_key=new_token["key"])
+        click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+        create, has_errors = create_config_files(ctx, opts, api_key=new_token.key)
+        new_config_messaging(has_errors, opts, create, api_key=new_token.key)

@@ -38,9 +38,9 @@ def list_tokens(ctx, opts):
 
     for token in tokens:
         click.echo(
-            f"Token: {click.style(token['key'], fg='magenta')}, "
-            f"Created: {click.style(token['created'], fg='green')}, "
-            f"slug_perm: {click.style(token['slug_perm'], fg='cyan')}"
+            f"Token: {click.style(token.key, fg='magenta')}, "
+            f"Created: {click.style(token.created, fg='green')}, "
+            f"slug_perm: {click.style(token.slug_perm, fg='cyan')}"
         )
 
 
@@ -62,12 +62,12 @@ def refresh(ctx, opts, token_slug):
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
                 api_tokens = api.list_user_tokens()
+        click.echo("Current tokens:")
         for t in api_tokens:
-            click.echo("Current tokens:")
             click.echo(
-                f"Token: {click.style(t['key'], fg='magenta')}, "
-                f"Created: {click.style(t['created'], fg='green')}, "
-                f"slug_perm: {click.style(t['slug_perm'], fg='cyan')}"
+                f"Token: {click.style(t.key, fg='magenta')}, "
+                f"Created: {click.style(t.created, fg='green')}, "
+                f"slug_perm: {click.style(t.slug_perm, fg='cyan')}"
             )
         token_slug = click.prompt(
             "Please enter the slug_perm of the token you would like to refresh"
@@ -82,4 +82,4 @@ def refresh(ctx, opts, token_slug):
     if maybe_print_as_json(opts, new_token):
         return
 
-    click.echo(f"New token value: {click.style(new_token['key'], fg='magenta')}")
+    click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
