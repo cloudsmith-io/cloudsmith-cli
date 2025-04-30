@@ -7,7 +7,7 @@ from cloudsmith_api.rest import ApiException
 
 from .. import ratelimits
 from .exceptions import TwoFactorRequiredException, catch_raise_api_exception
-from .init import BaseApi, get_api_client, unset_api_key
+from .init import get_api_client, unset_api_key
 
 
 def get_user_api():
@@ -86,6 +86,7 @@ def list_user_tokens() -> list[dict]:
 
     ratelimits.maybe_rate_limit(client, headers)
     return data.results
+
 
 def refresh_user_token(token_slug: str) -> dict:
     """Refresh user API token."""

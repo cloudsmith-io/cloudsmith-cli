@@ -76,12 +76,8 @@ def authenticate(ctx, opts, owner, token):
         initialise_api()
         try:
             api_token = user.create_user_token_saml()
-            click.echo(
-                f"New token value: {click.style(api_token.key, fg='magenta')}"
-            )
-            create, has_errors = create_config_files(
-                ctx, opts, api_key=api_token.key
-            )
+            click.echo(f"New token value: {click.style(api_token.key, fg='magenta')}")
+            create, has_errors = create_config_files(ctx, opts, api_key=api_token.key)
             new_config_messaging(has_errors, opts, create, api_key=api_token.key)
             return
         except exceptions.ApiException as exc:
