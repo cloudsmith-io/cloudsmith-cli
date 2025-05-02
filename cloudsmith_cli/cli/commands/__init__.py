@@ -1,6 +1,7 @@
 """CLI/Commands - Import all commands."""
 
 from . import (
+    auth,
     check,
     copy,
     delete,
@@ -20,6 +21,7 @@ from . import (
     resync,
     status,
     tags,
+    tokens,
     upstream,
     whoami,
 )

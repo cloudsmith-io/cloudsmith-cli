@@ -27,6 +27,7 @@ UPSTREAM_FORMATS = [
     "python",
     "rpm",
     "ruby",
+    "cran",
 ]
 
 

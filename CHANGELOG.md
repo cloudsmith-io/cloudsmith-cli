@@ -5,9 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-**Note:** Until 1.0 any MAJOR or MINOR release may have backwards-incompatible changes.
-
 ## [Unreleased]
+
+## [1.8.0] - 2025-05-02
+
+### Added
+
+- Added support for managing User API Tokens ([#192](https://github.com/cloudsmith-io/cloudsmith-cli/pull/192))
+
+## [1.7.2] - 2025-04-28
+
+### Added
+
+- Added a fix for certain login error messages being suppressed ([#196](https://github.com/cloudsmith-io/cloudsmith-cli/pull/196))
+
+## [1.7.1] - 2025-04-25
+
+### Added
+
+- Added support for 2FA authentication when logging in ([#188](https://github.com/cloudsmith-io/cloudsmith-cli/pull/188))
+
+## [1.7.0] - 2025-03-31
+
+### Added
+
+- Added `--extra-files` parameter for Maven upload command ([#190](https://github.com/cloudsmith-io/cloudsmith-cli/pull/190))
+
+## [1.6.2] - 2025-03-27
+
+- Added html templates for saml response endpoints
+- Added json support for whoami
+- Added support for additional headers to be passed to the saml authentication flow
+
+## [1.5.0] - 2025-03-21
+
+### Added
+
+- Added `--sort` flag for package list command ([#185](https://github.com/cloudsmith-io/cloudsmith-cli/pull/185))
+
+### Fixed
+
+- Fixed `cloudsmith auth` command where it results in `403` ([#183](https://github.com/cloudsmith-io/cloudsmith-cli/pull/183))
+
+## [1.4.1] - 2024-11-26
+
+### Added
+
+ - Update cloudsmith-api to v2.0.16 ([#181](https://github.com/cloudsmith-io/cloudsmith-cli/pull/181))
+
+
+## [1.4.0] - 2024-11-04
+
+### Added
+
+- Dropped support for Python 3.8. ([#137](https://github.com/cloudsmith-io/cloudsmith-cli/pull/137))
+
+## [1.3.1] - 2024-10-08
+
+### Fixed
+
+ - Missing dependency from `setup.py` file ([#177](https://github.com/cloudsmith-io/cloudsmith-cli/pull/177))
+
+## [1.3.0] - 2024-10-08
+
+### Added
+
+- The `auth` command, enabling users to authenticate against the API with their organization's configured SAML provider ([#174](https://github.com/cloudsmith-io/cloudsmith-cli/pull/174))
+
+## [1.2.5] - 2024-06-11
+
+### Added
+
+- Produce CLI zipapp artefact on release ([#164](https://github.com/cloudsmith-io/cloudsmith-cli/pull/164))
+
+## [1.2.3] - 2024-04-10
+
+### Fixed
+
+- Show pagination info for `repos get` ([#163](https://github.com/cloudsmith-io/cloudsmith-cli/pull/163))
+
+## [1.2.2] - 2024-04-05
+
+### Added
+
+- Support for Swift package uploads ([#161](https://github.com/cloudsmith-io/cloudsmith-cli/pull/161))
+
+## [1.2.0] - 2024-03-13
+
+### Added
+
+- Support for CRAN upstreams ([#157](https://github.com/cloudsmith-io/cloudsmith-cli/pull/157))
 
 ## [1.1.1] - 2023-09-13
 
