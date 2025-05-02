@@ -94,7 +94,9 @@ The CLI currently supports the following commands (and sub-commands):
   - `remove`|`rm`:          Remove tags from a package in a repository.
   - `replace`:              Replace all existing (non-immutable) tags on a package in a repository.
 - `whoami`:               Retrieve your current authentication status.
-
+- `tokens`:               Manage API tokens.
+  - `list`|`ls`:            List API tokens.
+  - `refresh`:              Refresh an API token.
 
 ## Installation
 

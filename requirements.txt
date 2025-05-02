@@ -34,19 +34,17 @@ click-didyoumean==0.3.1
     # via cloudsmith-cli (setup.py)
 click-spinner==0.1.10
     # via cloudsmith-cli (setup.py)
-cloudsmith-api==2.0.16
+cloudsmith-api==2.0.18
     # via cloudsmith-cli (setup.py)
 configparser==7.1.0
     # via click-configfile
 coverage[toml]==7.2.7
-    # via
-    #   coverage
-    #   pytest-cov
+    # via pytest-cov
 dill==0.3.7
     # via pylint
 distlib==0.3.7
     # via virtualenv
-exceptiongroup==1.1.2
+exceptiongroup==1.2.2
     # via pytest
 filelock==3.12.2
     # via virtualenv
@@ -58,7 +56,7 @@ identify==2.5.26
     # via pre-commit
 idna==3.8
     # via requests
-importlib-metadata==8.5.0
+importlib-metadata==8.7.0
     # via keyring
 iniconfig==2.0.0
     # via pytest
@@ -123,7 +121,7 @@ six==1.16.0
     #   click-configfile
     #   cloudsmith-api
     #   python-dateutil
-tomli==2.0.1
+tomli==2.2.1
     # via
     #   build
     #   coverage
@@ -133,7 +131,7 @@ tomli==2.0.1
     #   pytest
 tomlkit==0.12.1
     # via pylint
-typing-extensions==4.7.1
+typing-extensions==4.13.2
     # via
     #   astroid
     #   pylint
@@ -148,7 +146,7 @@ wheel==0.41.1
     # via pip-tools
 wrapt==1.15.0
     # via astroid
-zipp==3.20.2
+zipp==3.21.0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -1,1 +1,2 @@
 include cloudsmith_cli/data/*
+include cloudsmith_cli/templates/*

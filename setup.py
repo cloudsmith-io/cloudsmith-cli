@@ -41,7 +41,9 @@ setup(
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"cloudsmith_cli": ["cloudsmith_cli/data/*"]},
+    package_data={
+        "cloudsmith_cli": ["cloudsmith_cli/data/*", "cloudsmith_cli/templates/*"]
+    },
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
@@ -51,7 +53,7 @@ setup(
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
-        "cloudsmith-api>=2.0.16,<3.0",  # Compatible upto (but excluding) 3.0+
+        "cloudsmith-api>=2.0.18,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "requests>=2.18.4",
         "requests_toolbelt>=0.8.0",

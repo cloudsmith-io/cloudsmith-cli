@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.8.0] - 2025-05-02
+
+### Added
+
+- Added support for managing User API Tokens ([#192](https://github.com/cloudsmith-io/cloudsmith-cli/pull/192))
+
+## [1.7.2] - 2025-04-28
+
+### Added
+
+- Added a fix for certain login error messages being suppressed ([#196](https://github.com/cloudsmith-io/cloudsmith-cli/pull/196))
+
+## [1.7.1] - 2025-04-25
+
+### Added
+
+- Added support for 2FA authentication when logging in ([#188](https://github.com/cloudsmith-io/cloudsmith-cli/pull/188))
+
+## [1.7.0] - 2025-03-31
+
+### Added
+
+- Added `--extra-files` parameter for Maven upload command ([#190](https://github.com/cloudsmith-io/cloudsmith-cli/pull/190))
+
+## [1.6.2] - 2025-03-27
+
+- Added html templates for saml response endpoints
+- Added json support for whoami
+- Added support for additional headers to be passed to the saml authentication flow
+
+## [1.5.0] - 2025-03-21
+
+### Added
+
+- Added `--sort` flag for package list command ([#185](https://github.com/cloudsmith-io/cloudsmith-cli/pull/185))
+
+### Fixed
+
+- Fixed `cloudsmith auth` command where it results in `403` ([#183](https://github.com/cloudsmith-io/cloudsmith-cli/pull/183))
 
 ## [1.4.1] - 2024-11-26
 
