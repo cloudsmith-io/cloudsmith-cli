@@ -55,6 +55,17 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
             raise
 
 
+def create_user_token_saml() -> dict:
+    """Create a new user API token using SAML."""
+    client = get_user_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.user_tokens_create_with_http_info()
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data
+
+
 def get_user_brief():
     """Retrieve brief for current user (if any)."""
     client = get_user_api()
@@ -64,3 +75,25 @@ def get_user_brief():
 
     ratelimits.maybe_rate_limit(client, headers)
     return data.authenticated, data.slug, data.email, data.name
+
+
+def list_user_tokens() -> list[dict]:
+    """List all user API tokens."""
+    client = get_user_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.user_tokens_list_with_http_info()
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.results
+
+
+def refresh_user_token(token_slug: str) -> dict:
+    """Refresh user API token."""
+    client = get_user_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.user_tokens_refresh_with_http_info(token_slug)
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data
