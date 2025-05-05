@@ -5,6 +5,7 @@ import functools
 import click
 
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.api.user import get_user_brief
 from . import config, utils, validators
 
 
@@ -305,6 +306,43 @@ def initialise_api(f):
             error_retry_cb=opts.error_retry_cb,
         )
 
+        kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
+
+
+def verify_authenticated(f):
+    """Verify that the user is authenticated and warn if not."""
+
+    @click.option(
+        "--no-warn",
+        default=False,
+        is_flag=True,
+        help="Don't warn on misconfiguration issues",
+    )
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        cloudsmith_host = kwargs["opts"].opts["api_config"].host
+        print(kwargs["opts"].opts["api_config"].__dict__)
+        no_warn = kwargs.pop("no_warn")
+        is_auth, _, _, _ = get_user_brief()
+        if not is_auth and not no_warn:
+            click.secho(
+                "Warning: You are not authenticated with the API. "
+                "Please verify your config files, API key and "
+                "run `cloudsmith login` if necessary to authenticate.",
+                fg="yellow",
+            )
+            click.secho(
+                f"You're currently attempting to connect to Cloudsmith instance {cloudsmith_host}",
+                fg="yellow",
+            )
+            no_warn = True
+
+        opts = config.get_or_create_options(ctx)
+        opts.no_warn = no_warn
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 

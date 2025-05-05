@@ -77,6 +77,7 @@ class ConfigReader(ConfigFileReader):
     config_name = "standard"
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
+    config_warning_issued = False
 
     @classmethod
     def select_config_schema_for(cls, section_name):
@@ -148,6 +149,19 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
+    def config_already_warned(cls):
+        """
+        Check if a configuration file warning has been issued.
+        This is required as configs are gathered at the root of the
+        command chain as well as for command verbs
+        """
+        if cls.config_warning_issued:
+            return True
+
+        cls.config_warning_issued = True
+        return False
+
+    @classmethod
     def load_config(cls, opts, path=None, profile=None):
         """Load a configuration file into an options object."""
         if path and os.path.exists(path):
@@ -161,8 +175,33 @@ class ConfigReader(ConfigFileReader):
         cls._load_values_into_opts(opts, values)
 
         if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
-            cls._load_values_into_opts(opts, values)
+            try:
+                values = config["profile:%s" % profile]
+                cls._load_values_into_opts(opts, values)
+            except KeyError:
+                if not cls.config_already_warned():
+                    click.secho(
+                        f"Warning: profile {profile} not found in config files {cls.config_files}",
+                        fg="yellow",
+                    )
+
+        existing_config_paths = {
+            path: os.path.exists(path) for path in cls.config_files
+        }
+        if not any(existing_config_paths.values()) and not cls.config_already_warned():
+            click.secho(
+                "Warning: No config files found in search paths. Tried the following:",
+                fg="yellow",
+            )
+            for tested_path, exists in existing_config_paths.items():
+                if exists:
+                    click.secho(f"{tested_path} - file exists", fg="green")
+                else:
+                    click.secho(f"{tested_path} - file does not exist", fg="yellow")
+            click.secho(
+                "You may need to run `cloudsmith login` to authenticate and create a config file.",
+                fg="yellow",
+            )
 
         return values
 
@@ -205,6 +244,29 @@ class CredentialsReader(ConfigReader):
     config_name = "credentials"
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
+
+    @classmethod
+    def load_config(cls, opts, path=None, profile=None):
+        """
+        Load a credentials configuration file into an options object.
+        We overload the load_config command in CredentialsReader as
+        credentials files have their own specific default functionality.
+        """
+        if path and os.path.exists(path):
+            if os.path.isdir(path):
+                cls.config_searchpath.insert(0, path)
+            else:
+                cls.config_files.insert(0, path)
+
+        config = cls.read_config()
+        values = config.get("default", {})
+        cls._load_values_into_opts(opts, values)
+
+        if profile and profile != "default":
+            values = config.get("profile:%s" % profile, {})
+            cls._load_values_into_opts(opts, values)
+
+        return values
 
 
 class Options:
