@@ -5,7 +5,6 @@ import webbrowser
 import click
 
 from ...core.api import exceptions, user
-from ...core.api.init import initialise_api
 from ...core.config import create_config_files, new_config_messaging
 from .. import decorators, validators
 from ..exceptions import handle_api_exceptions
@@ -73,7 +72,6 @@ def authenticate(ctx, opts, owner, token):
         if not token:
             return
 
-        initialise_api()
         try:
             api_token = user.create_user_token_saml()
             click.echo(f"New token value: {click.style(api_token.key, fg='magenta')}")
