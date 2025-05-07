@@ -187,7 +187,7 @@ def build_upstream_list_command(upstream_fmt):
     func.__doc__ = f"""
         List {upstream_fmt} upstreams for a repository.
 
-        This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
+        This requires appropriate permissions for the owner (a member of the organization, repository privileges and a valid API key).
 
         - OWNER/REPO: Specify the OWNER namespace (organization) and REPO (repository) to target a specific Cloudsmith repository.
 
@@ -254,7 +254,7 @@ def build_upstream_create_command(upstream_fmt):
     func.__doc__ = f"""
         Create a {upstream_fmt} upstream for a repository.
 
-        This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
+        This requires appropriate permissions for the owner (a member of the organization, repository privileges and a valid API key).
 
         - OWNER/REPO: Specify the OWNER namespace (organization) and REPO (repository) to target a specific Cloudsmith repository.
 
@@ -333,7 +333,7 @@ def build_upstream_update_command(upstream_fmt):
     func.__doc__ = f"""
         Update a {upstream_fmt} upstream for a repository.
 
-        This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
+        This requires appropriate permissions for the owner (a member of the organization, repository privileges and a valid API key).
 
         - OWNER/REPO/SLUG_PERM: Specify the OWNER namespace (organization), REPO (repository) and SLUG_PERM (upstream) to target a specific upstream belonging to a repo.
 
@@ -418,7 +418,7 @@ def build_upstream_delete_command(upstream_fmt):
     func.__doc__ = f"""
         Delete a {upstream_fmt} upstream for a repository.
 
-        This requires appropriate permissions for the owner (a member of the organisation, repository privileges and a valid API key).
+        This requires appropriate permissions for the owner (a member of the organization, repository privileges and a valid API key).
 
         - OWNER/REPO/SLUG_PERM: Specify the OWNER namespace (organization), REPO (repository) and SLUG_PERM (upstream) to target a specific upstream belonging to a repo.
 
