@@ -101,6 +101,9 @@ def get(ctx, opts, owner_repo, page, page_size):
 
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
+    repo = None
+    owner = None
+
     if isinstance(owner_repo, list):
         if len(owner_repo) == 1:
             owner = owner_repo[0]
