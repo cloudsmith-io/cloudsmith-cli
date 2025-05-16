@@ -162,7 +162,7 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
-    def load_config(cls, opts, path=None, profile=None):
+    def load_config(cls, opts, path=None, profile=None, no_warn=False):
         """Load a configuration file into an options object."""
         if path and os.path.exists(path):
             if os.path.isdir(path):
@@ -174,12 +174,14 @@ class ConfigReader(ConfigFileReader):
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
 
+        warn = not no_warn and not cls.config_already_warned()
+
         if profile and profile != "default":
             try:
                 values = config["profile:%s" % profile]
                 cls._load_values_into_opts(opts, values)
             except KeyError:
-                if not cls.config_already_warned():
+                if warn:
                     click.secho(
                         f"Warning: profile {profile} not found in config files {cls.config_files}",
                         fg="yellow",
@@ -188,7 +190,7 @@ class ConfigReader(ConfigFileReader):
         existing_config_paths = {
             path: os.path.exists(path) for path in cls.config_files
         }
-        if not any(existing_config_paths.values()) and not cls.config_already_warned():
+        if not any(existing_config_paths.values()) and warn:
             click.secho(
                 "Warning: No config files found in search paths. Tried the following:",
                 fg="yellow",
@@ -246,7 +248,7 @@ class CredentialsReader(ConfigReader):
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
     @classmethod
-    def load_config(cls, opts, path=None, profile=None):
+    def load_config(cls, opts, path=None, profile=None, no_warn=False):
         """
         Load a credentials configuration file into an options object.
         We overload the load_config command in CredentialsReader as
@@ -269,6 +271,7 @@ class CredentialsReader(ConfigReader):
         return values
 
 
+# pylint: disable=too-many-public-methods
 class Options:
     """Options object that holds config for the application."""
 
@@ -289,15 +292,15 @@ class Options:
         """Get the credentials config reader class."""
         return CredentialsReader
 
-    def load_config_file(self, path, profile=None):
+    def load_config_file(self, path, profile=None, no_warn=False):
         """Load the standard config file."""
         config_cls = self.get_config_reader()
-        return config_cls.load_config(self, path, profile=profile)
+        return config_cls.load_config(self, path, profile=profile, no_warn=no_warn)
 
-    def load_creds_file(self, path, profile=None):
+    def load_creds_file(self, path, profile=None, no_warn=False):
         """Load the credentials config file."""
         config_cls = self.get_creds_reader()
-        return config_cls.load_config(self, path, profile=profile)
+        return config_cls.load_config(self, path, profile=profile, no_warn=no_warn)
 
     @property
     def api_config(self):
@@ -329,6 +332,16 @@ class Options:
     def api_host(self, value):
         """Set value for API host."""
         self._set_option("api_host", value)
+
+    @property
+    def no_warn(self):
+        """Get value for API host."""
+        return self._get_option("no_warn")
+
+    @no_warn.setter
+    def no_warn(self, value):
+        """Set value for API host."""
+        self._set_option("no_warn", value)
 
     @property
     def api_key(self):

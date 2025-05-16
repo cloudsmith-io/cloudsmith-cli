@@ -75,7 +75,6 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
-@decorators.verify_authenticated
 @click.argument(
     "owner_repo",
     metavar="OWNER/REPO",
