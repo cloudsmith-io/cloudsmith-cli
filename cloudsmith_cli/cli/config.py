@@ -176,7 +176,7 @@ class ConfigReader(ConfigFileReader):
 
         warn = not no_warn and not cls.config_already_warned()
 
-        if profile and profile != "default":
+        if profile and profile != "default" and warn:
             try:
                 values = config["profile:%s" % profile]
                 cls._load_values_into_opts(opts, values)

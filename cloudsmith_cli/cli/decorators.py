@@ -104,8 +104,8 @@ def common_cli_config_options(f):
         no_warn = kwargs.pop("no_warn")
         if no_warn:
             opts.no_warn = no_warn
-        opts.load_config_file(path=config_file, profile=profile, no_warn=no_warn)
-        opts.load_creds_file(path=creds_file, profile=profile, no_warn=no_warn)
+        opts.load_config_file(path=config_file, profile=profile, no_warn=opts.no_warn)
+        opts.load_creds_file(path=creds_file, profile=profile, no_warn=opts.no_warn)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
