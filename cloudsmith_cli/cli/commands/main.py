@@ -2,6 +2,8 @@
 
 import click
 
+from cloudsmith_cli.cli.warnings import get_or_create_warnings
+
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
@@ -61,3 +63,13 @@ def main(ctx, opts, version):
         print_version()
     elif ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+
+
+@main.result_callback()
+@click.pass_context
+def result_callback(ctx, opts, **kwargs):
+    """Callback for main function. Required for saving warnings til the end."""
+
+    warnings = get_or_create_warnings(ctx)
+    if warnings:
+        click.echo(warnings.report())

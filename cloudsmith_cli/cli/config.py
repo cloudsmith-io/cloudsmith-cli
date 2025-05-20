@@ -7,6 +7,8 @@ import threading
 import click
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
 
+from cloudsmith_cli.cli.warnings import ConfigLoadWarning, ProfileNotFoundWarning
+
 from ..core.utils import get_data_path, read_file
 from . import utils, validators
 
@@ -162,8 +164,9 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
-    def load_config(cls, opts, path=None, profile=None, no_warn=False):
+    def load_config(cls, opts, path=None, warnings=None, profile=None):
         """Load a configuration file into an options object."""
+
         if path and os.path.exists(path):
             if os.path.isdir(path):
                 cls.config_searchpath.insert(0, path)
@@ -174,36 +177,22 @@ class ConfigReader(ConfigFileReader):
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
 
-        warn = not no_warn and not cls.config_already_warned()
-
-        if profile and profile != "default" and warn:
+        if profile and profile != "default":
             try:
                 values = config["profile:%s" % profile]
                 cls._load_values_into_opts(opts, values)
             except KeyError:
-                if warn:
-                    click.secho(
-                        f"Warning: profile {profile} not found in config files {cls.config_files}",
-                        fg="yellow",
-                    )
+                warning = ProfileNotFoundWarning(path=path, profile=profile)
+                warnings.append(warning)
 
         existing_config_paths = {
             path: os.path.exists(path) for path in cls.config_files
         }
-        if not any(existing_config_paths.values()) and warn:
-            click.secho(
-                "Warning: No config files found in search paths. Tried the following:",
-                fg="yellow",
+        if not any(list(existing_config_paths.values())):
+            config_load_warning = ConfigLoadWarning(
+                paths=existing_config_paths,
             )
-            for tested_path, exists in existing_config_paths.items():
-                if exists:
-                    click.secho(f"{tested_path} - file exists", fg="green")
-                else:
-                    click.secho(f"{tested_path} - file does not exist", fg="yellow")
-            click.secho(
-                "You may need to run `cloudsmith login` to authenticate and create a config file.",
-                fg="yellow",
-            )
+            warnings.append(config_load_warning)
 
         return values
 
@@ -248,7 +237,7 @@ class CredentialsReader(ConfigReader):
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
     @classmethod
-    def load_config(cls, opts, path=None, profile=None, no_warn=False):
+    def load_config(cls, opts, path=None, warnings=None, profile=None):
         """
         Load a credentials configuration file into an options object.
         We overload the load_config command in CredentialsReader as
@@ -292,15 +281,17 @@ class Options:
         """Get the credentials config reader class."""
         return CredentialsReader
 
-    def load_config_file(self, path, profile=None, no_warn=False):
+    def load_config_file(self, path, warnings=None, profile=None):
         """Load the standard config file."""
+        print("load_config_file")
         config_cls = self.get_config_reader()
-        return config_cls.load_config(self, path, profile=profile, no_warn=no_warn)
+        return config_cls.load_config(self, path, warnings=warnings, profile=profile)
 
-    def load_creds_file(self, path, profile=None, no_warn=False):
+    def load_creds_file(self, path, warnings=None, profile=None):
         """Load the credentials config file."""
+        print("load_creds_file")
         config_cls = self.get_creds_reader()
-        return config_cls.load_config(self, path, profile=profile, no_warn=no_warn)
+        return config_cls.load_config(self, path, warnings=warnings, profile=profile)
 
     @property
     def api_config(self):
