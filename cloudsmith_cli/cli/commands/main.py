@@ -73,6 +73,7 @@ def main(ctx, opts, version, no_warn):
         opts.no_warn = True
 
     if version:
+        opts.no_warn = True
         print_version()
     elif ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
