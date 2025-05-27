@@ -79,7 +79,6 @@ class ConfigReader(ConfigFileReader):
     config_name = "standard"
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
-    config_warning_issued = False
 
     @classmethod
     def select_config_schema_for(cls, section_name):
@@ -151,19 +150,6 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
-    def config_already_warned(cls):
-        """
-        Check if a configuration file warning has been issued.
-        This is required as configs are gathered at the root of the
-        command chain as well as for command verbs
-        """
-        if cls.config_warning_issued:
-            return True
-
-        cls.config_warning_issued = True
-        return False
-
-    @classmethod
     def load_config(cls, opts, path=None, warnings=None, profile=None):
         """Load a configuration file into an options object."""
 
@@ -176,18 +162,20 @@ class ConfigReader(ConfigFileReader):
         config = cls.read_config()
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
+        existing_config_paths = {
+            path: os.path.exists(path) for path in cls.config_files
+        }
 
         if profile and profile != "default":
             try:
                 values = config["profile:%s" % profile]
                 cls._load_values_into_opts(opts, values)
             except KeyError:
-                warning = ProfileNotFoundWarning(path=path, profile=profile)
+                warning = ProfileNotFoundWarning(
+                    paths=existing_config_paths, profile=profile
+                )
                 warnings.append(warning)
 
-        existing_config_paths = {
-            path: os.path.exists(path) for path in cls.config_files
-        }
         if not any(list(existing_config_paths.values())):
             config_load_warning = ConfigLoadWarning(
                 paths=existing_config_paths,
@@ -283,13 +271,11 @@ class Options:
 
     def load_config_file(self, path, warnings=None, profile=None):
         """Load the standard config file."""
-        print("load_config_file")
         config_cls = self.get_config_reader()
         return config_cls.load_config(self, path, warnings=warnings, profile=profile)
 
     def load_creds_file(self, path, warnings=None, profile=None):
         """Load the credentials config file."""
-        print("load_creds_file")
         config_cls = self.get_creds_reader()
         return config_cls.load_config(self, path, warnings=warnings, profile=profile)
 
