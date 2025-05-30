@@ -28,6 +28,8 @@ UPSTREAM_FORMATS = [
     "rpm",
     "ruby",
     "cran",
+    "swift",
+    "hex",
 ]
 
 
