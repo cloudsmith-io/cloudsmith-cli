@@ -28,7 +28,7 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
-- `auth`:                 Authenticate the CLI against an organization's SAML configuration.
+- `authenticate`|`auth`:  Authenticate the CLI against an organization's SAML configuration.
 - `check`:                Check rate limits and service status.
 - `copy`|`cp`:            Copy a package to another repository.
 - `delete`|`rm`:          Delete a package from a repository.
@@ -52,7 +52,10 @@ The CLI currently supports the following commands (and sub-commands):
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
-- `move`|`mv`:            Move (promote) a package to another repo.
+- `move`|`mv`|`promote`:  Move (promote) a package to another repo.
+- `policy`:               Manage policies for an organization.
+  - `license`:              Manage license policies for an organization.
+  - `vulnerability`:        Manage vulnerability policies for an organization.
 - `push`|`upload`:        Push (upload) a new package to a repository.
   - `alpine`:               Push (upload) a new Alpine package upstream.
   - `cargo`:                Push (upload) a new Cargo package upstream.
@@ -87,16 +90,30 @@ The CLI currently supports the following commands (and sub-commands):
   - `delete`|`rm`:          Delete a repository from a namespace.
 - `resync`:               Resynchronise a package in a repository.
 - `status`:               Get the synchronisation status for a package.
-- `tags`:                 Manage the tags for a package in a repository.
+- `tags`|`tag`:           Manage the tags for a package in a repository.
   - `add`:                  Add tags to a package in a repository.
   - `clear`:                Clear all existing (non-immutable) tags from a package in a repository.
   - `list`|`ls`:            List tags for a package in a repository.
   - `remove`|`rm`:          Remove tags from a package in a repository.
   - `replace`:              Replace all existing (non-immutable) tags on a package in a repository.
-- `whoami`:               Retrieve your current authentication status.
 - `tokens`:               Manage API tokens.
   - `list`|`ls`:            List API tokens.
   - `refresh`:              Refresh an API token.
+- `upstream`:             Manage upstreams for a repository.
+  - `cran`:                 Manage cran upstreams for a repository.
+  - `dart`:                 Manage dart upstreams for a repository.
+  - `deb`:                  Manage deb upstreams for a repository.
+  - `docker`:               Manage docker upstreams for a repository.
+  - `helm`:                 Manage helm upstreams for a repository.
+  - `hex`:                  Manage hex upstreams for a repository.
+  - `maven`:                Manage maven upstreams for a repository.
+  - `npm`:                  Manage npm upstreams for a repository.
+  - `nuget`:                Manage nuget upstreams for a repository.
+  - `python`:               Manage python upstreams for a repository.
+  - `rpm`:                  Manage rpm upstreams for a repository.
+  - `ruby`:                 Manage ruby upstreams for a repository.
+  - `swift`:                Manage swift upstreams for a repository.
+- `whoami`:               Retrieve your current authentication status.
 
 ## Installation
 
