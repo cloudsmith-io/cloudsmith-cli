@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.8.3] - 2025-06-02
+
+- Added 'swift' and 'hex' as available upstream formats.
+
+## [1.8.2] - 2025-06-02
+
+- Make an sdist available as part of the release.
+
+## [1.8.1] - 2025-05-07
+
+- Fix bug that caused configuration to be dropped in the authenticate command.
+- Fix bug in the default configuration schema.
+
 ## [1.8.0] - 2025-05-02
 
 ### Added
