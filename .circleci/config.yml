@@ -21,10 +21,15 @@ jobs:
         type: string
     steps:
       - checkout
-      - run: pip install --user --upgrade setuptools twine wheel
-      - run: |
-          python setup.py sdist bdist_wheel
-          twine upload --repository-url <<parameters.registry_url>> --username <<parameters.username>> --password <<parameters.password>> --verbose dist/*
+      - when:
+          condition:
+            equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run: pip install --user --upgrade setuptools twine wheel
+            - run: |
+                "$CIRCLE_BRANCH" == "master" && echo "Publishing to PyPI" || echo "Publishing to Cloudsmith"
+                python setup.py sdist bdist_wheel
+                twine upload --repository-url <<parameters.registry_url>> --username <<parameters.username>> --password <<parameters.password>> --verbose dist/*
 
 orbs:
   python: circleci/python@2.1.1
@@ -148,7 +153,7 @@ workflows:
       - publish:
           filters:
             branches:
-              only: master
+              ignore: /.*/
             tags:
               only: /^v.*/
           name: pypi
