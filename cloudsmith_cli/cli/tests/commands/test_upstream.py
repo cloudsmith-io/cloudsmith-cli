@@ -6,7 +6,9 @@ from ...commands.upstream import UPSTREAM_FORMATS, upstream
 from ..utils import random_str
 
 
-@pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.usefixtures(
+    "set_api_key_env_var", "set_api_host_env_var", "set_no_warn_env_var"
+)
 @pytest.mark.parametrize("upstream_format", UPSTREAM_FORMATS)
 def test_upstream_commands(
     runner, organization, upstream_format, tmp_repository, tmp_path
