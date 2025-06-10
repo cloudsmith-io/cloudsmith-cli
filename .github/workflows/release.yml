@@ -5,6 +5,9 @@ on:
         tags:
             - "v*"
 
+permissions:
+ id-token: write
+ contents: read
 jobs:
     build:
         runs-on: ubuntu-latest
@@ -43,3 +46,20 @@ jobs:
                   asset_path: ./cloudsmith-${{ env.VERSION }}.pyz
                   asset_name: cloudsmith-${{ env.VERSION }}.pyz
                   asset_content_type: application/zip
+            - name: Install and authenticate Cloudsmith CLI
+              uses: cloudsmith-io/cloudsmith-cli-action@v1.0.3
+              with:
+                  oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
+                  oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+            - name: Push Zipapp to Cloudsmith
+              id: push_zipapp
+              run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz
+            - name: Build Docker image
+              id: build_cli_image
+              run: |
+                  docker build --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} -t docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} .
+            - name: Push Dockerised CLI
+              id: push_dockerised_cli
+              run: |
+                  echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u ${{ vars.CLOUDSMITH_SVC_SLUG }} --password-stdin
+                  docker push docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }}
