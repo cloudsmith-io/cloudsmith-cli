@@ -4,25 +4,25 @@
 #
 #    pip-compile --output-file=requirements.txt --pre requirements.in setup.py
 #
-astroid==2.15.6
+astroid==3.3.10
     # via pylint
 backports-tarfile==1.2.0
     # via jaraco-context
-build==0.10.0
+build==1.2.2.post1
     # via pip-tools
 bump2version==1.0.1
     # via bumpversion
 bumpversion==0.6.0
     # via -r requirements.in
-certifi==2024.8.30
+certifi==2025.4.26
     # via
     #   cloudsmith-api
     #   requests
-cfgv==3.3.1
+cfgv==3.4.0
     # via pre-commit
-charset-normalizer==3.3.2
+charset-normalizer==3.4.2
     # via requests
-click==8.1.6
+click==8.1.8
     # via
     #   click-configfile
     #   click-didyoumean
@@ -34,89 +34,93 @@ click-didyoumean==0.3.1
     # via cloudsmith-cli (setup.py)
 click-spinner==0.1.10
     # via cloudsmith-cli (setup.py)
-cloudsmith-api==2.0.18
+cloudsmith-api==2.0.20
     # via cloudsmith-cli (setup.py)
-configparser==7.1.0
+configparser==7.2.0
     # via click-configfile
-coverage[toml]==7.2.7
+coverage[toml]==7.8.2
     # via pytest-cov
-dill==0.3.7
+dill==0.4.0
     # via pylint
-distlib==0.3.7
+distlib==0.3.9
     # via virtualenv
-exceptiongroup==1.2.2
+exceptiongroup==1.3.0
     # via pytest
-filelock==3.12.2
+filelock==3.18.0
     # via virtualenv
-freezegun==1.5.1
+freezegun==1.5.2
     # via -r requirements.in
 httpretty==1.1.4
     # via -r requirements.in
-identify==2.5.26
+identify==2.6.12
     # via pre-commit
-idna==3.8
+idna==3.10
     # via requests
 importlib-metadata==8.7.0
-    # via keyring
-iniconfig==2.0.0
+    # via
+    #   build
+    #   keyring
+iniconfig==2.1.0
     # via pytest
-isort==5.12.0
+isort==6.0.1
     # via pylint
 jaraco-classes==3.4.0
     # via keyring
 jaraco-context==6.0.1
     # via keyring
-jaraco-functools==4.0.2
+jaraco-functools==4.1.0
     # via keyring
-keyring==25.4.1
+keyring==25.6.0
     # via cloudsmith-cli (setup.py)
-lazy-object-proxy==1.9.0
-    # via astroid
 mccabe==0.7.0
     # via pylint
-more-itertools==10.5.0
+more-itertools==10.7.0
     # via
     #   jaraco-classes
     #   jaraco-functools
-nodeenv==1.8.0
+nodeenv==1.9.1
     # via pre-commit
-packaging==23.1
+packaging==25.0
     # via
     #   build
     #   pytest
-pip-tools==7.2.0
+pip-tools==7.4.1
     # via -r requirements.in
-platformdirs==3.10.0
+platformdirs==4.3.8
     # via
     #   pylint
     #   virtualenv
-pluggy==1.2.0
+pluggy==1.6.0
     # via pytest
-pre-commit==3.3.3
+pre-commit==4.2.0
     # via -r requirements.in
-pylint==3.0.0a6
+pygments==2.19.1
+    # via pytest
+pylint==3.3.7
     # via -r requirements.in
-pyproject-hooks==1.0.0
-    # via build
-pytest==7.4.0
+pyproject-hooks==1.2.0
+    # via
+    #   build
+    #   pip-tools
+pytest==8.4.0
     # via pytest-cov
-pytest-cov==4.1.0
+pytest-cov==6.1.1
     # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via
     #   cloudsmith-api
     #   freezegun
-pyyaml==6.0.1
+pyyaml==6.0.2
     # via pre-commit
-requests==2.32.3
+requests==2.32.4
     # via
     #   cloudsmith-cli (setup.py)
     #   requests-toolbelt
 requests-toolbelt==1.0.0
     # via cloudsmith-cli (setup.py)
-semver==3.0.2
+semver==3.0.4
     # via cloudsmith-cli (setup.py)
-six==1.16.0
+six==1.17.0
     # via
     #   click-configfile
     #   cloudsmith-api
@@ -127,26 +131,24 @@ tomli==2.2.1
     #   coverage
     #   pip-tools
     #   pylint
-    #   pyproject-hooks
     #   pytest
-tomlkit==0.12.1
+tomlkit==0.13.3
     # via pylint
-typing-extensions==4.13.2
+typing-extensions==4.14.0
     # via
     #   astroid
+    #   exceptiongroup
     #   pylint
 urllib3==1.26.20
     # via
     #   cloudsmith-api
     #   cloudsmith-cli (setup.py)
     #   requests
-virtualenv==20.24.2
+virtualenv==20.31.2
     # via pre-commit
-wheel==0.41.1
+wheel==0.45.1
     # via pip-tools
-wrapt==1.15.0
-    # via astroid
-zipp==3.21.0
+zipp==3.23.0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
