@@ -43,3 +43,21 @@ jobs:
                   asset_path: ./cloudsmith-${{ env.VERSION }}.pyz
                   asset_name: cloudsmith-${{ env.VERSION }}.pyz
                   asset_content_type: application/zip
+            - name: Install and authenticate Cloudmsith CLI
+              uses: cloudsmith-io/cloudsmith-cli-action@v1.0.3
+              with:
+                  oidc-namespace: 'cloudsmith'
+                  oidc-service-slug: 'cli-publisher'
+                  oidc-auth-only: 'true'
+            - name: Push Zipapp to Cloudsmith
+              id: push_zipapp
+              run: cloudsmith push raw cloudsmith/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz
+            - name: Build Docker image
+              id: build_cli_image
+              run: |
+                  docker build -t cloudsmith-cli:${{ env.VERSION }} .
+                  docker save -o cloudsmith-cli:${{ env.VERSION }}.docker cloudsmith-cli:${{ env.VERSION }}
+            - name: Push Dockerised CLI
+              id: push_dockerised_cli
+              run: |
+                  cloudsmith push docker cloudsmith-cli:${{ env.VERSION }}.docker
