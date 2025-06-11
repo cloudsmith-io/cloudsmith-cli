@@ -14,4 +14,4 @@ RUN mkdir -p /opt/cloudsmith \
  && chmod +x /opt/cloudsmith/cloudsmith
 
 # Default command
-CMD ["/bin/sh"]
+ENTRYPOINT [ "cloudsmith" ]
