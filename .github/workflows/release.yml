@@ -43,7 +43,7 @@ jobs:
                   asset_path: ./cloudsmith-${{ env.VERSION }}.pyz
                   asset_name: cloudsmith-${{ env.VERSION }}.pyz
                   asset_content_type: application/zip
-            - name: Install and authenticate Cloudmsith CLI
+            - name: Install and authenticate Cloudsmith CLI
               uses: cloudsmith-io/cloudsmith-cli-action@v1.0.3
               with:
                   oidc-namespace: 'cloudsmith'
@@ -60,4 +60,4 @@ jobs:
             - name: Push Dockerised CLI
               id: push_dockerised_cli
               run: |
-                  cloudsmith push docker cloudsmith-cli:${{ env.VERSION }}.docker
+                  cloudsmith push docker cloudsmith/cli cloudsmith-cli:${{ env.VERSION }}.docker

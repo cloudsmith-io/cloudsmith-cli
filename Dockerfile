@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PATH="/opt/cloudsmith:${PATH}"
 
-RUN apk add --no-cache curl bash
+RUN apk add --no-cache curl bash ca-certificates
 
 RUN mkdir -p /opt/cloudsmith \
  && curl -1sLf -o /opt/cloudsmith/cloudsmith 'https://dl.cloudsmith.io/public/cloudsmith/cli-zipapp/raw/names/cloudsmith-cli/versions/latest/cloudsmith-latest.pyz' \
