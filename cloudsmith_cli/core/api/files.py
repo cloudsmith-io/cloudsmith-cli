@@ -12,6 +12,7 @@ from ..rest import create_requests_session
 from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
+from . import quota as quota_api
 
 CHUNK_SIZE = 1024 * 1024 * 100
 
@@ -26,12 +27,27 @@ def validate_request_file_upload(owner, repo, filepath, md5_checksum=None):
     client = get_files_api()
     md5_checksum = md5_checksum or calculate_file_md5(filepath)
 
-    with catch_raise_api_exception():
-        _, _, headers = client.files_validate_with_http_info(
-            owner=owner,
-            repo=repo,
-            data={"filename": os.path.basename(filepath), "md5_checksum": md5_checksum},
-        )
+    try:
+        with catch_raise_api_exception():
+            _, _, headers = client.files_validate_with_http_info(
+                owner=owner,
+                repo=repo,
+                data={"filename": os.path.basename(filepath), "md5_checksum": md5_checksum},
+            )
+    except ApiException as exc:
+        if exc.status == 403:
+            # If status=403 here, check if the reason is due to storage usage quota being
+            # greater than/equal to 100%
+            quota = quota_api.quota_limits(owner=owner, oss=False)
+            
+            storage_percentage = float(quota.usage.raw.storage.percentage_used)
+            if storage_percentage >= 100:
+                raise ApiException(
+                    status=403,
+                    detail="Storage quota exceeded (100% used)."
+                ) from exc
+                
+        raise
 
     ratelimits.maybe_rate_limit(client, headers)
     return md5_checksum
