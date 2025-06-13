@@ -36,18 +36,15 @@ def validate_request_file_upload(owner, repo, filepath, md5_checksum=None):
             )
     except ApiException as exc:
         if exc.status == 403:
-            # If status=403 here, check if the reason is due to storage usage quota being
-            # greater than/equal to 100%
+            # Check if 403 is due to storage quota being exceeded
             try:
                 quota = quota_api.quota_limits(owner=owner, oss=False)
-                
                 storage_percentage = float(quota.usage.raw.storage.percentage_used)
+                
                 if storage_percentage >= 100:
-                    # Modify the original exception instead of creating a new one
                     exc.detail = "Storage quota exceeded (100% used)."
-                    raise exc
-            except Exception as quota_exc:
-                print(f"DEBUG: Quota call failed with: {quota_exc}")  # Debug line
+            except Exception:
+                # If quota check fails, continue with original error
                 pass
                 
         raise

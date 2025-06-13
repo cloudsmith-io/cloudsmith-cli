@@ -43,3 +43,6 @@ reports/
 
 # Zipapp
 *.pyz
+
+
+venv
