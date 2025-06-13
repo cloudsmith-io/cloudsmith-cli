@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Cloudsmith CLI",
+            "type": "python",
+            "request": "launch",
+            "module": "cloudsmith_cli.__main__",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "args": [
+                "--credentials-file", "${workspaceFolder}/cloudsmith_cli/data/credentials.ini",
+                "--profile", "jmccay",
+                "push", "nuget", 
+                "-k", "3d1d9710b7744f9099903308c637ef9e050d3beb",
+                "dev-org/dev-repo",
+                "/Users/jmccay/Packages/Nuget/PostSharp.3.0.26.nupkg"
+            ],
+            "env": {
+                "CLOUDSMITH_CONFIG_HOME": "${workspaceFolder}",
+                "CLOUDSMITH_CREDENTIALS_FILE": "${workspaceFolder}/cloudsmith_cli/data/credentials.ini",
+                "CLOUDSMITH_PROFILE": "jmccay",
+                "VIRTUAL_ENV": "${workspaceFolder}/venv",
+                "PATH": "${workspaceFolder}/venv/bin:${env:PATH}"
+            },
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
