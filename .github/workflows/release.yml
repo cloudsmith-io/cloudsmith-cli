@@ -58,8 +58,14 @@ jobs:
               id: build_cli_image
               run: |
                   docker build --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} -t docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} .
-            - name: Push Dockerised CLI
-              id: push_dockerised_cli
+            - name: Push Dockerised CLI to Cloudsmith
+              id: push_dockerised_cli_cloudsmith
               run: |
                   echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u ${{ vars.CLOUDSMITH_SVC_SLUG }} --password-stdin
                   docker push docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }}
+            - name: Push Dockerised CLI to DockerHub
+              id: push_dockerised_cli_dockerhub
+              run: |
+                docker tag docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} cloudsmith/cloudsmith-cli:${{ env.VERSION }}
+                echo "${{ secrets.DOCKERHUB_PAT }}" | docker login -u ${{ vars.DOCKERHUB_USER }} --password-stdin
+                docker push cloudsmith/cloudsmith-cli:${{ env.VERSION }}
