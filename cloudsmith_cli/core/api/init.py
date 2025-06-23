@@ -1,6 +1,7 @@
 """Cloudsmith API - Initialisation."""
 
 import base64
+import logging
 from typing import Type, TypeVar
 
 import click
@@ -31,6 +32,11 @@ def initialise_api(
     # FIXME: pylint: disable=too-many-arguments
     config = cloudsmith_api.Configuration()
     config.debug = debug
+
+    # Suppress verbose urllib3 connection logging in debug mode
+    if debug:
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
     config.host = host if host else config.host
     config.proxy = proxy if proxy else config.proxy
     config.user_agent = user_agent
