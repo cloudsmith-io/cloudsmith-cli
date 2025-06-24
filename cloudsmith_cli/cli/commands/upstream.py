@@ -266,7 +266,7 @@ def build_upstream_create_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://help.cloudsmith.io/reference/repos_upstream_{upstream_fmt}_create
+          https://docs.cloudsmith.com/api/repos/upstream/{upstream_fmt}/update
 
           \b
           Example:
@@ -345,7 +345,7 @@ def build_upstream_update_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://help.cloudsmith.io/reference/repos_upstream_{upstream_fmt}_partial_update
+          https://docs.cloudsmith.com/api/repos/upstream/{upstream_fmt}/update
 
           \b
           Example:
