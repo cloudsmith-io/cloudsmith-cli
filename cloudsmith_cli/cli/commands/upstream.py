@@ -345,7 +345,7 @@ def build_upstream_update_command(upstream_fmt):
 
           For a full list of supported config properties, please refer to the "body params" section of the api reference for the relevant endpoint at:
 
-          https://docs.cloudsmith.com/api/repos/upstream/{upstream_fmt}/update
+          https://docs.cloudsmith.com/api/repos/upstream/{upstream_fmt}/partial-update
 
           \b
           Example:
