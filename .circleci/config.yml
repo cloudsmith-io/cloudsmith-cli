@@ -58,7 +58,7 @@ orbs:
               name: Install dependencies
               command: |
                 python3 -m pip install uv
-                uv venv .venv
+                uv venv .venv --allow-existing
                 uv pip install -r requirements.txt
                 . .venv/bin/activate
           - save_cache:
