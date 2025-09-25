@@ -73,3 +73,9 @@ def set_api_host_env_var(api_host):
 def set_api_key_env_var(api_key):
     """Set the CLOUDSMITH_API_KEY environment variable."""
     os.environ["CLOUDSMITH_API_KEY"] = api_key
+
+
+@pytest.fixture()
+def set_no_warn_env_var():
+    """Set the CLOUDSMITH_API_KEY environment variable."""
+    os.environ["CLOUDSMITH_CLI_NO_WARN"] = "True"
