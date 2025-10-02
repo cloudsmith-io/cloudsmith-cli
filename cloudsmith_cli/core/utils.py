@@ -8,7 +8,7 @@ import click
 
 def get_help_website():
     """Get the URL for the help website."""
-    return "https://docs.cloudsmith.com/getting-started/cli"
+    return "https://docs.cloudsmith.com/developer-tools/cli"
 
 
 def get_github_website():
