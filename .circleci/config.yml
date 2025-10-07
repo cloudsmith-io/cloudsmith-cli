@@ -41,7 +41,7 @@ orbs:
           no_output_timeout:
             description: Number of seconds to let job run without output before timeout
             type: integer
-            default: 1800
+            default: 600
           is_test_suite:
             description: Should the job collect test results and coverage?
             type: boolean
