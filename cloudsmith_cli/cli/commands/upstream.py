@@ -17,19 +17,23 @@ from ..utils import (
 from .main import main
 
 UPSTREAM_FORMATS = [
+    "cargo",
+    "conda",
+    "cran",
     "dart",
     "deb",
     "docker",
+    "go",
     "helm",
+    "hex",
+    "huggingface",
     "maven",
-    "nuget",
     "npm",
+    "nuget",
     "python",
     "rpm",
     "ruby",
-    "cran",
     "swift",
-    "hex",
 ]
 
 
