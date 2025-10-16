@@ -44,12 +44,19 @@ def list_tokens(ctx, opts):
     "token_slug",
     required=False,
 )
+@click.option(
+    "-f",
+    "--force",
+    default=False,
+    is_flag=True,
+    help="Force create a user API token after successful authentication.",
+)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.pass_context
-def refresh(ctx, opts, token_slug):
+def refresh(ctx, opts, token_slug, force):
     """Refresh a specific API token by its slug."""
     context_msg = "Failed to refresh the token!"
 
@@ -59,9 +66,14 @@ def refresh(ctx, opts, token_slug):
                 api_tokens = api.list_user_tokens()
         click.echo("Current tokens:")
         print_tokens(api_tokens)
-        token_slug = click.prompt(
-            "Please enter the slug_perm of the token you would like to refresh"
-        )
+        if not force:
+            token_slug = click.prompt(
+                "Please enter the slug_perm of the token you would like to refresh"
+            )
+        else:
+            #Use the first available slug_perm for simplicity
+            token_slug = api_tokens[0].slug_perm
+            click.echo(f"Refreshing token {token_slug}... ", nl=False)
 
     click.echo(f"Refreshing token {token_slug}... ", nl=False)
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
