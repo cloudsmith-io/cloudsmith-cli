@@ -49,7 +49,7 @@ def list_tokens(ctx, opts):
     "--force",
     default=False,
     is_flag=True,
-    help="Force create a user API token after successful authentication.",
+    help="Force refresh of user API token without prompts.",
 )
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
