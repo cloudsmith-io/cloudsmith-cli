@@ -82,9 +82,11 @@ def authenticate(ctx, opts, owner, token, force):
         try:
             api_token = user.create_user_token_saml()
             click.echo(f"New token value: {click.style(api_token.key, fg='magenta')}")
-            
+
             if not token:
-                create, has_errors = create_config_files(ctx, opts, api_key=api_token.key)
+                create, has_errors = create_config_files(
+                    ctx, opts, api_key=api_token.key
+                )
                 new_config_messaging(has_errors, opts, create, api_key=api_token.key)
         except exceptions.ApiException as exc:
             if exc.status == 400:
@@ -97,7 +99,6 @@ def authenticate(ctx, opts, owner, token, force):
                     else:
                         raise
 
-            
         context_msg = "Failed to refresh the token!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             api_tokens = user.list_user_tokens()
@@ -109,13 +110,13 @@ def authenticate(ctx, opts, owner, token, force):
                 f"slug_perm: {click.style(t.slug_perm, fg='cyan')}"
             )
 
-        if not force:   
+        if not force:
             token_slug = click.prompt(
                 "Please enter the slug_perm of the token you would like to refresh"
             )
             click.echo(f"Refreshing token {token_slug}... ", nl=False)
         else:
-            #Use the first available slug_perm for simplicity
+            # Use the first available slug_perm for simplicity
             token_slug = api_tokens[0].slug_perm
             click.echo(f"Refreshing token {token_slug}... ", nl=False)
 
@@ -124,7 +125,7 @@ def authenticate(ctx, opts, owner, token, force):
                 new_token = user.refresh_user_token(token_slug)
         click.secho("OK", fg="green")
         click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
-        
+
         if not force:
             create, has_errors = create_config_files(ctx, opts, api_key=new_token.key)
             new_config_messaging(has_errors, opts, create, api_key=new_token.key)

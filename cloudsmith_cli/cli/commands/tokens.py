@@ -71,7 +71,7 @@ def refresh(ctx, opts, token_slug, force):
                 "Please enter the slug_perm of the token you would like to refresh"
             )
         else:
-            #Use the first available slug_perm for simplicity
+            # Use the first available slug_perm for simplicity
             token_slug = api_tokens[0].slug_perm
             click.echo(f"Refreshing token {token_slug}... ", nl=False)
 
