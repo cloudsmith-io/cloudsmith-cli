@@ -6,3 +6,4 @@ pip-tools
 pre-commit
 pylint
 pytest-cov
+mcp==1.9.1

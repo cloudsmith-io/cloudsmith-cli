@@ -5,6 +5,7 @@ import functools
 import click
 
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.mcp import server
 from . import config, utils, validators
 
 
@@ -306,6 +307,22 @@ def initialise_api(f):
         )
 
         kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
+
+
+def initialise_mcp(f):
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        opts = kwargs.get("opts")
+        mcp_server = server.DynamicMCPServer(
+            api_base_url=opts.api_config.host,
+            api_token=opts.api_key,
+            debug_mode=opts.debug,
+        )
+        kwargs["mcp_server"] = mcp_server
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper
