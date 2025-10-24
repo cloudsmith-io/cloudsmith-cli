@@ -85,7 +85,9 @@ def assert_output_matches_policy_config(output, config_file_path):
     return output_table["Identifier"]
 
 
-@pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.usefixtures(
+    "set_api_key_env_var", "set_api_host_env_var", "set_no_warn_env_var"
+)
 def test_license_policy_commands(runner, organization, tmp_path):
     """Test CRUD operations for license policies."""
 

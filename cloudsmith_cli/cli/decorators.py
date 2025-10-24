@@ -4,7 +4,10 @@ import functools
 
 import click
 
+from cloudsmith_cli.cli.warnings import ApiAuthenticationWarning, get_or_create_warnings
+
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.api.user import get_user_brief
 from . import config, utils, validators
 
 
@@ -91,11 +94,12 @@ def common_cli_config_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+        warnings = get_or_create_warnings(ctx)
         profile = kwargs.pop("profile")
         config_file = kwargs.pop("config_file")
         creds_file = kwargs.pop("credentials_file")
-        opts.load_config_file(path=config_file, profile=profile)
-        opts.load_creds_file(path=creds_file, profile=profile)
+        opts.load_config_file(path=config_file, profile=profile, warnings=warnings)
+        opts.load_creds_file(path=creds_file, profile=profile, warnings=warnings)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -304,6 +308,13 @@ def initialise_api(f):
             error_retry_codes=opts.error_retry_codes,
             error_retry_cb=opts.error_retry_cb,
         )
+
+        cloudsmith_host = kwargs["opts"].opts["api_config"].host
+        is_auth, _, _, _ = get_user_brief()
+        if not is_auth:
+            warnings = get_or_create_warnings(ctx)
+            auth_warning = ApiAuthenticationWarning(cloudsmith_host)
+            warnings.append(auth_warning)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
