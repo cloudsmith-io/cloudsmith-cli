@@ -26,7 +26,8 @@ def create_config_files(ctx, opts, api_key, force=False):
             create = click.confirm(
                 "No default config file(s) found, do you want to create them?"
             )
-        create = "y"
+        else:
+            create = "y"
 
     click.echo()
     if not create:
