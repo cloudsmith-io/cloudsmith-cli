@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.8.7] - 2025-10-27
+
+### Added
+
+- `Cloudsmith auth -o <org> --token` now creates a new token if none previously existed.
+- Added support for json output for auth via `--json` param.
+- Added new `create` command for tokens. If authenticated and no previous token exists, this allows for new token creation.
+
 ## [1.8.6] - 2025-10-16
 
 ### Added
