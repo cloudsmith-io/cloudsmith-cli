@@ -10,7 +10,7 @@ ConfigValues = collections.namedtuple(
 )
 
 
-def create_config_files(ctx, opts, api_key, force):
+def create_config_files(ctx, opts, api_key, force=False):
     """Create default config files."""
     # pylint: disable=unused-argument
     config_reader = opts.get_config_reader()
