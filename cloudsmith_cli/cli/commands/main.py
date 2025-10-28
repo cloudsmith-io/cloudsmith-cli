@@ -1,6 +1,11 @@
 """Main command/entrypoint."""
 
+from functools import partial
+
 import click
+
+from cloudsmith_cli.cli import config
+from cloudsmith_cli.cli.warnings import get_or_create_warnings
 
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
@@ -51,13 +56,37 @@ For issues/contributing: %(github_website)s
     is_flag=True,
     is_eager=True,
 )
+@click.option(
+    "--no-warn",
+    help="Don't display auth or config warnings",
+    envvar="CLOUDSMITH_CLI_NO_WARN",
+    is_flag=True,
+    default=None,
+)
 @decorators.common_cli_config_options
 @click.pass_context
-def main(ctx, opts, version):
+def main(ctx, opts, version, no_warn):
     """Handle entrypoint to CLI."""
     # pylint: disable=unused-argument
 
+    if no_warn:
+        opts.no_warn = True
+
     if version:
+        opts.no_warn = True
         print_version()
     elif ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+
+
+@main.result_callback()
+@click.pass_context
+def result_callback(ctx, _, **kwargs):
+    """Callback for main function. Required for saving warnings til the end."""
+
+    warnings = get_or_create_warnings(ctx)
+    opts = config.get_or_create_options(ctx)
+
+    if warnings and not opts.no_warn:
+        click_warn_partial = partial(click.secho, fg="yellow")
+        warnings.display(click_warn_partial)

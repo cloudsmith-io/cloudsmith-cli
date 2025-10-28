@@ -7,6 +7,8 @@ import threading
 import click
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
 
+from cloudsmith_cli.cli.warnings import ConfigLoadWarning, ProfileNotFoundWarning
+
 from ..core.utils import get_data_path, read_file
 from . import utils, validators
 
@@ -148,8 +150,9 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
-    def load_config(cls, opts, path=None, profile=None):
+    def load_config(cls, opts, path=None, warnings=None, profile=None):
         """Load a configuration file into an options object."""
+
         if path and os.path.exists(path):
             if os.path.isdir(path):
                 cls.config_searchpath.insert(0, path)
@@ -159,10 +162,25 @@ class ConfigReader(ConfigFileReader):
         config = cls.read_config()
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
+        existing_config_paths = {
+            path: os.path.exists(path) for path in cls.config_files
+        }
 
         if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
-            cls._load_values_into_opts(opts, values)
+            try:
+                values = config["profile:%s" % profile]
+                cls._load_values_into_opts(opts, values)
+            except KeyError:
+                warning = ProfileNotFoundWarning(
+                    paths=existing_config_paths, profile=profile
+                )
+                warnings.append(warning)
+
+        if not any(list(existing_config_paths.values())):
+            config_load_warning = ConfigLoadWarning(
+                paths=existing_config_paths,
+            )
+            warnings.append(config_load_warning)
 
         return values
 
@@ -206,7 +224,31 @@ class CredentialsReader(ConfigReader):
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
+    @classmethod
+    def load_config(cls, opts, path=None, warnings=None, profile=None):
+        """
+        Load a credentials configuration file into an options object.
+        We overload the load_config command in CredentialsReader as
+        credentials files have their own specific default functionality.
+        """
+        if path and os.path.exists(path):
+            if os.path.isdir(path):
+                cls.config_searchpath.insert(0, path)
+            else:
+                cls.config_files.insert(0, path)
 
+        config = cls.read_config()
+        values = config.get("default", {})
+        cls._load_values_into_opts(opts, values)
+
+        if profile and profile != "default":
+            values = config.get("profile:%s" % profile, {})
+            cls._load_values_into_opts(opts, values)
+
+        return values
+
+
+# pylint: disable=too-many-public-methods
 class Options:
     """Options object that holds config for the application."""
 
@@ -227,15 +269,15 @@ class Options:
         """Get the credentials config reader class."""
         return CredentialsReader
 
-    def load_config_file(self, path, profile=None):
+    def load_config_file(self, path, warnings=None, profile=None):
         """Load the standard config file."""
         config_cls = self.get_config_reader()
-        return config_cls.load_config(self, path, profile=profile)
+        return config_cls.load_config(self, path, warnings=warnings, profile=profile)
 
-    def load_creds_file(self, path, profile=None):
+    def load_creds_file(self, path, warnings=None, profile=None):
         """Load the credentials config file."""
         config_cls = self.get_creds_reader()
-        return config_cls.load_config(self, path, profile=profile)
+        return config_cls.load_config(self, path, warnings=warnings, profile=profile)
 
     @property
     def api_config(self):
@@ -267,6 +309,16 @@ class Options:
     def api_host(self, value):
         """Set value for API host."""
         self._set_option("api_host", value)
+
+    @property
+    def no_warn(self):
+        """Get value for API host."""
+        return self._get_option("no_warn")
+
+    @no_warn.setter
+    def no_warn(self, value):
+        """Set value for API host."""
+        self._set_option("no_warn", value)
 
     @property
     def api_key(self):
