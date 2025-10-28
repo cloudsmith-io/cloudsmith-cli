@@ -1,10 +1,8 @@
 # Maintainers
 
-The following maintainers manage the project and are reponsible for reviewing/merging code:
+The project is maintained by the Cloudsmith team.
 
-- Lee Skillen ([@lskillen](https://github.com/lskillen)) - [Cloudsmith Ltd](https://cloudsmith.io)
-- Paddy Carey ([@paddycarey](https://github.com/paddycarey)) - [Cloudsmith Ltd](https://cloudsmith.io)
-
+Any member of the Cloudsmith organization may review and approve contributions.
 
 # Contributors
 

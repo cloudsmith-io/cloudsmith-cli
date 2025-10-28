@@ -10,7 +10,7 @@ ConfigValues = collections.namedtuple(
 )
 
 
-def create_config_files(ctx, opts, api_key):
+def create_config_files(ctx, opts, api_key, force=False):
     """Create default config files."""
     # pylint: disable=unused-argument
     config_reader = opts.get_config_reader()
@@ -22,9 +22,12 @@ def create_config_files(ctx, opts, api_key):
         create = False
     else:
         click.echo()
-        create = click.confirm(
-            "No default config file(s) found, do you want to create them?"
-        )
+        if not force:
+            create = click.confirm(
+                "No default config file(s) found, do you want to create them?"
+            )
+        else:
+            create = "y"
 
     click.echo()
     if not create:

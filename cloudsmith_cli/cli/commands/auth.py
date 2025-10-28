@@ -4,14 +4,42 @@ import webbrowser
 
 import click
 
-from ...core.api import exceptions, user
-from ...core.config import create_config_files, new_config_messaging
 from .. import decorators, validators
 from ..exceptions import handle_api_exceptions
 from ..saml import create_configured_session, get_idp_url
-from ..utils import maybe_spinner
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 from .main import main
+from .tokens import create
+
+# Authentication server configuration
+AUTH_SERVER_HOST = "127.0.0.1"
+AUTH_SERVER_PORT = 12400
+
+
+def _perform_saml_authentication(opts, owner, enable_token_creation=False):
+    """Perform SAML authentication via web browser and local web server."""
+    session = create_configured_session(opts)
+    api_host = opts.api_config.host
+
+    idp_url = get_idp_url(api_host, owner, session=session)
+    click.echo(
+        f"Opening your organization's SAML IDP URL in your browser: {click.style(idp_url, bold=True)}"
+    )
+    click.echo()
+    webbrowser.open(idp_url)
+    click.echo("Starting webserver to begin authentication ... ")
+
+    auth_server = AuthenticationWebServer(
+        (AUTH_SERVER_HOST, AUTH_SERVER_PORT),
+        AuthenticationWebRequestHandler,
+        owner=owner,
+        session=session,
+        debug=opts.debug,
+        refresh_api_on_success=enable_token_creation,
+        api_opts=opts.api_config,
+    )
+
+    auth_server.handle_request()
 
 
 @main.command(aliases=["auth"])
@@ -31,82 +59,40 @@ from .main import main
     is_flag=True,
     help="Retrieve a user API token after successful authentication.",
 )
+@click.option(
+    "-f",
+    "--force",
+    default=False,
+    is_flag=True,
+    help="Force refresh of user API token without prompts.",
+)
+@click.option(
+    "--save-config",
+    default=False,
+    is_flag=True,
+    help="Save the new API key to your configuration files.",
+)
+@click.option(
+    "--json",
+    default=False,
+    is_flag=True,
+    help="Output token details in json format.",
+)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.initialise_api
 @click.pass_context
-def authenticate(ctx, opts, owner, token):
+def authenticate(ctx, opts, owner, token, force, save_config, json):
     """Authenticate to Cloudsmith using the org's SAML setup."""
     owner = owner[0].strip("'[]'")
-    api_host = opts.api_config.host
 
     click.echo(
-        "Beginning authentication for the {owner} org ... ".format(
-            owner=click.style(owner, bold=True)
-        )
+        f"Beginning authentication for the {click.style(owner, bold=True)} org ... "
     )
-
-    session = create_configured_session(opts)
 
     context_message = "Failed to authenticate via SSO!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
-        idp_url = get_idp_url(api_host, owner, session=session)
-        click.echo(
-            "Opening your organization's SAML IDP URL in your browser: %(idp_url)s"
-            % {"idp_url": click.style(idp_url, bold=True)}
-        )
-        click.echo()
-        webbrowser.open(idp_url)
-        click.echo("Starting webserver to begin authentication ... ")
+        _perform_saml_authentication(opts, owner, enable_token_creation=token)
 
-        auth_server = AuthenticationWebServer(
-            ("127.0.0.1", 12400),
-            AuthenticationWebRequestHandler,
-            api_host=api_host,
-            owner=owner,
-            session=session,
-            debug=opts.debug,
-        )
-        auth_server.handle_request()
-
-        if not token:
-            return
-
-        try:
-            api_token = user.create_user_token_saml()
-            click.echo(f"New token value: {click.style(api_token.key, fg='magenta')}")
-            create, has_errors = create_config_files(ctx, opts, api_key=api_token.key)
-            new_config_messaging(has_errors, opts, create, api_key=api_token.key)
-            return
-        except exceptions.ApiException as exc:
-            if exc.status == 400:
-                if "User has already created an API key" in exc.detail:
-                    click.confirm(
-                        "User already has a token. Would you like to recreate it?",
-                        abort=True,
-                    )
-                else:
-                    raise
-
-        context_msg = "Failed to refresh the token!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            api_tokens = user.list_user_tokens()
-        for t in api_tokens:
-            click.echo("Current tokens:")
-            click.echo(
-                f"Token: {click.style(t.key, fg='magenta')}, "
-                f"Created: {click.style(t.created, fg='green')}, "
-                f"slug_perm: {click.style(t.slug_perm, fg='cyan')}"
-            )
-        token_slug = click.prompt(
-            "Please enter the slug_perm of the token you would like to refresh"
-        )
-
-        click.echo(f"Refreshing token {token_slug}... ", nl=False)
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                new_token = user.refresh_user_token(token_slug)
-        click.secho("OK", fg="green")
-        click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
-        create, has_errors = create_config_files(ctx, opts, api_key=new_token.key)
-        new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+    if token:
+        ctx.invoke(create, opts=opts, save_config=save_config, force=force, json=json)

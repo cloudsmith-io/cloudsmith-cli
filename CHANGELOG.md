@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.8.7] - 2025-10-27
+
+### Added
+
+- `Cloudsmith auth -o <org> --token` now creates a new token if none previously existed.
+- Added support for json output for auth via `--json` param.
+- Added new `create` command for tokens. If authenticated and no previous token exists, this allows for new token creation.
+
+## [1.8.6] - 2025-10-16
+
+### Added
+
+- Added `--force` parameter to the Auth command to be used in conjunction with `--token` to refresh tokens without interactive prompts i.e automatic.
+- Added `--force` parameter to the Tokens refresh command to automaticlly refresh without an interactive prompt.
+
+## [1.8.5] - 2025-10-16
+
+### Added
+
+## [1.8.4] - 2025-10-06
+
+### Added
+
+- Support for Conda, Cargo, Go, and Hugging Face upstreams ([#214](https://github.com/cloudsmith-io/cloudsmith-cli/pull/214))
+
+## [1.8.3] - 2025-06-02
+
+- Added 'swift' and 'hex' as available upstream formats.
+
+## [1.8.2] - 2025-06-02
+
+- Make an sdist available as part of the release.
+
+## [1.8.1] - 2025-05-07
+
+- Fix bug that caused configuration to be dropped in the authenticate command.
+- Fix bug in the default configuration schema.
+
 ## [1.8.0] - 2025-05-02
 
 ### Added
