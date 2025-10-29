@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=requirements.txt --pre requirements.in setup.py
 #
-astroid==2.15.6
+astroid==3.3.5
     # via pylint
 backports-tarfile==1.2.0
     # via jaraco-context
@@ -94,7 +94,7 @@ pluggy==1.2.0
     # via pytest
 pre-commit==3.3.3
     # via -r requirements.in
-pylint==3.0.0a6
+pylint==3.3.1
     # via -r requirements.in
 pyproject-hooks==1.0.0
     # via build
