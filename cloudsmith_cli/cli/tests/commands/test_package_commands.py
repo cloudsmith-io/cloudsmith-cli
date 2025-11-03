@@ -27,7 +27,7 @@ def test_push_and_delete_raw_package(
     result = runner.invoke(
         list_, args=["pkgs", org_repo, "-F", "json"], catch_exceptions=False
     )
-    data = json.loads(str(result.output))["data"]
+    data = json.loads(result.stdout)["data"]
     assert len(data) == 0
 
     # Create a file of the requested size.
