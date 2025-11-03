@@ -192,7 +192,7 @@ def resolve_package(
 
 def get_download_url(package: Dict) -> str:
     """
-    Extract download URL from package object.
+    Get the download URL for a package.
 
     Args:
         package: Package dictionary from API
@@ -215,6 +215,49 @@ def get_download_url(package: Dict) -> str:
         raise click.ClickException("Package does not have a download URL available.")
 
     return download_url
+
+
+def get_package_files(package: Dict) -> List[Dict]:
+    """
+    Get all downloadable files associated with a package.
+
+    Args:
+        package: Package dictionary from API
+
+    Returns:
+        List of file dictionaries, each containing:
+        - filename: The file name
+        - cdn_url: Download URL
+        - size: File size in bytes
+        - tag: File type (pkg, pom, sources, javadoc, etc.)
+        - is_primary: Whether this is the primary package file
+        - checksum_md5, checksum_sha1, checksum_sha256, checksum_sha512: Checksums
+    """
+    files = package.get("files", [])
+
+    if not files:
+        # If no files array, return the main package as a single file
+        return [
+            {
+                "filename": package.get("filename", "package"),
+                "cdn_url": get_download_url(package),
+                "size": package.get("size", 0),
+                "tag": "pkg",
+                "is_primary": True,
+                "checksum_md5": package.get("checksum_md5"),
+                "checksum_sha1": package.get("checksum_sha1"),
+                "checksum_sha256": package.get("checksum_sha256"),
+                "checksum_sha512": package.get("checksum_sha512"),
+            }
+        ]
+
+    # Filter to only downloadable files with CDN URLs
+    downloadable_files = []
+    for file_info in files:
+        if file_info.get("is_downloadable") and file_info.get("cdn_url"):
+            downloadable_files.append(file_info)
+
+    return downloadable_files
 
 
 def get_package_detail(owner: str, repo: str, identifier: str) -> Dict:

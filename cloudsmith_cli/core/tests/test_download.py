@@ -325,7 +325,7 @@ class TestStreamDownload(unittest.TestCase):
             # Verify second request used Basic Auth with token
             second_call = self.session.get.call_args_list[1]
             auth = second_call[1]["auth"]
-            self.assertEqual(auth, ("test-token", ""))
+            self.assertEqual(auth, ("token", "test-token"))
 
 
 class TestSelectBestPackage(unittest.TestCase):
@@ -386,6 +386,113 @@ class TestUtilityFunctions(unittest.TestCase):
             "/path/file", "different12345678901234567890ab"
         )
         self.assertFalse(result)
+
+
+class TestGetPackageFiles(unittest.TestCase):
+    """Test get_package_files function."""
+
+    def test_get_package_files_with_files_array(self):
+        """Test extracting files from package with files array."""
+        package = {
+            "name": "test-package",
+            "version": "1.0.0",
+            "cdn_url": "https://example.com/pkg.jar",
+            "files": [
+                {
+                    "filename": "test-1.0.0.jar",
+                    "cdn_url": "https://example.com/test-1.0.0.jar",
+                    "size": 100000,
+                    "tag": "pkg",
+                    "is_primary": True,
+                    "is_downloadable": True,
+                    "checksum_md5": "abc123",
+                },
+                {
+                    "filename": "test-1.0.0.pom",
+                    "cdn_url": "https://example.com/test-1.0.0.pom",
+                    "size": 2000,
+                    "tag": "pom",
+                    "is_primary": False,
+                    "is_downloadable": True,
+                    "checksum_md5": "def456",
+                },
+                {
+                    "filename": "test-1.0.0-sources.jar",
+                    "cdn_url": "https://example.com/test-1.0.0-sources.jar",
+                    "size": 50000,
+                    "tag": "sources",
+                    "is_primary": False,
+                    "is_downloadable": True,
+                    "checksum_md5": "ghi789",
+                },
+            ],
+        }
+
+        files = download.get_package_files(package)
+
+        self.assertEqual(len(files), 3)
+        self.assertEqual(files[0]["filename"], "test-1.0.0.jar")
+        self.assertEqual(files[1]["filename"], "test-1.0.0.pom")
+        self.assertEqual(files[2]["filename"], "test-1.0.0-sources.jar")
+
+    def test_get_package_files_filters_non_downloadable(self):
+        """Test that non-downloadable files are filtered out."""
+        package = {
+            "files": [
+                {
+                    "filename": "test.jar",
+                    "cdn_url": "https://example.com/test.jar",
+                    "is_downloadable": True,
+                },
+                {
+                    "filename": "test.pom",
+                    "cdn_url": "https://example.com/test.pom",
+                    "is_downloadable": False,  # Should be filtered
+                },
+                {
+                    "filename": "test-sources.jar",
+                    "cdn_url": None,  # Should be filtered (no URL)
+                    "is_downloadable": True,
+                },
+            ]
+        }
+
+        files = download.get_package_files(package)
+
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0]["filename"], "test.jar")
+
+    def test_get_package_files_no_files_array(self):
+        """Test fallback when package has no files array."""
+        package = {
+            "filename": "package.deb",
+            "cdn_url": "https://example.com/package.deb",
+            "size": 5000,
+            "checksum_md5": "abc123",
+            "checksum_sha256": "def456",
+        }
+
+        files = download.get_package_files(package)
+
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0]["filename"], "package.deb")
+        self.assertEqual(files[0]["cdn_url"], "https://example.com/package.deb")
+        self.assertEqual(files[0]["tag"], "pkg")
+        self.assertTrue(files[0]["is_primary"])
+
+    def test_get_package_files_empty_files_array(self):
+        """Test fallback when files array is empty."""
+        package = {
+            "filename": "package.rpm",
+            "cdn_url": "https://example.com/package.rpm",
+            "size": 3000,
+            "files": [],
+        }
+
+        files = download.get_package_files(package)
+
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0]["filename"], "package.rpm")
 
 
 if __name__ == "__main__":

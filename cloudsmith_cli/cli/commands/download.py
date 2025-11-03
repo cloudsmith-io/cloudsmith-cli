@@ -7,6 +7,7 @@ import click
 from ...core.download import (
     get_download_url,
     get_package_detail,
+    get_package_files,
     resolve_auth,
     resolve_package,
     stream_download,
@@ -52,6 +53,11 @@ from .main import main
     help="Overwrite existing files (default: fail if file exists).",
 )
 @click.option(
+    "--all-files",
+    is_flag=True,
+    help="Download all associated files (POM, sources, javadoc, etc.) into a folder.",
+)
+@click.option(
     "--token",
     help="Entitlement token for private packages. Only used if no API key is configured.",
 )
@@ -78,6 +84,7 @@ def download(  # pylint: disable=too-many-positional-arguments
     arch_filter,
     outfile,
     overwrite,
+    all_files,
     token,
     dry_run,
     yes,
@@ -103,6 +110,14 @@ def download(  # pylint: disable=too-many-positional-arguments
     cloudsmith download myorg/myrepo mypackage --format deb --arch amd64 --outfile my-package.deb
 
     \b
+    # Download all associated files (POM, sources, javadoc, etc.) for a Maven/NuGet package
+    cloudsmith download myorg/myrepo mypackage --all-files
+
+    \b
+    # Download all files to a custom directory
+    cloudsmith download myorg/myrepo mypackage --all-files --outfile ./my-package-dir
+
+    \b
     # Download a private package using an entitlement token
     cloudsmith download myorg/private-repo mypackage --token abcd1234efgh5678
 
@@ -114,6 +129,10 @@ def download(  # pylint: disable=too-many-positional-arguments
 
     If multiple packages match your criteria, you'll see a selection table unless
     you use --yes to automatically select the best match (highest version, then newest).
+
+    When using --all-files, all associated files (such as POM files, sources, javadoc,
+    SBOM, etc.) will be downloaded into a folder named {package-name}-{version} unless
+    you specify a custom directory with --outfile.
     """
     owner, repo = owner_repo
 
@@ -149,8 +168,118 @@ def download(  # pylint: disable=too-many-positional-arguments
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    # Get detailed package info if we need more fields for download URL
+    # Get detailed package info if we need more fields for download URL or all files
     package_detail = None
+
+    if all_files:
+        # For --all-files, we always need the detailed package info to get the files array
+        click.echo("Getting package details ...", nl=False, err=use_stderr)
+        context_msg = "Failed to get package details!"
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                package_detail = get_package_detail(
+                    owner=owner, repo=repo, identifier=package["slug"]
+                )
+        click.secho("OK", fg="green", err=use_stderr)
+
+        # Get all downloadable files
+        files_to_download = get_package_files(package_detail)
+
+        if not files_to_download:
+            raise click.ClickException("No downloadable files found for this package.")
+
+        # Create output directory for all files
+        if outfile:
+            # If user specified an outfile, use it as the directory
+            output_dir = os.path.abspath(outfile)
+        else:
+            # Create directory named: {package-name}-{version}
+            pkg_name = package_detail.get("name", name)
+            pkg_version = package_detail.get("version", "unknown")
+            output_dir = os.path.abspath(f"{pkg_name}-{pkg_version}")
+
+        # Create directory if it doesn't exist
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        elif not os.path.isdir(output_dir):
+            raise click.ClickException(
+                f"Output path '{output_dir}' exists but is not a directory."
+            )
+
+        if dry_run:
+            click.echo()
+            click.echo("Dry run - would download:")
+            click.echo(f"  Package: {package.get('name')} v{package.get('version')}")
+            click.echo(f"  Format: {package.get('format')}")
+            click.echo(f"  Files: {len(files_to_download)}")
+            click.echo(f"  To directory: {output_dir}")
+            click.echo()
+            for file_info in files_to_download:
+                primary_marker = " (primary)" if file_info.get("is_primary") else ""
+                click.echo(
+                    f"    [{file_info.get('tag', 'file')}] {file_info['filename']}{primary_marker} - "
+                    f"{_format_file_size(file_info.get('size', 0))}"
+                )
+            return
+
+        # Download all files
+        click.echo(f"\nDownloading {len(files_to_download)} files to: {output_dir}")
+        click.echo()
+
+        success_count = 0
+        failed_files = []
+
+        for idx, file_info in enumerate(files_to_download, 1):
+            filename = file_info["filename"]
+            file_url = file_info["cdn_url"]
+            output_path = os.path.join(output_dir, filename)
+
+            primary_marker = " (primary)" if file_info.get("is_primary") else ""
+            tag = file_info.get("tag", "file")
+
+            click.echo(
+                f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
+                nl=False,
+                err=use_stderr,
+            )
+
+            try:
+                context_msg = f"Failed to download {filename}!"
+                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                    stream_download(
+                        url=file_url,
+                        outfile=output_path,
+                        session=session,
+                        headers=auth_headers,
+                        token=token if auth_source != "api-key" else None,
+                        overwrite=overwrite,
+                        quiet=True,  # Suppress per-file progress bars for cleaner output
+                    )
+                click.secho(" OK", fg="green", err=use_stderr)
+                success_count += 1
+            except Exception as e:  # pylint: disable=broad-except
+                click.secho(" FAILED", fg="red", err=use_stderr)
+                failed_files.append((filename, str(e)))
+
+        click.echo()
+        if success_count == len(files_to_download):
+            click.secho(
+                f"All {success_count} files downloaded successfully!",
+                fg="green",
+            )
+        else:
+            click.secho(
+                f"Downloaded {success_count}/{len(files_to_download)} files.",
+                fg="yellow",
+            )
+            if failed_files:
+                click.echo("\nFailed files:")
+                for filename, error in failed_files:
+                    click.echo(f"  - {filename}: {error}")
+
+        return
+
+    # Single file download (original behavior)
     download_url = get_download_url(package)
 
     if not download_url:
@@ -230,6 +359,11 @@ def _get_extension_for_format(pkg_format: str) -> str:
 def _format_package_size(package: dict) -> str:
     """Format package size for display."""
     size = package.get("size", 0)
+    return _format_file_size(size)
+
+
+def _format_file_size(size: int) -> str:
+    """Format file size in bytes to human-readable format."""
     if size == 0:
         return "Unknown"
 
