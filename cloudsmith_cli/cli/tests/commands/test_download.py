@@ -295,7 +295,7 @@ class TestDownloadCommand(unittest.TestCase):
     @patch("cloudsmith_cli.cli.commands.download.get_download_url")
     @patch("cloudsmith_cli.cli.commands.download.get_package_detail")
     @patch("cloudsmith_cli.cli.commands.download.stream_download")
-    def test_download_fallback_to_package_detail(  # pylint: disable=too-many-positional-arguments
+    def test_download_fallback_to_package_detail(
         self,
         mock_stream,
         mock_get_detail,

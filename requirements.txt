@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=requirements.txt --pre requirements.in setup.py
 #
-astroid==3.3.5
+astroid==2.15.6
     # via pylint
 backports-tarfile==1.2.0
     # via jaraco-context
@@ -22,7 +22,7 @@ cfgv==3.3.1
     # via pre-commit
 charset-normalizer==3.3.2
     # via requests
-click==8.2.0
+click==8.1.6
     # via
     #   click-configfile
     #   click-didyoumean
@@ -94,7 +94,7 @@ pluggy==1.2.0
     # via pytest
 pre-commit==3.3.3
     # via -r requirements.in
-pylint==3.3.1
+pylint==3.0.0a6
     # via -r requirements.in
 pyproject-hooks==1.0.0
     # via build

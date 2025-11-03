@@ -73,7 +73,7 @@ from .main import main
     help="Automatically select the best match when multiple packages are found.",
 )
 @click.pass_context
-def download(  # pylint: disable=too-many-positional-arguments
+def download(
     ctx,
     opts,
     owner_repo,
