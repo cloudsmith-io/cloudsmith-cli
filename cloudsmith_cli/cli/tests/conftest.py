@@ -19,7 +19,7 @@ def _get_env_var_or_skip(key):
 @pytest.fixture()
 def runner():
     """Return a CliRunner with which to run Commands."""
-    return click.testing.CliRunner(mix_stderr=False)
+    return click.testing.CliRunner()
 
 
 @pytest.fixture()
