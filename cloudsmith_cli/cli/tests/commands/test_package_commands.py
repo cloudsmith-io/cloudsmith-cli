@@ -27,7 +27,7 @@ def test_push_and_delete_raw_package(
     result = runner.invoke(
         list_, args=["pkgs", org_repo, "-F", "json"], catch_exceptions=False
     )
-    if result is None:
+    if result is not None:
         result = "{}"
     data = json.loads(result.output)["data"]
     assert len(data) == 0
