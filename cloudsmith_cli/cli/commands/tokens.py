@@ -8,7 +8,7 @@ from ..utils import maybe_print_as_json, maybe_spinner
 from .main import main
 
 
-def handle_duplicate_token_error(exc, ctx, opts, save_config, force):
+def handle_duplicate_token_error(exc, ctx, opts, save_config, force, json):
     """
     Handle the case where user already has a token.
 
@@ -26,7 +26,7 @@ def handle_duplicate_token_error(exc, ctx, opts, save_config, force):
             ):
                 return None
         return refresh_existing_token_interactive(
-            ctx, opts, save_config=save_config, force=force
+            ctx, opts, save_config=save_config, force=force, json=json
         )
     raise exc
 
@@ -137,7 +137,7 @@ def print_tokens(tokens):
 
 
 def refresh_existing_token_interactive(
-    ctx, opts, token_slug=None, save_config=False, force=False
+    ctx, opts, token_slug=None, save_config=False, force=False, json=False
 ):
     """Refresh an existing API token with interactive token selection, or create new if none exist."""
     context_msg = "Failed to refresh the token!"
@@ -159,8 +159,9 @@ def refresh_existing_token_interactive(
             click.echo("No existing tokens found. Creating a new token instead...")
             return _create(ctx, opts, save_config=save_config, force=force)
 
-        click.echo("Current tokens:")
-        print_tokens(api_tokens)
+        if not json:
+            click.echo("Current tokens:")
+            print_tokens(api_tokens)
 
         if not force:
             token_slug = click.prompt(
@@ -169,9 +170,11 @@ def refresh_existing_token_interactive(
         else:
             # Use the first available slug_perm when force is enabled
             token_slug = api_tokens[0].slug_perm
-            click.echo(f"Using token {token_slug} (first available)")
+            if not json:
+                click.echo(f"Using token {token_slug} (first available)")
 
-    click.echo(f"Refreshing token {token_slug}... ", nl=False)
+    if not json:
+        click.echo(f"Refreshing token {token_slug}... ", nl=False)
     try:
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
@@ -186,8 +189,9 @@ def refresh_existing_token_interactive(
         if maybe_print_as_json(opts, new_token):
             return
 
-        click.secho("OK", fg="green")
-        click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+        if not json:
+            click.secho("OK", fg="green")
+            click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
 
         return new_token
     except exceptions.ApiException as exc:
@@ -210,7 +214,10 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
                     return
             if maybe_print_as_json(opts, new_token):
                 return
-            click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+            if not json:
+                click.echo(
+                    f"New token value: {click.style(new_token.key, fg='magenta')}"
+                )
             return new_token
 
         return new_token
@@ -223,6 +230,6 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
             opts.output = "json"
         if exc.status == 400:
             new_token = handle_duplicate_token_error(
-                exc, ctx, opts, save_config=save_config, force=force
+                exc, ctx, opts, save_config=save_config, force=force, json=json
             )
             return new_token
