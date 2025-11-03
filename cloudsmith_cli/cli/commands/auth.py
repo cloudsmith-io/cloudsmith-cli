@@ -16,20 +16,18 @@ AUTH_SERVER_HOST = "127.0.0.1"
 AUTH_SERVER_PORT = 12400
 
 
-def _perform_saml_authentication(opts, owner, enable_token_creation=False, json=False):
+def _perform_saml_authentication(opts, owner, enable_token_creation=False):
     """Perform SAML authentication via web browser and local web server."""
     session = create_configured_session(opts)
     api_host = opts.api_config.host
 
     idp_url = get_idp_url(api_host, owner, session=session)
-    if not json:
-        click.echo(
-            f"Opening your organization's SAML IDP URL in your browser: {click.style(idp_url, bold=True)}"
-        )
+    click.echo(
+        f"Opening your organization's SAML IDP URL in your browser: {click.style(idp_url, bold=True)}"
+    )
     click.echo()
     webbrowser.open(idp_url)
-    if not json:
-        click.echo("Starting webserver to begin authentication ... ")
+    click.echo("Starting webserver to begin authentication ... ")
 
     auth_server = AuthenticationWebServer(
         (AUTH_SERVER_HOST, AUTH_SERVER_PORT),
@@ -88,16 +86,13 @@ def authenticate(ctx, opts, owner, token, force, save_config, json):
     """Authenticate to Cloudsmith using the org's SAML setup."""
     owner = owner[0].strip("'[]'")
 
-    if not json:
-        click.echo(
-            f"Beginning authentication for the {click.style(owner, bold=True)} org ... "
-        )
+    click.echo(
+        f"Beginning authentication for the {click.style(owner, bold=True)} org ... "
+    )
 
     context_message = "Failed to authenticate via SSO!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
-        _perform_saml_authentication(
-            opts, owner, enable_token_creation=token, json=json
-        )
+        _perform_saml_authentication(opts, owner, enable_token_creation=token)
 
     if token:
         ctx.invoke(create, opts=opts, save_config=save_config, force=force, json=json)
