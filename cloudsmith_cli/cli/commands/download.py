@@ -69,7 +69,7 @@ from .main import main
     help="Automatically select the best match when multiple packages are found.",
 )
 @click.pass_context
-def download(
+def download(  # noqa: C901
     ctx,
     opts,
     owner_repo,
@@ -126,11 +126,11 @@ def download(
     # Use stderr for messages if output is JSON
     use_stderr = opts.output != "pretty"
 
-    click.echo(
-        f"Looking for package '{click.style(name, bold=True)}' in "
-        f"{click.style(owner, bold=True)}/{click.style(repo, bold=True)} ...",
-        err=use_stderr,
-    )
+    if not use_stderr:
+        click.echo(
+            f"Looking for package '{click.style(name, bold=True)}' in "
+            f"{click.style(owner, bold=True)}/{click.style(repo, bold=True)} ...",
+        )
 
     # Resolve authentication
     session, auth_headers, auth_source = resolve_auth(opts)
@@ -153,21 +153,24 @@ def download(
                 yes=yes,
             )
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green")
 
     # Get detailed package info if we need more fields for download URL or all files
     package_detail = None
 
     if all_files:
         # For --all-files, we always need the detailed package info to get the files array
-        click.echo("Getting package details ...", nl=False, err=use_stderr)
+        if not use_stderr:
+            click.echo("Getting package details ...", nl=False)
         context_msg = "Failed to get package details!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
                 package_detail = get_package_detail(
                     owner=owner, repo=repo, identifier=package["slug"]
                 )
-        click.secho("OK", fg="green", err=use_stderr)
+        if not use_stderr:
+            click.secho("OK", fg="green")
 
         # Get all downloadable files
         files_to_download = get_package_files(package_detail)
@@ -224,11 +227,11 @@ def download(
             primary_marker = " (primary)" if file_info.get("is_primary") else ""
             tag = file_info.get("tag", "file")
 
-            click.echo(
-                f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
-                nl=False,
-                err=use_stderr,
-            )
+            if not use_stderr:
+                click.echo(
+                    f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
+                    nl=False,
+                )
 
             try:
                 context_msg = f"Failed to download {filename}!"
@@ -241,10 +244,12 @@ def download(
                         overwrite=overwrite,
                         quiet=True,  # Suppress per-file progress bars for cleaner output
                     )
-                click.secho(" OK", fg="green", err=use_stderr)
+                if not use_stderr:
+                    click.secho(" OK", fg="green")
                 success_count += 1
             except Exception as e:  # pylint: disable=broad-except
-                click.secho(" FAILED", fg="red", err=use_stderr)
+                if not use_stderr:
+                    click.secho(" FAILED", fg="red")
                 failed_files.append((filename, str(e)))
 
         click.echo()
@@ -270,7 +275,8 @@ def download(
 
     if not download_url:
         # Try getting detailed package info
-        click.echo("Getting package details ...", nl=False, err=use_stderr)
+        if not use_stderr:
+            click.echo("Getting package details ...", nl=False)
         context_msg = "Failed to get package details!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
@@ -278,7 +284,8 @@ def download(
                     owner=owner, repo=repo, identifier=package["slug"]
                 )
                 download_url = get_download_url(package_detail or package)
-        click.secho("OK", fg="green", err=use_stderr)
+        if not use_stderr:
+            click.secho("OK", fg="green")
 
     # Determine output filename
     if not outfile:

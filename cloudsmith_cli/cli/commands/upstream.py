@@ -170,7 +170,8 @@ def build_upstream_list_command(upstream_fmt):
         # Use stderr for messages if the output is something else (e.g.  # JSON)
         use_stderr = opts.output != "pretty"
 
-        click.echo("Getting upstreams... ", nl=False, err=use_stderr)
+        if not use_stderr:
+            click.echo("Getting upstreams... ", nl=False, err=use_stderr)
 
         context_msg = "Failed to get upstreams!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
@@ -183,7 +184,8 @@ def build_upstream_list_command(upstream_fmt):
                     page_size=page_size,
                 )
 
-        click.secho("OK", fg="green", err=use_stderr)
+        if not use_stderr:
+            click.secho("OK", fg="green", err=use_stderr)
 
         if utils.maybe_print_as_json(opts, upstreams, page_info):
             return
@@ -231,16 +233,17 @@ def build_upstream_create_command(upstream_fmt):
                 "Name is a required field for creating an upstream.", param="name"
             )
 
-        click.secho(
-            'Creating "%(name)s" upstream for the %(owner)s/%(repo)s repository...'
-            % {
-                "name": click.style(upstream_name, bold=True),
-                "owner": click.style(owner, bold=True),
-                "repo": click.style(repo, bold=True),
-            },
-            nl=False,
-            err=use_stderr,
-        )
+        if not use_stderr:
+            click.secho(
+                'Creating "%(name)s" upstream for the %(owner)s/%(repo)s repository...'
+                % {
+                    "name": click.style(upstream_name, bold=True),
+                    "owner": click.style(owner, bold=True),
+                    "repo": click.style(repo, bold=True),
+                },
+                nl=False,
+                err=use_stderr,
+            )
 
         context_msg = "Failed to create the upstream!"
 
@@ -250,7 +253,8 @@ def build_upstream_create_command(upstream_fmt):
                     owner, repo, upstream_fmt, upstream_config
                 )
 
-        click.secho("OK", fg="green", err=use_stderr)
+        if not use_stderr:
+            click.secho("OK", fg="green", err=use_stderr)
 
         if utils.maybe_print_as_json(opts, upstream_resp_data):
             return
@@ -311,16 +315,17 @@ def build_upstream_update_command(upstream_fmt):
 
         upstream_config = json.load(upstream_config_file)
 
-        click.secho(
-            "Updating the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository ... "
-            % {
-                "owner": click.style(owner, bold=True),
-                "repo": click.style(repo, bold=True),
-                "slug_perm": click.style(slug_perm, bold=True),
-            },
-            nl=False,
-            err=use_stderr,
-        )
+        if not use_stderr:
+            click.secho(
+                "Updating the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository ... "
+                % {
+                    "owner": click.style(owner, bold=True),
+                    "repo": click.style(repo, bold=True),
+                    "slug_perm": click.style(slug_perm, bold=True),
+                },
+                nl=False,
+                err=use_stderr,
+            )
 
         context_msg = "Failed to update the upstream!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
@@ -329,7 +334,8 @@ def build_upstream_update_command(upstream_fmt):
                     owner, repo, slug_perm, upstream_fmt, upstream_config
                 )
 
-        click.secho("OK", fg="green", err=use_stderr)
+        if not use_stderr:
+            click.secho("OK", fg="green", err=use_stderr)
 
         if utils.maybe_print_as_json(opts, upstream_resp_data):
             return
@@ -407,19 +413,21 @@ def build_upstream_delete_command(upstream_fmt):
         if not utils.confirm_operation(prompt, assume_yes=yes):
             return
 
-        click.secho(
-            "Deleting the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository ... "
-            % delete_args,
-            nl=False,
-            err=use_stderr,
-        )
+        if not use_stderr:
+            click.secho(
+                "Deleting the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository ... "
+                % delete_args,
+                nl=False,
+                err=use_stderr,
+            )
 
         context_msg = "Failed to delete the upstream!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
                 api.delete_upstream(owner, repo, upstream_fmt, slug_perm)
 
-        click.secho("OK", fg="green", err=use_stderr)
+        if not use_stderr:
+            click.secho("OK", fg="green", err=use_stderr)
 
     func.__doc__ = f"""
         Delete a {upstream_fmt} upstream for a repository.
