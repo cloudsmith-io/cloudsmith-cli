@@ -7,7 +7,6 @@ import unittest
 from unittest.mock import Mock, patch
 
 import click
-import requests
 
 from cloudsmith_cli.core import download
 
@@ -48,39 +47,6 @@ class TestResolveAuth(unittest.TestCase):
 
         self.assertEqual(headers, {"X-Api-Key": "override-key"})
         self.assertEqual(auth_source, "api-key")
-
-    @patch("cloudsmith_cli.core.download.create_requests_session")
-    @patch("cloudsmith_cli.core.download.keyring")
-    def test_resolve_auth_token_only(self, mock_keyring, mock_create_session):
-        """Test auth resolution with token only."""
-        mock_session = Mock()
-        mock_create_session.return_value = mock_session
-        mock_keyring.get_access_token.return_value = None  # No SSO token
-
-        _session, headers, auth_source = download.resolve_auth(
-            self.mock_opts, token_opt="test-token"
-        )
-
-        self.assertEqual(headers, {})
-        self.assertEqual(auth_source, "token")
-
-    @patch("cloudsmith_cli.core.download.create_requests_session")
-    @patch("click.echo")
-    def test_resolve_auth_both_api_key_and_token_debug(
-        self, mock_echo, mock_create_session
-    ):
-        """Test warning when both API key and token provided in debug mode."""
-        mock_session = Mock()
-        mock_create_session.return_value = mock_session
-        self.mock_opts.debug = True
-        self.mock_opts.api_key = "test-api-key"
-
-        _session, _headers, auth_source = download.resolve_auth(
-            self.mock_opts, token_opt="test-token"
-        )
-
-        self.assertEqual(auth_source, "api-key")
-        mock_echo.assert_called_once()
 
 
 class TestResolvePackage(unittest.TestCase):
@@ -287,45 +253,6 @@ class TestStreamDownload(unittest.TestCase):
         # Verify file was written
         mock_file.write.assert_any_call(b"data1")
         mock_file.write.assert_any_call(b"data2")
-
-    def test_stream_download_auth_retry_with_token(self):
-        """Test retry with entitlement token on 401."""
-        # First request fails with 401
-        mock_response_401 = Mock()
-        mock_response_401.status_code = 401
-        mock_error_401 = requests.exceptions.HTTPError(response=mock_response_401)
-
-        # Second request succeeds
-        mock_response_200 = Mock()
-        mock_response_200.headers = {"content-length": "1024"}
-        mock_response_200.iter_content.return_value = [b"data"]
-        mock_response_200.raise_for_status.return_value = None
-
-        # Configure session to fail first, succeed second
-        self.session.get.side_effect = [mock_error_401, mock_response_200]
-
-        with patch("os.makedirs"), patch("click.open_file") as mock_open_file, patch(
-            "click.progressbar"
-        ), patch("click.echo"):
-
-            mock_file = Mock()
-            mock_open_file.return_value.__enter__.return_value = mock_file
-
-            download.stream_download(
-                "https://example.com/file.deb",
-                "/path/to/file.deb",
-                self.session,
-                token="test-token",
-                overwrite=True,
-            )
-
-            # Verify two requests were made
-            self.assertEqual(self.session.get.call_count, 2)
-
-            # Verify second request used Basic Auth with token
-            second_call = self.session.get.call_args_list[1]
-            auth = second_call[1]["auth"]
-            self.assertEqual(auth, ("token", "test-token"))
 
 
 class TestSelectBestPackage(unittest.TestCase):

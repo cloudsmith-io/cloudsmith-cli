@@ -188,47 +188,6 @@ class TestDownloadCommand(unittest.TestCase):
     @patch("cloudsmith_cli.cli.commands.download.resolve_package")
     @patch("cloudsmith_cli.cli.commands.download.get_download_url")
     @patch("cloudsmith_cli.cli.commands.download.stream_download")
-    def test_download_with_token(
-        self, mock_stream, mock_get_url, mock_resolve_pkg, mock_resolve_auth
-    ):
-        """Test download with entitlement token."""
-        mock_session = Mock()
-        mock_resolve_auth.return_value = (mock_session, {}, "token")
-
-        mock_package = {
-            "name": "private-package",
-            "version": "1.0.0",
-            "filename": "private-package.deb",
-        }
-        mock_resolve_pkg.return_value = mock_package
-        mock_get_url.return_value = "https://example.com/private.deb"
-
-        result = self.runner.invoke(
-            download,
-            [
-                "--config-file",
-                "/dev/null",
-                "--token",
-                "abcd1234efgh5678",
-                "testorg/privaterepo",
-                "private-package",
-            ],
-        )
-
-        self.assertEqual(result.exit_code, 0)
-
-        # Verify token was passed to resolve_auth
-        call_args = mock_resolve_auth.call_args
-        self.assertEqual(call_args[1]["token_opt"], "abcd1234efgh5678")
-
-        # Verify token was passed to stream_download
-        stream_call_args = mock_stream.call_args
-        self.assertEqual(stream_call_args[1]["token"], "abcd1234efgh5678")
-
-    @patch("cloudsmith_cli.cli.commands.download.resolve_auth")
-    @patch("cloudsmith_cli.cli.commands.download.resolve_package")
-    @patch("cloudsmith_cli.cli.commands.download.get_download_url")
-    @patch("cloudsmith_cli.cli.commands.download.stream_download")
     def test_download_custom_output_file(
         self, mock_stream, mock_get_url, mock_resolve_pkg, mock_resolve_auth
     ):

@@ -58,10 +58,6 @@ from .main import main
     help="Download all associated files (POM, sources, javadoc, etc.) into a folder.",
 )
 @click.option(
-    "--token",
-    help="Entitlement token for private packages. Only used if no API key is configured.",
-)
-@click.option(
     "--dry-run",
     is_flag=True,
     help="Show what would be downloaded without actually downloading.",
@@ -85,7 +81,6 @@ def download(
     outfile,
     overwrite,
     all_files,
-    token,
     dry_run,
     yes,
 ):
@@ -117,14 +112,6 @@ def download(
     # Download all files to a custom directory
     cloudsmith download myorg/myrepo mypackage --all-files --outfile ./my-package-dir
 
-    \b
-    # Download a private package using an entitlement token
-    cloudsmith download myorg/private-repo mypackage --token abcd1234efgh5678
-
-    Authentication Priority:
-    1. API key from CLOUDSMITH_API_KEY environment variable or --api-key option
-    2. Entitlement token from --token option (only if no API key configured)
-
     For private repositories, set: export CLOUDSMITH_API_KEY=your_api_key
 
     If multiple packages match your criteria, you'll see a selection table unless
@@ -146,7 +133,7 @@ def download(
     )
 
     # Resolve authentication
-    session, auth_headers, auth_source = resolve_auth(opts, token_opt=token)
+    session, auth_headers, auth_source = resolve_auth(opts)
 
     if opts.debug:
         click.echo(f"Using authentication: {auth_source}", err=True)
@@ -251,7 +238,6 @@ def download(
                         outfile=output_path,
                         session=session,
                         headers=auth_headers,
-                        token=token if auth_source != "api-key" else None,
                         overwrite=overwrite,
                         quiet=True,  # Suppress per-file progress bars for cleaner output
                     )
@@ -327,7 +313,6 @@ def download(
             outfile=outfile,
             session=session,
             headers=auth_headers,
-            token=token if auth_source != "api-key" else None,
             overwrite=overwrite,
             quiet=opts.output != "pretty",
         )

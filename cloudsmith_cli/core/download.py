@@ -15,7 +15,7 @@ from .rest import create_requests_session
 
 
 def resolve_auth(
-    opts, api_key_opt: Optional[str] = None, token_opt: Optional[str] = None
+    opts, api_key_opt: Optional[str] = None
 ) -> Tuple[requests.Session, Dict[str, str], str]:
     """
     Resolve authentication method and create session with appropriate headers.
@@ -23,10 +23,9 @@ def resolve_auth(
     Args:
         opts: CLI options object containing existing auth config
         api_key_opt: Optional API key override from --api-key
-        token_opt: Optional entitlement token from --token
 
     Returns:
-        (session, headers, auth_source) where auth_source is 'api-key', 'token', or 'none'
+        (session, headers, auth_source) where auth_source is 'api-key', 'sso', or 'none'
     """
     session = create_requests_session(
         error_retry_cb=getattr(opts, "error_retry_cb", None),
@@ -36,7 +35,7 @@ def resolve_auth(
     auth_source = "none"
 
     # Follow the same authentication logic as the API initialization
-    # Priority: SSO token > explicit --api-key > configured API key > --token
+    # Priority: explicit --api-key > SSO token > configured API key
 
     # First try to get SSO access token
     config = cloudsmith_api.Configuration()
@@ -47,19 +46,9 @@ def resolve_auth(
         # Prioritize API key (from --api-key option or CLOUDSMITH_API_KEY env var) over SSO
         headers["X-Api-Key"] = api_key
         auth_source = "api-key"
-
-        # Warn if both API key and token are provided
-        if api_key and token_opt and getattr(opts, "debug", False):
-            click.echo(
-                "Warning: Both API key and token provided. Using API key and ignoring token.",
-                err=True,
-            )
     elif access_token:
         headers["Authorization"] = f"Bearer {access_token}"
         auth_source = "sso"
-    elif token_opt:
-        # Token will be used only for download request if needed
-        auth_source = "token"
 
     return session, headers, auth_source
 
@@ -289,7 +278,6 @@ def stream_download(  # noqa: C901
     session: requests.Session,
     *,
     headers: Optional[Dict[str, str]] = None,
-    token: Optional[str] = None,
     overwrite: bool = False,
     quiet: bool = False,
 ) -> None:
@@ -301,7 +289,6 @@ def stream_download(  # noqa: C901
         outfile: Output file path
         session: Requests session to use
         headers: Additional headers for the request
-        token: Entitlement token to try if initial request fails
         overwrite: Whether to overwrite existing files
         quiet: Whether to suppress progress output
     """
@@ -321,15 +308,15 @@ def stream_download(  # noqa: C901
     is_basic_endpoint = "/basic/" in url
 
     if is_basic_endpoint:
-        # /basic/ endpoints require Basic Auth with API keys or entitlement tokens
+        # /basic/ endpoints require Basic Auth with API keys
         # SSO Bearer tokens cannot be used directly with Basic Auth
         if "Authorization" in request_headers and request_headers[
             "Authorization"
         ].startswith("Bearer "):
-            # SSO Bearer tokens don't work with /basic/ endpoints - need API key or entitlement token
+            # SSO Bearer tokens don't work with /basic/ endpoints - need API key
             if not quiet:
                 click.echo(
-                    "Warning: SSO authentication detected. Private repository downloads require an API key or entitlement token.",
+                    "Warning: SSO authentication detected. Private repository downloads require an API key.",
                     err=True,
                 )
                 click.echo("Options:", err=True)
@@ -338,10 +325,6 @@ def stream_download(  # noqa: C901
                     err=True,
                 )
                 click.echo("  2. Use command option: --api-key YOUR_KEY", err=True)
-                click.echo(
-                    "  3. Use entitlement token: --token YOUR_ENTITLEMENT_TOKEN",
-                    err=True,
-                )
             # Remove Authorization header since it won't work
             request_headers = {
                 k: v for k, v in request_headers.items() if k != "Authorization"
@@ -358,37 +341,14 @@ def stream_download(  # noqa: C901
             }
     # For public endpoints (like /public/), keep headers as-is
 
-    # First attempt - with existing auth
+    # Attempt download with configured auth
     try:
         response = session.get(url, headers=request_headers, auth=auth, stream=True)
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code in (401, 403) and token:
-            # Retry with entitlement token as Basic Auth
-            click.echo("Access denied. Retrying with entitlement token...", err=True)
-
-            token_auth = (
-                "token",
-                token,
-            )  # Basic auth: (username='token', password=entitlement_token)
-            # Remove any existing auth headers
-            token_headers = {
-                k: v for k, v in request_headers.items() if k != "Authorization"
-            }
-
-            try:
-                response = session.get(
-                    url, headers=token_headers, auth=token_auth, stream=True
-                )
-                response.raise_for_status()
-            except requests.exceptions.HTTPError:
-                raise click.ClickException(
-                    "Access denied even with entitlement token. Check your permissions."
-                )
-        else:
-            raise click.ClickException(
-                f"Failed to download package: HTTP {e.response.status_code}"
-            )
+        raise click.ClickException(
+            f"Failed to download package: HTTP {e.response.status_code}"
+        )
     except requests.exceptions.RequestException as e:
         raise click.ClickException(f"Failed to download package: {str(e)}")
 

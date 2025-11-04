@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added Python 3.14 support
 - Added `download` command to download package binaries directly from Cloudsmith repositories
   - Support for downloading packages with version, format, OS, and architecture filters
-  - Interactive package selection when multiple matches are found
   - Progress bar with download speed and size information
   - Automatic checksum verification (MD5, SHA256, SHA1)
   - Dry-run mode to preview downloads without downloading
@@ -21,12 +21,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
     - Supports custom output directory with `--outfile` option
     - Shows file type tags (pkg, pom, sources, javadoc, cyclonedx, sbom)
     - Reports download progress and success/failure summary for each file
-
-### Changed
-
-- Upgraded `pylint` from 3.0.0a6 to 3.3.1 for Python 3.14 compatibility
-- Upgraded `astroid` from 2.15.6 to 3.3.5 for Python 3.14 compatibility
-- Added Python 3.14 support
 
 ## [1.8.6] - 2025-10-16
 
