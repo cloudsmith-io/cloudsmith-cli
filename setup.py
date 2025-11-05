@@ -41,17 +41,19 @@ setup(
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["tests"]),
-    package_data={"cloudsmith_cli": ["cloudsmith_cli/data/*"]},
+    package_data={
+        "cloudsmith_cli": ["cloudsmith_cli/data/*", "cloudsmith_cli/templates/*"]
+    },
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
     python_requires=">=3.9.0",
     install_requires=[
-        "click>=7.0,!=8.0.2",
+        "click>=8.2.0,!=8.3.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
-        "cloudsmith-api>=2.0.12,<3.0",  # Compatible upto (but excluding) 3.0+
+        "cloudsmith-api>=2.0.22,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "requests>=2.18.4",
         "requests_toolbelt>=0.8.0",
@@ -82,6 +84,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Internet",
         "Topic :: System :: Systems Administration",
         "Topic :: Utilities",

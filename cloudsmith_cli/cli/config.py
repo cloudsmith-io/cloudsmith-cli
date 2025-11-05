@@ -61,7 +61,7 @@ class ConfigSchema:
 
         api_headers = ConfigParam(name="api_headers", type=str)
         api_host = ConfigParam(name="api_host", type=str)
-        api_proxy = ConfigParam(name="api_ssl_verify", type=str)
+        api_proxy = ConfigParam(name="api_proxy", type=str)
         api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool, default=True)
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
 

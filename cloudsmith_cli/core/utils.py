@@ -8,7 +8,7 @@ import click
 
 def get_help_website():
     """Get the URL for the help website."""
-    return "https://help.cloudsmith.io/docs/cli/"
+    return "https://docs.cloudsmith.com/developer-tools/cli"
 
 
 def get_github_website():
@@ -82,3 +82,14 @@ def get_query_kwargs(**kwargs):
         query_kwargs["query"] = query
 
     return query_kwargs
+
+
+def get_sort_kwargs(**kwargs):
+    """Construct sort kwargs (if present)."""
+    sort_kwargs = {}
+
+    sort = kwargs.get("sort")
+    if sort:
+        sort_kwargs["sort"] = sort
+
+    return sort_kwargs

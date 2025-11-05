@@ -17,8 +17,7 @@ from .main import main
 @click.pass_context
 def whoami(ctx, opts):
     """Retrieve your current authentication status."""
-    # Use stderr for messages if the output is something else (e.g. JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = opts.output in ("json", "pretty_json")
 
     click.echo(
         "Retrieving your authentication status from the API ... ",
@@ -30,11 +29,10 @@ def whoami(ctx, opts):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             is_auth, username, email, name = get_user_brief()
-
     click.secho("OK", fg="green", err=use_stderr)
 
     data = {
-        "authenticated": is_auth,
+        "is_authenticated": is_auth,
         "username": username,
         "email": email,
         "name": name,

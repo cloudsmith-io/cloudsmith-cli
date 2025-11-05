@@ -7,6 +7,7 @@ from . import (
     delete,
     dependencies,
     docs,
+    download,
     entitlements,
     help_,
     list_,
@@ -21,6 +22,7 @@ from . import (
     resync,
     status,
     tags,
+    tokens,
     upstream,
     whoami,
 )
