@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.8.8] - 2025-11-05
+
+### Fixed
+
+- `--json` flag for the auth command now outputs json only.
+
 ### Added
 
 - Added Python 3.14 support
