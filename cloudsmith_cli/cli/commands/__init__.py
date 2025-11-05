@@ -7,6 +7,7 @@ from . import (
     delete,
     dependencies,
     docs,
+    download,
     entitlements,
     help_,
     list_,

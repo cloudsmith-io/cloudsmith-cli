@@ -43,3 +43,6 @@ reports/
 
 # Zipapp
 *.pyz
+
+# macOS system files
+.DS_Store

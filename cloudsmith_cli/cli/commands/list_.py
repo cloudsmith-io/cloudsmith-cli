@@ -54,14 +54,16 @@ def distros(ctx, opts, package_format):
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
 
-    click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
+    if not use_stderr:
+        click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of distributions!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             distros_ = list_distros(package_format=package_format)
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, distros_):
         return
@@ -209,7 +211,8 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
 
-    click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
+    if not use_stderr:
+        click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
@@ -223,7 +226,8 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
                 sort=sort,
             )
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, packages_, page_info):
         return

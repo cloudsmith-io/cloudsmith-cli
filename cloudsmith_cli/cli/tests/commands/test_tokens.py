@@ -52,9 +52,8 @@ class TestListTokensCommand:
         assert result.exit_code != 0
 
         # The error message might be in different places depending on how the exception is raised
-        error_content = (
-            str(getattr(result, "exception", "")) + result.output + result.stderr
-        )
+        # Note: stderr is mixed into output with default CliRunner
+        error_content = str(getattr(result, "exception", "")) + result.output
         assert (
             "API error" in error_content
             or "Failed to retrieve API tokens" in error_content
@@ -96,9 +95,8 @@ class TestRefreshTokenCommand:
         assert result.exit_code != 0
 
         # The error message might be in different places depending on how the exception is raised
-        error_content = (
-            str(getattr(result, "exception", "")) + result.output + result.stderr
-        )
+        # Note: stderr is mixed into output with default CliRunner
+        error_content = str(getattr(result, "exception", "")) + result.output
         assert (
             "API error" in error_content
             or "Failed to refresh the token" in error_content
@@ -114,9 +112,8 @@ class TestRefreshTokenCommand:
         assert result.exit_code != 0
 
         # The error message might be in different places depending on how the exception is raised
-        error_content = (
-            str(getattr(result, "exception", "")) + result.output + result.stderr
-        )
+        # Note: stderr is mixed into output with default CliRunner
+        error_content = str(getattr(result, "exception", "")) + result.output
         assert (
             "API error" in error_content
             or "Failed to refresh the token" in error_content
