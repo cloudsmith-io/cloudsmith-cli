@@ -19,6 +19,9 @@ from .command import policy
 
 
 def print_license_policies(policies):
+    """
+    Print a formatted table of license policies using the provided list.
+    """
     headers = [
         "Name",
         "Description",
