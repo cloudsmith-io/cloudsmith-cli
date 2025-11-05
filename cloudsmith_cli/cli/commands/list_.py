@@ -7,9 +7,10 @@ import click
 
 from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner, paginate_results
+from ..utils import maybe_spinner
 from . import dependencies, entitlements
 from .main import main
 from .repos import get as get_repos
@@ -156,7 +157,7 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     help=("Sort packages by field. Prefix with '-' for descending order."),
 )
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query, sort):
+def packages(ctx, opts, owner_repo, page, page_size, query, sort, show_all):
     """
     List packages for a repository.
 
@@ -217,11 +218,13 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            packages_, page_info = list_packages(
-                owner=owner,
-                repo=repo,
+            packages_, page_info = paginate_results(
+                list_packages,
+                show_all=show_all,
                 page=page,
                 page_size=page_size,
+                owner=owner,
+                repo=repo,
                 query=query,
                 sort=sort,
             )
@@ -257,16 +260,12 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
 
     num_results = len(packages_)
     list_suffix = "package%s" % ("s" if num_results != 1 else "")
-    if show_all:
-        utils.pretty_print_list_info(
-            num_results=num_results, suffix=f"{list_suffix} retrieved", show_all=True
-        )
-    else:
-        utils.pretty_print_list_info(
-            num_results=num_results,
-            page_info=page_info,
-            suffix=f"{list_suffix} visible",
-        )
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=f"{list_suffix} retrieved" if show_all else f"{list_suffix} visible",
+        show_all=show_all,
+    )
 
 
 @list_.command()

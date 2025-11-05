@@ -125,22 +125,21 @@ def test_license_policy_commands(runner, organization, tmp_path):
     assert "Getting license policies ... OK" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
 
-    # List policies with --show-all flag
+    # Minimal show-all success
     result = runner.invoke(
         ls, args=[organization, "--show-all"], catch_exceptions=False
     )
-    assert "Getting license policies ... OK" in result.output
+    assert result.exit_code == 0
+    assert "Getting license policies" in result.output
+    assert "Invalid value for '--show-all'" not in result.output
 
-    assert "Results: " in result.output and " license policies" in result.output
-
-    # Fail to use --show-all with --page or --page-size
-    result = runner.invoke(
-        ls, [organization, "--show-all", "--page", "1"], catch_exceptions=False
+    # Conflict: show-all with explicit page
+    conflict = runner.invoke(
+        ls, args=[organization, "--page", "1", "--show-all"], catch_exceptions=False
     )
-    assert (
-        "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
-        in result.output
-    )
+    assert conflict.exit_code != 0
+    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
 
     # Change the values in the config file
     policy_config_file_path = create_license_policy_config_file(

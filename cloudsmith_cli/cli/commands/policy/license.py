@@ -5,6 +5,7 @@ import json
 import click
 
 from ....core.api import orgs as api
+from ....core.pagination import paginate_results
 from ... import command, decorators, utils, validators
 from ...exceptions import handle_api_exceptions
 from ...utils import (
@@ -13,7 +14,6 @@ from ...utils import (
     maybe_spinner,
     maybe_truncate_list,
     maybe_truncate_string,
-    paginate_results,
 )
 from .command import policy
 

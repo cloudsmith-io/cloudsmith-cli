@@ -6,9 +6,10 @@ from operator import itemgetter
 import click
 
 from ...core.api import repos as api
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner, paginate_results
+from ..utils import maybe_spinner
 from .main import main
 
 
@@ -126,6 +127,11 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
             owner = None
 
     context_msg = "Failed to get list of repositories!"
+    # Command-level validation: prevent --show-all with a specific repository.
+    if show_all and repo:
+        raise click.UsageError(
+            "The --show-all option cannot be used when specifying a single repository (OWNER/REPO). Omit the repository slug or remove --show-all."
+        )
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             repos_, page_info = paginate_results(

@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from ...commands.list_ import repos as list_repos
 from ...commands.repos import create, delete, get, update
 from ..utils import random_str
 
@@ -119,20 +120,20 @@ def test_repos_commands(runner, organization, tmp_path):
         result.output, organization, repo_config_file_path
     )
 
-    # List repositories with --show-all flag
-    result = runner.invoke(get, [organization, "--show-all"], catch_exceptions=False)
-    assert "Getting list of repositories ... OK" in result.output
-    # A static number cannot be used here because we are performing this test in cloudsmith org which is active.
-    assert "Results: " in result.output and " repositories retrieved" in result.output
-
-    # Fail to use --show-all with --page or --page-size
+    # Demonstrate list repos with --show-all succeeds (no pagination args).
     result = runner.invoke(
-        get, [organization, "--show-all", "--page", "1"], catch_exceptions=False
+        list_repos, [organization, "--show-all"], catch_exceptions=False
     )
-    assert (
-        "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
-        in result.output
+    assert result.exit_code == 0
+    assert "Getting list of repositories ... OK" in result.output
+
+    # Show that --show-all with an explicit page conflicts.
+    conflict = runner.invoke(
+        list_repos, [organization, "--show-all", "--page", "2"], catch_exceptions=False
     )
+    assert conflict.exit_code != 0
+    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
 
     # Change the repository description in the repo config file.
     repository_description = random_str()

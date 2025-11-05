@@ -147,13 +147,6 @@ def common_cli_list_options(f):
     """Add common list options to commands."""
 
     @click.option(
-        "--show-all",
-        default=False,
-        is_flag=True,
-        help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
-        callback=validators.validate_show_all,
-    )
-    @click.option(
         "-l",
         "--page-size",
         default=30,
@@ -169,11 +162,21 @@ def common_cli_list_options(f):
         help="The page to view for lists, where 1 is the first page",
         callback=validators.validate_page,
     )
+    @click.option(
+        "--show-all",
+        default=False,
+        is_flag=True,
+        help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
+    )  # Validation performed post-parse for order-independence.
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+        # Order-independent validation: perform after all options parsed.
+        show_all = kwargs.get("show_all")
+        if show_all:
+            validators.enforce_show_all_exclusive(ctx)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 

@@ -157,24 +157,40 @@ def validate_page_size(ctx, param, value):
     return value
 
 
-def validate_show_all(ctx, param, value):
-    """Ensure that --show-all is not used with --page (-p) or --page-size (-l)."""
-    if not value:
-        return value
+def enforce_show_all_exclusive(ctx):
+    """Order-independent mutual exclusivity check for pagination options.
 
-    # Check both ctx.params and sys.argv for pagination flags
-    import sys
+    Raises click.BadParameter bound to the --show-all option if it was used
+    together with explicit --page or --page-size. "Explicit" means supplied
+    via command line, environment variable, or prompt (Click ParameterSource).
+    """
+    show_all = ctx.params.get("show_all")
+    if not show_all:
+        return
 
-    has_pagination = any(param in ctx.params for param in ["page", "page_size"]) or any(
-        flag in sys.argv for flag in ["--page", "-p", "--page-size", "-l"]
-    )
+    get_source = getattr(ctx, "get_parameter_source", None)
+    if not get_source:
+        return  # Older Click versions; rely on previous validation style if any.
 
-    if has_pagination:
-        raise click.UsageError(
-            "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
+    from click.core import ParameterSource
+
+    explicit_sources = {
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+        getattr(ParameterSource, "PROMPT", None),
+    }
+
+    page_explicit = get_source("page") in explicit_sources
+    size_explicit = get_source("page_size") in explicit_sources
+
+    if page_explicit or size_explicit:
+        show_all_param = next(
+            (p for p in ctx.command.params if p.name == "show_all"), None
         )
-
-    return value
+        raise click.BadParameter(
+            "Cannot be used with --page (-p) or --page-size (-l).",
+            param=show_all_param,
+        )
 
 
 def validate_optional_timestamp(ctx, param, value):

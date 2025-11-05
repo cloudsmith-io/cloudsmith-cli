@@ -71,25 +71,35 @@ def test_upstream_commands(
     assert result_data["name"] == upstream_config["name"]
     assert result_data["upstream_url"] == upstream_config["upstream_url"]
 
-    # List upstreams with --show-all flag
-    result = runner.invoke(
+    # Minimal show-all success (no pagination args besides flag)
+    show_all = runner.invoke(
         upstream,
-        args=[upstream_format, "ls", org_repo, "--show-all"],
+        args=[upstream_format, "ls", org_repo, "--show-all", "-F", "json"],
         catch_exceptions=False,
     )
-    assert "Getting upstreams... OK" in result.output
-    assert "Results: 1 upstream" in result.output
+    assert show_all.exit_code == 0
+    show_all_data = json.loads(show_all.output)["data"]
+    assert len(show_all_data) == 1  # Should return the same single upstream
+    assert "Invalid value for '--show-all'" not in show_all.output
 
-    # Fail to use --show-all with --page or --page-size
-    result = runner.invoke(
+    # Conflict: show-all with explicit page number
+    conflict = runner.invoke(
         upstream,
-        [upstream_format, "ls", org_repo, "--show-all", "--page", "1"],
+        args=[
+            upstream_format,
+            "ls",
+            org_repo,
+            "--show-all",
+            "--page",
+            "1",
+            "-F",
+            "json",
+        ],
         catch_exceptions=False,
     )
-    assert (
-        "The --show-all option cannot be used with --page (-p) or --page-size (-l) options."
-        in result.output
-    )
+    assert conflict.exit_code != 0
+    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
 
     slug_perm = result_data["slug_perm"]
     assert slug_perm

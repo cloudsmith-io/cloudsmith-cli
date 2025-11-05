@@ -198,38 +198,3 @@ def maybe_spinner(opts):
     else:
         with spinner() as spin:
             yield spin
-
-
-def paginate_results(api_function, show_all, page, page_size=1000, **kwargs):
-    """
-    Paginate results from an API function.
-
-    :param api_function: The API function to call for retrieving results
-    :param show_all: Boolean flag to show all results
-    :param page: The page number to start from
-    :param page_size: The number of items per page
-    :param kwargs: Additional keyword arguments to pass to the API function
-    :return: A tuple of (results, page_info)
-    """
-    if show_all:
-        all_results = []
-        current_page = 1
-        max_page_size = 1000
-        while True:
-            page_results, page_info = api_function(
-                page=current_page, page_size=max_page_size, **kwargs
-            )
-            all_results.extend(page_results)
-            if not page_results:
-                break
-            if len(page_results) < max_page_size:
-                break
-            if (
-                page_info.page_total is not None
-                and current_page >= page_info.page_total
-            ):
-                break
-            current_page += 1
-        page_info.count = len(all_results)
-        return all_results, page_info
-    return api_function(page=page, page_size=page_size, **kwargs)
