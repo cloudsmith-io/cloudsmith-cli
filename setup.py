@@ -49,7 +49,7 @@ setup(
     platforms=["any"],
     python_requires=">=3.9.0",
     install_requires=[
-        "click>=7.0,!=8.0.2",
+        "click>=8.2.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
@@ -84,6 +84,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Internet",
         "Topic :: System :: Systems Administration",
         "Topic :: Utilities",

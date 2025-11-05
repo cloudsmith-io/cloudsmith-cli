@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added Python 3.14 support
+- Added `download` command to download package binaries directly from Cloudsmith repositories
+  - Support for downloading packages with version, format, OS, and architecture filters
+  - Progress bar with download speed and size information
+  - Automatic checksum verification (MD5, SHA256, SHA1)
+  - Dry-run mode to preview downloads without downloading
+  - Auto-selection mode with `--yes` flag for scripting
+  - `--all-files` option to download all associated files (POM, sources, javadoc, SBOM, etc.) for Maven, NuGet, and other multi-file packages
+    - Downloads all files into a folder named `{package-name}-{version}`
+    - Supports custom output directory with `--outfile` option
+    - Shows file type tags (pkg, pom, sources, javadoc, cyclonedx, sbom)
+    - Reports download progress and success/failure summary for each file
 ## [1.8.7] - 2025-10-27
 
 ### Added
