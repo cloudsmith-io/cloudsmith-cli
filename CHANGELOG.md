@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.9.1] - 2025-11-05
+
+### Fixed
+
+- Click v8.3.0 was a breaking update which impacted conversion of Sentinel.UNSET values which impacted the auth --token workflow. Locking to 8.2.x versions and restricted 8.3.0 explicitly.
+
 ## [1.9.0] - 2025-11-05
 
 ### Added

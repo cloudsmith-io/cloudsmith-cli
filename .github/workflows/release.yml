@@ -53,7 +53,7 @@ jobs:
                   oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
             - name: Push Zipapp to Cloudsmith
               id: push_zipapp
-              run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz
+              run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz --name cloudsmith-cli --version ${{ env.VERSION }}
             - name: Build Docker image
               id: build_cli_image
               run: |
