@@ -156,15 +156,15 @@ class ConfigReader(ConfigFileReader):
             else:
                 cls.config_files.insert(0, path)
 
-            config = cls.read_config()
-            values = config.get("default", {})
+        config = cls.read_config()
+        values = config.get("default", {})
+        cls._load_values_into_opts(opts, values)
+
+        if profile and profile != "default":
+            values = config.get("profile:%s" % profile, {})
             cls._load_values_into_opts(opts, values)
 
-            if profile and profile != "default":
-                values = config.get("profile:%s" % profile, {})
-                cls._load_values_into_opts(opts, values)
-
-            return values
+        return values
 
     @staticmethod
     def _load_values_into_opts(opts, values):
