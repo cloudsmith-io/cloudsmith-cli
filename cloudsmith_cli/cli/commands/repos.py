@@ -47,10 +47,10 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, show_all
         click.echo()
         utils.pretty_print_table(headers, rows)
 
+    click.echo()
+
     if not show_list_info:
         return
-
-    click.echo()
 
     num_results = len(data)
     list_suffix = "repositor%s" % ("ies" if num_results != 1 else "y")
