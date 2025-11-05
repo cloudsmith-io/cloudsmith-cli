@@ -150,21 +150,21 @@ class ConfigReader(ConfigFileReader):
     @classmethod
     def load_config(cls, opts, path=None, profile=None):
         """Load a configuration file into an options object."""
-        if path and isinstance(path, (str, bytes, os.PathLike)) and os.path.exists(path):
+        if path and os.path.exists(path):
             if os.path.isdir(path):
                 cls.config_searchpath.insert(0, path)
             else:
                 cls.config_files.insert(0, path)
 
-        config = cls.read_config()
-        values = config.get("default", {})
-        cls._load_values_into_opts(opts, values)
-
-        if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
+            config = cls.read_config()
+            values = config.get("default", {})
             cls._load_values_into_opts(opts, values)
 
-        return values
+            if profile and profile != "default":
+                values = config.get("profile:%s" % profile, {})
+                cls._load_values_into_opts(opts, values)
+
+            return values
 
     @staticmethod
     def _load_values_into_opts(opts, values):
