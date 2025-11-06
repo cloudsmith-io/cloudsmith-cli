@@ -54,16 +54,12 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, show_all
 
     num_results = len(data)
     list_suffix = "repositor%s" % ("ies" if num_results != 1 else "y")
-    if show_all:
-        utils.pretty_print_list_info(
-            num_results=num_results, suffix=f"{list_suffix} retrieved", show_all=True
-        )
-    else:
-        utils.pretty_print_list_info(
-            num_results=num_results,
-            page_info=page_info,
-            suffix=f"{list_suffix} visible",
-        )
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=f"{list_suffix} retrieved" if show_all else f"{list_suffix} visible",
+        show_all=show_all,
+    )
 
 
 @main.group(cls=command.AliasGroup, name="repositories", aliases=["repos"])
