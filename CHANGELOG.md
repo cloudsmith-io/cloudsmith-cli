@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- [Issue-235](https://github.com/cloudsmith-io/cloudsmith-cli/issues/235) - Fix for latest zipapp releases not working on python < 3.14
+- [Issue-235](https://github.com/cloudsmith-io/cloudsmith-cli/issues/235) - Fix for latest zipapp releases not working on < python@3.14
 
 ## [1.9.1] - 2025-11-05
 
