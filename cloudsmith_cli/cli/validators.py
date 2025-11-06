@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 
 import click
+from click.core import ParameterSource
 
 from .types import ExpandPath
 
@@ -168,20 +169,18 @@ def enforce_show_all_exclusive(ctx):
     if not show_all:
         return
 
-    get_source = getattr(ctx, "get_parameter_source", None)
-    if not get_source:
-        return  # Older Click versions; rely on previous validation style if any.
-
-    from click.core import ParameterSource
-
     explicit_sources = {
-        ParameterSource.COMMANDLINE,
-        ParameterSource.ENVIRONMENT,
-        getattr(ParameterSource, "PROMPT", None),
+        src
+        for src in (
+            ParameterSource.COMMANDLINE,
+            ParameterSource.ENVIRONMENT,
+            getattr(ParameterSource, "PROMPT", None),
+        )
+        if src is not None
     }
 
-    page_explicit = get_source("page") in explicit_sources
-    size_explicit = get_source("page_size") in explicit_sources
+    page_explicit = ctx.get_parameter_source("page") in explicit_sources
+    size_explicit = ctx.get_parameter_source("page_size") in explicit_sources
 
     if page_explicit or size_explicit:
         show_all_param = next(

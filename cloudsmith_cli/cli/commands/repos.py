@@ -107,10 +107,8 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
     """
-    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = opts.output != "pretty"
-
-    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
     if isinstance(owner_repo, list):
         if len(owner_repo) == 1:
@@ -118,20 +116,21 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
             repo = None
         else:
             owner, repo = owner_repo
-    if isinstance(owner_repo, str):
+    elif isinstance(owner_repo, str):
+        repo = None
+        owner = owner_repo or None
+    else:
+        owner = None
         repo = None
 
-        if owner_repo:
-            owner = owner_repo
-        else:
-            owner = None
-
-    context_msg = "Failed to get list of repositories!"
-    # Command-level validation: prevent --show-all with a specific repository.
     if show_all and repo:
         raise click.UsageError(
             "The --show-all option cannot be used when specifying a single repository (OWNER/REPO). Omit the repository slug or remove --show-all."
         )
+
+    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
+
+    context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             repos_, page_info = paginate_results(
