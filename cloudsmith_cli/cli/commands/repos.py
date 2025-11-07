@@ -6,13 +6,14 @@ from operator import itemgetter
 import click
 
 from ...core.api import repos as api
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
 
 
-def print_repositories(opts, data, page_info=None, show_list_info=True):
+def print_repositories(opts, data, page_info=None, show_list_info=True, show_all=False):
     """Print repositories as a table or output in another format."""
     headers = [
         "Name",
@@ -48,10 +49,16 @@ def print_repositories(opts, data, page_info=None, show_list_info=True):
 
     click.echo()
 
+    if not show_list_info:
+        return
+
     num_results = len(data)
-    list_suffix = "repositor%s visible" % ("ies" if num_results != 1 else "y")
+    list_suffix = "repositor%s" % ("ies" if num_results != 1 else "y")
     utils.pretty_print_list_info(
-        num_results=num_results, page_info=page_info, suffix=list_suffix
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=f"{list_suffix} retrieved" if show_all else f"{list_suffix} visible",
+        show_all=show_all,
     )
 
 
@@ -83,7 +90,7 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
     required=False,
 )
 @click.pass_context
-def get(ctx, opts, owner_repo, page, page_size):
+def get(ctx, opts, owner_repo, page, page_size, show_all):
     """
     List repositories for a namespace (owner).
 
@@ -96,10 +103,8 @@ def get(ctx, opts, owner_repo, page, page_size):
     If OWNER isn't specified it'll default to the currently authenticated user
     (if any). If you're unauthenticated, no results will be returned.
     """
-    # Use stderr for messages if the output is something else (e.g.  # JSON)
+    # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = opts.output != "pretty"
-
-    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
     if isinstance(owner_repo, list):
         if len(owner_repo) == 1:
@@ -107,19 +112,25 @@ def get(ctx, opts, owner_repo, page, page_size):
             repo = None
         else:
             owner, repo = owner_repo
-    if isinstance(owner_repo, str):
+    elif isinstance(owner_repo, str):
+        repo = None
+        owner = owner_repo or None
+    else:
+        owner = None
         repo = None
 
-        if owner_repo:
-            owner = owner_repo
-        else:
-            owner = None
+    if show_all and repo:
+        raise click.UsageError(
+            "The --show-all option cannot be used when specifying a single repository (OWNER/REPO). Omit the repository slug or remove --show-all."
+        )
+
+    click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of repositories!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            repos_, page_info = api.list_repos(
-                owner=owner, repo=repo, page=page, page_size=page_size
+            repos_, page_info = paginate_results(
+                api.list_repos, show_all, page, page_size, owner=owner, repo=repo
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -128,7 +139,11 @@ def get(ctx, opts, owner_repo, page, page_size):
         return
 
     print_repositories(
-        opts=opts, data=repos_, show_list_info=False, page_info=page_info
+        opts=opts,
+        data=repos_,
+        show_list_info=True,
+        page_info=page_info,
+        show_all=show_all,
     )
 
 
@@ -192,7 +207,10 @@ def create(ctx, opts, owner, repo_config_file):
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    print_repositories(opts=opts, data=[repository], show_list_info=False)
+    if utils.maybe_print_as_json(opts, [repository]):
+        return
+
+    print_repositories(opts=opts, data=[repository], show_list_info=True)
 
 
 @repositories.command()
@@ -252,7 +270,10 @@ def update(ctx, opts, owner_repo, repo_config_file):
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    print_repositories(opts=opts, data=[repository], show_list_info=False)
+    if utils.maybe_print_as_json(opts, [repository]):
+        return
+
+    print_repositories(opts=opts, data=[repository], show_list_info=True)
 
 
 @repositories.command(aliases=["rm"])

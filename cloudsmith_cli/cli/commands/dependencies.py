@@ -42,7 +42,7 @@ def list_dependencies(ctx, opts, owner_repo_package):
     for the package format yet.
 
     - OWNER/REPO/PACKAGE: Specify the OWNER namespace (i.e. user or org), the
-    REPO name where the package is stored, and the PACKAGE name (identifier) of the
+    REPO name where the package is stored, and the PACKAGE name (identifier/slug) of the
     package itself. All separated by a slash.
 
     Example: 'your-org/awesome-repo/better-pkg'.

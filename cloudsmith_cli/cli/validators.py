@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 
 import click
+from click.core import ParameterSource
 
 from .types import ExpandPath
 
@@ -155,6 +156,40 @@ def validate_page_size(ctx, param, value):
     if value == 0:
         raise click.BadParameter("Page size must be non-zero or unset.", param=param)
     return value
+
+
+def enforce_show_all_exclusive(ctx):
+    """Order-independent mutual exclusivity check for pagination options.
+
+    Raises click.BadParameter bound to the --show-all option if it was used
+    together with explicit --page or --page-size. "Explicit" means supplied
+    via command line, environment variable, or prompt (Click ParameterSource).
+    """
+    show_all = ctx.params.get("show_all")
+    if not show_all:
+        return
+
+    explicit_sources = {
+        src
+        for src in (
+            ParameterSource.COMMANDLINE,
+            ParameterSource.ENVIRONMENT,
+            getattr(ParameterSource, "PROMPT", None),
+        )
+        if src is not None
+    }
+
+    page_explicit = ctx.get_parameter_source("page") in explicit_sources
+    size_explicit = ctx.get_parameter_source("page_size") in explicit_sources
+
+    if page_explicit or size_explicit:
+        show_all_param = next(
+            (p for p in ctx.command.params if p.name == "show_all"), None
+        )
+        raise click.BadParameter(
+            "Cannot be used with --page (-p) or --page-size (-l).",
+            param=show_all_param,
+        )
 
 
 def validate_optional_timestamp(ctx, param, value):

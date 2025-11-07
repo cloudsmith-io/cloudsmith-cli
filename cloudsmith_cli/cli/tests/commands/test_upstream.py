@@ -71,6 +71,36 @@ def test_upstream_commands(
     assert result_data["name"] == upstream_config["name"]
     assert result_data["upstream_url"] == upstream_config["upstream_url"]
 
+    # Minimal show-all success (no pagination args besides flag)
+    show_all = runner.invoke(
+        upstream,
+        args=[upstream_format, "ls", org_repo, "--show-all", "-F", "json"],
+        catch_exceptions=False,
+    )
+    assert show_all.exit_code == 0
+    show_all_data = json.loads(show_all.output)["data"]
+    assert len(show_all_data) == 1  # Should return the same single upstream
+    assert "Invalid value for '--show-all'" not in show_all.output
+
+    # Conflict: show-all with explicit page number
+    conflict = runner.invoke(
+        upstream,
+        args=[
+            upstream_format,
+            "ls",
+            org_repo,
+            "--show-all",
+            "--page",
+            "1",
+            "-F",
+            "json",
+        ],
+        catch_exceptions=False,
+    )
+    assert conflict.exit_code != 0
+    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
+
     slug_perm = result_data["slug_perm"]
     assert slug_perm
     org_repo_slug_perm = f"{org_repo}/{slug_perm}"

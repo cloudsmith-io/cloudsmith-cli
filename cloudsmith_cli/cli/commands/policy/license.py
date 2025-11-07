@@ -5,6 +5,7 @@ import json
 import click
 
 from ....core.api import orgs as api
+from ....core.pagination import paginate_results
 from ... import command, decorators, utils, validators
 from ...exceptions import handle_api_exceptions
 from ...utils import (
@@ -19,7 +20,6 @@ from .command import policy
 
 def print_license_policies(policies):
     """Print license policies as a table or output in another format."""
-
     headers = [
         "Name",
         "Description",
@@ -57,10 +57,6 @@ def print_license_policies(policies):
     utils.pretty_print_table(headers, rows)
     click.echo()
 
-    num_results = len(rows)
-    list_suffix = "license polic%s" % ("y" if num_results == 1 else "ies")
-    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
-
 
 @policy.group(cls=command.AliasGroup, name="license", aliases=[])
 @decorators.common_cli_config_options
@@ -86,7 +82,7 @@ def licence(*args, **kwargs):
     "owner", metavar="OWNER", callback=validators.validate_owner, required=True
 )
 @click.pass_context
-def ls(ctx, opts, owner, page, page_size):
+def ls(ctx, opts, owner, page, page_size, show_all):
     """
     List license policies.
 
@@ -111,8 +107,8 @@ def ls(ctx, opts, owner, page, page_size):
     context_msg = "Failed to get license policies!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            policies, page_info = api.list_license_policies(
-                owner=owner, page=page, page_size=page_size
+            policies, page_info = paginate_results(
+                api.list_license_policies, show_all, page, page_size, owner=owner
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -121,6 +117,17 @@ def ls(ctx, opts, owner, page, page_size):
         return
 
     print_license_policies(policies)
+
+    click.echo()
+
+    num_results = len(policies)
+    list_suffix = "license polic%s" % ("y" if num_results == 1 else "ies")
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=list_suffix,
+        show_all=show_all,
+    )
 
 
 @licence.command(aliases=["new"])

@@ -5,6 +5,7 @@ import json
 import click
 
 from ...core.api import upstreams as api
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import (
@@ -37,7 +38,7 @@ UPSTREAM_FORMATS = [
 ]
 
 
-def print_upstreams(upstreams, upstream_fmt):
+def print_upstreams(upstreams, upstream_fmt, page_info=None, show_all=False):
     """Print upstreams as a table or output in another format."""
 
     def build_row(u):
@@ -115,9 +116,14 @@ def print_upstreams(upstreams, upstream_fmt):
     utils.pretty_print_table(headers, rows)
     click.echo()
 
-    num_results = len(rows)
+    num_results = len(upstreams)
     list_suffix = "upstream%s" % ("" if num_results == 1 else "s")
-    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=list_suffix,
+        show_all=show_all,
+    )
 
 
 @main.group(cls=command.AliasGroup, name="upstream", aliases=[])
@@ -164,7 +170,7 @@ def build_upstream_list_command(upstream_fmt):
         "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_repo
     )
     @click.pass_context
-    def func(ctx, opts, owner_repo, page, page_size):
+    def func(ctx, opts, owner_repo, page, page_size, show_all):
         owner, repo = owner_repo
 
         # Use stderr for messages if the output is something else (e.g.  # JSON)
@@ -176,12 +182,14 @@ def build_upstream_list_command(upstream_fmt):
         context_msg = "Failed to get upstreams!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
-                upstreams, page_info = api.list_upstreams(
+                upstreams, page_info = paginate_results(
+                    api.list_upstreams,
+                    show_all,
+                    page,
+                    page_size,
                     owner=owner,
                     repo=repo,
                     upstream_format=upstream_fmt,
-                    page=page,
-                    page_size=page_size,
                 )
 
         if not use_stderr:
@@ -190,7 +198,7 @@ def build_upstream_list_command(upstream_fmt):
         if utils.maybe_print_as_json(opts, upstreams, page_info):
             return
 
-        print_upstreams(upstreams, upstream_fmt)
+        print_upstreams(upstreams, upstream_fmt, page_info, show_all)
 
     func.__doc__ = f"""
         List {upstream_fmt} upstreams for a repository.

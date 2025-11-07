@@ -50,6 +50,13 @@ def test_push_and_delete_raw_package(
     small_file_data = data[0]
     assert small_file_data["filename"] == pkg_file.name
 
+    # List packages with --show-all flag
+    result = runner.invoke(
+        list_, args=["pkgs", org_repo, "--show-all"], catch_exceptions=False
+    )
+    assert "Getting list of packages ... OK" in result.output
+    assert "Results: 1 package retrieved" in result.output
+
     # Wait for the package to sync.
     org_repo_package = f"{org_repo}/{small_file_data['slug']}"
     for _ in range(10):
