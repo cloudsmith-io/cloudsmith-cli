@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.9.4] - 2025-11-07
+
+
 ## [1.9.3] - 2025-11-07
 
 - [[Issue-170]](https://github.com/cloudsmith-io/cloudsmith-cli/issues/170) - Add flag to get all pages
