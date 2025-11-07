@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [1.9.4] - 2025-11-07
 
+> No code changes in this release. Version bump performed for release process consistency and to address packaging/metadata updates.
 
 ## [1.9.3] - 2025-11-07
 
