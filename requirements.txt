@@ -22,7 +22,7 @@ cfgv==3.3.1
     # via pre-commit
 charset-normalizer==3.3.2
     # via requests
-click==8.1.6
+click==8.1.8
     # via
     #   click-configfile
     #   click-didyoumean
@@ -135,7 +135,7 @@ typing-extensions==4.13.2
     # via
     #   astroid
     #   pylint
-urllib3==1.26.20
+urllib3==2.5.0
     # via
     #   cloudsmith-api
     #   cloudsmith-cli (setup.py)

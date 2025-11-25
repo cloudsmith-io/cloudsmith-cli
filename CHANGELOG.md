@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
+- Downgraded `click` from `v8.2.0` to `v8.1.8` to satisfy dependency requirements for Python 3.9.
+
 ## [1.9.4] - 2025-11-07
 
 > No code changes in this release. Version bump performed for release process consistency and to address packaging/metadata updates.
