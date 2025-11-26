@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Migrate from CircleCI to GitHub Actions for testing and release workflows.
+- Remove CircleCi workflows.
+- Downgrade Click dependency range from `8.2.0`. to `8.1.8` to support Python 3.9.
+
 ## [1.9.4] - 2025-11-07
 
 > No code changes in this release. Version bump performed for release process consistency and to address packaging/metadata updates.
