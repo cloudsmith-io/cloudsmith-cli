@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
+  - Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
+
 ## [1.9.4] - 2025-11-07
 
 > No code changes in this release. Version bump performed for release process consistency and to address packaging/metadata updates.
