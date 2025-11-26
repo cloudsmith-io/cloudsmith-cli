@@ -58,7 +58,7 @@ setup(
         "requests>=2.18.4",
         "requests_toolbelt>=0.8.0",
         "semver>=2.7.9",
-        "urllib3==2.5.0",
+        "urllib3<2.0",
     ],
     entry_points={
         "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
