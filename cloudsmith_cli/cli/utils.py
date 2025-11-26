@@ -19,9 +19,9 @@ def make_user_agent(prefix=None):
     return f"cloudsmith-cli/{prefix} cli:{get_cli_version()} api:{get_api_version()}"
 
 
-def pretty_print_list_info(num_results, page_info=None, suffix="", show_all=False):
+def pretty_print_list_info(num_results, page_info=None, suffix="", page_all=False):
     """Print information about list results."""
-    if show_all:
+    if page_all:
         click.echo(
             "Results: %(num_results)d %(suffix)s"
             % {
