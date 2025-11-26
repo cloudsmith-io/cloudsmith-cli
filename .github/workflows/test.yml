@@ -146,6 +146,10 @@ jobs:
         run: pip install -e .
 
       - name: Run pytest
+        env:
+          PYTEST_CLOUDSMITH_API_KEY: ${{ secrets.PYTEST_CLOUDSMITH_API_KEY }}
+          PYTEST_CLOUDSMITH_API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
+          PYTEST_CLOUDSMITH_ORGANIZATION: ${{ vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
         run: pytest --junitxml=./reports/pytest.xml
 
       - name: Upload test results
@@ -155,3 +159,71 @@ jobs:
           name: test-results-${{ matrix.python-version }}
           path: ./reports/pytest.xml
           retention-days: 30
+
+  # Test pip installation across Python versions
+  test-pip-installation:
+    name: Test pip installation (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
+
+      - name: Install package
+        run: pip install .
+
+      - name: Validate installation
+        run: |
+          OUTPUT=$(cloudsmith --version)
+          echo "CLI Version: $OUTPUT"
+          echo "$OUTPUT" | grep "${{ env.VERSION }}"
+
+  # Test zipapp build across Python versions
+  test-zipapp-build:
+    name: Test zipapp build (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install shiv
+        run: pip install shiv
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
+
+      - name: Create Zipapp
+        run: shiv -o cloudsmith-${{ env.VERSION }}.pyz -c cloudsmith .
+
+      - name: Make executable
+        run: chmod +x cloudsmith-${{ env.VERSION }}.pyz
+
+      - name: Validate zipapp execution
+        run: |
+          OUTPUT=$(./cloudsmith-${{ env.VERSION }}.pyz --version)
+          echo "Zipapp Version: $OUTPUT"
+          echo "$OUTPUT" | grep "${{ env.VERSION }}"
