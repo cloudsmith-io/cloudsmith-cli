@@ -67,6 +67,18 @@ jobs:
               id: push_zipapp
               run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz --name cloudsmith-cli --version ${{ env.VERSION }}
 
+            - name: Install build dependencies for Python packages
+              run: pip install setuptools wheel
+
+            - name: Build Python packages
+              run: python setup.py sdist bdist_wheel
+
+            - name: Push source distribution to Cloudsmith
+              run: cloudsmith push python ${{ vars.CLOUDSMITH_NAMESPACE }}/cli dist/cloudsmith-cli-${{ env.VERSION }}.tar.gz
+
+            - name: Push wheel to Cloudsmith
+              run: cloudsmith push python ${{ vars.CLOUDSMITH_NAMESPACE }}/cli dist/cloudsmith_cli-${{ env.VERSION }}-py3-none-any.whl
+
             - name: Build Docker image
               id: build_cli_image
               run: |
@@ -109,39 +121,3 @@ jobs:
               uses: pypa/gh-action-pypi-publish@release/v1
               with:
                   packages-dir: dist/
-
-    # Publish Python packages to Cloudsmith
-    publish-cloudsmith-python:
-        name: Publish Python packages to Cloudsmith
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - name: Set up Python 3.11
-              uses: actions/setup-python@v5
-              with:
-                  python-version: 3.11
-
-            - name: Install build dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install setuptools wheel
-
-            - name: Build packages
-              run: python setup.py sdist bdist_wheel
-
-            - name: Install and authenticate Cloudsmith CLI
-              uses: cloudsmith-io/cloudsmith-cli-action@v1
-              with:
-                  oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
-                  oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
-
-            - name: Get version
-              id: get_version
-              run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
-
-            - name: Push source distribution to Cloudsmith
-              run: cloudsmith push python ${{ vars.CLOUDSMITH_NAMESPACE }}/cli dist/cloudsmith-cli-${{ env.VERSION }}.tar.gz
-
-            - name: Push wheel to Cloudsmith
-              run: cloudsmith push python ${{ vars.CLOUDSMITH_NAMESPACE }}/cli dist/cloudsmith_cli-${{ env.VERSION }}-py3-none-any.whl

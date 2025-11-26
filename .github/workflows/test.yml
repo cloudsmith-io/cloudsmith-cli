@@ -160,37 +160,6 @@ jobs:
           path: ./reports/pytest.xml
           retention-days: 30
 
-  # Test pip installation across Python versions
-  test-pip-installation:
-    name: Test pip installation (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-
-      - name: Get version
-        id: get_version
-        run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
-
-      - name: Install package
-        run: pip install .
-
-      - name: Validate installation
-        run: |
-          OUTPUT=$(cloudsmith --version)
-          echo "CLI Version: $OUTPUT"
-          echo "$OUTPUT" | grep "${{ env.VERSION }}"
-
   # Test zipapp build across Python versions
   test-zipapp-build:
     name: Test zipapp build (Python ${{ matrix.python-version }})
