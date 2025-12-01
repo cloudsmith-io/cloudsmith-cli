@@ -179,8 +179,6 @@ def delete_deny_policy(owner, slug_perm):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        _, _, headers = client.orgs_deny_policy_delete_with_http_info(
-            owner, slug_perm
-        )
+        _, _, headers = client.orgs_deny_policy_delete_with_http_info(owner, slug_perm)
 
     ratelimits.maybe_rate_limit(client, headers)
