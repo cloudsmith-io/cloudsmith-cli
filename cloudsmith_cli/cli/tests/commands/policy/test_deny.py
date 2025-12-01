@@ -1,10 +1,14 @@
 """Tests for deny policy commands."""
+
 import json
 
 import pytest
 
 from ....commands.policy.deny import (
-    create_deny_policy, delete_deny_policy, list_deny_policies, update_deny_policy
+    create_deny_policy,
+    delete_deny_policy,
+    list_deny_policies,
+    update_deny_policy,
 )
 from ...utils import random_bool, random_str
 
@@ -138,7 +142,7 @@ def test_deny_policy_commands(runner, organization, tmp_path):
         delete_deny_policy,
         args=[organization, slug_perm],
         input="N",
-        catch_exceptions=False
+        catch_exceptions=False,
     )
     assert (
         "Are you absolutely certain you want to delete the "
@@ -155,7 +159,7 @@ def test_deny_policy_commands(runner, organization, tmp_path):
         delete_deny_policy,
         args=[organization, slug_perm],
         input="Y",
-        catch_exceptions=False
+        catch_exceptions=False,
     )
     assert (
         "Are you absolutely certain you want to delete the "

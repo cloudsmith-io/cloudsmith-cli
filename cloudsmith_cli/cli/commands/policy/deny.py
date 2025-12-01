@@ -1,18 +1,24 @@
 """Commands for deny policies."""
+
 import click
 
+from ....core.api import orgs
 from ... import command, decorators, utils
 from ...exceptions import handle_api_exceptions
-from ...utils import maybe_spinner, fmt_datetime
-from ....core.api import orgs
+from ...utils import fmt_datetime, maybe_spinner
 from .command import policy
 
 
 def print_deny_policies(policies):
     """Print deny policies as a table."""
     headers = [
-        "Name", "Description", "Package Query", "Enabled",
-        "Created", "Updated", "Identifier"
+        "Name",
+        "Description",
+        "Package Query",
+        "Enabled",
+        "Created",
+        "Updated",
+        "Identifier",
     ]
 
     rows = [
@@ -22,7 +28,7 @@ def print_deny_policies(policies):
             click.style(policy.get("package_query_string", ""), fg="yellow"),
             click.style(
                 "Yes" if policy.get("enabled") else "No",
-                fg="green" if policy.get("enabled") else "red"
+                fg="green" if policy.get("enabled") else "red",
             ),
             click.style(fmt_datetime(policy["created_at"]), fg="blue"),
             click.style(fmt_datetime(policy["updated_at"]), fg="blue"),
@@ -44,7 +50,6 @@ def print_deny_policies(policies):
 @click.pass_context
 def deny_policy(*args, **kwargs):
     """Manage deny policies for an organization."""
-    pass
 
 
 @deny_policy.command(name="list", aliases=["ls"])
@@ -62,9 +67,7 @@ def list_deny_policies(ctx, opts, owner):
     context_msg = "Failed to get deny policies!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            data, _ = orgs.list_deny_policies(
-                owner=owner, page=1, page_size=100
-            )
+            data, _ = orgs.list_deny_policies(owner=owner, page=1, page_size=100)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -99,17 +102,16 @@ def create_deny_policy(ctx, opts, owner, policy_config_file):
         "Creating %(name)s deny policy for the %(owner)s namespace ..."
         % {
             "name": click.style(policy_name, bold=True),
-            "owner": click.style(owner, bold=True)
+            "owner": click.style(owner, bold=True),
         },
-        nl=False, err=use_stderr
+        nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to create the deny policy!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            data = orgs.create_deny_policy(
-                owner=owner, policy_config=policy_config
-            )
+            data = orgs.create_deny_policy(owner=owner, policy_config=policy_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -165,9 +167,10 @@ def update_deny_policy(ctx, opts, owner, identifier, policy_config_file):
         "Updating %(identifier)s deny policy in the %(owner)s namespace ..."
         % {
             "identifier": click.style(identifier, bold=True),
-            "owner": click.style(owner, bold=True)
+            "owner": click.style(owner, bold=True),
         },
-        nl=False, err=use_stderr
+        nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to update the deny policy!"
@@ -193,8 +196,11 @@ def update_deny_policy(ctx, opts, owner, identifier, policy_config_file):
 @click.argument("owner")
 @click.argument("identifier")
 @click.option(
-    "-y", "--yes", default=False, is_flag=True,
-    help="Assume yes as default answer to questions (this is dangerous!)"
+    "-y",
+    "--yes",
+    default=False,
+    is_flag=True,
+    help="Assume yes as default answer to questions (this is dangerous!)",
 )
 @click.pass_context
 def delete_deny_policy(ctx, opts, owner, identifier, yes):
@@ -213,9 +219,8 @@ def delete_deny_policy(ctx, opts, owner, identifier, yes):
         return
 
     click.secho(
-        "Deleting %(identifier)s from the %(namespace)s namespace ... "
-        % delete_args,
-        nl=False
+        "Deleting %(identifier)s from the %(namespace)s namespace ... " % delete_args,
+        nl=False,
     )
 
     context_msg = "Failed to delete the deny policy!"
