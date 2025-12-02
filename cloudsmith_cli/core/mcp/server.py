@@ -5,9 +5,10 @@ import json
 from typing import Any, Dict, List, Optional
 
 import httpx
-import mcp.types as types
+from mcp import types
 from mcp.server.fastmcp import FastMCP
 from mcp.shared._httpx_utils import create_mcp_http_client
+from toon_python import encode
 
 from .data import OpenAPITool
 
@@ -17,6 +18,57 @@ API_VERSIONS_TO_DISCOVER = {
     "v1": "swagger/?format=openapi",
     "v2": "openapi/?format=json",
 }
+TOOL_DELETE_SUFFIXES = ["delete", "destroy", "remove"]
+
+# Common action suffixes in OpenAPI operation IDs
+# These should not be considered as part of the resource group hierarchy
+TOOL_ACTION_SUFFIXES = [
+    "create",
+    "read",
+    "list",
+    "update",
+    "partial_update",
+    "delete",
+    "destroy",
+    "retrieve",
+    "remove",
+]
+
+DEFAULT_DISABLED_CATEGORIES = [
+    "broadcasts",
+    "rates",
+    "packages_upload",
+    "packages_validate",
+    "user_token",
+    "user_tokens",
+    "webhooks",
+    "status",
+    "repos_ecdsa",
+    "repos_geoip",
+    "repos_gpg",
+    "repos_rsa",
+    "repos_x509",
+    "repos_upstream",
+    "orgs_openid",
+    "orgs_saml",
+    "orgs_invites",
+    "files",
+    "badges",
+    "quota",
+    "users_profile",
+    "workspaces_policies",
+    "storage_regions",
+    "entitlements",
+    "metrics_entitlements",
+    "metrics_packages",
+    "orgs_teams",
+    "repo_retention",
+]
+
+DEFAULT_DISABLED_TOOLS = [
+    "namespaces_read",
+    "orgs_read",
+]
 
 
 class CustomFastMCP(FastMCP):
@@ -123,10 +175,12 @@ class DynamicMCPServer:
     def __init__(
         self,
         name: str = "Cloudsmith MCP Server",
-        port: int = 8089,
         api_base_url: str = "",
         api_token: str = "",
+        use_toon=True,
+        allow_destructive_tools=False,
         debug_mode=False,
+        disabled_tool_groups: Optional[List[str]] = DEFAULT_DISABLED_CATEGORIES,
     ):
         mcp_kwargs = {"log_level": "ERROR"}
         if debug_mode:
@@ -134,6 +188,9 @@ class DynamicMCPServer:
         self.mcp = CustomFastMCP(name, **mcp_kwargs)
         self.api_base_url = api_base_url
         self.api_token = api_token
+        self.use_toon = use_toon
+        self.allow_destructive_tools = allow_destructive_tools
+        self.disabled_tool_groups = set(disabled_tool_groups or [])
         self.tools: Dict[str, OpenAPITool] = {}
 
     async def load_openapi_spec(self):
@@ -147,16 +204,67 @@ class DynamicMCPServer:
 
             for version, endpoint in API_VERSIONS_TO_DISCOVER.items():
                 spec_url = f"{self.api_base_url}/{version}/{endpoint}"
-                # print(f"Fetching OpenAPI spec from {spec_url}")
                 response = await http_client.get(spec_url)
                 response.raise_for_status()
                 self.spec = response.json()
                 await self._generate_tools_from_spec()
 
-    def _is_tool_allowed(self, tool_name: str) -> bool:
-        """Check if a tool is allowed based on some user input"""
+    def _get_tool_groups(self, tool_name: str) -> List[str]:
+        """
+        Extract all hierarchical group names from a tool name, excluding action suffixes.
 
-        # TODO: tool filtering
+        Examples:
+            webhooks_create -> ['webhooks']
+            repos_upstream_swift_list -> ['repos', 'repos_upstream', 'repos_upstream_swift']
+            vulnerabilities_read -> ['vulnerabilities']
+            workspaces_policies_actions_partial_update -> ['workspaces', 'workspaces_policies']
+            repos_upstream_huggingface_partial_update -> ['repos', 'repos_upstream', 'repos_upstream_huggingface']
+        """
+        groups = []
+        parts = tool_name.split("_")
+
+        # Determine how many parts belong to the action suffix
+        # Sort by length descending to match longest suffixes first
+        sorted_suffixes = sorted(
+            TOOL_ACTION_SUFFIXES, key=lambda x: len(x.split("_")), reverse=True
+        )
+
+        action_parts_count = 0
+        for action_suffix in sorted_suffixes:
+            action_suffix_parts = action_suffix.split("_")
+            if len(parts) >= len(action_suffix_parts):
+                # Check if the end of the tool name matches this action suffix
+                if parts[-len(action_suffix_parts) :] == action_suffix_parts:
+                    action_parts_count = len(action_suffix_parts)
+                    break
+
+        # If no action suffix found, treat the last part as the action
+        if action_parts_count == 0:
+            action_parts_count = 1
+
+        # Build hierarchical groups by progressively adding parts, excluding action suffix
+        resource_parts = (
+            parts[:-action_parts_count] if action_parts_count > 0 else parts
+        )
+        for i in range(1, len(resource_parts) + 1):
+            group = "_".join(resource_parts[:i])
+            groups.append(group)
+
+        return groups
+
+    def _is_tool_allowed(self, tool_name: str) -> bool:
+        """Check if a tool is allowed based on user configuration"""
+
+        # Check if tool is destructive and destructive tools are disabled
+        if not self.allow_destructive_tools and any(
+            suffix in tool_name for suffix in TOOL_DELETE_SUFFIXES
+        ):
+            return False
+
+        # Check if any of the tool's groups are disabled
+        tool_groups = self._get_tool_groups(tool_name)
+        if any(group in self.disabled_tool_groups for group in tool_groups):
+            return False
 
         return True
 
@@ -368,8 +476,10 @@ class DynamicMCPServer:
             # Return formatted response
             try:
                 result = response.json()
+                if self.use_toon:
+                    return encode(result)
                 return json.dumps(result, indent=2)
-            except:
+            except Exception:
                 return response.text
 
         except httpx.HTTPError as e:
@@ -618,3 +728,20 @@ class DynamicMCPServer:
         """Initialize and return list of tools. Useful for debugging"""
         asyncio.run(self.load_openapi_spec())
         return self.tools
+
+    def list_groups(self) -> Dict[str, List[str]]:
+        """Initialize and return list of tool groups with their tools. Useful for debugging"""
+        asyncio.run(self.load_openapi_spec())
+
+        # Build a mapping of group -> list of tools
+        groups: Dict[str, List[str]] = {}
+
+        for tool_name in self.tools.keys():
+            tool_groups = self._get_tool_groups(tool_name)
+            for group in tool_groups:
+                if group not in groups:
+                    groups[group] = []
+                groups[group].append(tool_name)
+
+        # Sort groups by name and tools within each group
+        return {group: sorted(tools) for group, tools in sorted(groups.items())}

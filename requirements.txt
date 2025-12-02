@@ -124,6 +124,8 @@ tomli==2.0.1
     #   pytest
 tomlkit==0.12.1
     # via pylint
+toon-python==0.1.2
+    # via -r requirements.in
 typing-extensions==4.7.1
     # via
     #   anyio

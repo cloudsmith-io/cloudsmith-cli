@@ -52,8 +52,23 @@ def list_tools(ctx, opts, mcp_server: server.DynamicMCPServer):
     print_tools(tools)
 
 
+@mcp_.command(name="list_groups")
+@decorators.initialise_api
+@decorators.initialise_mcp
+@click.pass_context
+def list_groups(ctx, opts, mcp_server: server.DynamicMCPServer):
+    """
+    List available tool groups and the tools they contain
+    """
+    click.echo("Getting list of tool groups ... ", nl=False, err=False)
+    with utils.maybe_spinner(opts):
+        groups = mcp_server.list_groups()
+
+    print_groups(groups)
+
+
 def print_tools(tool_list):
-    """Print repositories as a table or output in another format."""
+    """Print tools as a table or output in another format."""
 
     headers = [
         "Name",
@@ -77,6 +92,41 @@ def print_tools(tool_list):
 
     num_results = len(tool_list)
     list_suffix = "tool%s visible" % ("s" if num_results != 1 else "")
+    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
+
+
+def print_groups(group_list):
+    """Print tool groups as a table or output in another format."""
+
+    headers = [
+        "Group Name",
+        "Tool Count",
+        "Sample Tools",
+    ]
+
+    rows = []
+    for group_name, tools in group_list.items():
+        # Show first 3 tools as samples
+        sample_tools = ", ".join(tools[:3])
+        if len(tools) > 3:
+            sample_tools += f", ... (+{len(tools) - 3} more)"
+
+        rows.append(
+            [
+                click.style(group_name, fg="cyan"),
+                click.style(str(len(tools)), fg="yellow"),
+                click.style(sample_tools, fg="white"),
+            ]
+        )
+
+    if group_list:
+        click.echo()
+        utils.pretty_print_table(headers, rows)
+
+    click.echo()
+
+    num_results = len(group_list)
+    list_suffix = "group%s visible" % ("s" if num_results != 1 else "")
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
@@ -141,7 +191,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
                         f"✗ Failed to configure {client_name.title()}", fg="red"
                     )
                 )
-        except Exception as e:
+        except OSError as e:
             click.echo(
                 click.style(
                     f"✗ Error configuring {client_name.title()}: {str(e)}", fg="red"
@@ -279,7 +329,7 @@ def configure_client(client_name, server_config, is_global=True):
         config = {}
 
     # Add Cloudsmith MCP server based on client format
-    if client_name == "claude" or client_name == "cursor":
+    if client_name in {"claude", "cursor"}:
         if "mcpServers" not in config:
             config["mcpServers"] = {}
         config["mcpServers"]["cloudsmith"] = server_config
