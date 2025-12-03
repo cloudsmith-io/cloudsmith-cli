@@ -3,6 +3,7 @@
 import click
 
 from ....core.api import orgs
+from ....core.pagination import paginate_results
 from ... import command, decorators, utils
 from ...exceptions import handle_api_exceptions
 from ...utils import fmt_datetime, maybe_spinner
@@ -54,12 +55,13 @@ def deny_policy(*args, **kwargs):
 
 @deny_policy.command(name="list", aliases=["ls"])
 @decorators.common_cli_config_options
+@decorators.common_cli_list_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.argument("owner")
 @click.pass_context
-def list_deny_policies(ctx, opts, owner):
+def list_deny_policies(ctx, opts, owner, page, page_size, show_all):
     """List deny policies for an organization."""
     use_stderr = opts.output != "pretty"
     click.echo("Getting deny policies ... ", nl=False, err=use_stderr)
@@ -67,14 +69,27 @@ def list_deny_policies(ctx, opts, owner):
     context_msg = "Failed to get deny policies!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            data, _ = orgs.list_deny_policies(owner=owner, page=1, page_size=100)
+            data, page_info = paginate_results(
+                orgs.list_deny_policies, show_all, page, page_size, owner=owner
+            )
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    if utils.maybe_print_as_json(opts, data):
+    if utils.maybe_print_as_json(opts, data, page_info):
         return
 
     print_deny_policies(data)
+
+    click.echo()
+
+    num_results = len(data)
+    list_suffix = "deny polic%s" % ("y" if num_results == 1 else "ies")
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=list_suffix,
+        show_all=show_all,
+    )
 
 
 @deny_policy.command(name="create", aliases=["new"])

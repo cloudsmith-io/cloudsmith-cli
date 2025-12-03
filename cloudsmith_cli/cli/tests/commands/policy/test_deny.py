@@ -83,7 +83,7 @@ def test_deny_policy_commands(runner, organization, tmp_path):
         directory=tmp_path,
         name=policy_name,
         description=random_str(),
-        package_query_string="format:python AND downloads:>50",
+        package_query_string="format:python and downloads:>50",
         enabled=random_bool(),
     )
 
@@ -107,7 +107,7 @@ def test_deny_policy_commands(runner, organization, tmp_path):
 
     # Use the cli to get the policy
     result = runner.invoke(
-        list_deny_policies, args=[organization], catch_exceptions=False
+        list_deny_policies, args=[organization, "--show-all"], catch_exceptions=False
     )
     assert "Getting deny policies ... OK" in result.output
     assert_output_matches_policy_config(result.output, policy_config_file_path)
@@ -117,7 +117,7 @@ def test_deny_policy_commands(runner, organization, tmp_path):
         directory=tmp_path,
         name=random_str(),
         description=random_str(),
-        package_query_string="format:go AND downloads:>15",
+        package_query_string="format:go and downloads:>15",
         enabled=random_bool(),
     )
 
