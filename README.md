@@ -52,6 +52,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `packages`:             Retrieve package usage for repository.
 - `move`|`mv`|`promote`:  Move (promote) a package to another repo.
 - `policy`:               Manage policies for an organization.
+  - `deny`:                 Manage deny policies for an organization.
   - `license`:              Manage license policies for an organization.
   - `vulnerability`:        Manage vulnerability policies for an organization.
 - `push`|`upload`:        Push (upload) a new package to a repository.
