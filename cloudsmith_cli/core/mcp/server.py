@@ -447,9 +447,14 @@ class DynamicMCPServer:
                     # Body parameter for POST/PUT/PATCH
                     body_params[key] = value
 
-        try:
-            # print(f"Calling {tool.method} {url}")
+        if tool.query_filter:
+            parsed_simplified_filter = {
+                k: v
+                for k, v in map(lambda x: x.split("="), tool.query_filter.split("&"))
+            }
+            query_params.update(parsed_simplified_filter)
 
+        try:
             # Make the API call
             if tool.method == "GET":
                 response = await http_client.get(url, params=query_params)
@@ -621,6 +626,8 @@ class DynamicMCPServer:
             if operation["requestBody"].get("required", True):
                 required_params.extend(body_params.keys())
 
+        simplified_query = operation.get("x-simplified")
+
         # Create parameter schema for MCP
         parameter_schema = {
             "type": "object",
@@ -635,6 +642,7 @@ class DynamicMCPServer:
             path=path,
             parameters=parameter_schema,
             base_url=base_url,
+            query_filter=simplified_query,
         )
 
     def _format_enum_description(

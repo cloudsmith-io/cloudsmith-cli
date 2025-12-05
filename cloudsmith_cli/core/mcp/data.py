@@ -14,6 +14,7 @@ class OpenAPITool:
     path: str
     parameters: Dict[str, Any]
     base_url: str
+    query_filter: str | None
 
 
 @dataclass
