@@ -154,7 +154,7 @@ def get_deny_policy(owner, slug_perm):
 
     with catch_raise_api_exception():
         policy, _, headers = client.orgs_deny_policy_read_with_http_info(
-            owner, slug_perm
+            org=owner, slug_perm=slug_perm
         )
 
     ratelimits.maybe_rate_limit(client, headers)
