@@ -13,6 +13,27 @@ BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
 
 
+class IntOrWildcard(click.ParamType):
+    """Custom Click type that accepts integers or '*' wildcard (converted to -1)."""
+
+    name = "integer or *"
+
+    def convert(self, value, param, ctx):
+        # Already converted
+        if isinstance(value, int):
+            return value
+
+        # Handle wildcard
+        if value == "*":
+            return -1
+
+        # Try to convert to integer
+        try:
+            return int(value)
+        except ValueError:
+            self.fail(f"{value!r} is not a valid integer or '*'", param, ctx)
+
+
 def transform_api_header_authorization(param, value):
     """Transform a username:password value into a base64 string."""
     try:
@@ -151,22 +172,30 @@ def validate_page(ctx, param, value):
 
 
 def validate_page_size(ctx, param, value):
-    """Ensure that a valid value for page size is chosen."""
+    """Ensure that a valid value for page size is chosen.
+
+    The IntOrWildcard type already converts '*' to -1 and validates integers.
+    """
     # pylint: disable=unused-argument
     if value == 0:
         raise click.BadParameter("Page size must be non-zero or unset.", param=param)
     return value
 
 
-def enforce_show_all_exclusive(ctx):
+def enforce_page_all_exclusive(ctx, wildcard_used=False):
     """Order-independent mutual exclusivity check for pagination options.
 
-    Raises click.BadParameter bound to the --show-all option if it was used
+    Raises click.BadParameter bound to the --page-all option if it was used
     together with explicit --page or --page-size. "Explicit" means supplied
     via command line, environment variable, or prompt (Click ParameterSource).
+
+    Args:
+        ctx: Click context
+        wildcard_used: If True, validates even if --page-all wasn't explicitly passed
+                      (used when --page-size '*' or -1 was used)
     """
-    show_all = ctx.params.get("show_all")
-    if not show_all:
+    page_all = ctx.params.get("page_all")
+    if not page_all and not wildcard_used:
         return
 
     explicit_sources = {
@@ -180,15 +209,22 @@ def enforce_show_all_exclusive(ctx):
     }
 
     page_explicit = ctx.get_parameter_source("page") in explicit_sources
-    size_explicit = ctx.get_parameter_source("page_size") in explicit_sources
+    # When checking wildcard usage, don't count page_size as conflicting with itself
+    size_source = ctx.get_parameter_source("page_size")
+    size_explicit = size_source in explicit_sources and not (
+        wildcard_used and size_source == ParameterSource.COMMANDLINE
+    )
 
     if page_explicit or size_explicit:
-        show_all_param = next(
-            (p for p in ctx.command.params if p.name == "show_all"), None
+        page_all_param = next(
+            (p for p in ctx.command.params if p.name == "page_all"), None
         )
+        error_msg = "Cannot be used with --page (-p) or --page-size (-l). (--show-all is an alias for --page-all)"
+        if wildcard_used:
+            error_msg = "Wildcard '*' or -1 in --page-size cannot be used with --page (-p). Use --page-all instead."
         raise click.BadParameter(
-            "Cannot be used with --page (-p) or --page-size (-l).",
-            param=show_all_param,
+            error_msg,
+            param=page_all_param,
         )
 
 
