@@ -12,6 +12,8 @@ from ...core.mcp import server
 from .. import command, decorators, utils
 from .main import main
 
+SUPPORTED_MCP_CLIENTS = ["claude", "cursor", "vscode"]
+
 
 @main.group(cls=command.AliasGroup, name="mcp")
 @decorators.common_cli_config_options
@@ -43,7 +45,7 @@ def start(ctx, opts, mcp_server: server.DynamicMCPServer):
 @click.pass_context
 def list_tools(ctx, opts, mcp_server: server.DynamicMCPServer):
     """
-    List available tools that will be exposed to the AI Client
+    List available tools that will be exposed to the MCP Client
     """
     click.echo("Getting list of tools ... ", nl=False, err=False)
     with utils.maybe_spinner(opts):
@@ -159,8 +161,11 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
         cloudsmith mcp configure --client cursor --local\n
         cloudsmith mcp configure  # Auto-detect and configure all
     """
+    # Get the profile from context
+    profile = ctx.meta.get("profile")
+
     # Determine the best command to run the MCP server
-    server_config = _get_server_config()
+    server_config = _get_server_config(profile)
 
     clients_to_configure = []
     if client:
@@ -180,7 +185,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     success_count = 0
     for client_name in clients_to_configure:
         try:
-            if configure_client(client_name, server_config, is_global):
+            if configure_client(client_name, server_config, is_global, profile):
                 click.echo(
                     click.style(f"✓ Configured {client_name.title()}", fg="green")
                 )
@@ -211,46 +216,44 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
         click.echo(click.style("\n✗ No clients were configured successfully", fg="red"))
 
 
-def _get_server_config():
+def _get_server_config(profile=None):
     """Determine the best command configuration to run the MCP server."""
     # Check if running in a virtual environment
     in_venv = hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     )
 
+    # Build the base args
+    base_args = []
+    if profile:
+        base_args.extend(["-P", profile])
+
     # In a venv, always use python -m to ensure we use the venv's packages
     if in_venv:
         return {
             "command": sys.executable,
-            "args": ["-m", "cloudsmith_cli", "mcp", "start"],
+            "args": ["-m", "cloudsmith_cli"] + base_args + ["mcp", "start"],
         }
 
     # Otherwise, try to find cloudsmith in PATH, fall back to python -m
     cloudsmith_cmd = shutil.which("cloudsmith")
     if cloudsmith_cmd:
-        return {"command": cloudsmith_cmd, "args": ["mcp", "start"]}
+        return {"command": cloudsmith_cmd, "args": base_args + ["mcp", "start"]}
 
-    return {"command": sys.executable, "args": ["-m", "cloudsmith_cli", "mcp", "start"]}
+    return {
+        "command": sys.executable,
+        "args": ["-m", "cloudsmith_cli"] + base_args + ["mcp", "start"],
+    }
 
 
 def detect_available_clients():
     """Detect which MCP clients are available on the system."""
     available = []
 
-    # Check for Claude Desktop
-    claude_config = get_config_path("claude", is_global=True)
-    if claude_config and claude_config.parent.exists():
-        available.append("claude")
-
-    # Check for Cursor
-    cursor_config = get_config_path("cursor", is_global=True)
-    if cursor_config and cursor_config.parent.exists():
-        available.append("cursor")
-
-    # Check for VS Code
-    vscode_config = get_config_path("vscode", is_global=True)
-    if vscode_config and vscode_config.parent.exists():
-        available.append("vscode")
+    for client in SUPPORTED_MCP_CLIENTS:
+        config = get_config_path(client, is_global=True)
+        if config and config.parent.exists():
+            available.append(client)
 
     return available
 
@@ -308,7 +311,7 @@ def get_config_path(client_name, is_global=True):
     return client_config.get(platform)
 
 
-def configure_client(client_name, server_config, is_global=True):
+def configure_client(client_name, server_config, is_global=True, profile=None):
     """Configure a specific MCP client with the Cloudsmith server."""
     config_path = get_config_path(client_name, is_global)
 
@@ -328,17 +331,20 @@ def configure_client(client_name, server_config, is_global=True):
     else:
         config = {}
 
+    # Determine server name based on profile
+    server_name = f"cloudsmith-{profile}" if profile else "cloudsmith"
+
     # Add Cloudsmith MCP server based on client format
     if client_name in {"claude", "cursor"}:
         if "mcpServers" not in config:
             config["mcpServers"] = {}
-        config["mcpServers"]["cloudsmith"] = server_config
+        config["mcpServers"][server_name] = server_config
 
     elif client_name == "vscode":
         # VS Code uses a different format in settings.json
         if "chat.mcp.servers" not in config:
             config["chat.mcp.servers"] = {}
-        config["chat.mcp.servers"]["cloudsmith"] = server_config
+        config["chat.mcp.servers"][server_name] = server_config
 
     # Write updated config
     with open(config_path, "w") as f:

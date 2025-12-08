@@ -4,6 +4,7 @@ import inspect
 import json
 from typing import Any, Dict, List, Optional
 
+import cloudsmith_api
 import httpx
 from mcp import types
 from mcp.server.fastmcp import FastMCP
@@ -63,11 +64,6 @@ DEFAULT_DISABLED_CATEGORIES = [
     "metrics_packages",
     "orgs_teams",
     "repo_retention",
-]
-
-DEFAULT_DISABLED_TOOLS = [
-    "namespaces_read",
-    "orgs_read",
 ]
 
 
@@ -175,22 +171,25 @@ class DynamicMCPServer:
     def __init__(
         self,
         name: str = "Cloudsmith MCP Server",
-        api_base_url: str = "",
-        api_token: str = "",
+        api_config: cloudsmith_api.Configuration = None,
         use_toon=True,
         allow_destructive_tools=False,
         debug_mode=False,
-        disabled_tool_groups: Optional[List[str]] = DEFAULT_DISABLED_CATEGORIES,
+        allowed_tool_groups: Optional[List[str]] = None,
+        allowed_tools: Optional[List[str]] = None,
+        force_all_tools: bool = False,
     ):
         mcp_kwargs = {"log_level": "ERROR"}
         if debug_mode:
             mcp_kwargs["log_level"] = "DEBUG"
         self.mcp = CustomFastMCP(name, **mcp_kwargs)
-        self.api_base_url = api_base_url
-        self.api_token = api_token
+        self.api_config = api_config
+        self.api_base_url = api_config.host
         self.use_toon = use_toon
         self.allow_destructive_tools = allow_destructive_tools
-        self.disabled_tool_groups = set(disabled_tool_groups or [])
+        self.allowed_tool_groups = set(allowed_tool_groups or [])
+        self.allowed_tools = set(allowed_tools or [])
+        self.force_all_tools = force_all_tools
         self.tools: Dict[str, OpenAPITool] = {}
 
     async def load_openapi_spec(self):
@@ -199,9 +198,9 @@ class DynamicMCPServer:
         if not self.api_base_url:
             raise Exception("The Cloudsmith API has to be set")
 
-        async with create_mcp_http_client() as http_client:
-            http_client = httpx.AsyncClient(timeout=30.0)
-
+        async with create_mcp_http_client(
+            timeout=30.0, headers=self._get_additional_headers()
+        ) as http_client:
             for version, endpoint in API_VERSIONS_TO_DISCOVER.items():
                 spec_url = f"{self.api_base_url}/{version}/{endpoint}"
                 response = await http_client.get(spec_url)
@@ -255,18 +254,25 @@ class DynamicMCPServer:
     def _is_tool_allowed(self, tool_name: str) -> bool:
         """Check if a tool is allowed based on user configuration"""
 
+        if self.force_all_tools:
+            return True
+
         # Check if tool is destructive and destructive tools are disabled
         if not self.allow_destructive_tools and any(
             suffix in tool_name for suffix in TOOL_DELETE_SUFFIXES
         ):
             return False
 
-        # Check if any of the tool's groups are disabled
         tool_groups = self._get_tool_groups(tool_name)
-        if any(group in self.disabled_tool_groups for group in tool_groups):
-            return False
 
-        return True
+        # If user provided their own list of allowed tools or tool groups
+        if len(self.allowed_tools) > 0 or len(self.allowed_tool_groups) > 0:
+            allowed_tool_group = set(tool_groups).issubset(self.allowed_tool_groups)
+            allowed_tool = tool_name in self.allowed_tools
+            return allowed_tool or allowed_tool_group
+
+        # Otherwise disable all categories in the default list
+        return not any(group in DEFAULT_DISABLED_CATEGORIES for group in tool_groups)
 
     async def _generate_tools_from_spec(self):
         """Generate MCP tools from OpenAPI specification"""
@@ -344,7 +350,7 @@ class DynamicMCPServer:
                     param_schema.get("type", "string")
                 )
 
-            # TODO: Refactor this to not need the conditional, just use kwargs
+            # TODO: Refactor this to not need the conditional
             if param_name not in api_tool.parameters.get("required", []):
                 # Create parameter with default value
                 default = param_schema.get("default", None)
@@ -393,16 +399,29 @@ class DynamicMCPServer:
         }
         return type_mapping.get(schema_type, str)
 
+    def _get_additional_headers(self):
+        headers = {}
+        if "X-Api-Key" in self.api_config.api_key:
+            headers["X-Api-Key"] = self.api_config.api_key["X-Api-Key"]
+
+        if self.api_config.headers:
+            headers.update(self.api_config.headers)
+
+        return headers
+
     async def _execute_api_call(
         self, tool: OpenAPITool, arguments: Dict[str, Any]
     ) -> str:
         """Execute an API call based on tool definition"""
-        http_client = create_mcp_http_client(
-            headers={
-                "X-Api-Key": self.api_token,
+
+        headers = self._get_additional_headers()
+        headers.update(
+            {
                 "Accept": "application/json",
             }
         )
+
+        http_client = create_mcp_http_client(headers=headers)
 
         # Build URL with path parameters
         url = tool.base_url + tool.path
