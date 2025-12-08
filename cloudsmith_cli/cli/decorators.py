@@ -331,8 +331,6 @@ def initialise_mcp(f):
     def wrapper(ctx, *args, **kwargs):
         opts = kwargs.get("opts")
 
-        print(opts.__dict__)
-
         all_tools = kwargs.pop("all_tools")
 
         mcp_server = server.DynamicMCPServer(

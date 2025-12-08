@@ -6,10 +6,10 @@ from typing import Any, Dict, List, Optional
 
 import cloudsmith_api
 import httpx
+import toon_python as toon
 from mcp import types
 from mcp.server.fastmcp import FastMCP
 from mcp.shared._httpx_utils import create_mcp_http_client
-from toon_python import encode
 
 from .data import OpenAPITool
 
@@ -65,6 +65,8 @@ DEFAULT_DISABLED_CATEGORIES = [
     "orgs_teams",
     "repo_retention",
 ]
+
+SERVER_NAME = "Cloudsmith MCP Server"
 
 
 class CustomFastMCP(FastMCP):
@@ -170,7 +172,6 @@ class DynamicMCPServer:
 
     def __init__(
         self,
-        name: str = "Cloudsmith MCP Server",
         api_config: cloudsmith_api.Configuration = None,
         use_toon=True,
         allow_destructive_tools=False,
@@ -182,7 +183,7 @@ class DynamicMCPServer:
         mcp_kwargs = {"log_level": "ERROR"}
         if debug_mode:
             mcp_kwargs["log_level"] = "DEBUG"
-        self.mcp = CustomFastMCP(name, **mcp_kwargs)
+        self.mcp = CustomFastMCP(SERVER_NAME, **mcp_kwargs)
         self.api_config = api_config
         self.api_base_url = api_config.host
         self.use_toon = use_toon
@@ -191,6 +192,7 @@ class DynamicMCPServer:
         self.allowed_tools = set(allowed_tools or [])
         self.force_all_tools = force_all_tools
         self.tools: Dict[str, OpenAPITool] = {}
+        self.spec = {}
 
     async def load_openapi_spec(self):
         """Load OpenAPI spec and generate tools dynamically"""
@@ -409,23 +411,11 @@ class DynamicMCPServer:
 
         return headers
 
-    async def _execute_api_call(
-        self, tool: OpenAPITool, arguments: Dict[str, Any]
-    ) -> str:
-        """Execute an API call based on tool definition"""
+    def _get_request_params(
+        self, url: str, tool: OpenAPITool, arguments: Dict[str, Any]
+    ):
+        """Get params to use for HTTP request based on tool arguments"""
 
-        headers = self._get_additional_headers()
-        headers.update(
-            {
-                "Accept": "application/json",
-            }
-        )
-
-        http_client = create_mcp_http_client(headers=headers)
-
-        # Build URL with path parameters
-        url = tool.base_url + tool.path
-        path_params = {}
         query_params = {}
         body_params = {}
 
@@ -456,8 +446,7 @@ class DynamicMCPServer:
         for key, value in validated_arguments.items():
             if key in properties:
                 if "{" + key + "}" in url:
-                    # Path parameter
-                    path_params[key] = value
+                    # This is a parameter as part of the URL, so replace it
                     url = url.replace("{" + key + "}", str(value))
                 elif tool.method in ["GET", "DELETE"]:
                     # Query parameter for GET/DELETE
@@ -465,6 +454,27 @@ class DynamicMCPServer:
                 else:
                     # Body parameter for POST/PUT/PATCH
                     body_params[key] = value
+
+        return url, query_params, body_params
+
+    async def _execute_api_call(
+        self, tool: OpenAPITool, arguments: Dict[str, Any]
+    ) -> str:
+        """Execute an API call based on tool definition"""
+
+        headers = self._get_additional_headers()
+        headers.update(
+            {
+                "Accept": "application/json",
+            }
+        )
+
+        http_client = create_mcp_http_client(headers=headers)
+
+        # Build URL with path parameters
+        url = tool.base_url + tool.path
+
+        url, query_params, body_params = self._get_request_params(url, tool, arguments)
 
         if tool.query_filter:
             parsed_simplified_filter = {
@@ -498,18 +508,15 @@ class DynamicMCPServer:
             response.raise_for_status()
 
             # Return formatted response
-            try:
-                result = response.json()
-                if self.use_toon:
-                    return encode(result)
-                return json.dumps(result, indent=2)
-            except Exception:
-                return response.text
+            result = response.json()
+            if self.use_toon:
+                return toon.encode(result)
+            return json.dumps(result, indent=2)
 
+        except (json.JSONDecodeError, toon.ToonEncodingError):
+            return response.text
         except httpx.HTTPError as e:
             return f"HTTP error: {str(e)}"
-        except Exception as e:
-            return f"Error executing API call: {str(e)}"
         finally:
             await http_client.aclose()
 
@@ -676,8 +683,8 @@ class DynamicMCPServer:
 
         if original_description:
             return f"{original_description}\n\nAllowed values:\n{enum_list}"
-        else:
-            return f"Allowed values:\n{enum_list}"
+
+        return f"Allowed values:\n{enum_list}"
 
     def _resolve_schema_ref(self, ref_string: str) -> Dict[str, Any]:
         """
@@ -763,7 +770,7 @@ class DynamicMCPServer:
         # Build a mapping of group -> list of tools
         groups: Dict[str, List[str]] = {}
 
-        for tool_name in self.tools.keys():
+        for tool_name in self.tools:
             tool_groups = self._get_tool_groups(tool_name)
             for group in tool_groups:
                 if group not in groups:
