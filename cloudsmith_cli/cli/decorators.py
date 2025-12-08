@@ -8,7 +8,7 @@ from cloudsmith_cli.cli import validators
 
 from ..core.api.init import initialise_api as _initialise_api
 from ..core.mcp import server
-from . import config, utils, validators
+from . import config, utils
 
 
 def report_retry(seconds, context=None):
