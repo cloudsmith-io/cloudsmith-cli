@@ -269,7 +269,7 @@ class DynamicMCPServer:
 
         # If user provided their own list of allowed tools or tool groups
         if len(self.allowed_tools) > 0 or len(self.allowed_tool_groups) > 0:
-            allowed_tool_group = set(tool_groups).issubset(self.allowed_tool_groups)
+            allowed_tool_group = bool(set(tool_groups) & set(self.allowed_tool_groups))
             allowed_tool = tool_name in self.allowed_tools
             return allowed_tool or allowed_tool_group
 
