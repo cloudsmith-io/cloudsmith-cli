@@ -47,7 +47,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
-    python_requires=">=3.9.0",
+    python_requires=">=3.10.0",
     install_requires=[
         "click>=8.2.0,!=8.3.0",
         "click-configfile>=0.2.3",

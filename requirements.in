@@ -7,5 +7,5 @@ pip-tools
 pre-commit
 pylint
 pytest-cov
-toon-python
+toon-format
 mcp==1.9.1
