@@ -40,3 +40,9 @@ reports/
 
 # dotenv
 .env
+
+# Zipapp
+*.pyz
+
+# macOS system files
+.DS_Store

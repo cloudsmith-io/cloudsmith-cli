@@ -4,6 +4,9 @@ import base64
 from datetime import datetime
 
 import click
+from click.core import ParameterSource
+
+from .types import ExpandPath
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 BAD_API_HEADERS = ("user-agent", "host")
@@ -155,6 +158,40 @@ def validate_page_size(ctx, param, value):
     return value
 
 
+def enforce_show_all_exclusive(ctx):
+    """Order-independent mutual exclusivity check for pagination options.
+
+    Raises click.BadParameter bound to the --show-all option if it was used
+    together with explicit --page or --page-size. "Explicit" means supplied
+    via command line, environment variable, or prompt (Click ParameterSource).
+    """
+    show_all = ctx.params.get("show_all")
+    if not show_all:
+        return
+
+    explicit_sources = {
+        src
+        for src in (
+            ParameterSource.COMMANDLINE,
+            ParameterSource.ENVIRONMENT,
+            getattr(ParameterSource, "PROMPT", None),
+        )
+        if src is not None
+    }
+
+    page_explicit = ctx.get_parameter_source("page") in explicit_sources
+    size_explicit = ctx.get_parameter_source("page_size") in explicit_sources
+
+    if page_explicit or size_explicit:
+        show_all_param = next(
+            (p for p in ctx.command.params if p.name == "show_all"), None
+        )
+        raise click.BadParameter(
+            "Cannot be used with --page (-p) or --page-size (-l).",
+            param=show_all_param,
+        )
+
+
 def validate_optional_timestamp(ctx, param, value):
     """Ensure that a valid value for a timestamp is used."""
 
@@ -230,3 +267,32 @@ def validate_scheduled_reset_period(ctx, param, value):
         )
 
     return value
+
+
+def validate_extra_files_parameter(ctx, param, value):
+    """Validate and resolve paths for all extra files."""
+
+    if not value:
+        return []
+
+    path_obj = ExpandPath(
+        exists=True,
+        dir_okay=False,
+        writable=False,
+        resolve_path=True,
+    )
+
+    files = []
+    for v in value:
+        for path in v.split(","):
+            path = path.strip()
+            if not path:
+                continue
+
+            try:
+                resolved_path = path_obj.convert(path, param, ctx)
+                files.append(resolved_path)
+            except click.BadParameter as e:
+                raise click.BadParameter(f"Invalid file path '{path}': {e}")
+
+    return files

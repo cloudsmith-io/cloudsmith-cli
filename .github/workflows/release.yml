@@ -1,0 +1,71 @@
+name: Create Zipapp and Release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+ id-token: write
+ contents: write
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Set up Python 3.11
+              uses: actions/setup-python@v2
+              with:
+                  python-version: 3.11
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install shiv
+            - name: Get version
+              id: get_version
+              run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
+            - name: Create Zipapp
+              run: shiv -o cloudsmith-${{ env.VERSION }}.pyz -c cloudsmith .
+            - name: Create Release
+              id: create_release
+              uses: actions/create-release@v1
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  tag_name: v${{ env.VERSION }}
+                  release_name: Release v${{ env.VERSION }}
+                  draft: false
+                  prerelease: false
+            - name: Upload Release Asset
+              id: upload-release-asset
+              uses: actions/upload-release-asset@v1
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  upload_url: ${{ steps.create_release.outputs.upload_url }}
+                  asset_path: ./cloudsmith-${{ env.VERSION }}.pyz
+                  asset_name: cloudsmith-${{ env.VERSION }}.pyz
+                  asset_content_type: application/zip
+            - name: Install and authenticate Cloudsmith CLI
+              uses: cloudsmith-io/cloudsmith-cli-action@v1.0.3
+              with:
+                  oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
+                  oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+            - name: Push Zipapp to Cloudsmith
+              id: push_zipapp
+              run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz --name cloudsmith-cli --version ${{ env.VERSION }}
+            - name: Build Docker image
+              id: build_cli_image
+              run: |
+                  docker build --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} -t docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} .
+            - name: Push Dockerised CLI to Cloudsmith
+              id: push_dockerised_cli_cloudsmith
+              run: |
+                  echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u ${{ vars.CLOUDSMITH_SVC_SLUG }} --password-stdin
+                  docker push docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }}
+            - name: Push Dockerised CLI to DockerHub
+              id: push_dockerised_cli_dockerhub
+              run: |
+                docker tag docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} cloudsmith/cloudsmith-cli:${{ env.VERSION }}
+                echo "${{ secrets.DOCKERHUB_PAT }}" | docker login -u ${{ vars.DOCKERHUB_USER }} --password-stdin
+                docker push cloudsmith/cloudsmith-cli:${{ env.VERSION }}

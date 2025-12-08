@@ -1,20 +1,15 @@
 """CLI/Commands - Get an API token."""
 
-import collections
-import stat
-
 import click
+import cloudsmith_api
 
+from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
-from ...core.utils import get_help_website
+from ...core.config import create_config_files, new_config_messaging
 from .. import decorators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
-
-ConfigValues = collections.namedtuple(
-    "ConfigValues", ["reader", "present", "mode", "data"]
-)
 
 
 def validate_login(ctx, param, value):
@@ -24,81 +19,6 @@ def validate_login(ctx, param, value):
     if not value:
         raise click.BadParameter("The value cannot be blank.", param=param)
     return value
-
-
-def create_config_files(ctx, opts, api_key):
-    """Create default config files."""
-    # pylint: disable=unused-argument
-    config_reader = opts.get_config_reader()
-    creds_reader = opts.get_creds_reader()
-    has_config = config_reader.has_default_file()
-    has_creds = creds_reader.has_default_file()
-
-    if has_config and has_creds:
-        create = False
-    else:
-        click.echo()
-        create = click.confirm(
-            "No default config file(s) found, do you want to create them?"
-        )
-
-    click.echo()
-    if not create:
-        click.secho(
-            "For reference here are your default config file locations:", fg="yellow"
-        )
-    else:
-        click.secho(
-            "Great! Let me just create your default configs for you now ...", fg="green"
-        )
-
-    configs = (
-        ConfigValues(reader=config_reader, present=has_config, mode=None, data={}),
-        ConfigValues(
-            reader=creds_reader,
-            present=has_creds,
-            mode=stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP,
-            data={"api_key": api_key},
-        ),
-    )
-
-    has_errors = False
-    for config in configs:
-        click.echo(
-            "%(name)s config file: %(filepath)s ... "
-            % {
-                "name": click.style(config.reader.config_name.capitalize(), bold=True),
-                "filepath": click.style(
-                    config.reader.get_default_filepath(), fg="magenta"
-                ),
-            },
-            nl=False,
-        )
-
-        if not config.present and create:
-            try:
-                ok = config.reader.create_default_file(
-                    data=config.data, mode=config.mode
-                )
-            except OSError as exc:
-                ok = False
-                error_message = exc.strerror
-                has_errors = True
-
-            if ok:
-                click.secho("CREATED", fg="green")
-            else:
-                click.secho("ERROR", fg="red")
-                click.secho(
-                    "The following error occurred while trying to "
-                    "create the file: %(message)s"
-                    % {"message": click.style(error_message, fg="red")}
-                )
-            continue
-
-        click.secho("EXISTS" if config.present else "NOT CREATED", fg="yellow")
-
-    return create, has_errors
 
 
 @main.command(aliases=["token"])
@@ -124,9 +44,41 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     )
 
     context_msg = "Failed to retrieve the API token!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api_key = get_user_token(login=login, password=password)
+    try:
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                api_key = get_user_token(login=login, password=password)
+    except TwoFactorRequiredException as e:
+        click.echo("\r\033[K", nl=False)
+        click.echo("Two-factor authentication is required.")
+
+        totp_token = click.prompt("Enter your two-factor authentication code", type=str)
+        click.echo(
+            "Verifying two-factor code for %(login)s ... "
+            % {"login": click.style(login, bold=True)},
+            nl=False,
+        )
+
+        try:
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                with maybe_spinner(opts):
+                    api_key = get_user_token(
+                        login=login,
+                        password=password,
+                        totp_token=totp_token,
+                        two_factor_token=e.two_factor_token,
+                    )
+        except cloudsmith_api.rest.ApiException:
+            click.echo("\r\033[K", nl=False)
+            click.secho(
+                "Authentication failed: The entered TOTP token is not valid.", fg="red"
+            )
+            ctx.exit(1)
+
+    except cloudsmith_api.rest.ApiException as e:
+        click.echo("\r\033[K", nl=False)
+        click.secho(f"Authentication failed: {str(e)}", fg="red")
+        ctx.exit(1)
 
     click.secho("OK", fg="green")
 
@@ -136,30 +88,4 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)
-
-    if has_errors:
-        click.echo()
-        click.secho("Oops, please fix the errors and try again!", fg="red")
-        return
-
-    if opts.api_key != api_key:
-        click.echo()
-        if opts.api_key:
-            click.secho(
-                "Note: The above API key doesn't match what you have in "
-                "your default credentials config file.",
-                fg="yellow",
-            )
-        elif not create:
-            click.secho(
-                "Note: Don't forget to put your API key in a config file, "
-                "export it on the environment, or set it via -k.",
-                fg="yellow",
-            )
-            click.secho(
-                "If you need more help please see the documentation: "
-                "%(website)s" % {"website": click.style(get_help_website(), bold=True)}
-            )
-        click.echo()
-
-    click.secho("You're ready to rock, let's start automating!", fg="green")
+    new_config_messaging(has_errors, opts, create, api_key=api_key)

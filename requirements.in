@@ -1,6 +1,7 @@
 # Use this file to declare development-only dependencies.
 # All production dependencies should be declared in setup.py `install_requires`.
 bumpversion
+freezegun
 httpretty
 pip-tools
 pre-commit

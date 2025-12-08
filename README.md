@@ -4,8 +4,6 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![PyPI Version](https://img.shields.io/pypi/v/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![CircleCI](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli.svg?style=svg)](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli)
-[![Maintainability](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/maintainability)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/test_coverage)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/test_coverage)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 
@@ -28,6 +26,7 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
+- `authenticate`|`auth`:  Authenticate the CLI against an organization's SAML configuration.
 - `check`:                Check rate limits and service status.
 - `copy`|`cp`:            Copy a package to another repository.
 - `delete`|`rm`:          Delete a package from a repository.
@@ -51,7 +50,11 @@ The CLI currently supports the following commands (and sub-commands):
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
-- `move`|`mv`:            Move (promote) a package to another repo.
+- `move`|`mv`|`promote`:  Move (promote) a package to another repo.
+- `policy`:               Manage policies for an organization.
+  - `deny`:                 Manage deny policies for an organization.
+  - `license`:              Manage license policies for an organization.
+  - `vulnerability`:        Manage vulnerability policies for an organization.
 - `push`|`upload`:        Push (upload) a new package to a repository.
   - `alpine`:               Push (upload) a new Alpine package upstream.
   - `cargo`:                Push (upload) a new Cargo package upstream.
@@ -86,14 +89,30 @@ The CLI currently supports the following commands (and sub-commands):
   - `delete`|`rm`:          Delete a repository from a namespace.
 - `resync`:               Resynchronise a package in a repository.
 - `status`:               Get the synchronisation status for a package.
-- `tags`:                 Manage the tags for a package in a repository.
+- `tags`|`tag`:           Manage the tags for a package in a repository.
   - `add`:                  Add tags to a package in a repository.
   - `clear`:                Clear all existing (non-immutable) tags from a package in a repository.
   - `list`|`ls`:            List tags for a package in a repository.
   - `remove`|`rm`:          Remove tags from a package in a repository.
   - `replace`:              Replace all existing (non-immutable) tags on a package in a repository.
+- `tokens`:               Manage API tokens.
+  - `list`|`ls`:            List API tokens.
+  - `refresh`:              Refresh an API token.
+- `upstream`:             Manage upstreams for a repository.
+  - `cran`:                 Manage cran upstreams for a repository.
+  - `dart`:                 Manage dart upstreams for a repository.
+  - `deb`:                  Manage deb upstreams for a repository.
+  - `docker`:               Manage docker upstreams for a repository.
+  - `helm`:                 Manage helm upstreams for a repository.
+  - `hex`:                  Manage hex upstreams for a repository.
+  - `maven`:                Manage maven upstreams for a repository.
+  - `npm`:                  Manage npm upstreams for a repository.
+  - `nuget`:                Manage nuget upstreams for a repository.
+  - `python`:               Manage python upstreams for a repository.
+  - `rpm`:                  Manage rpm upstreams for a repository.
+  - `ruby`:                 Manage ruby upstreams for a repository.
+  - `swift`:                Manage swift upstreams for a repository.
 - `whoami`:               Retrieve your current authentication status.
-
 
 ## Installation
 
@@ -145,6 +164,10 @@ Both configuration files use the simple INI format, such as:
 api_key=1234567890abcdef1234567890abcdef
 ```
 
+Additionally, the CLI will store SSO access and refresh tokens in the system keyring
+using the [`keyring`](https://github.com/jaraco/keyring) library.
+
+
 ### Non-Credentials (config.ini)
 
 See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith_cli/data/config.ini) in GitHub:
@@ -165,11 +188,26 @@ You can specify the following configuration options:
 - `api_key`: The API key for authenticating with the API.
 
 
-### Getting Your API Key
+### Authenticating
 
 You'll need to provide authentication to Cloudsmith for any CLI actions that result in accessing private data or making changes to resources (such as pushing a new package to a repository)..
 
-With the CLI this is simple to do. You can retrieve your API key using the `cloudsmith login` command:
+#### SAML authentication
+
+You can authenticate using your organization's SAML provider, if configured, with the `cloudsmith auth` command:
+```
+cloudsmith auth --owner example
+Beginning authentication for the example org ...
+Opening your organization's SAML IDP URL in your browser: https://example.com/some-saml-idp
+
+Starting webserver to begin authentication ...
+
+Authentication complete
+```
+
+#### Getting Your API Key
+
+You can retrieve your API key using the `cloudsmith login` command:
 
 ```
 cloudsmith login

@@ -14,32 +14,41 @@ anyio==4.11.0
     #   starlette
 astroid==2.15.6
     # via pylint
+backports-tarfile==1.2.0
+    # via jaraco-context
 build==0.10.0
     # via pip-tools
 bump2version==1.0.1
     # via bumpversion
 bumpversion==0.6.0
     # via -r requirements.in
-certifi==2023.7.22
+certifi==2024.8.30
     # via
     #   httpcore
     #   httpx
 cfgv==3.3.1
     # via pre-commit
+charset-normalizer==3.3.2
+    # via requests
 click==8.1.6
     # via
     #   pip-tools
-    #   uvicorn
+click-configfile==0.2.3
+    # via cloudsmith-cli (setup.py)
+click-didyoumean==0.3.1
+    # via cloudsmith-cli (setup.py)
+click-spinner==0.1.10
+    # via cloudsmith-cli (setup.py)
+cloudsmith-api==2.0.22
+    # via cloudsmith-cli (setup.py)
+configparser==7.1.0
+    # via click-configfile
 coverage[toml]==7.2.7
     # via pytest-cov
 dill==0.3.7
     # via pylint
 distlib==0.3.7
     # via virtualenv
-exceptiongroup==1.1.2
-    # via
-    #   anyio
-    #   pytest
 filelock==3.12.2
     # via virtualenv
 h11==0.16.0
@@ -48,6 +57,12 @@ h11==0.16.0
     #   uvicorn
 httpcore==1.0.9
     # via httpx
+exceptiongroup==1.2.2
+    # via pytest
+filelock==3.12.2
+    # via virtualenv
+freezegun==1.5.1
+    # via -r requirements.in
 httpretty==1.1.4
     # via -r requirements.in
 httpx==0.28.1
@@ -56,20 +71,32 @@ httpx-sse==0.4.3
     # via mcp
 identify==2.5.26
     # via pre-commit
-idna==3.4
-    # via
-    #   anyio
-    #   httpx
+idna==3.8
+    # via requests
+importlib-metadata==8.7.0
+    # via keyring
 iniconfig==2.0.0
     # via pytest
 isort==5.12.0
     # via pylint
+jaraco-classes==3.4.0
+    # via keyring
+jaraco-context==6.0.1
+    # via keyring
+jaraco-functools==4.0.2
+    # via keyring
+keyring==25.4.1
+    # via cloudsmith-cli (setup.py)
 lazy-object-proxy==1.9.0
     # via astroid
 mccabe==0.7.0
     # via pylint
 mcp==1.9.1
     # via -r requirements.in
+more-itertools==10.5.0
+    # via
+    #   jaraco-classes
+    #   jaraco-functools
 nodeenv==1.8.0
     # via pre-commit
 packaging==23.1
@@ -115,6 +142,26 @@ sse-starlette==3.0.2
 starlette==0.47.0
     # via mcp
 tomli==2.0.1
+python-dateutil==2.9.0.post0
+    # via
+    #   cloudsmith-api
+    #   freezegun
+pyyaml==6.0.1
+    # via pre-commit
+requests==2.32.3
+    # via
+    #   cloudsmith-cli (setup.py)
+    #   requests-toolbelt
+requests-toolbelt==1.0.0
+    # via cloudsmith-cli (setup.py)
+semver==3.0.2
+    # via cloudsmith-cli (setup.py)
+six==1.16.0
+    # via
+    #   click-configfile
+    #   cloudsmith-api
+    #   python-dateutil
+tomli==2.2.1
     # via
     #   build
     #   coverage
@@ -126,7 +173,7 @@ tomlkit==0.12.1
     # via pylint
 toon-python==0.1.2
     # via -r requirements.in
-typing-extensions==4.7.1
+typing-extensions==4.13.2
     # via
     #   anyio
     #   astroid
@@ -135,12 +182,20 @@ typing-extensions==4.7.1
     #   uvicorn
 uvicorn==0.37.0
     # via mcp
+    #   pylint
+urllib3==1.26.20
+    # via
+    #   cloudsmith-api
+    #   cloudsmith-cli (setup.py)
+    #   requests
 virtualenv==20.24.2
     # via pre-commit
 wheel==0.41.1
     # via pip-tools
 wrapt==1.15.0
     # via astroid
+zipp==3.21.0
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip

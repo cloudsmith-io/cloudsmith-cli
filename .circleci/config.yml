@@ -23,7 +23,7 @@ jobs:
       - checkout
       - run: pip install --user --upgrade setuptools twine wheel
       - run: |
-          python setup.py bdist_wheel
+          python setup.py sdist bdist_wheel
           twine upload --repository-url <<parameters.registry_url>> --username <<parameters.username>> --password <<parameters.password>> --verbose dist/*
 
 orbs:
@@ -57,25 +57,10 @@ orbs:
           - run:
               name: Install dependencies
               command: |
-                python3 -m venv .venv
+                python3 -m pip install uv
+                uv venv .venv --allow-existing
+                uv pip install -r requirements.txt
                 . .venv/bin/activate
-                pip install -r requirements.txt
-          - when:
-              condition: <<parameters.is_test_suite>>
-              steps:
-                - run:
-                    name: Setup Code Climate coverage reporter
-                    command: |
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter;
-                        chmod +x ./cc-test-reporter;
-                      }
-                - run:
-                    name: Notify Code Climate of pending test report
-                    command:
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        ./cc-test-reporter before-build;
-                      }
           - save_cache:
               paths:
                 - .venv
@@ -94,18 +79,11 @@ orbs:
                     path: ./reports
                 - store_artifacts:
                     path: ./reports
-                - deploy:
-                    command: |
-                      test "$CIRCLE_LOCAL" == "true" || {
-                        . .venv/bin/activate
-                        cp ./reports/coverage.xml .;
-                        ./cc-test-reporter after-build -t coverage.py --exit-code $(cat /tmp/run_exit_code);
-                      }
 
     executors:
       cloudsmith_executor:
         docker:
-          - image: circleci/python:3.8
+          - image: circleci/python:3.9
 
 
 workflows:
@@ -135,13 +113,8 @@ workflows:
       - cloudsmith_ci/execute:
           name: pytest
           service_name: pytest
-          command: pytest --cov-report xml:./reports/coverage.xml --junitxml ./reports/pytest.xml
+          command: pytest --junitxml ./reports/pytest.xml
           is_test_suite: true
-      - python/test:
-          name: pytest-python3.9
-          version: "3.9"
-          pkg-manager: pip
-          pip-dependency-file: requirements.txt
       - python/test:
           name: pytest-python3.10
           version: "3.10"
@@ -150,6 +123,16 @@ workflows:
       - python/test:
           name: pytest-python3.11
           version: "3.11"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
+      - python/test:
+          name: pytest-python3.12
+          version: "3.12"
+          pkg-manager: pip
+          pip-dependency-file: requirements.txt
+      - python/test:
+          name: pytest-python3.13
+          version: "3.13"
           pkg-manager: pip
           pip-dependency-file: requirements.txt
       - publish:

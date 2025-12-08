@@ -5,9 +5,185 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-**Note:** Until 1.0 any MAJOR or MINOR release may have backwards-incompatible changes.
-
 ## [Unreleased]
+
+### Added
+
+- Added support for deny policy management commands (list, create, get, update, delete)
+
+
+## [1.9.4] - 2025-11-07
+
+> No code changes in this release. Version bump performed for release process consistency and to address packaging/metadata updates.
+
+## [1.9.3] - 2025-11-07
+
+- [[Issue-170]](https://github.com/cloudsmith-io/cloudsmith-cli/issues/170) - Add flag to get all pages
+
+## [1.9.2] - 2025-11-06
+
+### Fixed
+
+- [Issue-235](https://github.com/cloudsmith-io/cloudsmith-cli/issues/235) - Fix for latest zipapp releases not working on < python@3.14
+
+## [1.9.1] - 2025-11-05
+
+### Fixed
+
+- Click v8.3.0 was a breaking update which impacted conversion of Sentinel.UNSET values which impacted the auth --token workflow. Locking to 8.2.x versions and restricted 8.3.0 explicitly.
+
+## [1.9.0] - 2025-11-05
+
+### Added
+
+- New minor version release includes v1.8.8 changes.
+
+## [1.8.8] - 2025-11-05
+
+### Fixed
+
+- `--json` flag for the auth command now outputs json only.
+
+### Added
+
+- Added Python 3.14 support
+- Added `download` command to download package binaries directly from Cloudsmith repositories
+  - Support for downloading packages with version, format, OS, and architecture filters
+  - Progress bar with download speed and size information
+  - Automatic checksum verification (MD5, SHA256, SHA1)
+  - Dry-run mode to preview downloads without downloading
+  - Auto-selection mode with `--yes` flag for scripting
+  - `--all-files` option to download all associated files (POM, sources, javadoc, SBOM, etc.) for Maven, NuGet, and other multi-file packages
+    - Downloads all files into a folder named `{package-name}-{version}`
+    - Supports custom output directory with `--outfile` option
+    - Shows file type tags (pkg, pom, sources, javadoc, cyclonedx, sbom)
+    - Reports download progress and success/failure summary for each file
+## [1.8.7] - 2025-10-27
+
+### Added
+
+- `Cloudsmith auth -o <org> --token` now creates a new token if none previously existed.
+- Added support for json output for auth via `--json` param.
+- Added new `create` command for tokens. If authenticated and no previous token exists, this allows for new token creation.
+
+## [1.8.6] - 2025-10-16
+
+### Added
+
+- Added `--force` parameter to the Auth command to be used in conjunction with `--token` to refresh tokens without interactive prompts i.e automatic.
+- Added `--force` parameter to the Tokens refresh command to automaticlly refresh without an interactive prompt.
+
+## [1.8.5] - 2025-10-16
+
+### Added
+
+## [1.8.4] - 2025-10-06
+
+### Added
+
+- Support for Conda, Cargo, Go, and Hugging Face upstreams ([#214](https://github.com/cloudsmith-io/cloudsmith-cli/pull/214))
+
+## [1.8.3] - 2025-06-02
+
+- Added 'swift' and 'hex' as available upstream formats.
+
+## [1.8.2] - 2025-06-02
+
+- Make an sdist available as part of the release.
+
+## [1.8.1] - 2025-05-07
+
+- Fix bug that caused configuration to be dropped in the authenticate command.
+- Fix bug in the default configuration schema.
+
+## [1.8.0] - 2025-05-02
+
+### Added
+
+- Added support for managing User API Tokens ([#192](https://github.com/cloudsmith-io/cloudsmith-cli/pull/192))
+
+## [1.7.2] - 2025-04-28
+
+### Added
+
+- Added a fix for certain login error messages being suppressed ([#196](https://github.com/cloudsmith-io/cloudsmith-cli/pull/196))
+
+## [1.7.1] - 2025-04-25
+
+### Added
+
+- Added support for 2FA authentication when logging in ([#188](https://github.com/cloudsmith-io/cloudsmith-cli/pull/188))
+
+## [1.7.0] - 2025-03-31
+
+### Added
+
+- Added `--extra-files` parameter for Maven upload command ([#190](https://github.com/cloudsmith-io/cloudsmith-cli/pull/190))
+
+## [1.6.2] - 2025-03-27
+
+- Added html templates for saml response endpoints
+- Added json support for whoami
+- Added support for additional headers to be passed to the saml authentication flow
+
+## [1.5.0] - 2025-03-21
+
+### Added
+
+- Added `--sort` flag for package list command ([#185](https://github.com/cloudsmith-io/cloudsmith-cli/pull/185))
+
+### Fixed
+
+- Fixed `cloudsmith auth` command where it results in `403` ([#183](https://github.com/cloudsmith-io/cloudsmith-cli/pull/183))
+
+## [1.4.1] - 2024-11-26
+
+### Added
+
+ - Update cloudsmith-api to v2.0.16 ([#181](https://github.com/cloudsmith-io/cloudsmith-cli/pull/181))
+
+
+## [1.4.0] - 2024-11-04
+
+### Added
+
+- Dropped support for Python 3.8. ([#137](https://github.com/cloudsmith-io/cloudsmith-cli/pull/137))
+
+## [1.3.1] - 2024-10-08
+
+### Fixed
+
+ - Missing dependency from `setup.py` file ([#177](https://github.com/cloudsmith-io/cloudsmith-cli/pull/177))
+
+## [1.3.0] - 2024-10-08
+
+### Added
+
+- The `auth` command, enabling users to authenticate against the API with their organization's configured SAML provider ([#174](https://github.com/cloudsmith-io/cloudsmith-cli/pull/174))
+
+## [1.2.5] - 2024-06-11
+
+### Added
+
+- Produce CLI zipapp artefact on release ([#164](https://github.com/cloudsmith-io/cloudsmith-cli/pull/164))
+
+## [1.2.3] - 2024-04-10
+
+### Fixed
+
+- Show pagination info for `repos get` ([#163](https://github.com/cloudsmith-io/cloudsmith-cli/pull/163))
+
+## [1.2.2] - 2024-04-05
+
+### Added
+
+- Support for Swift package uploads ([#161](https://github.com/cloudsmith-io/cloudsmith-cli/pull/161))
+
+## [1.2.0] - 2024-03-13
+
+### Added
+
+- Support for CRAN upstreams ([#157](https://github.com/cloudsmith-io/cloudsmith-cli/pull/157))
 
 ## [1.1.1] - 2023-09-13
 

@@ -7,6 +7,7 @@ import click
 
 from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
@@ -54,14 +55,16 @@ def distros(ctx, opts, package_format):
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
 
-    click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
+    if not use_stderr:
+        click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of distributions!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             distros_ = list_distros(package_format=package_format)
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, distros_):
         return
@@ -127,8 +130,34 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     "--query",
     help=("A boolean-like search term for querying package attributes."),
 )
+@click.option(
+    "--sort",
+    type=click.Choice(
+        [
+            "date",
+            "-date",
+            "downloads",
+            "-downloads",
+            "format",
+            "-format",
+            "name",
+            "-name",
+            "scan",
+            "-scan",
+            "scan_date",
+            "-scan_date",
+            "size",
+            "-size",
+            "status",
+            "-status",
+            "version",
+            "-version",
+        ]
+    ),
+    help=("Sort packages by field. Prefix with '-' for descending order."),
+)
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query):
+def packages(ctx, opts, owner_repo, page, page_size, query, sort, show_all):
     """
     List packages for a repository.
 
@@ -165,22 +194,43 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
 
     --query 'name:^foo$ filename:.zip$ architecture:~x86'
 
+    You can sort the results using --sort with these fields:
+      - date/-date: Sort by creation date
+      - downloads/-downloads: Sort by download count
+      - format/-format: Sort by package format
+      - name/-name: Sort by package name
+      - scan/-scan: Sort by scan status
+      - scan_date/-scan_date: Sort by last scan date
+      - size/-size: Sort by package size
+      - status/-status: Sort by package status
+      - version/-version: Sort by version
+
+    Prefix any field with '-' for descending order (e.g. -date for newest first).
     """
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     use_stderr = opts.output != "pretty"
 
-    click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
+    if not use_stderr:
+        click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            packages_, page_info = list_packages(
-                owner=owner, repo=repo, page=page, page_size=page_size, query=query
+            packages_, page_info = paginate_results(
+                list_packages,
+                show_all=show_all,
+                page=page,
+                page_size=page_size,
+                owner=owner,
+                repo=repo,
+                query=query,
+                sort=sort,
             )
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, packages_, page_info):
         return
@@ -209,9 +259,12 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     click.echo()
 
     num_results = len(packages_)
-    list_suffix = "package%s visible" % ("s" if num_results != 1 else "")
+    list_suffix = "package%s" % ("s" if num_results != 1 else "")
     utils.pretty_print_list_info(
-        num_results=num_results, page_info=page_info, suffix=list_suffix
+        num_results=num_results,
+        page_info=None if show_all else page_info,
+        suffix=f"{list_suffix} retrieved" if show_all else f"{list_suffix} visible",
+        show_all=show_all,
     )
 
 
@@ -229,7 +282,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query):
     required=False,
 )
 @click.pass_context
-def repos(ctx, opts, owner_repo, page, page_size):
+def repos(ctx, opts, owner_repo, page, page_size, show_all):
     """
     List repositories for a namespace (owner).
 

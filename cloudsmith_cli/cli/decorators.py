@@ -4,6 +4,8 @@ import functools
 
 import click
 
+from cloudsmith_cli.cli import validators
+
 from ..core.api.init import initialise_api as _initialise_api
 from ..core.mcp import server
 from . import config, utils, validators
@@ -152,6 +154,14 @@ def common_cli_list_options(f):
     """Add common list options to commands."""
 
     @click.option(
+        "-l",
+        "--page-size",
+        default=30,
+        type=int,
+        help="The amount of items to view per page for lists.",
+        callback=validators.validate_page_size,
+    )
+    @click.option(
         "-p",
         "--page",
         default=1,
@@ -160,18 +170,20 @@ def common_cli_list_options(f):
         callback=validators.validate_page,
     )
     @click.option(
-        "-l",
-        "--page-size",
-        default=30,
-        type=int,
-        help="The amount of items to view per page for lists.",
-        callback=validators.validate_page_size,
-    )
+        "--show-all",
+        default=False,
+        is_flag=True,
+        help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
+    )  # Validation performed post-parse for order-independence.
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+        # Order-independent validation: perform after all options parsed.
+        show_all = kwargs.get("show_all")
+        if show_all:
+            validators.enforce_show_all_exclusive(ctx)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 

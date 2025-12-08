@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from ...commands.list_ import repos as list_repos
 from ...commands.repos import create, delete, get, update
 from ..utils import random_str
 
@@ -119,6 +120,21 @@ def test_repos_commands(runner, organization, tmp_path):
         result.output, organization, repo_config_file_path
     )
 
+    # Demonstrate list repos with --show-all succeeds (no pagination args).
+    result = runner.invoke(
+        list_repos, [organization, "--show-all"], catch_exceptions=False
+    )
+    assert result.exit_code == 0
+    assert "Getting list of repositories ... OK" in result.output
+
+    # Show that --show-all with an explicit page conflicts.
+    conflict = runner.invoke(
+        list_repos, [organization, "--show-all", "--page", "2"], catch_exceptions=False
+    )
+    assert conflict.exit_code != 0
+    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
+
     # Change the repository description in the repo config file.
     repository_description = random_str()
     repo_config_file_path = create_repo_config_file(
@@ -134,6 +150,14 @@ def test_repos_commands(runner, organization, tmp_path):
         update, [owner_slash_repo, str(repo_config_file_path)], catch_exceptions=False
     )
     assert result.exit_code == 0
+    assert (
+        "Updating "
+        + repository_slug
+        + " repository in the "
+        + organization
+        + " namespace ...OK"
+        in result.output
+    )
     assert "Results: 1 repository visible" in result.output
     assert_output_is_equal_to_repo_config(
         result.output, organization, repo_config_file_path
