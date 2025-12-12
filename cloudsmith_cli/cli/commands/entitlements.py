@@ -6,6 +6,7 @@ from operator import itemgetter
 import click
 
 from ...core.api import entitlements as api
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import fmt_datetime, maybe_spinner
@@ -72,7 +73,7 @@ def list_entitlements_options(f):
     return wrapper
 
 
-def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
+def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, show_all):
     """
     List entitlements for a repository.
 
@@ -100,11 +101,13 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens):
     context_msg = "Failed to get list of entitlements!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            entitlements_, page_info = api.list_entitlements(
-                owner=owner,
-                repo=repo,
+            entitlements_, page_info = paginate_results(
+                api.list_entitlements,
+                show_all=show_all,
                 page=page,
                 page_size=page_size,
+                owner=owner,
+                repo=repo,
                 show_tokens=show_tokens,
             )
 
