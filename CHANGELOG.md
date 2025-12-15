@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added support for deny policy management commands (list, create, get, update, delete)
 
+### Fixed
+
+- Entitlement token list command now fixed
 
 ## [1.9.4] - 2025-11-07
 
