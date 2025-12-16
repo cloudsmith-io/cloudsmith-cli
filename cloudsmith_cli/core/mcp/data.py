@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 
@@ -14,7 +14,7 @@ class OpenAPITool:
     path: str
     parameters: Dict[str, Any]
     base_url: str
-    query_filter: str | None
+    query_filter: Optional[str]
 
 
 @dataclass

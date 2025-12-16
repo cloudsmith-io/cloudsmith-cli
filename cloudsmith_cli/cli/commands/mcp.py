@@ -271,9 +271,11 @@ def get_config_path(client_name, is_global=True):
             / "Application Support"
             / "Claude"
             / "claude_desktop_config.json",
-            "win32": Path(appdata) / "Claude" / "claude_desktop_config.json"
-            if appdata
-            else None,
+            "win32": (
+                Path(appdata) / "Claude" / "claude_desktop_config.json"
+                if appdata
+                else None
+            ),
             "linux": home / ".config" / "Claude" / "claude_desktop_config.json",
         },
         "cursor": {
@@ -287,9 +289,9 @@ def get_config_path(client_name, is_global=True):
             / "Code"
             / "User"
             / "settings.json",
-            "win32": Path(appdata) / "Code" / "User" / "settings.json"
-            if appdata
-            else None,
+            "win32": (
+                Path(appdata) / "Code" / "User" / "settings.json" if appdata else None
+            ),
             "linux": home / ".config" / "Code" / "User" / "settings.json",
             "local": Path.cwd() / ".vscode" / "settings.json",
         },
