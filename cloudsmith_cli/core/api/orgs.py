@@ -119,3 +119,66 @@ def delete_license_policy(owner, slug_perm):
         )
 
     ratelimits.maybe_rate_limit(client, headers)
+
+
+def list_deny_policies(owner, page, page_size):
+    """List deny policies in a namespace."""
+    client = get_orgs_api()
+
+    with catch_raise_api_exception():
+        policies, _, headers = client.orgs_deny_policy_list_with_http_info(
+            org=owner, page=page, page_size=page_size
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    page_info = PageInfo.from_headers(headers)
+    return [policy.to_dict() for policy in policies], page_info
+
+
+def create_deny_policy(owner, policy_config):
+    """Create a deny policy in a namespace."""
+    client = get_orgs_api()
+
+    with catch_raise_api_exception():
+        policy, _, headers = client.orgs_deny_policy_create_with_http_info(
+            org=owner, data=policy_config
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return policy.to_dict()
+
+
+def get_deny_policy(owner, slug_perm):
+    """Get a deny policy from a namespace."""
+    client = get_orgs_api()
+
+    with catch_raise_api_exception():
+        policy, _, headers = client.orgs_deny_policy_read_with_http_info(
+            org=owner, slug_perm=slug_perm
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return policy.to_dict()
+
+
+def update_deny_policy(owner, slug_perm, policy_config):
+    """Update a deny policy in a namespace."""
+    client = get_orgs_api()
+
+    with catch_raise_api_exception():
+        policy, _, headers = client.orgs_deny_policy_partial_update_with_http_info(
+            org=owner, slug_perm=slug_perm, data=policy_config
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return policy.to_dict()
+
+
+def delete_deny_policy(owner, slug_perm):
+    """Delete a deny policy from a namespace."""
+    client = get_orgs_api()
+
+    with catch_raise_api_exception():
+        _, _, headers = client.orgs_deny_policy_delete_with_http_info(owner, slug_perm)
+
+    ratelimits.maybe_rate_limit(client, headers)

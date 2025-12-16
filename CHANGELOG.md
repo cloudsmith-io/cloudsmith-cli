@@ -10,7 +10,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
-  - Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
+- Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
+- Entitlement token list command now fixed
+
+### Added
+
+- Added support for deny policy management commands (list, create, get, update, delete)
 
 ## [1.9.4] - 2025-11-07
 
