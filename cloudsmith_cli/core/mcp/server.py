@@ -282,8 +282,6 @@ class DynamicMCPServer:
         if not self.spec:
             raise ValueError("OpenAPI spec not loaded")
 
-        # print(f"Generating tools for base URL: {self.api_base_url}")
-
         # Parse paths and generate tools
         for path, path_item in self.spec.get("paths", {}).items():
             for method, operation in path_item.items():
