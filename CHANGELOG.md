@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
 - Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
 - Entitlement token list command now fixed
-- Drop click dependency from `v1.2.0` to `v1.8.1` to fix dependency issue for Python 3.9
+- Drop click dependency from `v8.2.0` to `v8.1.8` to fix dependency issue for Python 3.9
 
 ### Added
 
