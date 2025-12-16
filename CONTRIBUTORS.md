@@ -10,8 +10,8 @@ The following contributors (in alphabetical order) are held in eternal high este
 
 - Carlos Gonzalez ([@LowzG](https://github.com/LowzG))
 - Jamie Brynes ([@jamiebrynes7](https://github.com/jamiebrynes7))
-- Patrick McClory ([@mcclory](https://github.com/mcclory))
 - Pablo Sanchez ([@pablogrs](https://github.com/pablogrs))
+- Patrick McClory ([@mcclory](https://github.com/mcclory))
 
 # Thanks
 
@@ -21,4 +21,5 @@ We'd also like to say thank you to the following people (in alphabetical order),
 - Rob Madole ([@robmadole](https://github.com/robmadole))
 - Sean Allen ([@SeanTAllen](https://github.com/SeanTAllen))
 - Jesse Rhoads ([@JesseRhoads-PD](https://github.com/JesseRhoads-PD))
+- Julian Pulgarín ([@jpulgarin](https://github.com/jpulgarin))
 - Pierre Gergondet ([@gergondet](https://github.com/gergondet))
