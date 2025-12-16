@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
 - Added support for deny policy management commands (list, create, get, update, delete)
 
+### Fixed
+
+- Entitlement token list command now fixed
 
 ## [1.9.4] - 2025-11-07
 
