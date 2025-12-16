@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-import httpx
-
 
 @dataclass
 class OpenAPITool:
@@ -15,10 +13,3 @@ class OpenAPITool:
     parameters: Dict[str, Any]
     base_url: str
     query_filter: Optional[str]
-
-
-@dataclass
-class AppContext:
-    """Application context for storing OpenAPI tools and HTTP client"""
-
-    http_client: httpx.AsyncClient

@@ -363,7 +363,7 @@ class Options:
             return
         tools = value.split(",")
 
-        return self._set_option("mcp_allowed_tools", tools)
+        self._set_option("mcp_allowed_tools", tools)
 
     @property
     def mcp_allowed_tool_groups(self):
@@ -377,7 +377,7 @@ class Options:
             return
         tool_groups = value.split(",")
 
-        return self._set_option("mcp_allowed_tool_groups", tool_groups)
+        self._set_option("mcp_allowed_tool_groups", tool_groups)
 
     @property
     def output(self):
