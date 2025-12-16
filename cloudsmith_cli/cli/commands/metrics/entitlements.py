@@ -123,6 +123,7 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
         owner = owner_repo[0]
         repo = None
 
+    data = None
     context_msg = "Failed to get list of metrics!"
     data = {}
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):

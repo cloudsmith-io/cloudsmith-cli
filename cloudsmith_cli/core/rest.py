@@ -106,7 +106,7 @@ def create_requests_session(
     retry = RetryWithCallback(
         backoff_factor=backoff_factor,
         connect=retries,
-        method_whitelist=False,
+        allowed_methods=False,
         read=retries,
         status_forcelist=tuple(status_forcelist),
         status=retries,

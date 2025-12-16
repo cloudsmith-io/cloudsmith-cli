@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
+- Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
+- Entitlement token list command now fixed
+
 ### Added
 
 - Set `--show-all` to alias `--page-all`
 - Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
 - Added support for deny policy management commands (list, create, get, update, delete)
-
-### Fixed
-
-- Entitlement token list command now fixed
 
 ## [1.9.4] - 2025-11-07
 
