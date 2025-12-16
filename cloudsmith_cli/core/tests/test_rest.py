@@ -61,7 +61,7 @@ def mock_keyring(monkeypatch):
     monkeypatch.setattr(keyring, "should_refresh_access_token", lambda api_host: False)
 
     # Patch httpretty's fake socket to handle shutdown() which urllib3 2.0+ calls
-    # This fixes: "Failed to socket.shutdown because because a real socket does not exist"
+    # This fixes: "Failed to socket.shutdown because a real socket does not exist"
     monkeypatch.setattr(
         httpretty.core.fakesock.socket,
         "shutdown",
