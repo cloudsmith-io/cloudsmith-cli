@@ -120,19 +120,19 @@ def test_repos_commands(runner, organization, tmp_path):
         result.output, organization, repo_config_file_path
     )
 
-    # Demonstrate list repos with --show-all succeeds (no pagination args).
+    # Demonstrate list repos with --page-size '-1'succeeds (no pagination args).
     result = runner.invoke(
-        list_repos, [organization, "--show-all"], catch_exceptions=False
+        list_repos, [organization, "--page-size", "-1"], catch_exceptions=False
     )
     assert result.exit_code == 0
     assert "Getting list of repositories ... OK" in result.output
 
-    # Show that --show-all with an explicit page conflicts.
+    # Show that --page-all with an explicit page conflicts.
     conflict = runner.invoke(
-        list_repos, [organization, "--show-all", "--page", "2"], catch_exceptions=False
+        list_repos, [organization, "--page-all", "--page", "2"], catch_exceptions=False
     )
     assert conflict.exit_code != 0
-    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Invalid value for '--page-all'" in conflict.output
     assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
 
     # Change the repository description in the repo config file.

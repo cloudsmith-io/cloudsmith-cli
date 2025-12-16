@@ -150,8 +150,8 @@ def common_cli_list_options(f):
         "-l",
         "--page-size",
         default=30,
-        type=int,
-        help="The amount of items to view per page for lists.",
+        type=validators.IntOrWildcard(),
+        help="The amount of items to view per page for lists. Use '*' to show all results.",
         callback=validators.validate_page_size,
     )
     @click.option(
@@ -163,6 +163,7 @@ def common_cli_list_options(f):
         callback=validators.validate_page,
     )
     @click.option(
+        "--page-all",
         "--show-all",
         default=False,
         is_flag=True,
@@ -173,10 +174,18 @@ def common_cli_list_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        # Handle wildcard page_size (converts to page_all behavior)
+        page_size = kwargs.get("page_size")
+        if page_size == -1:
+            kwargs["page_all"] = True
+            # Validate that wildcard isn't used with explicit --page
+            validators.enforce_page_all_exclusive(ctx, wildcard_used=True)
+
         # Order-independent validation: perform after all options parsed.
-        show_all = kwargs.get("show_all")
-        if show_all:
-            validators.enforce_show_all_exclusive(ctx)
+        page_all = kwargs.get("page_all")
+        if page_all:
+            validators.enforce_page_all_exclusive(ctx)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 

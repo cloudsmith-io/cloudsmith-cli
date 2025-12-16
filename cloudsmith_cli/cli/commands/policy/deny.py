@@ -61,7 +61,7 @@ def deny_policy(*args, **kwargs):
 @decorators.initialise_api
 @click.argument("owner")
 @click.pass_context
-def list_deny_policies(ctx, opts, owner, page, page_size, show_all):
+def list_deny_policies(ctx, opts, owner, page, page_size, page_all):
     """List deny policies for an organization."""
     use_stderr = opts.output != "pretty"
     click.echo("Getting deny policies ... ", nl=False, err=use_stderr)
@@ -70,7 +70,7 @@ def list_deny_policies(ctx, opts, owner, page, page_size, show_all):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             data, page_info = paginate_results(
-                orgs.list_deny_policies, show_all, page, page_size, owner=owner
+                orgs.list_deny_policies, page_all, page, page_size, owner=owner
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -86,9 +86,9 @@ def list_deny_policies(ctx, opts, owner, page, page_size, show_all):
     list_suffix = "deny polic%s" % ("y" if num_results == 1 else "ies")
     utils.pretty_print_list_info(
         num_results=num_results,
-        page_info=None if show_all else page_info,
+        page_info=None if page_all else page_info,
         suffix=list_suffix,
-        show_all=show_all,
+        page_all=page_all,
     )
 
 

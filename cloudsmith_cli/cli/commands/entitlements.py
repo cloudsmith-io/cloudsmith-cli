@@ -73,7 +73,7 @@ def list_entitlements_options(f):
     return wrapper
 
 
-def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, show_all):
+def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, page_all):
     """
     List entitlements for a repository.
 
@@ -103,7 +103,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, show_
         with maybe_spinner(opts):
             entitlements_, page_info = paginate_results(
                 api.list_entitlements,
-                show_all=show_all,
+                page_all=page_all,
                 page=page,
                 page_size=page_size,
                 owner=owner,
