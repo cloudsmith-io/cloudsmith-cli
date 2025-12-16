@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Migrate from CircleCI to GitHub Actions for testing and release workflows.
 - Remove CircleCi workflows.
 - Downgrade Click dependency range from `8.2.0`. to `8.1.8` to support Python 3.9.
+- Set `--show-all` to alias `--page-all`
+- Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
+- Added support for deny policy management commands (list, create, get, update, delete)
+
+### Fixed
+
+- Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
+- Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
+- Entitlement token list command now fixed
 
 ## [1.9.4] - 2025-11-07
 

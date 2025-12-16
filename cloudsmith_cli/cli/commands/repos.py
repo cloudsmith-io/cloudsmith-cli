@@ -13,7 +13,7 @@ from ..utils import maybe_spinner
 from .main import main
 
 
-def print_repositories(opts, data, page_info=None, show_list_info=True, show_all=False):
+def print_repositories(opts, data, page_info=None, show_list_info=True, page_all=False):
     """Print repositories as a table or output in another format."""
     headers = [
         "Name",
@@ -56,9 +56,9 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, show_all
     list_suffix = "repositor%s" % ("ies" if num_results != 1 else "y")
     utils.pretty_print_list_info(
         num_results=num_results,
-        page_info=None if show_all else page_info,
-        suffix=f"{list_suffix} retrieved" if show_all else f"{list_suffix} visible",
-        show_all=show_all,
+        page_info=None if page_all else page_info,
+        suffix=f"{list_suffix} retrieved" if page_all else f"{list_suffix} visible",
+        page_all=page_all,
     )
 
 
@@ -90,7 +90,7 @@ def repositories(ctx, opts):  # pylink: disable=unused-argument
     required=False,
 )
 @click.pass_context
-def get(ctx, opts, owner_repo, page, page_size, show_all):
+def get(ctx, opts, owner_repo, page, page_size, page_all):
     """
     List repositories for a namespace (owner).
 
@@ -119,9 +119,9 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
         owner = None
         repo = None
 
-    if show_all and repo:
+    if page_all and repo:
         raise click.UsageError(
-            "The --show-all option cannot be used when specifying a single repository (OWNER/REPO). Omit the repository slug or remove --show-all."
+            "The --page-all option cannot be used when specifying a single repository (OWNER/REPO). Omit the repository slug or remove --page-all."
         )
 
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
@@ -130,7 +130,7 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             repos_, page_info = paginate_results(
-                api.list_repos, show_all, page, page_size, owner=owner, repo=repo
+                api.list_repos, page_all, page, page_size, owner=owner, repo=repo
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -143,7 +143,7 @@ def get(ctx, opts, owner_repo, page, page_size, show_all):
         data=repos_,
         show_list_info=True,
         page_info=page_info,
-        show_all=show_all,
+        page_all=page_all,
     )
 
 

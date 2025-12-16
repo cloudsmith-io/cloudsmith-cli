@@ -82,7 +82,7 @@ def licence(*args, **kwargs):
     "owner", metavar="OWNER", callback=validators.validate_owner, required=True
 )
 @click.pass_context
-def ls(ctx, opts, owner, page, page_size, show_all):
+def ls(ctx, opts, owner, page, page_size, page_all):
     """
     List license policies.
 
@@ -108,7 +108,7 @@ def ls(ctx, opts, owner, page, page_size, show_all):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             policies, page_info = paginate_results(
-                api.list_license_policies, show_all, page, page_size, owner=owner
+                api.list_license_policies, page_all, page, page_size, owner=owner
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -124,9 +124,9 @@ def ls(ctx, opts, owner, page, page_size, show_all):
     list_suffix = "license polic%s" % ("y" if num_results == 1 else "ies")
     utils.pretty_print_list_info(
         num_results=num_results,
-        page_info=None if show_all else page_info,
+        page_info=None if page_all else page_info,
         suffix=list_suffix,
-        show_all=show_all,
+        page_all=page_all,
     )
 
 
