@@ -11,7 +11,7 @@ The following contributors (in alphabetical order) are held in eternal high este
 - Carlos Gonzalez ([@LowzG](https://github.com/LowzG))
 - Jamie Brynes ([@jamiebrynes7](https://github.com/jamiebrynes7))
 - Patrick McClory ([@mcclory](https://github.com/mcclory))
-
+- Pablo Sanchez ([@pablogrs](https://github.com/pablogrs))
 
 # Thanks
 
