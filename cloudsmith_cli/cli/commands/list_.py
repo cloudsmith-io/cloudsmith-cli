@@ -157,7 +157,7 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     help=("Sort packages by field. Prefix with '-' for descending order."),
 )
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query, sort, show_all):
+def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
     """
     List packages for a repository.
 
@@ -220,7 +220,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, show_all):
         with maybe_spinner(opts):
             packages_, page_info = paginate_results(
                 list_packages,
-                show_all=show_all,
+                page_all=page_all,
                 page=page,
                 page_size=page_size,
                 owner=owner,
@@ -262,9 +262,9 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, show_all):
     list_suffix = "package%s" % ("s" if num_results != 1 else "")
     utils.pretty_print_list_info(
         num_results=num_results,
-        page_info=None if show_all else page_info,
-        suffix=f"{list_suffix} retrieved" if show_all else f"{list_suffix} visible",
-        show_all=show_all,
+        page_info=None if page_all else page_info,
+        suffix=f"{list_suffix} retrieved" if page_all else f"{list_suffix} visible",
+        page_all=page_all,
     )
 
 
@@ -282,7 +282,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, show_all):
     required=False,
 )
 @click.pass_context
-def repos(ctx, opts, owner_repo, page, page_size, show_all):
+def repos(ctx, opts, owner_repo, page, page_size, page_all):
     """
     List repositories for a namespace (owner).
 
