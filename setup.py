@@ -49,7 +49,7 @@ setup(
     platforms=["any"],
     python_requires=">=3.9.0",
     install_requires=[
-        "click>=8.2.0,!=8.3.0",
+        "click>=8.1.8,!=8.3.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
