@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [1.10.0] - 2025-12-16
 
 ### Fixed
@@ -19,8 +21,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Set `--show-all` to alias `--page-all`
 - Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
 - Added support for deny policy management commands (list, create, get, update, delete)
-
-## [Unreleased]
 
 ## [1.9.4] - 2025-11-07
 
