@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Migrate from CircleCI to GitHub Actions for testing and release workflows.
 - Remove CircleCi workflows.
-- Downgrade Click dependency range from `8.2.0`. to `8.1.8` to support Python 3.9.
 - Set `--show-all` to alias `--page-all`
 - Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
 - Added support for deny policy management commands (list, create, get, update, delete)
