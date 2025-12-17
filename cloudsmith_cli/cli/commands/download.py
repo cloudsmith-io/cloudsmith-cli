@@ -12,7 +12,7 @@ from ...core.download import (
     resolve_package,
     stream_download,
 )
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -124,7 +124,7 @@ def download(  # noqa: C901
     owner, repo = owner_repo
 
     # Use stderr for messages if output is JSON
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     if not use_stderr:
         click.echo(
@@ -232,6 +232,12 @@ def download(  # noqa: C901
                     f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
                     nl=False,
                 )
+            else:
+                click.echo(
+                    f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
+                    nl=False,
+                    err=True,
+                )
 
             try:
                 context_msg = f"Failed to download {filename}!"
@@ -321,7 +327,7 @@ def download(  # noqa: C901
             session=session,
             headers=auth_headers,
             overwrite=overwrite,
-            quiet=opts.output != "pretty",
+            quiet=utils.should_use_stderr(opts),
         )
 
     if opts.output == "pretty":

@@ -3,7 +3,7 @@
 import click
 
 from ...core.api.packages import resync_package as api_resync_package
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -53,6 +53,8 @@ def resync(
     )
 
     if no_wait_for_sync:
+        if utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"}):
+            return
         return
 
     wait_for_package_sync(
@@ -66,13 +68,17 @@ def resync(
         attempts=sync_attempts,
     )
 
+    utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"})
+
 
 def resync_package(ctx, opts, owner, repo, slug, skip_errors):
     """Resynchronise a package."""
+    use_stderr = utils.should_use_stderr(opts)
     click.echo(
         "Resynchonising the %(slug)s package ... "
         % {"slug": click.style(slug, bold=True)},
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to resynchronise package!"
@@ -82,4 +88,4 @@ def resync_package(ctx, opts, owner, repo, slug, skip_errors):
         with maybe_spinner(opts):
             api_resync_package(owner=owner, repo=repo, identifier=slug)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)

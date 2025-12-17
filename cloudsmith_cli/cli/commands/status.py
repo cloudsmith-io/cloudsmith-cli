@@ -3,7 +3,7 @@
 import click
 
 from ...core.api.packages import get_package_status
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -32,6 +32,8 @@ def status(ctx, opts, owner_repo_package):
     """
     owner, repo, slug = owner_repo_package
 
+    use_stderr = utils.should_use_stderr(opts)
+
     click.echo(
         "Getting status of %(package)s in %(owner)s/%(repo)s ... "
         % {
@@ -40,6 +42,7 @@ def status(ctx, opts, owner_repo_package):
             "package": click.style(slug, bold=True),
         },
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to get status of package!"
@@ -48,7 +51,7 @@ def status(ctx, opts, owner_repo_package):
             res = get_package_status(owner, repo, slug)
             ok, failed, _, status_str, stage_str, reason = res
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     if not stage_str:
         package_status = status_str
@@ -64,11 +67,25 @@ def status(ctx, opts, owner_repo_package):
 
     click.secho(
         "The package status is: %(status)s"
-        % {"status": click.style(package_status, fg=status_colour)}
+        % {"status": click.style(package_status, fg=status_colour)},
+        err=use_stderr,
     )
 
     if reason:
         click.secho(
             f"Reason given: {click.style(reason, fg='yellow')}",
             fg=status_colour,
+            err=use_stderr,
         )
+
+    utils.maybe_print_as_json(
+        opts,
+        {
+            "ok": ok,
+            "failed": failed,
+            "status": status_str,
+            "stage": stage_str,
+            "reason": reason,
+            "slug": slug,
+        },
+    )

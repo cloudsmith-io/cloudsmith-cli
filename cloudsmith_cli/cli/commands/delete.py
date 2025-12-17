@@ -45,12 +45,16 @@ def delete(ctx, opts, owner_repo_package, yes):
         "package": click.style(slug, bold=True),
     }
 
+    use_stderr = utils.should_use_stderr(opts)
+
     prompt = "delete the %(package)s from %(owner)s/%(repo)s" % delete_args
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.echo(
-        "Deleting %(package)s from %(owner)s/%(repo)s ... " % delete_args, nl=False
+        "Deleting %(package)s from %(owner)s/%(repo)s ... " % delete_args,
+        nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to delete the package!"
@@ -58,4 +62,7 @@ def delete(ctx, opts, owner_repo_package, yes):
         with maybe_spinner(opts):
             delete_package(owner=owner, repo=repo, identifier=slug)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
+
+    if utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"}):
+        return

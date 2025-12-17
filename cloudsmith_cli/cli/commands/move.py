@@ -70,12 +70,16 @@ def move(
         "dest": click.style(destination, bold=True),
     }
 
+    use_stderr = utils.should_use_stderr(opts)
+
     prompt = "move the %(slug)s from %(source)s to %(dest)s" % move_args
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.echo(
-        "Moving %(slug)s package from %(source)s to %(dest)s ... " % move_args, nl=False
+        "Moving %(slug)s package from %(source)s to %(dest)s ... " % move_args,
+        nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to move package!"
@@ -87,9 +91,11 @@ def move(
                 owner=owner, repo=source, identifier=slug, destination=destination
             )
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     if no_wait_for_sync:
+        if utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"}):
+            return
         return
 
     wait_for_package_sync(
@@ -102,3 +108,5 @@ def move(
         skip_errors=skip_errors,
         attempts=sync_attempts,
     )
+
+    utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})

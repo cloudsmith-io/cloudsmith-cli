@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed JSON output for all commands
+  - Informational messages, warnings, and interactive prompts are now routed to stderr when `--output-format json` is active.
+  - Error messages are now formatted as structured JSON on stdout when JSON output is requested.
+
 ## [1.10.1] - 2025-12-16
 
 ### Fixed
