@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Deprecation Notice
+
+- The `--json` flag used in `cloudsmith auth` command will be removed in upcoming releases. Please migrate to `--output-format json` instead.
+
 ### Fixed
 
 - Fixed JSON output for all commands

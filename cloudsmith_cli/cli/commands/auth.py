@@ -91,6 +91,14 @@ def authenticate(ctx, opts, owner, token, force, save_config, json):
     # If using json output, we redirect info messages to stderr
     use_stderr = json
 
+    if json and not utils.should_use_stderr(opts):
+        click.secho(
+            "DEPRECATION WARNING: The `--json` flag is deprecated and will be removed in a future release. "
+            "Please use `--output-format json` instead.",
+            fg="yellow",
+            err=True,
+        )
+
     owner = owner[0].strip("'[]'")
 
     click.echo(
