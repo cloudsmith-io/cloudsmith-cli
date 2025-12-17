@@ -83,7 +83,7 @@ orbs:
     executors:
       cloudsmith_executor:
         docker:
-          - image: circleci/python:3.9
+          - image: circleci/python:3.10
 
 
 workflows:
@@ -115,11 +115,6 @@ workflows:
           service_name: pytest
           command: pytest --junitxml ./reports/pytest.xml
           is_test_suite: true
-      - python/test:
-          name: pytest-python3.10
-          version: "3.10"
-          pkg-manager: pip
-          pip-dependency-file: requirements.txt
       - python/test:
           name: pytest-python3.11
           version: "3.11"

@@ -64,6 +64,8 @@ class ConfigSchema:
         api_proxy = ConfigParam(name="api_proxy", type=str)
         api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool, default=True)
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
+        mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
+        mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -347,6 +349,35 @@ class Options:
     def debug(self, value):
         """Set value for debug flag."""
         self._set_option("debug", bool(value))
+
+    @property
+    def mcp_allowed_tools(self):
+        """Get value for Allowed MCP Tools."""
+        return self._get_option("mcp_allowed_tools")
+
+    @mcp_allowed_tools.setter
+    def mcp_allowed_tools(self, value):
+        """Set value for Allowed MCP Tools."""
+
+        if not value:
+            return
+        tools = value.split(",")
+
+        self._set_option("mcp_allowed_tools", tools)
+
+    @property
+    def mcp_allowed_tool_groups(self):
+        """Get value for Allowed MCP Tool Groups."""
+        return self._get_option("mcp_allowed_tool_groups")
+
+    @mcp_allowed_tool_groups.setter
+    def mcp_allowed_tool_groups(self, value):
+        """Set value for Allowed MCP Tool Groups."""
+        if not value:
+            return
+        tool_groups = value.split(",")
+
+        self._set_option("mcp_allowed_tool_groups", tool_groups)
 
     @property
     def output(self):
