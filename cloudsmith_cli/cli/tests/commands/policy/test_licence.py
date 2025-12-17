@@ -131,14 +131,14 @@ def test_license_policy_commands(runner, organization, tmp_path):
     )
     assert result.exit_code == 0
     assert "Getting license policies" in result.output
-    assert "Invalid value for '--show-all'" not in result.output
+    assert "Invalid value for '--page-all'" not in result.output
 
     # Conflict: show-all with explicit page
     conflict = runner.invoke(
         ls, args=[organization, "--page", "1", "--show-all"], catch_exceptions=False
     )
     assert conflict.exit_code != 0
-    assert "Invalid value for '--show-all'" in conflict.output
+    assert "Invalid value for '--page-all'" in conflict.output
     assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
 
     # Change the values in the config file

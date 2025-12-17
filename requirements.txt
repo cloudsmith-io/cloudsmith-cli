@@ -185,10 +185,8 @@ typing-extensions==4.13.2
     # via
     #   anyio
     #   astroid
-    #   pydantic
-    #   pydantic-core
-    #   uvicorn
-urllib3==1.26.20
+    #   pylint
+urllib3==2.5.0
     # via
     #   cloudsmith-api
     #   cloudsmith-cli (setup.py)

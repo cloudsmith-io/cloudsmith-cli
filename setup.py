@@ -49,7 +49,7 @@ setup(
     platforms=["any"],
     python_requires=">=3.10.0",
     install_requires=[
-        "click>=8.2.0,!=8.3.0",
+        "click>=8.1.8,!=8.3.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
@@ -58,7 +58,7 @@ setup(
         "requests>=2.18.4",
         "requests_toolbelt>=0.8.0",
         "semver>=2.7.9",
-        "urllib3<2.0",
+        "urllib3>=2.5",
     ],
     entry_points={
         "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]

@@ -50,9 +50,9 @@ def test_push_and_delete_raw_package(
     small_file_data = data[0]
     assert small_file_data["filename"] == pkg_file.name
 
-    # List packages with --show-all flag
+    # List packages with --page-all flag
     result = runner.invoke(
-        list_, args=["pkgs", org_repo, "--show-all"], catch_exceptions=False
+        list_, args=["pkgs", org_repo, "--page-all"], catch_exceptions=False
     )
     assert "Getting list of packages ... OK" in result.output
     assert "Results: 1 package retrieved" in result.output
