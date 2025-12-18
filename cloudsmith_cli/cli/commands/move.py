@@ -94,8 +94,7 @@ def move(
     click.secho("OK", fg="green", err=use_stderr)
 
     if no_wait_for_sync:
-        if utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"}):
-            return
+        utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})
         return
 
     wait_for_package_sync(
