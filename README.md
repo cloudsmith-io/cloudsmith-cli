@@ -32,7 +32,7 @@ The CLI currently supports the following commands (and sub-commands):
 - `delete`|`rm`:          Delete a package from a repository.
 - `dependencies`|`deps`:  List direct (non-transitive) dependencies for a package.
 - `docs`:                 Launch the help website in your browser.
-- `download`:        Download a package from a repository.
+- `download`:  Download a package from a repository.
 - `entitlements`|`ents`:  Manage the entitlements for a repository.
   - `create`|`new`:         Create a new entitlement in a repository.
   - `delete`|`rm`:          Delete an entitlement from a repository.
