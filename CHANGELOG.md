@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `--tag` option to `download` command for filtering packages by tags
+- Enhanced tag filtering to support all metadata fields shown as tags in UI (format, architecture, distribution, component, etc.)
+- Added download command documentation to README with comprehensive usage examples
+
 ## [1.10.1] - 2025-12-16
 
 ### Fixed

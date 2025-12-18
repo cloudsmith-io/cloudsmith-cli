@@ -53,6 +53,50 @@ def resolve_auth(
     return session, headers, auth_source
 
 
+def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
+    """
+    Check if a package matches the tag filter.
+
+    Args:
+        pkg: Package dictionary
+        tag_filter: Tag to match against
+
+    Returns:
+        True if package matches the tag filter
+    """
+    # Check actual tags field (info, version, etc.)
+    pkg_tags = pkg.get("tags", {})
+    for tag_category in pkg_tags.values():
+        if isinstance(tag_category, list) and tag_filter in tag_category:
+            return True
+
+    # Check other metadata fields that appear as tags in the UI (case-sensitive)
+    # Check format, architectures, and deb component
+    if (
+        pkg.get("format") == tag_filter
+        or any(arch.get("name") == tag_filter for arch in pkg.get("architectures", []))
+        or pkg.get("identifiers", {}).get("deb_component") == tag_filter
+    ):
+        return True
+
+    # Check distro-related fields
+    distro_name_raw = pkg.get("distro", {}).get("name")
+    distro_version_raw = pkg.get("distro_version", {}).get("name")
+    distro_combo = ""
+    if distro_name_raw and distro_version_raw:
+        # Only build combined tag when both parts are present
+        distro_combo = f"{distro_name_raw}/{distro_version_raw}"
+
+    if (
+        tag_filter == distro_name_raw
+        or tag_filter == distro_version_raw
+        or (distro_combo and tag_filter == distro_combo)
+    ):
+        return True
+
+    return False
+
+
 def resolve_package(
     owner: str,
     repo: str,
@@ -62,6 +106,7 @@ def resolve_package(
     format_filter: Optional[str] = None,
     os_filter: Optional[str] = None,
     arch_filter: Optional[str] = None,
+    tag_filter: Optional[str] = None,
     yes: bool = False,
 ) -> Dict:
     """
@@ -75,6 +120,7 @@ def resolve_package(
         format_filter: Optional format filter
         os_filter: Optional OS filter
         arch_filter: Optional architecture filter
+        tag_filter: Optional tag filter
         yes: If True, automatically select best match when multiple found
 
     Returns:
@@ -124,6 +170,9 @@ def resolve_package(
             continue
         # Apply architecture filter
         if arch_filter and pkg.get("architecture") != arch_filter:
+            continue
+        # Apply tag filter
+        if tag_filter and not _matches_tag_filter(pkg, tag_filter):
             continue
         filtered_packages.append(pkg)
     packages = filtered_packages
