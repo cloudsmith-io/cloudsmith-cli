@@ -63,7 +63,7 @@ def deny_policy(*args, **kwargs):
 @click.pass_context
 def list_deny_policies(ctx, opts, owner, page, page_size, page_all):
     """List deny policies for an organization."""
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
     click.echo("Getting deny policies ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get deny policies!"
@@ -104,7 +104,7 @@ def create_deny_policy(ctx, opts, owner, policy_config_file):
     """Create a deny policy for an organization."""
     import json
 
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
     policy_config = json.load(policy_config_file)
 
     policy_name = policy_config.get("name")
@@ -146,7 +146,7 @@ def create_deny_policy(ctx, opts, owner, policy_config_file):
 @click.pass_context
 def get_deny_policy(ctx, opts, owner, identifier):
     """Get a deny policy for an organization."""
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
     click.echo("Getting deny policy ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get deny policy!"
@@ -175,7 +175,7 @@ def update_deny_policy(ctx, opts, owner, identifier, policy_config_file):
     """Update a deny policy for an organization."""
     import json
 
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
     policy_config = json.load(policy_config_file)
 
     click.secho(
@@ -230,12 +230,14 @@ def delete_deny_policy(ctx, opts, owner, identifier, yes):
         % delete_args
     )
 
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    use_stderr = utils.should_use_stderr(opts)
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
         "Deleting %(identifier)s from the %(namespace)s namespace ... " % delete_args,
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to delete the deny policy!"
@@ -243,4 +245,4 @@ def delete_deny_policy(ctx, opts, owner, identifier, yes):
         with maybe_spinner(opts):
             orgs.delete_deny_policy(owner=owner, slug_perm=identifier)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)

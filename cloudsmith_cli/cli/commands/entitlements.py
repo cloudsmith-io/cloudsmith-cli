@@ -89,7 +89,7 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, page_
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Getting list of entitlements for the %(repository)s "
@@ -323,7 +323,7 @@ def create(ctx, opts, owner_repo, show_tokens, name, token):
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.secho(
         "Creating %(name)s entitlement for the %(repository)s "
@@ -391,13 +391,17 @@ def delete(ctx, opts, owner_repo_identifier, yes):
         "delete the %(identifier)s entitlement from the %(repository)s "
         "repository" % delete_args
     )
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+
+    use_stderr = utils.should_use_stderr(opts)
+
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
         "Deleting %(identifier)s entitlement from the %(repository)s "
         "repository ... " % delete_args,
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to delete the entitlement!"
@@ -454,7 +458,7 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
     owner, repo, identifier = owner_repo_identifier
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.secho(
         "Updating %(identifier)s entitlement for the %(repository)s "
@@ -527,7 +531,7 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
     }
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     prompt = (
         "refresh the %(identifier)s entitlement for the %(repository)s "
@@ -603,7 +607,7 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
     }
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     if not yes:
         click.secho(
@@ -768,7 +772,7 @@ def restrict(
     owner, repo, identifier = owner_repo_identifier
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.secho(
         "Updating %(identifier)s entitlement for the %(repository)s "

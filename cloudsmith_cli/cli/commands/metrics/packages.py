@@ -106,7 +106,7 @@ def usage(ctx, opts, owner_repo, packages, start, finish):
     metrics for that namespace/repository combination.
     """
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo("Getting usage metrics ... ", nl=False, err=use_stderr)
 

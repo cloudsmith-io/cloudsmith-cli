@@ -5,7 +5,7 @@ import functools
 import click
 
 from ...core.api import packages as api
-from .. import command, decorators, validators
+from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -69,8 +69,7 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     """
     owner, repo, slug = owner_repo_package
 
-    # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Adding %(repository)s/%(package_slug)s to quarantine... "
@@ -88,6 +87,8 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
             api.quarantine_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
+
+    utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"})
 
 
 @quarantine.command(name="add")
@@ -117,7 +118,7 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     owner, repo, slug = owner_repo_package
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Removing %(repository)s/%(package_slug)s from quarantine... "
@@ -135,6 +136,8 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
             api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
+
+    utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"})
 
 
 @quarantine.command(name="remove", aliases=["rm", "restore"])

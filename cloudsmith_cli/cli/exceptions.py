@@ -16,67 +16,103 @@ def handle_api_exceptions(
 ):
     """Context manager that handles API exceptions."""
     # flake8: ignore=C901
+
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    is_json_output = getattr(opts, "output", None) in ("json", "pretty_json")
+    use_stderr = is_json_output
 
     try:
         yield
     except ApiException as exc:
-        if nl:
-            click.echo(err=use_stderr)
-            click.secho("ERROR: ", fg="red", nl=False, err=use_stderr)
-        else:
-            click.secho("ERROR", fg="red", err=use_stderr)
-
         context_msg = context_msg or "Failed to perform operation!"
-        click.secho(
-            "%(context)s (status: %(code)s - %(code_text)s)"
-            % {
-                "context": context_msg,
-                "code": exc.status,
-                "code_text": exc.status_description,
-            },
-            fg="red",
-            err=use_stderr,
-        )
-
         detail, fields = get_details(exc)
-        if detail or fields:
-            click.echo(err=use_stderr)
+        hint = get_error_hint(ctx, opts, exc)
 
-            if detail:
-                click.secho(
-                    "Detail: %(detail)s"
-                    % {"detail": click.style(detail, fg="red", bold=False)},
-                    bold=True,
-                    err=use_stderr,
-                )
+        if is_json_output:
+            # Construct JSON error object
+            error_data = {
+                "detail": detail or exc.status_description,
+                "help": {
+                    "context": context_msg,
+                    "hint": hint,
+                },
+                "meta": {
+                    "code": exc.status,
+                    "description": exc.status_description,
+                },
+            }
 
             if fields:
-                for k, v in fields.items():
-                    field = "%s Field" % k.capitalize()
-                    click.secho(
-                        "%(field)s: %(message)s"
-                        % {
-                            "field": click.style(field, bold=True),
-                            "message": click.style(v, fg="red"),
-                        },
-                        err=use_stderr,
-                    )
+                error_data["fields"] = fields
 
-        hint = get_error_hint(ctx, opts, exc)
-        if hint:
+            # Print to stdout
+            import json
+
             click.echo(
-                f"Hint: {click.style(hint, fg='yellow')}",
+                json.dumps(
+                    error_data, indent=4 if opts.output == "pretty_json" else None
+                )
+            )
+
+        else:
+            # Standard CLI output to stderr (or interleaved if output != pretty, but we force use_stderr now)
+            if nl:
+                click.echo(err=use_stderr)
+                click.secho("ERROR: ", fg="red", nl=False, err=use_stderr)
+            else:
+                click.secho("ERROR", fg="red", err=use_stderr)
+
+            click.secho(
+                "%(context)s (status: %(code)s - %(code_text)s)"
+                % {
+                    "context": context_msg,
+                    "code": exc.status,
+                    "code_text": exc.status_description,
+                },
+                fg="red",
                 err=use_stderr,
             )
 
-        if opts.verbose and not opts.debug:
-            if exc.headers:
+            if detail or fields:
                 click.echo(err=use_stderr)
-                click.echo("Headers in Reply:", err=use_stderr)
-                for k, v in exc.headers.items():
-                    click.echo(f"{k} = {v}", err=use_stderr)
+
+                if detail:
+                    click.secho(
+                        "Detail: %(detail)s"
+                        % {"detail": click.style(detail, fg="red", bold=False)},
+                        bold=True,
+                        err=use_stderr,
+                    )
+
+                if fields:
+                    for k, v in fields.items():
+                        field = "%s Field" % k.capitalize()
+
+                        # Flatten list/tuple error messages for text output
+                        if isinstance(v, (list, tuple)):
+                            v = " ".join(v)
+
+                        click.secho(
+                            "%(field)s: %(message)s"
+                            % {
+                                "field": click.style(field, bold=True),
+                                "message": click.style(v, fg="red"),
+                            },
+                            err=use_stderr,
+                        )
+
+            if hint:
+                click.echo(
+                    f"Hint: {click.style(hint, fg='yellow')}",
+                    err=use_stderr,
+                )
+
+            if opts.verbose and not opts.debug:
+                if exc.headers:
+                    click.echo(err=use_stderr)
+                    click.echo("Headers in Reply:", err=use_stderr)
+                    for k, v in exc.headers.items():
+                        click.echo(f"{k} = {v}", err=use_stderr)
 
         if reraise_on_error:
             raise
@@ -100,10 +136,11 @@ def get_details(exc):
             except (TypeError, KeyError):
                 field_detail = v
 
-            if isinstance(field_detail, (list, tuple)):
-                field_detail = " ".join(field_detail)
-
             if k == "non_field_errors":
+                # Ensure we handle list/tuple for non_field_errors details joining
+                if isinstance(field_detail, (list, tuple)):
+                    field_detail = " ".join(field_detail)
+
                 if detail:
                     detail += " " + field_detail
                 else:

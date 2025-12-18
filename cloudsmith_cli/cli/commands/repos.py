@@ -104,7 +104,7 @@ def get(ctx, opts, owner_repo, page, page_size, page_all):
     (if any). If you're unauthenticated, no results will be returned.
     """
     # Use stderr for messages if the output is something else (e.g. JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     if isinstance(owner_repo, list):
         if len(owner_repo) == 1:
@@ -181,7 +181,7 @@ def create(ctx, opts, owner, repo_config_file):
       $ cloudsmith repos create your-org repo-config-file.json
     """
     # Use stderr for messages if the output is something else (e.g. JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
     repo_config = json.load(repo_config_file)
 
     repo_name = repo_config.get("name", None)
@@ -312,7 +312,9 @@ def delete(ctx, opts, owner_repo, yes):
     }
 
     prompt = "delete the %(repository)s from the %(namespace)s namespace" % delete_args
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    # Use stderr for messages if the output is something else (e.g. JSON)
+    use_stderr = utils.should_use_stderr(opts)
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(

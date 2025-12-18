@@ -3,7 +3,7 @@
 import click
 
 from ...core.api.packages import copy_package
-from .. import decorators, validators
+from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -56,6 +56,8 @@ def copy(
     """
     owner, source, slug = owner_repo_package
 
+    use_stderr = utils.should_use_stderr(opts)
+
     click.echo(
         "Copying %(slug)s package from %(source)s to %(dest)s ... "
         % {
@@ -64,6 +66,7 @@ def copy(
             "dest": click.style(destination, bold=True),
         },
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to copy package!"
@@ -75,9 +78,10 @@ def copy(
                 owner=owner, repo=source, identifier=slug, destination=destination
             )
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     if no_wait_for_sync:
+        utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})
         return
 
     wait_for_package_sync(
@@ -90,3 +94,5 @@ def copy(
         skip_errors=skip_errors,
         attempts=sync_attempts,
     )
+
+    utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})

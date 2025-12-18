@@ -6,7 +6,7 @@ import cloudsmith_api
 from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
 from ...core.config import create_config_files, new_config_messaging
-from .. import decorators
+from .. import decorators, utils
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -37,10 +37,12 @@ def validate_login(ctx, param, value):
 @click.pass_context
 def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     """Retrieve your API authentication token/key via login."""
+    use_stderr = utils.should_use_stderr(opts)
     click.echo(
         "Retrieving API token for %(login)s ... "
         % {"login": click.style(login, bold=True)},
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to retrieve the API token!"
@@ -49,14 +51,17 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
             with maybe_spinner(opts):
                 api_key = get_user_token(login=login, password=password)
     except TwoFactorRequiredException as e:
-        click.echo("\r\033[K", nl=False)
-        click.echo("Two-factor authentication is required.")
+        click.echo("\r\033[K", nl=False, err=use_stderr)
+        click.echo("Two-factor authentication is required.", err=use_stderr)
 
-        totp_token = click.prompt("Enter your two-factor authentication code", type=str)
+        totp_token = click.prompt(
+            "Enter your two-factor authentication code", type=str, err=use_stderr
+        )
         click.echo(
             "Verifying two-factor code for %(login)s ... "
             % {"login": click.style(login, bold=True)},
             nl=False,
+            err=use_stderr,
         )
 
         try:
@@ -69,23 +74,26 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
                         two_factor_token=e.two_factor_token,
                     )
         except cloudsmith_api.rest.ApiException:
-            click.echo("\r\033[K", nl=False)
+            click.echo("\r\033[K", nl=False, err=use_stderr)
             click.secho(
-                "Authentication failed: The entered TOTP token is not valid.", fg="red"
+                "Authentication failed: The entered TOTP token is not valid.",
+                fg="red",
+                err=use_stderr,
             )
             ctx.exit(1)
 
     except cloudsmith_api.rest.ApiException as e:
-        click.echo("\r\033[K", nl=False)
-        click.secho(f"Authentication failed: {str(e)}", fg="red")
+        click.echo("\r\033[K", nl=False, err=use_stderr)
+        click.secho(f"Authentication failed: {str(e)}", fg="red", err=use_stderr)
         ctx.exit(1)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
-    click.echo(
-        "Your API key/token is: %(token)s"
-        % {"token": click.style(api_key, fg="magenta")}
-    )
+    if not utils.maybe_print_as_json(opts, {"token": api_key, "login": login}):
+        click.echo(
+            "Your API key/token is: %(token)s"
+            % {"token": click.style(api_key, fg="magenta")}
+        )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)
     new_config_messaging(has_errors, opts, create, api_key=api_key)

@@ -214,7 +214,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
             if two_factor_token:
                 totp_token = click.prompt(
-                    "Please enter your 2FA token", hide_input=True, type=str
+                    "Please enter your 2FA token", hide_input=True, type=str, err=True
                 )
 
                 access_token, refresh_token = exchange_2fa_token(
