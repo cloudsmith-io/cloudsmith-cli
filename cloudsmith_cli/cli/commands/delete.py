@@ -64,5 +64,4 @@ def delete(ctx, opts, owner_repo_package, yes):
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    if utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"}):
-        return
+    utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"})
