@@ -252,13 +252,7 @@ def wait_for_package_sync(
         first = True
 
         if use_stderr:
-            # We don't want a progress bar if we're outputting JSON or using stderr for logs
-            # but maybe we should print the status updates?
-            # For now, let's just loop and print status updates to stderr if verbose?
-            # Or just wait silently?
-            # The existing behavior for non-interactive might be desired.
-            # But "wait_for_package_sync" implies we wait.
-            # Let's just poll loop without progress bar.
+            # When using stderr for logs, avoid an interactive progress bar and just poll for status.
             while True:
                 res = get_package_status(owner, repo, slug)
                 ok, failed, _, _, _, _ = res
