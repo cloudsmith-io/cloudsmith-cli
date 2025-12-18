@@ -89,10 +89,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    if utils.maybe_print_as_json(opts, {"token": api_key, "login": login}):
-        pass
-    else:
-
+    if not utils.maybe_print_as_json(opts, {"token": api_key, "login": login}):
         click.echo(
             "Your API key/token is: %(token)s"
             % {"token": click.style(api_key, fg="magenta")}

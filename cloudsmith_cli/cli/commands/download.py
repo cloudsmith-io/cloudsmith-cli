@@ -213,11 +213,13 @@ def download(  # noqa: C901
             return
 
         # Download all files
-        click.echo(f"\nDownloading {len(files_to_download)} files to: {output_dir}")
-        click.echo()
+        if not use_stderr:
+            click.echo(f"\nDownloading {len(files_to_download)} files to: {output_dir}")
+            click.echo()
 
         success_count = 0
         failed_files = []
+        downloaded_files = []
 
         for idx, file_info in enumerate(files_to_download, 1):
             filename = file_info["filename"]
@@ -252,11 +254,56 @@ def download(  # noqa: C901
                     )
                 if not use_stderr:
                     click.secho(" OK", fg="green")
+                else:
+                    click.echo(" OK", err=True)
                 success_count += 1
+                downloaded_files.append(
+                    {
+                        "filename": filename,
+                        "path": output_path,
+                        "tag": tag,
+                        "is_primary": file_info.get("is_primary", False),
+                        "size": file_info.get("size", 0),
+                        "status": "OK",
+                    }
+                )
             except Exception as e:  # pylint: disable=broad-except
                 if not use_stderr:
                     click.secho(" FAILED", fg="red")
+                else:
+                    click.echo(" FAILED", err=True)
                 failed_files.append((filename, str(e)))
+                downloaded_files.append(
+                    {
+                        "filename": filename,
+                        "path": output_path,
+                        "tag": tag,
+                        "is_primary": file_info.get("is_primary", False),
+                        "size": file_info.get("size", 0),
+                        "status": "FAILED",
+                        "error": str(e),
+                    }
+                )
+
+        # Build JSON output for all-files download
+        json_output = {
+            "package": {
+                "name": package.get("name"),
+                "version": package.get("version"),
+                "format": package.get("format"),
+                "slug": package.get("slug"),
+            },
+            "output_directory": output_dir,
+            "files": downloaded_files,
+            "summary": {
+                "total": len(files_to_download),
+                "success": success_count,
+                "failed": len(failed_files),
+            },
+        }
+
+        if utils.maybe_print_as_json(opts, json_output):
+            return
 
         click.echo()
         if success_count == len(files_to_download):
@@ -330,9 +377,25 @@ def download(  # noqa: C901
             quiet=utils.should_use_stderr(opts),
         )
 
-    if opts.output == "pretty":
-        click.echo()
-        click.secho("Download completed successfully!", fg="green")
+    # Build JSON output for single-file download
+    json_output = {
+        "package": {
+            "name": package.get("name"),
+            "version": package.get("version"),
+            "format": package.get("format"),
+            "slug": package.get("slug"),
+        },
+        "filename": os.path.basename(outfile),
+        "path": outfile,
+        "size": package.get("size", 0),
+        "status": "OK",
+    }
+
+    if utils.maybe_print_as_json(opts, json_output):
+        return
+
+    click.echo()
+    click.secho("Download completed successfully!", fg="green")
 
 
 def _get_extension_for_format(pkg_format: str) -> str:

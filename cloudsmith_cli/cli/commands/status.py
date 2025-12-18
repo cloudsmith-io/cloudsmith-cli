@@ -65,6 +65,19 @@ def status(ctx, opts, owner_repo_package):
     else:
         status_colour = "magenta"
 
+    if utils.maybe_print_as_json(
+        opts,
+        {
+            "ok": ok,
+            "failed": failed,
+            "status": status_str,
+            "stage": stage_str,
+            "reason": reason,
+            "slug": slug,
+        },
+    ):
+        return
+
     click.secho(
         "The package status is: %(status)s"
         % {"status": click.style(package_status, fg=status_colour)},
@@ -77,15 +90,3 @@ def status(ctx, opts, owner_repo_package):
             fg=status_colour,
             err=use_stderr,
         )
-
-    utils.maybe_print_as_json(
-        opts,
-        {
-            "ok": ok,
-            "failed": failed,
-            "status": status_str,
-            "stage": stage_str,
-            "reason": reason,
-            "slug": slug,
-        },
-    )

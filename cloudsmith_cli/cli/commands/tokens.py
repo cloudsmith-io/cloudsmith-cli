@@ -221,6 +221,7 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
         new_token = api.create_user_token_saml()
 
         if new_token:
+            # NOTE: This mutation is necessary during the deprecation period of the --json flag.
             if json and opts.output not in ("json", "pretty_json"):
                 opts.output = "json"
 
@@ -236,6 +237,7 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
         if exc.status == 401:
             click.echo(f"{exc.detail}", err=True)
             return
+        # NOTE: This mutation is necessary during the deprecation period of the --json flag.
         if json and opts.output not in ("json", "pretty_json"):
             opts.output = "json"
         if exc.status == 400:
