@@ -637,13 +637,6 @@ def create_push_handlers():
                         }
                     )
 
-                # If only one package, maybe return object?
-                # CLI usually processes one unless shell expansion.
-                # Let's return list if multiple, object if single?
-                # Standard practice in this CLI seems to be list for list commands, object for others.
-                # But push can be multiple.
-                # If we return a list for single item it might be safer.
-                # Note: utils.maybe_print_as_json expects dict or list.
                 if len(data) == 1:
                     utils.maybe_print_as_json(opts, data[0])
                 else:
