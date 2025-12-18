@@ -70,32 +70,27 @@ def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
         if isinstance(tag_category, list) and tag_filter in tag_category:
             return True
 
-    # Check other metadata fields that appear as tags in the UI
-    tag_lower = tag_filter.lower()
-
-    # Check format, architectures, and deb component (case-insensitive)
+    # Check other metadata fields that appear as tags in the UI (case-sensitive)
+    # Check format, architectures, and deb component
     if (
-        str(pkg.get("format", "")).lower() == tag_lower
-        or any(
-            str(arch.get("name", "")).lower() == tag_lower
-            for arch in pkg.get("architectures", [])
-        )
-        or str(pkg.get("identifiers", {}).get("deb_component", "")).lower() == tag_lower
+        pkg.get("format") == tag_filter
+        or any(arch.get("name") == tag_filter for arch in pkg.get("architectures", []))
+        or pkg.get("identifiers", {}).get("deb_component") == tag_filter
     ):
         return True
 
     # Check distro-related fields
     distro_name_raw = pkg.get("distro", {}).get("name")
     distro_version_raw = pkg.get("distro_version", {}).get("name")
-    distro_name = (distro_name_raw or "").lower()
-    distro_version = (distro_version_raw or "").lower()
     distro_combo = ""
     if distro_name_raw and distro_version_raw:
         # Only build combined tag when both parts are present
-        distro_combo = f"{distro_name_raw}/{distro_version_raw}".lower()
+        distro_combo = f"{distro_name_raw}/{distro_version_raw}"
 
-    if tag_lower in (distro_name, distro_version) or (
-        distro_combo and tag_lower == distro_combo
+    if (
+        tag_filter == distro_name_raw
+        or tag_filter == distro_version_raw
+        or (distro_combo and tag_filter == distro_combo)
     ):
         return True
 
