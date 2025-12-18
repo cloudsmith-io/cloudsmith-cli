@@ -32,6 +32,7 @@ The CLI currently supports the following commands (and sub-commands):
 - `delete`|`rm`:          Delete a package from a repository.
 - `dependencies`|`deps`:  List direct (non-transitive) dependencies for a package.
 - `docs`:                 Launch the help website in your browser.
+- `download`:        Download a package from a repository.
 - `entitlements`|`ents`:  Manage the entitlements for a repository.
   - `create`|`new`:         Create a new entitlement in a repository.
   - `delete`|`rm`:          Delete an entitlement from a repository.
@@ -246,6 +247,45 @@ Want to know how to do it with another packaging format? Easy, just ask for help
 
 ```
 cloudsmith push rpm --help
+```
+
+
+## Downloading Packages
+
+You can download packages from repositories using the `cloudsmith download` command. The CLI supports various filtering options to help you find and download the exact package you need.
+
+For example, to download a specific package:
+
+```
+cloudsmith download your-account/your-repo package-name
+```
+
+You can filter by various attributes like version, format, architecture, operating system, and tags:
+
+```
+# Download a specific version
+cloudsmith download your-account/your-repo package-name --version 1.2.3
+
+# Filter by format and architecture
+cloudsmith download your-account/your-repo package-name --format deb --arch amd64
+
+# Filter by tag (e.g., latest, stable, beta)
+cloudsmith download your-account/your-repo package-name --tag latest
+
+# Combine multiple filters
+cloudsmith download your-account/your-repo package-name --tag stable --format deb --arch arm64
+
+# Download all associated files (POM, sources, javadoc, etc.)
+cloudsmith download your-account/your-repo package-name --all-files
+
+# Preview what would be downloaded without actually downloading
+cloudsmith download your-account/your-repo package-name --dry-run
+```
+
+For more advanced usage and all available options:
+
+```
+cloudsmith download --help
 ```
 
 
