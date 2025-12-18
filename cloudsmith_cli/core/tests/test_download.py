@@ -152,6 +152,61 @@ class TestResolvePackage(unittest.TestCase):
         )
 
     @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_package_with_tag_filter(self, mock_list_packages):
+        """Test package resolution with tag filter."""
+        mock_packages = [
+            {
+                "name": "test-package",
+                "version": "1.0.0",
+                "format": "deb",
+                "architectures": [{"name": "amd64"}],
+                "distro": {"name": "Ubuntu"},
+                "distro_version": {"name": "noble"},
+                "identifiers": {"deb_component": "main"},
+                "tags": {"info": ["latest"], "version": ["stable"]},
+            },
+            {
+                "name": "test-package",
+                "version": "0.9.0",
+                "format": "rpm",
+                "architectures": [{"name": "arm64"}],
+                "distro": {"name": "CentOS"},
+                "distro_version": {"name": "8"},
+                "identifiers": {"deb_component": "contrib"},
+                "tags": {"info": ["beta"], "version": ["unstable"]},
+            },
+        ]
+        mock_page_info = Mock()
+        mock_page_info.is_valid = True
+        mock_page_info.page = 1
+        mock_page_info.page_total = 1
+        mock_list_packages.return_value = (mock_packages, mock_page_info)
+
+        # Test actual tag filtering
+        result = download.resolve_package(
+            "owner", "repo", "test-package", tag_filter="latest"
+        )
+        self.assertEqual(result["version"], "1.0.0")
+
+        # Test format filtering as tag
+        result = download.resolve_package(
+            "owner", "repo", "test-package", tag_filter="deb"
+        )
+        self.assertEqual(result["format"], "deb")
+
+        # Test architecture filtering as tag
+        result = download.resolve_package(
+            "owner", "repo", "test-package", tag_filter="arm64"
+        )
+        self.assertEqual(result["architectures"][0]["name"], "arm64")
+
+        # Test distro filtering as tag
+        result = download.resolve_package(
+            "owner", "repo", "test-package", tag_filter="ubuntu"
+        )
+        self.assertEqual(result["distro"]["name"], "Ubuntu")
+
+    @patch("cloudsmith_cli.core.download.list_packages")
     def test_resolve_package_exact_name_match(self, mock_list_packages):
         """Test that only exact name matches are returned (not partial)."""
         # API returns both partial and exact matches
