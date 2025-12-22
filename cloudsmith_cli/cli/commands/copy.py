@@ -56,26 +56,27 @@ def copy(
     """
     owner, source, slug = owner_repo_package
 
-    click.echo(
-        "Copying %(slug)s package from %(source)s to %(dest)s ... "
-        % {
-            "slug": click.style(slug, bold=True),
-            "source": click.style(source, bold=True),
-            "dest": click.style(destination, bold=True),
-        },
-        nl=False,
-    )
-
     context_msg = "Failed to copy package!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
     ):
         with maybe_spinner(opts):
-            _, new_slug = copy_package(
+            slug_perm, new_slug = copy_package(
                 owner=owner, repo=source, identifier=slug, destination=destination
             )
 
     click.secho("OK", fg="green")
+
+    click.echo(
+        "Copying %(slug)s package from %(source)s to %(dest)s (%(slug_perm)s)... "
+        % {
+            "slug": click.style(slug, bold=True),
+            "source": click.style(source, bold=True),
+            "dest": click.style(destination, bold=True),
+            "slug_perm": click.style(slug_perm, bold=True),
+        },
+        nl=False,
+    )
 
     if no_wait_for_sync:
         return
