@@ -299,8 +299,6 @@ class DynamicMCPServer:
                         self.tools[tool.name] = tool
                         self._register_dynamic_tool(tool)
 
-        # print(f"Generated {len(self.tools)} tools from OpenAPI spec")
-
     def _register_dynamic_tool(self, api_tool: OpenAPITool):
         """Register a single tool dynamically with the MCP server"""
 
