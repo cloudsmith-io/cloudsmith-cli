@@ -347,16 +347,25 @@ def initialise_mcp(f):
         is_flag=True,
         help="Show all tools",
     )
+    @click.option(
+        "-d",
+        "--allow-destructive-tools",
+        default=False,
+        is_flag=True,
+        help="Allow destructive tools to be used",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         opts = kwargs.get("opts")
 
         all_tools = kwargs.pop("all_tools")
+        allow_destructive_tools = kwargs.pop("allow_destructive_tools")
 
         mcp_server = server.DynamicMCPServer(
             api_config=opts.api_config,
             debug_mode=opts.debug,
+            allow_destructive_tools=allow_destructive_tools,
             allowed_tool_groups=opts.mcp_allowed_tool_groups,
             allowed_tools=opts.mcp_allowed_tools,
             force_all_tools=all_tools,

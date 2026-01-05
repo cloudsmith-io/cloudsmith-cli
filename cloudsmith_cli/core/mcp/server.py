@@ -21,6 +21,8 @@ API_VERSIONS_TO_DISCOVER = {
 }
 TOOL_DELETE_SUFFIXES = ["delete", "destroy", "remove"]
 
+TOOL_READ_ONLY_SUFFIXES = ["read", "list", "retrieve"]
+
 # Common action suffixes in OpenAPI operation IDs
 # These should not be considered as part of the resource group hierarchy
 TOOL_ACTION_SUFFIXES = [
@@ -88,6 +90,7 @@ class CustomFastMCP(FastMCP):
                 name=tool.name,
                 description=tool.description,
                 inputSchema=self._clean_schema(tool.inputSchema),
+                annotations=tool.annotations,
             )
             cleaned_tools.append(cleaned_tool)
 
@@ -253,6 +256,12 @@ class DynamicMCPServer:
 
         return groups
 
+    def _is_tool_destructive(self, tool_name: str) -> bool:
+        return any(suffix in tool_name for suffix in TOOL_DELETE_SUFFIXES)
+
+    def _is_tool_read_only(self, tool_name: str) -> bool:
+        return any(suffix in tool_name for suffix in TOOL_READ_ONLY_SUFFIXES)
+
     def _is_tool_allowed(self, tool_name: str) -> bool:
         """Check if a tool is allowed based on user configuration"""
 
@@ -260,9 +269,7 @@ class DynamicMCPServer:
             return True
 
         # Check if tool is destructive and destructive tools are disabled
-        if not self.allow_destructive_tools and any(
-            suffix in tool_name for suffix in TOOL_DELETE_SUFFIXES
-        ):
+        if not self.allow_destructive_tools and self._is_tool_destructive(tool_name):
             return False
 
         tool_groups = self._get_tool_groups(tool_name)
@@ -348,42 +355,37 @@ class DynamicMCPServer:
                     param_schema.get("type", "string")
                 )
 
-            # TODO: Refactor this to not need the conditional
+            annotation_type = inspect.Parameter.empty
+            default = inspect.Parameter.empty
+
             if param_name not in api_tool.parameters.get("required", []):
                 # Create parameter with default value
                 default = param_schema.get("default", None)
                 annotation_type = (
                     param_type if default is not None else Optional[param_type]
                 )
-                sig_params.append(
-                    inspect.Parameter(
-                        param_name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        annotation=annotation_type,
-                        default=param_schema.get("default", None),
-                    )
+
+            sig_params.append(
+                inspect.Parameter(
+                    param_name,
+                    inspect.Parameter.KEYWORD_ONLY,
+                    annotation=annotation_type,
+                    default=default,
                 )
-            else:
-                sig_params.append(
-                    inspect.Parameter(
-                        param_name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        annotation=param_type,
-                    )
-                )
+            )
             annotations[param_name] = param_type
 
         # Create new signature
         dynamic_tool_func.__signature__ = inspect.Signature(sig_params)
-
-        # TODO: mark dangerous operations with `destructiveHint`
-        # https://modelcontextprotocol.io/docs/concepts/tools#purpose-of-tool-annotations
         dynamic_tool_func.__annotations__ = annotations
 
         # Register with MCP server - this uses the decorator approach
-        self.mcp.tool()(dynamic_tool_func)
-
-        # print(f"Registered tool: {api_tool.name} ({api_tool.method} {api_tool.path})")
+        self.mcp.tool(
+            annotations=types.ToolAnnotations(
+                destructiveHint=api_tool.is_destructive,
+                readOnlyHint=api_tool.is_read_only,
+            )
+        )(dynamic_tool_func)
 
     def _schema_type_to_python_type(self, schema_type: str):
         """Convert OpenAPI schema type to Python type"""
@@ -665,6 +667,8 @@ class DynamicMCPServer:
             parameters=parameter_schema,
             base_url=base_url,
             query_filter=simplified_query,
+            is_destructive=self._is_tool_destructive(tool_name),
+            is_read_only=self._is_tool_read_only(tool_name),
         )
 
     def _format_enum_description(

@@ -13,3 +13,5 @@ class OpenAPITool:
     parameters: Dict[str, Any]
     base_url: str
     query_filter: Optional[str]
+    is_destructive: bool = False
+    is_read_only: bool = False
