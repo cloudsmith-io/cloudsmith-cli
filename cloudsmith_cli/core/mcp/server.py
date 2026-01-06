@@ -3,6 +3,7 @@ import copy
 import inspect
 import json
 from typing import Any, Dict, List, Optional
+from urllib import parse
 
 import cloudsmith_api
 import httpx
@@ -475,10 +476,7 @@ class DynamicMCPServer:
         url, query_params, body_params = self._get_request_params(url, tool, arguments)
 
         if tool.query_filter:
-            parsed_simplified_filter = {
-                k: v
-                for k, v in map(lambda x: x.split("="), tool.query_filter.split("&"))
-            }
+            parsed_simplified_filter = parse.parse_qs(tool.query_filter)
             query_params.update(parsed_simplified_filter)
 
         try:
@@ -500,7 +498,7 @@ class DynamicMCPServer:
                     url, json=body_params, params=query_params
                 )
             else:
-                # Emm did you invent a new HTTP method that I'm not aware of?
+                # Unsupported method, shouldn't happen
                 return f"Unsupported HTTP method: {tool.method}"
 
             response.raise_for_status()
