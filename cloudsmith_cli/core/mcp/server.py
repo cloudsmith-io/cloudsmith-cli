@@ -756,7 +756,7 @@ class DynamicMCPServer:
         except asyncio.CancelledError:
             print("Server shutdown requested")
 
-    def list_tools(self):
+    def list_tools(self) -> Dict[str, OpenAPITool]:
         """Initialize and return list of tools. Useful for debugging"""
         asyncio.run(self.load_openapi_spec())
         return self.tools

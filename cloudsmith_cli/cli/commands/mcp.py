@@ -5,14 +5,21 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Dict, List
 
 import click
 
 from ...core.mcp import server
+from ...core.mcp.data import OpenAPITool
 from .. import command, decorators, utils
 from .main import main
 
-SUPPORTED_MCP_CLIENTS = ["claude", "cursor", "vscode"]
+SUPPORTED_MCP_CLIENTS = {
+    "claude": "Claude Desktop",
+    "cursor": "Cursor IDE",
+    "vscode": "VS Code",
+    "gemini-cli": "Gemini CLI",
+}
 
 
 @main.group(cls=command.AliasGroup, name="mcp")
@@ -69,7 +76,7 @@ def list_groups(ctx, opts, mcp_server: server.DynamicMCPServer):
     print_groups(groups)
 
 
-def print_tools(tool_list):
+def print_tools(tool_list: Dict[str, OpenAPITool]):
     """Print tools as a table or output in another format."""
 
     headers = [
@@ -97,7 +104,7 @@ def print_tools(tool_list):
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
-def print_groups(group_list):
+def print_groups(group_list: Dict[str, List[str]]):
     """Print tool groups as a table or output in another format."""
 
     headers = [
@@ -135,8 +142,8 @@ def print_groups(group_list):
 @mcp_.command(name="configure")
 @click.option(
     "--client",
-    type=click.Choice(["claude", "cursor", "vscode"], case_sensitive=False),
-    help="MCP client to configure (claude, cursor, vscode). If not specified, will attempt to detect and configure all.",
+    type=click.Choice(list(SUPPORTED_MCP_CLIENTS.keys()), case_sensitive=False),
+    help=f"MCP client to configure ({', '.join(SUPPORTED_MCP_CLIENTS.keys())}). If not specified, will attempt to detect and configure all.",
 )
 @click.option(
     "--global/--local",
@@ -155,10 +162,12 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     - Claude Desktop
     - Cursor IDE
     - VS Code (GitHub Copilot)
+    - Gemini CLI
 
     Examples:\n
         cloudsmith mcp configure --client claude\n
         cloudsmith mcp configure --client cursor --local\n
+        cloudsmith mcp configure --client gemini-cli\n
         cloudsmith mcp configure  # Auto-detect and configure all
     """
     # Get the profile from context
@@ -177,9 +186,8 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     if not clients_to_configure:
         click.echo(click.style("No supported MCP clients detected.", fg="yellow"))
         click.echo("\nSupported clients:")
-        click.echo("  - Claude Desktop")
-        click.echo("  - Cursor IDE")
-        click.echo("  - VS Code")
+        for display_name in SUPPORTED_MCP_CLIENTS.values():
+            click.echo(f"  - {display_name}")
         return
 
     success_count = 0
@@ -217,7 +225,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
 
 
 def _get_server_config(profile=None):
-    """Determine the best command configuration to run the MCP server."""
+    """Determine the first available command configuration to run the MCP server."""
     # Check if running in a virtual environment
     in_venv = hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
@@ -295,12 +303,16 @@ def get_config_path(client_name, is_global=True):
             "linux": home / ".config" / "Code" / "User" / "settings.json",
             "local": Path.cwd() / ".vscode" / "settings.json",
         },
+        "gemini-cli": {
+            "global": home / ".gemini" / "settings.json",
+            "local": Path.cwd() / ".gemini" / "settings.json",
+        },
     }
 
     client_config = config_paths.get(client_name, {})
 
-    # For Cursor, use global/local scope instead of platform
-    if client_name == "cursor":
+    # For Cursor and Gemini CLI, use global/local scope instead of platform
+    if client_name in ("cursor", "gemini-cli"):
         scope = "global" if is_global else "local"
         return client_config.get(scope)
 
@@ -324,20 +336,19 @@ def configure_client(client_name, server_config, is_global=True, profile=None):
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Read existing config or create new one
+    config = {}
     if config_path.exists():
         with open(config_path) as f:
             try:
                 config = json.load(f)
             except json.JSONDecodeError:
-                config = {}
-    else:
-        config = {}
+                raise ValueError(f"Invalid JSON in config file: {config_path}")
 
     # Determine server name based on profile
     server_name = f"cloudsmith-{profile}" if profile else "cloudsmith"
 
     # Add Cloudsmith MCP server based on client format
-    if client_name in {"claude", "cursor"}:
+    if client_name in {"claude", "cursor", "gemini-cli"}:
         if "mcpServers" not in config:
             config["mcpServers"] = {}
         config["mcpServers"][server_name] = server_config
