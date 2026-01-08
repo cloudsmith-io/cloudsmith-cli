@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.10.2] - 2026-01-07
-
 ### Fixed
 
 - [Issue #250](https://github.com/cloudsmith-io/cloudsmith-cli/issues/250) - Updated `requests_toolbelt` dependency to `>=1.0.0` to ensure compatibility with `urllib3>=2.5` and avoid `urllib3.contrib.appengine` import errors.
