@@ -17,9 +17,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- [Issue #250](https://github.com/cloudsmith-io/cloudsmith-cli/issues/250) - Updated `requests_toolbelt` dependency to `>=1.0.0` to ensure compatibility with `urllib3>=2.5` and avoid `urllib3.contrib.appengine` import errors.
+
+## [1.10.1] - 2025-12-16
+
+### Fixed
+
+- Fixed quarantine block/add command
+
+## [1.10.0] - 2025-12-16
+
+### Fixed
+
 - Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
 - Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
 - Entitlement token list command now fixed
+- Drop click dependency from `v8.2.0` to `v8.1.8` to fix dependency issue for Python 3.9
 
 ## [1.9.4] - 2025-11-07
 

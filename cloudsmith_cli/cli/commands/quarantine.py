@@ -51,7 +51,7 @@ def quarantine(ctx, opts):  # pylint: disable=unused-argument
     """
 
 
-def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
+def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     """
     Add a package to quarantine.
 
@@ -98,7 +98,7 @@ def add(*args, **kwargs):  # pylint: disable=missing-docstring
     return add_quarantine(*args, **kwargs)
 
 
-def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
+def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     """
     Remove a package from quarantine.
 

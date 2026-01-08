@@ -49,14 +49,14 @@ setup(
     platforms=["any"],
     python_requires=">=3.10.0",
     install_requires=[
-        "click>=8.2.0,!=8.3.0",
+        "click>=8.1.8,!=8.3.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
         "cloudsmith-api>=2.0.22,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "requests>=2.18.4",
-        "requests_toolbelt>=0.8.0",
+        "requests_toolbelt>=1.0.0",
         "semver>=2.7.9",
         "urllib3>=2.5",
     ],
