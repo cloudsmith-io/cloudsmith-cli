@@ -7,7 +7,7 @@ from datetime import datetime
 
 import click
 
-from ...core import utils
+from ...core import utils as core_utils
 from ...core.api.exceptions import ApiException
 from ...core.api.files import (
     CHUNK_SIZE,
@@ -22,7 +22,7 @@ from ...core.api.packages import (
     get_package_status,
     validate_create_package as api_validate_create_package,
 )
-from .. import command, decorators, validators
+from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..types import ExpandPath
 from ..utils import maybe_spinner
@@ -34,10 +34,13 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     filename = click.format_filename(filepath)
     basename = os.path.basename(filename)
 
+    use_stderr = utils.should_use_stderr(opts)
+
     click.echo(
         "Checking %(filename)s file upload parameters ... "
         % {"filename": click.style(basename, bold=True)},
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to validate upload parameters!"
@@ -49,7 +52,7 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
                 owner=owner, repo=repo, filepath=filename
             )
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     return md5_checksum
 
@@ -59,14 +62,17 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     filename = click.format_filename(filepath)
     basename = os.path.basename(filename)
 
-    filesize = utils.get_file_size(filepath=filename)
+    filesize = core_utils.get_file_size(filepath=filename)
     projected_chunks = math.floor(filesize / CHUNK_SIZE) + 1
     is_multi_part_upload = projected_chunks > 1
+
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Requesting file upload for %(filename)s ... "
         % {"filename": click.style(basename, bold=True)},
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to request file upload!"
@@ -82,51 +88,69 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
                 is_multi_part_upload=is_multi_part_upload,
             )
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     context_msg = "Failed to upload file!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         label = f"Uploading {click.style(basename, bold=True)}:"
 
         if not is_multi_part_upload:
-            # We can upload the whole file in one go.
-            with click.progressbar(
-                length=filesize,
-                label=label,
-                fill_char=click.style("#", fg="green"),
-                empty_char=click.style("-", fg="red"),
-            ) as pb:
-
-                def progress_callback(monitor):
-                    pb.update(monitor.bytes_read)
-
+            if use_stderr:
                 api_upload_file(
                     upload_url=upload_url,
                     upload_fields=upload_fields,
                     filepath=filename,
-                    callback=progress_callback,
                 )
+            else:
+                # We can upload the whole file in one go.
+                with click.progressbar(
+                    length=filesize,
+                    label=label,
+                    fill_char=click.style("#", fg="green"),
+                    empty_char=click.style("-", fg="red"),
+                ) as pb:
+
+                    def progress_callback(monitor):
+                        pb.update(monitor.bytes_read)
+
+                    api_upload_file(
+                        upload_url=upload_url,
+                        upload_fields=upload_fields,
+                        filepath=filename,
+                        callback=progress_callback,
+                    )
         else:
-            # The file is sufficiently large that we need to upload in chunks.
-            with click.progressbar(
-                length=projected_chunks,
-                label=label,
-                fill_char=click.style("#", fg="green"),
-                empty_char=click.style("-", fg="red"),
-            ) as pb:
-
-                def progress_callback():
-                    pb.update(1)
-
+            if use_stderr:
                 multi_part_upload_file(
                     opts=opts,
                     upload_url=upload_url,
                     owner=owner,
                     repo=repo,
                     filepath=filename,
-                    callback=progress_callback,
                     upload_id=identifier,
+                    callback=lambda: None,
                 )
+            else:
+                # The file is sufficiently large that we need to upload in chunks.
+                with click.progressbar(
+                    length=projected_chunks,
+                    label=label,
+                    fill_char=click.style("#", fg="green"),
+                    empty_char=click.style("-", fg="red"),
+                ) as pb:
+
+                    def progress_callback():
+                        pb.update(1)
+
+                    multi_part_upload_file(
+                        opts=opts,
+                        upload_url=upload_url,
+                        owner=owner,
+                        repo=repo,
+                        filepath=filename,
+                        callback=progress_callback,
+                        upload_id=identifier,
+                    )
 
     return identifier
 
@@ -135,10 +159,13 @@ def validate_create_package(
     ctx, opts, owner, repo, package_type, skip_errors, **kwargs
 ):
     """Check new package parameters via the API."""
+    use_stderr = utils.should_use_stderr(opts)
+
     click.echo(
         "Checking %(package_type)s package upload parameters ... "
         % {"package_type": click.style(package_type, bold=True)},
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to validate upload parameters!"
@@ -150,16 +177,19 @@ def validate_create_package(
                 package_format=package_type, owner=owner, repo=repo, **kwargs
             )
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
     return True
 
 
 def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     """Create a new package via the API."""
+    use_stderr = utils.should_use_stderr(opts)
+
     click.echo(
         "Creating a new %(package_type)s package ... "
         % {"package_type": click.style(package_type, bold=True)},
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to create package!"
@@ -171,7 +201,7 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
                 package_format=package_type, owner=owner, repo=repo, **kwargs
             )
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     click.echo(
         "Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)"
@@ -180,7 +210,8 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
             "repo": click.style(repo, fg="magenta"),
             "slug": click.style(slug, fg="green"),
             "slug_perm": click.style(slug_perm, bold=True),
-        }
+        },
+        err=use_stderr,
     )
 
     return slug_perm, slug
@@ -191,8 +222,10 @@ def wait_for_package_sync(
 ):
     """Wait for a package to synchronise (or fail)."""
     # pylint: disable=too-many-locals
+    use_stderr = utils.should_use_stderr(opts)
+
     attempts -= 1
-    click.echo()
+    click.echo(err=use_stderr)
     label = f"Synchronising {click.style(slug, fg='green')}:"
 
     status_str = "Waiting"
@@ -218,46 +251,64 @@ def wait_for_package_sync(
         total_wait_interval = max(1.0, wait_interval)
         first = True
 
-        with click.progressbar(
-            length=left,
-            label=label,
-            fill_char=click.style("#", fg="green"),
-            empty_char=click.style("-", fg="red"),
-            item_show_func=display_status,
-        ) as pb:
+        if use_stderr:
+            # When using stderr for logs, avoid an interactive progress bar and just poll for status.
             while True:
                 res = get_package_status(owner, repo, slug)
-                ok, failed, progress, status_str, stage_str, reason = res
-                progress = max(1, progress)
-                delta = progress - last_progress
-                pb.update(delta)
-                if delta > 0:
-                    last_progress = progress
-                    left -= delta
+                ok, failed, _, _, _, _ = res
                 if ok or failed:
                     break
-                if first:
-                    first = False
-                else:
-                    # Sleep, but only after the first status call
+
+                # Sleep if we are going to loop again
+                if not first:
                     time.sleep(total_wait_interval)
                     total_wait_interval = min(
                         300.0, total_wait_interval + wait_interval
                     )
+                first = False
 
-            if left > 0:
-                pb.update(left)
+        else:
+            with click.progressbar(
+                length=left,
+                label=label,
+                fill_char=click.style("#", fg="green"),
+                empty_char=click.style("-", fg="red"),
+                item_show_func=display_status,
+            ) as pb:
+                while True:
+                    res = get_package_status(owner, repo, slug)
+                    ok, failed, progress, status_str, stage_str, reason = res
+                    progress = max(1, progress)
+                    delta = progress - last_progress
+                    pb.update(delta)
+                    if delta > 0:
+                        last_progress = progress
+                        left -= delta
+                    if ok or failed:
+                        break
+                    if first:
+                        first = False
+                    else:
+                        # Sleep, but only after the first status call
+                        time.sleep(total_wait_interval)
+                        total_wait_interval = min(
+                            300.0, total_wait_interval + wait_interval
+                        )
+
+                if left > 0:
+                    pb.update(left)
 
     end = datetime.now()
     seconds = (end - start).total_seconds()
 
-    click.echo()
+    click.echo(err=use_stderr)
 
     if ok:
         click.secho(
             "Package synchronised successfully in %(seconds)s second(s)!"
             % {"seconds": click.style(str(seconds), bold=True)},
             fg="green",
+            err=use_stderr,
         )
         return
 
@@ -268,21 +319,25 @@ def wait_for_package_sync(
             "stage": click.style(stage_str or "Unknown", fg="yellow"),
         },
         fg="red",
+        err=use_stderr,
     )
 
     if reason:
         click.secho(
             f"Reason given: {click.style(reason, fg='yellow')}",
             fg="red",
+            err=use_stderr,
         )
 
         # pylint: disable=fixme
         # FIXME: The API should communicate "no retry" fails
         if "package should be deleted" in reason and attempts > 1:
             click.secho(
-                "This is not recoverable, so stopping further attempts!", fg="red"
+                "This is not recoverable, so stopping further attempts!",
+                fg="red",
+                err=use_stderr,
             )
-            click.echo()
+            click.echo(err=use_stderr)
             attempts = 0
 
     if attempts + 1 > 0:
@@ -292,9 +347,10 @@ def wait_for_package_sync(
             % {
                 "left": click.style(str(attempts), bold=True),
                 "action": "trying again" if attempts > 0 else "giving up",
-            }
+            },
+            err=use_stderr,
         )
-        click.echo()
+        click.echo(err=use_stderr)
 
     if attempts > 0:
         from .resync import resync_package
@@ -418,7 +474,7 @@ def upload_files_and_create_package(
             ]
 
     # 4. Create the package with package files and additional arguments
-    _, slug = create_package(
+    slug_perm, slug = create_package(
         ctx=ctx,
         opts=opts,
         owner=owner,
@@ -429,7 +485,7 @@ def upload_files_and_create_package(
     )
 
     if no_wait_for_sync:
-        return
+        return slug_perm, slug
 
     # 5. (optionally) Wait for the package to synchronise
     wait_for_package_sync(
@@ -442,6 +498,8 @@ def upload_files_and_create_package(
         skip_errors=skip_errors,
         attempts=sync_attempts,
     )
+
+    return slug_perm, slug
 
 
 def create_push_handlers():
@@ -530,6 +588,7 @@ def create_push_handlers():
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
+            opts = kwargs.get("opts")
             parameters = context.get(ctx.info_name)
             kwargs["package_type"] = ctx.info_name
 
@@ -543,16 +602,39 @@ def create_push_handlers():
             if not isinstance(package_files, tuple):
                 package_files = (package_files,)
 
+            results = []
             for package_file in package_files:
                 kwargs["package_file"] = package_file
 
                 try:
-                    click.echo()
-                    upload_files_and_create_package(ctx, *args, **kwargs)
+                    click.echo(err=utils.should_use_stderr(opts))
+                    res = upload_files_and_create_package(ctx, *args, **kwargs)
+                    if res:
+                        results.append(res)
                 except ApiException:
-                    click.secho("Skipping error and moving on.", fg="yellow")
+                    click.secho(
+                        "Skipping error and moving on.",
+                        fg="yellow",
+                        err=utils.should_use_stderr(opts),
+                    )
 
-                click.echo()
+                click.echo(err=utils.should_use_stderr(opts))
+
+            if utils.should_use_stderr(opts):
+                data = []
+                for slug_perm, slug in results:
+                    data.append(
+                        {
+                            "slug_perm": slug_perm,
+                            "slug": slug,
+                            "status": "OK",  # Assuming success if we got here
+                        }
+                    )
+
+                if len(data) == 1:
+                    utils.maybe_print_as_json(opts, data[0])
+                else:
+                    utils.maybe_print_as_json(opts, data)
 
         # Add any additional arguments
         for k, info in kwargs.items():
