@@ -192,7 +192,7 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
 @contextmanager
 def maybe_spinner(opts):
     """Only activate the spinner if not in debug mode or using json output."""
-    if opts.debug or get_output_format(opts) in ("json", "pretty_json"):
+    if should_use_stderr(opts) or get_output_format(opts) in ("json", "pretty_json"):
         # No spinner
         yield
     else:

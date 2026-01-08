@@ -385,10 +385,22 @@ def download(  # noqa: C901
             "format": package.get("format"),
             "slug": package.get("slug"),
         },
-        "filename": os.path.basename(outfile),
-        "path": outfile,
-        "size": package.get("size", 0),
-        "status": "OK",
+        "output_directory": os.path.dirname(outfile),
+        "files": [
+            {
+                "filename": os.path.basename(outfile),
+                "path": outfile,
+                "tag": "file",
+                "is_primary": True,
+                "size": package.get("size", 0),
+                "status": "OK",
+            }
+        ],
+        "summary": {
+            "total": 1,
+            "success": 1,
+            "failed": 0,
+        },
     }
 
     if utils.maybe_print_as_json(opts, json_output):

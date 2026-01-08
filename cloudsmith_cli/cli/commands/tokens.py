@@ -184,7 +184,7 @@ def refresh_existing_token_interactive(
         click.echo(f"Refreshing token {token_slug}... ", nl=False)
     else:
         # In JSON mode, print info to stderr
-        click.echo(f"Refreshing token {token_slug}... ", nl=False, err=True)
+        click.echo(f"Refreshing token {token_slug}... ", nl=False, err=json)
 
     try:
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
