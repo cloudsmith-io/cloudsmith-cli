@@ -100,7 +100,7 @@ def ls(ctx, opts, owner, page, page_size, page_all):
     owner = owner[0]
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo("Getting license policies ... ", nl=False, err=use_stderr)
 
@@ -316,13 +316,15 @@ def delete(ctx, opts, owner, identifier, yes):
         "delete the %(slug_perm)s license policy from the %(namespace)s namespace"
         % delete_args
     )
+    use_stderr = utils.should_use_stderr(opts)
 
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
         "Deleting %(slug_perm)s from the %(namespace)s namespace ... " % delete_args,
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to delete the license policy!"
@@ -330,4 +332,4 @@ def delete(ctx, opts, owner, identifier, yes):
         with maybe_spinner(opts):
             api.delete_license_policy(owner=owner, slug_perm=identifier)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
