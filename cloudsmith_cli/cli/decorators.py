@@ -7,6 +7,7 @@ import click
 from cloudsmith_cli.cli import validators
 
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.mcp import server
 from . import config, utils
 
 
@@ -93,9 +94,15 @@ def common_cli_config_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
-        profile = kwargs.pop("profile")
-        config_file = kwargs.pop("config_file")
-        creds_file = kwargs.pop("credentials_file")
+        profile = kwargs.pop("profile") or ctx.meta.get("profile")
+        config_file = kwargs.pop("config_file") or ctx.meta.get("config_file")
+        creds_file = kwargs.pop("credentials_file") or ctx.meta.get("creds_file")
+
+        # Store in context for subcommands to inherit
+        ctx.meta["profile"] = profile
+        ctx.meta["config_file"] = config_file
+        ctx.meta["creds_file"] = creds_file
+
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
         kwargs["opts"] = opts
@@ -327,6 +334,43 @@ def initialise_api(f):
         )
 
         kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
+
+
+def initialise_mcp(f):
+    @click.option(
+        "-a",
+        "--all-tools",
+        default=False,
+        is_flag=True,
+        help="Show all tools",
+    )
+    @click.option(
+        "-d",
+        "--allow-destructive-tools",
+        default=False,
+        is_flag=True,
+        help="Allow destructive tools to be used",
+    )
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        opts = kwargs.get("opts")
+
+        all_tools = kwargs.pop("all_tools")
+        allow_destructive_tools = kwargs.pop("allow_destructive_tools")
+
+        mcp_server = server.DynamicMCPServer(
+            api_config=opts.api_config,
+            debug_mode=opts.debug,
+            allow_destructive_tools=allow_destructive_tools,
+            allowed_tool_groups=opts.mcp_allowed_tool_groups,
+            allowed_tools=opts.mcp_allowed_tools,
+            force_all_tools=all_tools,
+        )
+        kwargs["mcp_server"] = mcp_server
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper

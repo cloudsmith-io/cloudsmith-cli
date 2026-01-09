@@ -47,7 +47,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
-    python_requires=">=3.9.0",
+    python_requires=">=3.10.0",
     install_requires=[
         "click>=8.1.8,!=8.3.0",
         "click-configfile>=0.2.3",
@@ -55,6 +55,8 @@ setup(
         "click-spinner>=0.1.7",
         "cloudsmith-api>=2.0.22,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
+        "mcp==1.9.1",
+        "toon-python==0.1.2",
         "requests>=2.18.4",
         "requests_toolbelt>=1.0.0",
         "semver>=2.7.9",
