@@ -24,6 +24,7 @@ SUPPORTED_MCP_CLIENTS = {
 
 @main.group(cls=command.AliasGroup, name="mcp")
 @decorators.common_cli_config_options
+@decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.pass_context
@@ -47,6 +48,9 @@ def start(ctx, opts, mcp_server: server.DynamicMCPServer):
 
 
 @mcp_.command(name="list_tools")
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
 @decorators.initialise_api
 @decorators.initialise_mcp
 @click.pass_context
@@ -54,14 +58,31 @@ def list_tools(ctx, opts, mcp_server: server.DynamicMCPServer):
     """
     List available tools that will be exposed to the MCP Client
     """
-    click.echo("Getting list of tools ... ", nl=False, err=False)
+    use_stderr = utils.should_use_stderr(opts)
+
+    if not use_stderr:
+        click.echo("Getting list of tools ... ", nl=False, err=use_stderr)
+
     with utils.maybe_spinner(opts):
         tools = mcp_server.list_tools()
+
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
+
+    tools_data = [
+        {"name": name, "description": spec.description} for name, spec in tools.items()
+    ]
+
+    if utils.maybe_print_as_json(opts, tools_data):
+        return
 
     print_tools(tools)
 
 
 @mcp_.command(name="list_groups")
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
 @decorators.initialise_api
 @decorators.initialise_mcp
 @click.pass_context
@@ -69,9 +90,21 @@ def list_groups(ctx, opts, mcp_server: server.DynamicMCPServer):
     """
     List available tool groups and the tools they contain
     """
-    click.echo("Getting list of tool groups ... ", nl=False, err=False)
+    use_stderr = utils.should_use_stderr(opts)
+
+    if not use_stderr:
+        click.echo("Getting list of tool groups ... ", nl=False, err=use_stderr)
+
     with utils.maybe_spinner(opts):
         groups = mcp_server.list_groups()
+
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
+
+    groups_data = [{"name": name, "tools": tools} for name, tools in groups.items()]
+
+    if utils.maybe_print_as_json(opts, groups_data):
+        return
 
     print_groups(groups)
 
@@ -140,6 +173,9 @@ def print_groups(group_list: Dict[str, List[str]]):
 
 
 @mcp_.command(name="configure")
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
 @click.option(
     "--client",
     type=click.Choice(list(SUPPORTED_MCP_CLIENTS.keys()), case_sensitive=False),
@@ -170,6 +206,9 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
         cloudsmith mcp configure --client gemini-cli\n
         cloudsmith mcp configure  # Auto-detect and configure all
     """
+
+    use_stderr = utils.should_use_stderr(opts)
+
     # Get the profile from context
     profile = ctx.meta.get("profile")
 
@@ -184,32 +223,51 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
         clients_to_configure = detect_available_clients()
 
     if not clients_to_configure:
-        click.echo(click.style("No supported MCP clients detected.", fg="yellow"))
-        click.echo("\nSupported clients:")
-        for display_name in SUPPORTED_MCP_CLIENTS.values():
-            click.echo(f"  - {display_name}")
+        if not use_stderr:
+            click.echo(click.style("No supported MCP clients detected.", fg="yellow"))
+            click.echo("\nSupported clients:")
+            for display_name in SUPPORTED_MCP_CLIENTS.values():
+                click.echo(f"  - {display_name}")
+
+        utils.maybe_print_as_json(opts, [])
         return
 
+    results = []
     success_count = 0
     for client_name in clients_to_configure:
         try:
             if configure_client(client_name, server_config, is_global, profile):
-                click.echo(
-                    click.style(f"✓ Configured {client_name.title()}", fg="green")
-                )
-                success_count += 1
-            else:
-                click.echo(
-                    click.style(
-                        f"✗ Failed to configure {client_name.title()}", fg="red"
+                if not use_stderr:
+                    click.echo(
+                        click.style(f"✓ Configured {client_name.title()}", fg="green")
                     )
+                success_count += 1
+                results.append({"client": client_name, "success": True})
+            else:
+                if not use_stderr:
+                    click.echo(
+                        click.style(
+                            f"✗ Failed to configure {client_name.title()}", fg="red"
+                        )
+                    )
+                results.append(
+                    {
+                        "client": client_name,
+                        "success": False,
+                        "error": "Configuration failed",
+                    }
                 )
         except OSError as e:
-            click.echo(
-                click.style(
-                    f"✗ Error configuring {client_name.title()}: {str(e)}", fg="red"
+            if not use_stderr:
+                click.echo(
+                    click.style(
+                        f"✗ Error configuring {client_name.title()}: {str(e)}", fg="red"
+                    )
                 )
-            )
+            results.append({"client": client_name, "success": False, "error": str(e)})
+
+    if utils.maybe_print_as_json(opts, results):
+        return
 
     if success_count > 0:
         click.echo(
