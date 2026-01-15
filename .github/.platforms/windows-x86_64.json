@@ -19,17 +19,7 @@
     "cp39-abi3-win_amd64",
     "cp38-abi3-win_amd64",
     "cp37-abi3-win_amd64",
-    "py314-none-win_amd64",
-    "py313-none-win_amd64",
-    "py312-none-win_amd64",
-    "py311-none-win_amd64",
-    "py310-none-win_amd64",
     "py3-none-win_amd64",
-    "py314-none-any",
-    "py313-none-any",
-    "py312-none-any",
-    "py311-none-any",
-    "py310-none-any",
     "py3-none-any"
   ],
   "marker_environment": {
