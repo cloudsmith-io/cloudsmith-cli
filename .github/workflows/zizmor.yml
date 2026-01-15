@@ -12,26 +12,21 @@ on:
     paths:
       - ".github/workflows/**"
 
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
 
 jobs:
   zizmor:
     name: Scan GitHub Actions workflows
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
 
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@e639db99335bc9038abc0e066dfcd72e23d26fb4 # v0.3.0
-        with:
-          args: --format sarif --output results.sarif .github/workflows
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
-        with:
-          sarif_file: results.sarif
-          category: zizmor
