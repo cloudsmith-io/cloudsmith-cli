@@ -44,7 +44,31 @@ jobs:
                   --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
                   --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
                   --complete-platform .github/.platforms/macos-arm64-py310.json \
-                  --complete-platform .github/.platforms/windows-x86_64-py310.json
+                  --complete-platform .github/.platforms/windows-x86_64-py310.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py311.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py311.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py311.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py311.json \
+                  --complete-platform .github/.platforms/macos-arm64-py311.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py311.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py312.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py312.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py312.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py312.json \
+                  --complete-platform .github/.platforms/macos-arm64-py312.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py312.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py313.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py313.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py313.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py313.json \
+                  --complete-platform .github/.platforms/macos-arm64-py313.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py313.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py314.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py314.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py314.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py314.json \
+                  --complete-platform .github/.platforms/macos-arm64-py314.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py314.json
 
             - name: Create Release
               id: create_release

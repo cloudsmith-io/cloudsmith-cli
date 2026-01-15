@@ -195,7 +195,31 @@ jobs:
             --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
             --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
             --complete-platform .github/.platforms/macos-arm64-py310.json \
-            --complete-platform .github/.platforms/windows-x86_64-py310.json
+            --complete-platform .github/.platforms/windows-x86_64-py310.json \
+            --complete-platform .github/.platforms/linux-x86_64-py311.json \
+            --complete-platform .github/.platforms/linux-aarch64-py311.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py311.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py311.json \
+            --complete-platform .github/.platforms/macos-arm64-py311.json \
+            --complete-platform .github/.platforms/windows-x86_64-py311.json \
+            --complete-platform .github/.platforms/linux-x86_64-py312.json \
+            --complete-platform .github/.platforms/linux-aarch64-py312.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py312.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py312.json \
+            --complete-platform .github/.platforms/macos-arm64-py312.json \
+            --complete-platform .github/.platforms/windows-x86_64-py312.json \
+            --complete-platform .github/.platforms/linux-x86_64-py313.json \
+            --complete-platform .github/.platforms/linux-aarch64-py313.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py313.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py313.json \
+            --complete-platform .github/.platforms/macos-arm64-py313.json \
+            --complete-platform .github/.platforms/windows-x86_64-py313.json \
+            --complete-platform .github/.platforms/linux-x86_64-py314.json \
+            --complete-platform .github/.platforms/linux-aarch64-py314.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py314.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py314.json \
+            --complete-platform .github/.platforms/macos-arm64-py314.json \
+            --complete-platform .github/.platforms/windows-x86_64-py314.json
 
       - name: Upload zipapp artifact
         uses: actions/upload-artifact@v4
@@ -212,7 +236,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11']  # , '3.12', '3.13', '3.14']
+        python-version: ['3.10', '3.11']  # Start with 3.10 and 3.11 # , '3.12', '3.13', '3.14']
 
     container:
       image: python:${{ matrix.python-version }}-alpine
@@ -246,7 +270,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11']  # , '3.12', '3.13', '3.14']
+        python-version: ['3.10', '3.11']  # Start with 3.10 and 3.11 # , '3.12', '3.13', '3.14']
 
     steps:
       - uses: actions/checkout@v4
@@ -282,7 +306,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.10', '3.11']  # , '3.12', '3.13', '3.14']
+        python-version: ['3.10', '3.11']  # Start with 3.10 and 3.11 # , '3.12', '3.13', '3.14']
 
     steps:
       - uses: actions/checkout@v4
@@ -315,6 +339,6 @@ jobs:
       - name: Validate zipapp execution (Windows)
         if: runner.os == 'Windows'
         run: |
-          $output = python "cloudsmith-${{ env.VERSION }}.pyz" --version
+          $output = python "cloudsmith-$env:VERSION.pyz" --version
           echo "Zipapp Version: $output"
-          if ($output -notmatch "${{ env.VERSION }}") { exit 1 }
+          if ($output -notmatch "$env:VERSION") { exit 1 }
