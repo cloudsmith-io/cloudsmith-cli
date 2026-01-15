@@ -121,5 +121,18 @@
     "cp314-none-macosx_12_0_universal2",
     "cp314-none-macosx_11_0_arm64",
     "cp314-none-macosx_11_0_universal2"
-  ]
+  ],
+  "marker_environment": {
+    "implementation_name": "cpython",
+    "implementation_version": "3.10.19",
+    "os_name": "posix",
+    "platform_machine": "arm64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "21.0.0",
+    "platform_system": "Darwin",
+    "platform_version": "10.0.0",
+    "python_full_version": "3.10.19",
+    "python_version": "3.10",
+    "sys_platform": "darwin"
+  }
 }

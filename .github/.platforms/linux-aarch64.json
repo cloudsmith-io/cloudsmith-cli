@@ -151,5 +151,18 @@
     "cp314-none-manylinux_2_17_aarch64",
     "cp314-none-manylinux2014_aarch64",
     "cp314-none-linux_aarch64"
-  ]
+  ],
+  "marker_environment": {
+    "implementation_name": "cpython",
+    "implementation_version": "3.10.19",
+    "os_name": "posix",
+    "platform_machine": "aarch64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "5.15.0",
+    "platform_system": "Linux",
+    "platform_version": "#1 SMP",
+    "python_full_version": "3.10.19",
+    "python_version": "3.10",
+    "sys_platform": "linux"
+  }
 }
