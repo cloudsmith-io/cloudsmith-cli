@@ -79,7 +79,12 @@ def retry(
                             file=sys.stderr,
                         )
                         time.sleep(delay)
-            raise last_error  # type: ignore[misc]
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError(
+                f"Retry failed without capturing a CalledProcessError. "
+                f"max_attempts={max_attempts!r}"
+            )
 
         return wrapper
 
