@@ -17,23 +17,58 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Set up Python 3.11
+            - name: Set up Python 3.10
               uses: actions/setup-python@v5
               with:
-                  python-version: 3.11
+                  python-version: '3.10'
                   cache: 'pip'
 
-            - name: Install dependencies
+            - name: Install build dependencies
               run: |
                   python -m pip install --upgrade pip
-                  pip install shiv
+                  pip install pex setuptools wheel
 
             - name: Get version
               id: get_version
               run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
 
-            - name: Create Zipapp
-              run: shiv -o cloudsmith-${{ env.VERSION }}.pyz -c cloudsmith .
+            - name: Create multi-platform Zipapp with PEX
+              run: |
+                pex . \
+                  --output-file cloudsmith-${{ env.VERSION }}.pyz \
+                  --console-script cloudsmith \
+                  --python-shebang "/usr/bin/env python3" \
+                  --venv \
+                  --complete-platform .github/.platforms/linux-x86_64-py310.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py310.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
+                  --complete-platform .github/.platforms/macos-arm64-py310.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py310.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py311.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py311.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py311.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py311.json \
+                  --complete-platform .github/.platforms/macos-arm64-py311.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py311.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py312.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py312.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py312.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py312.json \
+                  --complete-platform .github/.platforms/macos-arm64-py312.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py312.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py313.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py313.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py313.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py313.json \
+                  --complete-platform .github/.platforms/macos-arm64-py313.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py313.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py314.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py314.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py314.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py314.json \
+                  --complete-platform .github/.platforms/macos-arm64-py314.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py314.json
 
             - name: Create Release
               id: create_release
@@ -67,9 +102,6 @@ jobs:
               id: push_zipapp
               run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz --name cloudsmith-cli --version ${{ env.VERSION }}
 
-            - name: Install build dependencies for Python packages
-              run: pip install setuptools wheel
-
             - name: Build Python packages
               run: python setup.py sdist bdist_wheel
 
@@ -79,23 +111,31 @@ jobs:
             - name: Push wheel to Cloudsmith
               run: cloudsmith push python ${{ vars.CLOUDSMITH_NAMESPACE }}/cli dist/cloudsmith_cli-${{ env.VERSION }}-py3-none-any.whl
 
-            - name: Build Docker image
-              id: build_cli_image
-              run: |
-                  docker build --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} -t docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} .
+            - name: Set up QEMU for multi-arch
+              uses: docker/setup-qemu-action@v3
 
-            - name: Push Dockerised CLI to Cloudsmith
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Push Dockerised CLI to Cloudsmith (multi-arch)
               id: push_dockerised_cli_cloudsmith
               run: |
-                  echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u ${{ vars.CLOUDSMITH_SVC_SLUG }} --password-stdin
-                  docker push docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }}
+                echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u ${{ vars.CLOUDSMITH_SVC_SLUG }} --password-stdin
+                docker buildx build \
+                  --platform linux/amd64,linux/arm64 \
+                  --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} \
+                  -t docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} \
+                  --push .
 
-            - name: Push Dockerised CLI to DockerHub
+            - name: Push Dockerised CLI to DockerHub (multi-arch)
               id: push_dockerised_cli_dockerhub
               run: |
-                docker tag docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} cloudsmith/cloudsmith-cli:${{ env.VERSION }}
                 echo "${{ secrets.DOCKERHUB_PAT }}" | docker login -u ${{ vars.DOCKERHUB_USER }} --password-stdin
-                docker push cloudsmith/cloudsmith-cli:${{ env.VERSION }}
+                docker buildx build \
+                  --platform linux/amd64,linux/arm64 \
+                  --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} \
+                  -t cloudsmith/cloudsmith-cli:${{ env.VERSION }} \
+                  --push .
 
     # Publish Python packages to PyPI
     publish-pypi:
@@ -104,10 +144,10 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Set up Python 3.11
+            - name: Set up Python 3.10
               uses: actions/setup-python@v5
               with:
-                  python-version: 3.11
+                  python-version: '3.10'
 
             - name: Install build dependencies
               run: |
