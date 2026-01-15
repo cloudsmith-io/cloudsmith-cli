@@ -191,10 +191,25 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
 
 @contextmanager
 def maybe_spinner(opts):
-    """Only activate the spinner if not in debug mode."""
-    if opts.debug:
+    """Only activate the spinner if not in debug mode or using json output."""
+    if should_use_stderr(opts) or get_output_format(opts) in ("json", "pretty_json"):
         # No spinner
         yield
     else:
         with spinner() as spin:
             yield spin
+
+
+def get_output_format(opts):
+    """Get the output format from opts."""
+    return getattr(opts, "output", None)
+
+
+def should_use_stderr(opts):
+    """Check if stdout should be avoided for informational messages."""
+    return get_output_format(opts) in ("json", "pretty_json")
+
+
+def maybe_print_status_json(opts, status_dict):
+    """Maybe print a status dict as JSON."""
+    return maybe_print_as_json(opts, status_dict)

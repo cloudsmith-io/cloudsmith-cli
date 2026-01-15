@@ -173,8 +173,7 @@ def build_upstream_list_command(upstream_fmt):
     def func(ctx, opts, owner_repo, page, page_size, page_all):
         owner, repo = owner_repo
 
-        # Use stderr for messages if the output is something else (e.g.  # JSON)
-        use_stderr = opts.output != "pretty"
+        use_stderr = utils.should_use_stderr(opts)
 
         if not use_stderr:
             click.echo("Getting upstreams... ", nl=False, err=use_stderr)
@@ -418,7 +417,7 @@ def build_upstream_delete_command(upstream_fmt):
             "delete the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository"
             % delete_args
         )
-        if not utils.confirm_operation(prompt, assume_yes=yes):
+        if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
             return
 
         if not use_stderr:
