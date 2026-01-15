@@ -3,10 +3,10 @@ name: Test
 on:
   push:
     branches:
-      - '**'
+      - "**"
   pull_request:
     branches:
-      - '**'
+      - "**"
 
 permissions:
   contents: read
@@ -22,8 +22,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
@@ -43,8 +43,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
@@ -64,8 +64,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
@@ -85,8 +85,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
@@ -106,8 +106,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
@@ -171,8 +171,8 @@ jobs:
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
 
       - name: Install PEX
         run: |
@@ -236,7 +236,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     container:
       image: python:${{ matrix.python-version }}-alpine
@@ -270,7 +270,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -306,7 +306,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -346,6 +346,7 @@ jobs:
       - name: Validate zipapp execution (Windows)
         if: runner.os == 'Windows'
         run: |
-          $output = python "cloudsmith-$env:VERSION.pyz" --version
-          echo "Zipapp Version: $output"
-          if ($output -notmatch "$env:VERSION") { exit 1 }
+          $output = python "cloudsmith-$env:VERSION.pyz" --version 2>&1 | Out-String
+          if (-not ($output -like "*$env:VERSION*")) {
+            throw "Version validation failed. Expected: $env:VERSION"
+          }
