@@ -188,12 +188,16 @@ jobs:
             --console-script cloudsmith \
             --python-shebang "/usr/bin/env python3" \
             --venv \
-            --complete-platform .github/.platforms/linux-x86_64-py310.json \
-            --complete-platform .github/.platforms/linux-aarch64-py310.json \
-            --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
-            --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
-            --complete-platform .github/.platforms/macos-arm64-py310.json \
-            --complete-platform .github/.platforms/windows-x86_64-py310.json
+            --complete-platform .github/.platforms/linux-x86_64-cp310.json \
+            --complete-platform .github/.platforms/linux-x86_64-cp311.json \
+            --complete-platform .github/.platforms/linux-x86_64-cp312.json \
+            --complete-platform .github/.platforms/linux-x86_64-cp313.json \
+            --complete-platform .github/.platforms/linux-x86_64-cp314.json \
+            --complete-platform .github/.platforms/linux-aarch64-cp310.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-cp310.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-cp310.json \
+            --complete-platform .github/.platforms/macos-arm64-cp310.json \
+            --complete-platform .github/.platforms/windows-x86_64-cp310.json
 
       - name: Make executable
         run: chmod +x cloudsmith-${{ env.VERSION }}.pyz
