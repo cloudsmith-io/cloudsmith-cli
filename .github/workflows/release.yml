@@ -44,7 +44,8 @@ jobs:
                     -o cloudsmith-${{ env.VERSION }}.pyz \
                     --console-script cloudsmith \
                     --python-shebang "/usr/bin/env python3" \
-                    --venv
+                    --venv \
+                    --interpreter-constraint "CPython>=3.10,<3.15"
 
             - name: Create Release
               id: create_release
