@@ -83,7 +83,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install and authenticate Cloudsmith CLI
-              uses: cloudsmith-io/cloudsmith-cli-action@d8a6f3fe4d45eaee8e8fafae7230e808e1c7f8ab # v2.0.0
+              uses: cloudsmith-io/cloudsmith-cli-action@76c8ff51a34bea1036d9b7708f10a929624a1910 # v2.0.1
               with:
                   oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
                   oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
@@ -155,6 +155,6 @@ jobs:
               run: python setup.py sdist bdist_wheel
 
             - name: Publish to PyPI
-              uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # release/v1
+              uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
               with:
                   packages-dir: dist/
