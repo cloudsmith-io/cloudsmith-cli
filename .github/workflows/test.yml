@@ -160,32 +160,25 @@ jobs:
           path: ./reports/pytest.xml
           retention-days: 30
 
-  # Test zipapp build across Python versions and platforms
-  test-zipapp-build:
-    name: Test zipapp build (Python ${{ matrix.python-version }} on ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
-
+  # Build zipapp once
+  build-zipapp:
+    name: Build zipapp
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Cache PEX dependencies
         uses: actions/cache@v4
         with:
           path: ~/.pex
-          key: pex-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('setup.py', 'requirements.txt') }}
+          key: pex-${{ runner.os }}-${{ hashFiles('setup.py', 'requirements.txt') }}
           restore-keys: |
-            pex-${{ runner.os }}-${{ matrix.python-version }}-
             pex-${{ runner.os }}-
 
       - name: Install pex
@@ -202,6 +195,41 @@ jobs:
             --console-script cloudsmith \
             --python-shebang "/usr/bin/env python3" \
             --venv
+
+      - name: Upload zipapp artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudsmith-zipapp
+          path: cloudsmith-${{ env.VERSION }}.pyz
+          retention-days: 1
+
+  # Test zipapp across Python versions and platforms
+  test-zipapp:
+    name: Test zipapp (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    needs: build-zipapp
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
+
+      - name: Download zipapp artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudsmith-zipapp
 
       - name: Make executable (Unix)
         if: runner.os != 'Windows'
