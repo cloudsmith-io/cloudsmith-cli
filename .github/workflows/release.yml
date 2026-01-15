@@ -44,12 +44,7 @@ jobs:
                     -o cloudsmith-${{ env.VERSION }}.pyz \
                     --console-script cloudsmith \
                     --python-shebang "/usr/bin/env python3" \
-                    --venv \
-                    --python python3.10 \
-                    --python python3.11 \
-                    --python python3.12 \
-                    --python python3.13 \
-                    --python python3.14
+                    --venv
 
             - name: Create Release
               id: create_release
