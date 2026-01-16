@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Migrate from CircleCI to GitHub Actions for testing and release workflows.
+- Remove CircleCI workflows.
+- Migrate from using `shiv` for zipapp generation to `pex` in order to support specific platform/arch and improve testing framework.
+- Add zizmor for GitHub Actions code scans, part of workflow and pre-commit
+
 ## [1.10.3] - 2026-01-08
 
 ### Deprecation Notice
@@ -18,6 +23,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed JSON output for all commands
   - Informational messages, warnings, and interactive prompts are now routed to stderr when `--output-format json` is active.
   - Error messages are now formatted as structured JSON on stdout when JSON output is requested.
+
+### Added
+
+- Set `--show-all` to alias `--page-all`
+- Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
+- Added support for deny policy management commands (list, create, get, update, delete)
 
 ## [1.10.2] - 2026-01-07
 
@@ -38,12 +49,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
 - Entitlement token list command now fixed
 - Drop click dependency from `v8.2.0` to `v8.1.8` to fix dependency issue for Python 3.9
-
-### Added
-
-- Set `--show-all` to alias `--page-all`
-- Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
-- Added support for deny policy management commands (list, create, get, update, delete)
 
 ## [1.9.4] - 2025-11-07
 
