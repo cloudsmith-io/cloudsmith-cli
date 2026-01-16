@@ -12,15 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  # Run lint workflow first
-  lint:
-    name: Lint
-    uses: ./.github/workflows/lint.yml
-
   # Test jobs run across Python versions
   pytest:
     name: Run tests (Python ${{ matrix.python-version }})
-    needs: lint
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -65,7 +59,6 @@ jobs:
   # Build zipapp once with PEX on Python 3.10
   build-zipapp-pex:
     name: Build zipapp with PEX (Python 3.10)
-    needs: lint
     runs-on: ubuntu-latest
 
     steps:
