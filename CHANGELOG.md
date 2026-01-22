@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-01-22
+
+## Added
+
 - Migrate from CircleCI to GitHub Actions for testing and release workflows.
 - Remove CircleCI workflows.
 - Migrate from using `shiv` for zipapp generation to `pex` in order to support specific platform/arch and improve testing framework.
 - Add zizmor for GitHub Actions code scans, part of workflow and pre-commit
+- Support output format for `--version` in order to allow JSON parsing
 
 ## [1.10.3] - 2026-01-08
 
