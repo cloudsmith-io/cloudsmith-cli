@@ -5,67 +5,162 @@ on:
         tags:
             - "v*"
 
-permissions:
- id-token: write
- contents: write
 jobs:
+    # Build and publish to GitHub, Cloudsmith (zipapp + Docker)
     build:
+        name: Build and publish artifacts
         runs-on: ubuntu-latest
+        permissions:
+            id-token: write
+            contents: write
+        env:
+            CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+            CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
+            CLOUDSMITH_SVC_SLUG: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+            DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
         steps:
-            - uses: actions/checkout@v2
-            - name: Set up Python 3.11
-              uses: actions/setup-python@v2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
               with:
-                  python-version: 3.11
-            - name: Install dependencies
+                  persist-credentials: false
+
+            - name: Set up Python 3.10
+              uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # 6.1.0
+              with:
+                  python-version: '3.10'
+
+            - name: Install build dependencies
               run: |
                   python -m pip install --upgrade pip
-                  pip install shiv
+                  pip install pex setuptools wheel
+
             - name: Get version
               id: get_version
               run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
-            - name: Create Zipapp
-              run: shiv -o cloudsmith-${{ env.VERSION }}.pyz -c cloudsmith .
-            - name: Create Release
-              id: create_release
-              uses: actions/create-release@v1
+
+            - name: Create multi-platform Zipapp with PEX
+              run: |
+                pex . \
+                  --output-file "cloudsmith.pyz" \
+                  --console-script cloudsmith \
+                  --python-shebang "/usr/bin/env python3" \
+                  --venv \
+                  --complete-platform .github/.platforms/linux-x86_64-py310.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py310.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
+                  --complete-platform .github/.platforms/macos-arm64-py310.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py310.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py311.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py311.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py311.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py311.json \
+                  --complete-platform .github/.platforms/macos-arm64-py311.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py311.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py312.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py312.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py312.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py312.json \
+                  --complete-platform .github/.platforms/macos-arm64-py312.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py312.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py313.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py313.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py313.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py313.json \
+                  --complete-platform .github/.platforms/macos-arm64-py313.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py313.json \
+                  --complete-platform .github/.platforms/linux-x86_64-py314.json \
+                  --complete-platform .github/.platforms/linux-aarch64-py314.json \
+                  --complete-platform .github/.platforms/linux-x86_64-musl-py314.json \
+                  --complete-platform .github/.platforms/linux-aarch64-musl-py314.json \
+                  --complete-platform .github/.platforms/macos-arm64-py314.json \
+                  --complete-platform .github/.platforms/windows-x86_64-py314.json
+
+            - name: Create Release and Upload Asset
+              uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+              with:
+                  name: Release v${{ env.VERSION }}
+                  files: ./cloudsmith.pyz
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  tag_name: v${{ env.VERSION }}
-                  release_name: Release v${{ env.VERSION }}
-                  draft: false
-                  prerelease: false
-            - name: Upload Release Asset
-              id: upload-release-asset
-              uses: actions/upload-release-asset@v1
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  upload_url: ${{ steps.create_release.outputs.upload_url }}
-                  asset_path: ./cloudsmith-${{ env.VERSION }}.pyz
-                  asset_name: cloudsmith-${{ env.VERSION }}.pyz
-                  asset_content_type: application/zip
+
             - name: Install and authenticate Cloudsmith CLI
-              uses: cloudsmith-io/cloudsmith-cli-action@v1.0.3
+              uses: cloudsmith-io/cloudsmith-cli-action@76c8ff51a34bea1036d9b7708f10a929624a1910 # v2.0.1
               with:
                   oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
                   oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+
             - name: Push Zipapp to Cloudsmith
               id: push_zipapp
-              run: cloudsmith push raw ${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp ./cloudsmith-${{ env.VERSION }}.pyz --name cloudsmith-cli --version ${{ env.VERSION }}
-            - name: Build Docker image
-              id: build_cli_image
-              run: |
-                  docker build --build-arg CLOUDSMITH_CLI_VERSION=${{ env.VERSION }} -t docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} .
-            - name: Push Dockerised CLI to Cloudsmith
+              run: cloudsmith push raw "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" "./cloudsmith.pyz" --name cloudsmith-cli --version "${VERSION}"
+
+            - name: Build Python packages
+              run: python setup.py sdist bdist_wheel
+
+            - name: Push source distribution to Cloudsmith
+              run: cloudsmith push python "${CLOUDSMITH_NAMESPACE}/cli" "dist/cloudsmith_cli-${VERSION}.tar.gz"
+
+            - name: Push wheel to Cloudsmith
+              run: cloudsmith push python "${CLOUDSMITH_NAMESPACE}/cli" "dist/cloudsmith_cli-${VERSION}-py2.py3-none-any.whl"
+
+            - name: Set up QEMU for multi-arch
+              uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+            - name: Push Dockerised CLI to Cloudsmith (multi-arch)
               id: push_dockerised_cli_cloudsmith
               run: |
-                  echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u ${{ vars.CLOUDSMITH_SVC_SLUG }} --password-stdin
-                  docker push docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }}
-            - name: Push Dockerised CLI to DockerHub
+                echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u "${CLOUDSMITH_SVC_SLUG}" --password-stdin
+                docker buildx build \
+                  --platform linux/amd64,linux/arm64 \
+                  --build-arg "CLOUDSMITH_CLI_VERSION=${VERSION}" \
+                  --build-arg "CLOUDSMITH_NAMESPACE=${CLOUDSMITH_NAMESPACE}" \
+                  --build-arg "CLOUDSMITH_REPO=${CLOUDSMITH_REPO}" \
+                  -t "docker.cloudsmith.io/${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}/cloudsmith-cli:${VERSION}" \
+                  --push .
+
+            - name: Push Dockerised CLI to DockerHub (multi-arch)
               id: push_dockerised_cli_dockerhub
+              env:
+                  DOCKERHUB_PAT: ${{ secrets.DOCKERHUB_PAT }}
               run: |
-                docker tag docker.cloudsmith.io/${{ vars.CLOUDSMITH_NAMESPACE }}/cli-zipapp/cloudsmith-cli:${{ env.VERSION }} cloudsmith/cloudsmith-cli:${{ env.VERSION }}
-                echo "${{ secrets.DOCKERHUB_PAT }}" | docker login -u ${{ vars.DOCKERHUB_USER }} --password-stdin
-                docker push cloudsmith/cloudsmith-cli:${{ env.VERSION }}
+                echo "${DOCKERHUB_PAT}" | docker login -u "${DOCKERHUB_USER}" --password-stdin
+                docker buildx build \
+                  --platform linux/amd64,linux/arm64 \
+                  --build-arg "CLOUDSMITH_CLI_VERSION=${VERSION}" \
+                  --build-arg "CLOUDSMITH_NAMESPACE=${CLOUDSMITH_NAMESPACE}" \
+                  --build-arg "CLOUDSMITH_REPO=${CLOUDSMITH_REPO}" \
+                  -t "cloudsmith/cloudsmith-cli:${VERSION}" \
+                  --push .
+
+    # Publish Python packages to PyPI
+    publish-pypi:
+        name: Publish to PyPI
+        runs-on: ubuntu-latest
+        environment: release
+        permissions:
+            id-token: write
+            contents: read
+        steps:
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python 3.10
+              uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # 6.1.0
+              with:
+                  python-version: '3.10'
+
+            - name: Install build dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install setuptools wheel
+
+            - name: Build packages
+              run: python setup.py sdist bdist_wheel
+
+            - name: Publish to PyPI
+              uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+              with:
+                  packages-dir: dist/

@@ -3,7 +3,7 @@
 [![Latest Version @ Cloudsmith](https://api-prd.cloudsmith.io/badges/version/cloudsmith/cli/python/cloudsmith-cli/latest/xf=bdist_wheel;xn=cloudsmith-cli;xv=py2.py3/?render=true)](https://cloudsmith.io/~cloudsmith/repos/cli/packages/detail/python/cloudsmith-cli/latest/xf=bdist_wheel;xn=cloudsmith-cli;xv=py2.py3/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![PyPI Version](https://img.shields.io/pypi/v/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
-[![CircleCI](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli.svg?style=svg)](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli)
+[![GitHub Actions](https://github.com/cloudsmith-io/cloudsmith-cli/actions/workflows/test.yml/badge.svg)](https://github.com/cloudsmith-io/cloudsmith-cli/actions/workflows/test.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 
