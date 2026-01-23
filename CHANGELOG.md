@@ -114,7 +114,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `--force` parameter to the Auth command to be used in conjunction with `--token` to refresh tokens without interactive prompts i.e automatic.
-- Added `--force` parameter to the Tokens refresh command to automaticlly refresh without an interactive prompt.
+- Added `--force` parameter to the Tokens refresh command to automatically refresh without an interactive prompt.
 
 ## [1.8.5] - 2025-10-16
 
