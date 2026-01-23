@@ -126,3 +126,14 @@ jobs:
 
       - name: Run pylint
         run: pylint --rcfile=.pylintrc cloudsmith_cli
+
+  typos:
+    name: Check for typos (typos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Run typos
+        uses: crate-ci/typos@65120634e79d8374d1aa2f27e54baa0c364fff5a # v1.42.1
