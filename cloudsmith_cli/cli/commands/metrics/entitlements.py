@@ -75,7 +75,7 @@ def _print_metrics_table(opts, data):
     type=str,
     required=False,
     help=(
-        "A comma seperated list of entitlement token identifiers (i.e. slug_perm) or "
+        "A comma separated list of entitlement token identifiers (i.e. slug_perm) or "
         "token secrets. If a list is not specified then all entitlement tokens will "
         "be included for a given namespace or repository."
     ),

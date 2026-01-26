@@ -35,13 +35,13 @@ def parse_table(output):
         Results: 1 repository visible
     ```
     """
-    seperator = "|"
+    separator = "|"
     column_headers = []
     row_values = []
 
     for line in output.split("\n"):
-        if seperator in line:
-            raw_values = [raw_value.strip() for raw_value in line.split(seperator)]
+        if separator in line:
+            raw_values = [raw_value.strip() for raw_value in line.split(separator)]
             if not column_headers:
                 # If we don't have keys yet, then this must be the column headers
                 column_headers = raw_values

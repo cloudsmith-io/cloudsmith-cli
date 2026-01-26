@@ -97,7 +97,7 @@ class ConfigReader(ConfigFileReader):
 
     @classmethod
     def get_default_filepath(cls):
-        """Get the default filepath for the configuratin file."""
+        """Get the default filepath for the configuration file."""
         if not cls.config_files:
             return None
         if not cls.config_searchpath:

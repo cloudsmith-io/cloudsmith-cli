@@ -74,7 +74,7 @@ def _print_metrics_table(opts, data):
     type=str,
     required=False,
     help=(
-        "A comma seperated list of package identifiers (i.e. slug_perm). "
+        "A comma separated list of package identifiers (i.e. slug_perm). "
         "If a list is not specified then all package will be included for "
         "a given repository."
     ),
