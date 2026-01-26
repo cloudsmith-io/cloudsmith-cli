@@ -358,10 +358,9 @@ class Options:
     @mcp_allowed_tools.setter
     def mcp_allowed_tools(self, value):
         """Set value for Allowed MCP Tools."""
-
         if not value:
             return
-        tools = value.split(",")
+        tools = [tool.strip() for tool in value.split(",")]
 
         self._set_option("mcp_allowed_tools", tools)
 
@@ -375,7 +374,7 @@ class Options:
         """Set value for Allowed MCP Tool Groups."""
         if not value:
             return
-        tool_groups = value.split(",")
+        tool_groups = [group.strip() for group in value.split(",")]
 
         self._set_option("mcp_allowed_tool_groups", tool_groups)
 

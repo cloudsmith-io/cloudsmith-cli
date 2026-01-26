@@ -258,7 +258,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
                         "error": "Configuration failed",
                     }
                 )
-        except OSError as e:
+        except (OSError, ValueError) as e:
             if not use_stderr:
                 click.echo(
                     click.style(
@@ -398,15 +398,16 @@ def configure_client(client_name, server_config, is_global=True, profile=None):
     config = {}
     if config_path.exists():
         with open(config_path) as f:
-            try:
-                # VS Code settings.json supports JSONC (comments and trailing commas)
-                # Use json5 for VS Code to handle this, standard json for others
-                if client_name == "vscode":
-                    config = json5.load(f)
-                else:
-                    config = json.load(f)
-            except (json.JSONDecodeError, ValueError) as e:
-                raise ValueError(f"Invalid JSON in config file: {config_path}: {e}")
+            content = f.read()
+        try:
+            # Use json5 first as it handles both standard JSON and JSONC
+            # (comments, trailing commas) which VS Code settings.json may contain
+            config = json5.loads(content)
+        except (json.JSONDecodeError, ValueError) as e:
+            raise ValueError(
+                f"Cannot parse config file '{config_path}': {e}. "
+                f"Please fix the JSON syntax or remove the file to create a new one."
+            ) from e
 
     # Determine server name based on profile
     server_name = f"cloudsmith-{profile}" if profile else "cloudsmith"
@@ -425,6 +426,7 @@ def configure_client(client_name, server_config, is_global=True, profile=None):
 
     # Write updated config
     with open(config_path, "w") as f:
+        # As we are using json5 to read, we write standard JSON back, which removes existing user JSON comments in the files (currently only present in VS Code settings.json).
         json.dump(config, f, indent=2)
 
     return True
