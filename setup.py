@@ -54,7 +54,10 @@ setup(
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
         "cloudsmith-api>=2.0.22,<3.0",  # Compatible upto (but excluding) 3.0+
+        "json5>=0.9.0",  # For parsing JSONC (JSON with comments) in VS Code settings
         "keyring>=25.4.1",
+        "mcp==1.9.1",
+        "toon-python==0.1.2",
         "requests>=2.18.4",
         "requests_toolbelt>=1.0.0",
         "semver>=2.7.9",
