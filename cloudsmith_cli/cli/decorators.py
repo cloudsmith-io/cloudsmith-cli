@@ -348,7 +348,7 @@ def initialise_mcp(f):
         help="Show all tools",
     )
     @click.option(
-        "-d",
+        "-D",
         "--allow-destructive-tools",
         default=False,
         is_flag=True,

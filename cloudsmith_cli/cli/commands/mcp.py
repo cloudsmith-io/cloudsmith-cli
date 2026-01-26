@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import click
+import json5
 
 from ...core.mcp import server
 from ...core.mcp.data import OpenAPITool
@@ -398,9 +399,14 @@ def configure_client(client_name, server_config, is_global=True, profile=None):
     if config_path.exists():
         with open(config_path) as f:
             try:
-                config = json.load(f)
-            except json.JSONDecodeError:
-                raise ValueError(f"Invalid JSON in config file: {config_path}")
+                # VS Code settings.json supports JSONC (comments and trailing commas)
+                # Use json5 for VS Code to handle this, standard json for others
+                if client_name == "vscode":
+                    config = json5.load(f)
+                else:
+                    config = json.load(f)
+            except (json.JSONDecodeError, ValueError) as e:
+                raise ValueError(f"Invalid JSON in config file: {config_path}: {e}")
 
     # Determine server name based on profile
     server_name = f"cloudsmith-{profile}" if profile else "cloudsmith"

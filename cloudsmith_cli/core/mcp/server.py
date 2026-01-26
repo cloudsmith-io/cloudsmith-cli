@@ -209,10 +209,16 @@ class DynamicMCPServer:
         ) as http_client:
             for version, endpoint in API_VERSIONS_TO_DISCOVER.items():
                 spec_url = f"{self.api_base_url}/{version}/{endpoint}"
-                response = await http_client.get(spec_url)
-                response.raise_for_status()
+                try:
+                    response = await http_client.get(spec_url)
+                    response.raise_for_status()
+                except httpx.HTTPStatusError:
+                    # This version is not available, try the next one
+                    continue
                 self.spec = response.json()
                 await self._generate_tools_from_spec()
+                # Stop after the first successful spec load to avoid duplicate tools
+                break
 
     def _get_tool_groups(self, tool_name: str) -> List[str]:
         """
@@ -436,7 +442,9 @@ class DynamicMCPServer:
                 if "enum" in param_schema:
                     if value not in param_schema["enum"]:
                         allowed_values = ", ".join(param_schema["enum"])
-                        return f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
+                        raise ValueError(
+                            f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
+                        )
 
                 validated_arguments[key] = value
             else:
@@ -473,7 +481,12 @@ class DynamicMCPServer:
         # Build URL with path parameters
         url = tool.base_url + tool.path
 
-        url, query_params, body_params = self._get_request_params(url, tool, arguments)
+        try:
+            url, query_params, body_params = self._get_request_params(
+                url, tool, arguments
+            )
+        except ValueError as e:
+            return str(e)
 
         if tool.query_filter:
             parsed_simplified_filter = parse.parse_qs(tool.query_filter)

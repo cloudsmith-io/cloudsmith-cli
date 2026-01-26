@@ -94,6 +94,8 @@ jaraco-context==6.1.0
     # via keyring
 jaraco-functools==4.4.0
     # via keyring
+json5==0.13.0
+    # via cloudsmith-cli (setup.py)
 keyring==25.7.0
     # via cloudsmith-cli (setup.py)
 mccabe==0.7.0
