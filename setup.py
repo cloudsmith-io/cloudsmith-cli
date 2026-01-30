@@ -47,7 +47,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
-    python_requires=">=3.9.0",
+    python_requires=">=3.10.0",
     install_requires=[
         "click>=8.1.8,!=8.3.0",
         "click-configfile>=0.2.3",
@@ -56,7 +56,7 @@ setup(
         "cloudsmith-api>=2.0.22,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "requests>=2.18.4",
-        "requests_toolbelt>=0.8.0",
+        "requests_toolbelt>=1.0.0",
         "semver>=2.7.9",
         "urllib3>=2.5",
     ],
@@ -79,7 +79,6 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",

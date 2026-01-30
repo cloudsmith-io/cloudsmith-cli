@@ -1,0 +1,274 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+jobs:
+  # Test jobs run across Python versions
+  pytest:
+    name: Run tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # 6.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run pytest
+        env:
+          PYTEST_CLOUDSMITH_API_KEY: ${{ secrets.PYTEST_CLOUDSMITH_API_KEY }}
+          PYTEST_CLOUDSMITH_API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
+          PYTEST_CLOUDSMITH_ORGANIZATION: ${{ vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
+        run: pytest --junitxml=./reports/pytest.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: ./reports/pytest.xml
+          retention-days: 30
+
+  # Build zipapp once with PEX on Python 3.10
+  build-zipapp-pex:
+    name: Build zipapp with PEX (Python 3.10)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # 6.1.0
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install PEX
+        run: |
+          python -m pip install --upgrade pip
+          pip install pex
+
+      - name: Get version
+        id: get_version
+        run: echo "version=$(cat cloudsmith_cli/data/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Create multi-platform Zipapp with PEX
+        run: |
+          pex . \
+            --output-file "cloudsmith-${STEPS_GET_VERSION_OUTPUTS_VERSION}.pyz" \
+            --console-script cloudsmith \
+            --python-shebang "/usr/bin/env python3" \
+            --venv \
+            --complete-platform .github/.platforms/linux-x86_64-py310.json \
+            --complete-platform .github/.platforms/linux-aarch64-py310.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
+            --complete-platform .github/.platforms/macos-arm64-py310.json \
+            --complete-platform .github/.platforms/windows-x86_64-py310.json \
+            --complete-platform .github/.platforms/linux-x86_64-py311.json \
+            --complete-platform .github/.platforms/linux-aarch64-py311.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py311.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py311.json \
+            --complete-platform .github/.platforms/macos-arm64-py311.json \
+            --complete-platform .github/.platforms/windows-x86_64-py311.json \
+            --complete-platform .github/.platforms/linux-x86_64-py312.json \
+            --complete-platform .github/.platforms/linux-aarch64-py312.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py312.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py312.json \
+            --complete-platform .github/.platforms/macos-arm64-py312.json \
+            --complete-platform .github/.platforms/windows-x86_64-py312.json \
+            --complete-platform .github/.platforms/linux-x86_64-py313.json \
+            --complete-platform .github/.platforms/linux-aarch64-py313.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py313.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py313.json \
+            --complete-platform .github/.platforms/macos-arm64-py313.json \
+            --complete-platform .github/.platforms/windows-x86_64-py313.json \
+            --complete-platform .github/.platforms/linux-x86_64-py314.json \
+            --complete-platform .github/.platforms/linux-aarch64-py314.json \
+            --complete-platform .github/.platforms/linux-x86_64-musl-py314.json \
+            --complete-platform .github/.platforms/linux-aarch64-musl-py314.json \
+            --complete-platform .github/.platforms/macos-arm64-py314.json \
+            --complete-platform .github/.platforms/windows-x86_64-py314.json
+        env:
+          STEPS_GET_VERSION_OUTPUTS_VERSION: ${{ steps.get_version.outputs.version }}
+
+      - name: Upload zipapp artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cloudsmith-zipapp
+          path: cloudsmith-${{ steps.get_version.outputs.version }}.pyz
+          retention-days: 7
+
+  # Test PEX-built zipapp on Alpine Linux (musl)
+  test-zipapp-alpine:
+    name: Test zipapp on Alpine (musl) - Python ${{ matrix.python-version }}
+    needs: build-zipapp-pex
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    container:
+      image: python:${{ matrix.python-version }}-alpine
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Get version
+        id: get_version
+        run: echo "version=$(cat cloudsmith_cli/data/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Download zipapp artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cloudsmith-zipapp
+
+      - name: Make zipapp executable
+        run: chmod +x "cloudsmith-${STEPS_GET_VERSION_OUTPUTS_VERSION}.pyz"
+        env:
+          STEPS_GET_VERSION_OUTPUTS_VERSION: ${{ steps.get_version.outputs.version }}
+
+      - name: Validate zipapp execution
+        run: |
+          OUTPUT=$(./"cloudsmith-${STEPS_GET_VERSION_OUTPUTS_VERSION}.pyz" --version)
+          echo "Zipapp Version: $OUTPUT"
+          echo "$OUTPUT" | grep "${STEPS_GET_VERSION_OUTPUTS_VERSION}"
+        env:
+          STEPS_GET_VERSION_OUTPUTS_VERSION: ${{ steps.get_version.outputs.version }}
+
+  # Test PEX-built zipapp on Linux ARM64 (via QEMU)
+  test-zipapp-arm64:
+    name: Test zipapp on Linux ARM64 - Python ${{ matrix.python-version }}
+    needs: build-zipapp-pex
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: linux/arm64
+
+      - name: Get version
+        id: get_version
+        run: echo "version=$(cat cloudsmith_cli/data/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Download zipapp artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cloudsmith-zipapp
+
+      - name: Test zipapp on ARM64
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            -e "VERSION=${STEPS_GET_VERSION_OUTPUTS_VERSION}" \
+            python:${{ matrix.python-version }}-slim \
+            sh -c 'chmod +x "cloudsmith-${VERSION}.pyz" && ./"cloudsmith-${VERSION}.pyz" --version | grep "${VERSION}"'
+        env:
+          STEPS_GET_VERSION_OUTPUTS_VERSION: ${{ steps.get_version.outputs.version }}
+
+  # Test PEX-built zipapp across OSes and Python versions
+  test-zipapp-build:
+    name: Test zipapp build (OS ${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: build-zipapp-pex
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # 6.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Get version (Unix)
+        id: get_version_unix
+        if: runner.os != 'Windows'
+        run: echo "version=$(cat cloudsmith_cli/data/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Get version (Windows)
+        id: get_version_windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Get-Content cloudsmith_cli/data/VERSION -Raw).Trim()
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Download zipapp artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cloudsmith-zipapp
+
+      - name: Make zipapp executable (non-Windows)
+        if: runner.os != 'Windows'
+        run: chmod +x "cloudsmith-${VERSION}.pyz"
+        env:
+          VERSION: ${{ steps.get_version_unix.outputs.version }}
+
+      - name: Validate zipapp execution (non-Windows)
+        if: runner.os != 'Windows'
+        run: |
+          OUTPUT=$(./"cloudsmith-${VERSION}.pyz" --version)
+          echo "Zipapp Version: $OUTPUT"
+          echo "$OUTPUT" | grep "${VERSION}"
+        env:
+          VERSION: ${{ steps.get_version_unix.outputs.version }}
+
+      - name: Validate zipapp execution (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $output = python "cloudsmith-$env:STEPS_GET_VERSION_WINDOWS_OUTPUTS_VERSION.pyz" --version 2>&1 | Out-String
+          if (-not ($output -like "*$env:STEPS_GET_VERSION_WINDOWS_OUTPUTS_VERSION*")) {
+            throw "Version validation failed. Expected: $env:STEPS_GET_VERSION_WINDOWS_OUTPUTS_VERSION"
+          }
+        env:
+          STEPS_GET_VERSION_WINDOWS_OUTPUTS_VERSION: ${{ steps.get_version_windows.outputs.version }}

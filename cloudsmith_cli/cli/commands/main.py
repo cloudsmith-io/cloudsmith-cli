@@ -5,22 +5,31 @@ import click
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
-from .. import command, decorators
+from .. import command, decorators, utils
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-def print_version():
+def print_version(opts):
     """Print the environment versions."""
-    click.echo("Versions:")
-    click.secho(
-        "CLI Package Version: %(version)s"
-        % {"version": click.style(get_cli_version(), bold=True)}
-    )
-    click.secho(
-        "API Package Version: %(version)s"
-        % {"version": click.style(get_api_version(), bold=True)}
-    )
+    cli_version = get_cli_version()
+    api_version = get_api_version()
+
+    data = {
+        "cli_version": cli_version,
+        "api_version": api_version,
+    }
+
+    if not utils.maybe_print_as_json(opts, data):
+        click.echo("Versions:")
+        click.secho(
+            "CLI Package Version: %(version)s"
+            % {"version": click.style(cli_version, bold=True)}
+        )
+        click.secho(
+            "API Package Version: %(version)s"
+            % {"version": click.style(api_version, bold=True)}
+        )
 
 
 @click.group(
@@ -52,12 +61,13 @@ For issues/contributing: %(github_website)s
     is_eager=True,
 )
 @decorators.common_cli_config_options
+@decorators.common_cli_output_options
 @click.pass_context
 def main(ctx, opts, version):
     """Handle entrypoint to CLI."""
     # pylint: disable=unused-argument
 
     if version:
-        print_version()
+        print_version(opts)
     elif ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())

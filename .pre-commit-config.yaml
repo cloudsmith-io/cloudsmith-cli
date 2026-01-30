@@ -1,6 +1,7 @@
 # Pre-Commit hooks
 # See: https://pre-commit.com/hooks.html
 repos:
+
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v5.0.0
   hooks:
@@ -62,6 +63,11 @@ repos:
     hooks:
     -   id: pyupgrade
 
+- repo: https://github.com/zizmorcore/zizmor-pre-commit
+  rev: v1.20.0
+  hooks:
+  - id: zizmor
+
 - repo: local
   hooks:
     - id: pylint
@@ -75,3 +81,8 @@ repos:
           "-sn", # Don't display the score
           "--rcfile=.pylintrc", # Link to your config file
         ]
+
+- repo: https://github.com/crate-ci/typos
+  rev: v1.42.1
+  hooks:
+    - id: typos

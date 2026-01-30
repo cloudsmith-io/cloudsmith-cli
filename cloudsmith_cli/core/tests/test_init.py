@@ -58,7 +58,7 @@ def mocked_update_refresh_attempted_at():
 
 class TestInitialiseApi:
     def setup_class(cls):  # pylint: disable=no-self-argument
-        # For the purposes of these tests, we need to explcitly call set_default(None) at the
+        # For the purposes of these tests, we need to explicitly call set_default(None) at the
         # outset because other tests in the suite may have called initialise_api() already.
         # Resetting Configuration._default to None here effectively reverts the
         # Configuration class to its vanilla, unmodified behaviour/state.
