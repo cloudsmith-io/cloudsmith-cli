@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-02-02
+
+### Added
+
+- Added Generic Format support for pushing packages to repositories.
+- Added Upstream support for managing upstream proxy configurations.
+
 ## [1.11.2] - 2026-01-22
 
 ## Added
