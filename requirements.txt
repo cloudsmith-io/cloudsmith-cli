@@ -45,7 +45,7 @@ click-didyoumean==0.3.1
     # via cloudsmith-cli (setup.py)
 click-spinner==0.1.10
     # via cloudsmith-cli (setup.py)
-cloudsmith-api==2.0.23
+cloudsmith-api==2.0.24
     # via cloudsmith-cli (setup.py)
 configparser==7.2.0
     # via click-configfile
