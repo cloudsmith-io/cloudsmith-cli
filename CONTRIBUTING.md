@@ -35,7 +35,13 @@ To make a new release for `cloudsmith-cli`:
 $ bumpversion <major|minor|revision>
 ```
 
-A tag will automatically created along with the version bump commit. Push the tag with `git push origin {version}`
+A tag will be automatically created along with the version bump commit. When you push the version bump commit to the `master` branch, a GitHub Actions workflow will automatically push the corresponding tag, which will trigger the release process.
+
+```
+$ git push origin master
+```
+
+The auto-push-tag workflow will detect the VERSION file change and automatically push the tag (e.g., `v1.11.3`) to trigger the release workflow.
 
 Please ensure that [CHANGELOG.md](./CHANGELOG.md) is updated appropriately with each release.
 
