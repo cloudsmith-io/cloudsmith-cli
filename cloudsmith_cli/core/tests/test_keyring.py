@@ -1,4 +1,5 @@
 import getpass
+import os
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from ..keyring import (
     get_refresh_attempted_at,
     get_refresh_token,
     should_refresh_access_token,
+    should_use_keyring,
     store_access_token,
     store_refresh_token,
     store_sso_tokens,
@@ -200,3 +202,44 @@ class TestKeyring:
             "test_user",
             "refresh_token",
         )
+
+
+class TestShouldUseKeyring:
+    """Tests for the should_use_keyring function."""
+
+    def test_returns_true_by_default(self):
+        """When no flag or env var is set, keyring should be used."""
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            assert should_use_keyring() is True
+
+    def test_returns_false_when_flag_is_true(self):
+        """When no_keyring_flag is True, keyring should not be used."""
+        assert should_use_keyring(no_keyring_flag=True) is False
+
+    def test_flag_takes_precedence_over_env_var(self):
+        """The flag should take precedence even if env var says otherwise."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "0"}):
+            assert should_use_keyring(no_keyring_flag=True) is False
+
+    @pytest.mark.parametrize(
+        "env_value", ["1", "true", "True", "TRUE", "yes", "Yes", "YES"]
+    )
+    def test_returns_false_when_env_var_is_truthy(self, env_value):
+        """When CLOUDSMITH_NO_KEYRING is set to a truthy value, keyring should not be used."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
+            assert should_use_keyring() is False
+
+    @pytest.mark.parametrize("env_value", ["0", "false", "False", "no", "No", ""])
+    def test_returns_true_when_env_var_is_falsy(self, env_value):
+        """When CLOUDSMITH_NO_KEYRING is set to a falsy value, keyring should be used."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
+            assert should_use_keyring() is True
+
+    def test_returns_true_when_env_var_not_set(self):
+        """When CLOUDSMITH_NO_KEYRING is not set at all, keyring should be used."""
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            assert should_use_keyring() is True

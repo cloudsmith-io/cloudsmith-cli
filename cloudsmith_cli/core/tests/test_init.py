@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import pytest
@@ -184,3 +185,32 @@ class TestInitialiseApi:
         mocked_refresh_access_token.assert_not_called()
         mocked_store_sso_tokens.assert_not_called()
         mocked_update_refresh_attempted_at.assert_not_called()
+
+    def test_initialise_api_skips_keyring_when_env_var_set(
+        self,
+        mocked_get_access_token,
+    ):
+        """Verify keyring.get_access_token is not called when CLOUDSMITH_NO_KEYRING=1."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
+            config = initialise_api(host="https://example.com", key="test_api_key")
+
+        # Keyring should not be accessed at all
+        mocked_get_access_token.assert_not_called()
+        # API key should be used instead
+        assert config.api_key["X-Api-Key"] == "test_api_key"
+
+    def test_initialise_api_uses_keyring_when_env_var_not_set(
+        self,
+        mocked_get_access_token,
+        mocked_get_refresh_token,
+        mocked_should_refresh_access_token,
+    ):
+        """Verify keyring is accessed when CLOUDSMITH_NO_KEYRING is not set."""
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            config = initialise_api(host="https://example.com")
+
+        # Keyring should be accessed
+        mocked_get_access_token.assert_called_once()
+        assert config.headers == {"Authorization": "Bearer dummy_access_token"}

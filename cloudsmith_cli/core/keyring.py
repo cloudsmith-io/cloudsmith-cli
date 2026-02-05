@@ -1,10 +1,24 @@
 import getpass
+import os
 from datetime import datetime, timedelta
 
 import keyring
 from keyring.errors import KeyringError
 
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
+
+
+def should_use_keyring(no_keyring_flag=False):
+    if no_keyring_flag:
+        return False
+
+    env_value = os.environ.get("CLOUDSMITH_NO_KEYRING", "").lower()
+    if env_value in ("1", "true", "yes"):
+        return False
+
+    return True
+
+
 ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY = (
     "cloudsmith_cli-access_token_refresh_attempted_at-{api_host}"
 )

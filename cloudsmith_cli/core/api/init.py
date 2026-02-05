@@ -8,6 +8,7 @@ import cloudsmith_api
 
 from ...cli import saml
 from .. import keyring
+from ..keyring import should_use_keyring
 from ..rest import RestClient
 from .exceptions import ApiException
 
@@ -44,7 +45,11 @@ def initialise_api(
     config.verify_ssl = ssl_verify
     config.client_side_validation = False
 
-    access_token = keyring.get_access_token(config.host)
+    # Only attempt keyring operations if keyring is enabled
+    access_token = None
+    if should_use_keyring():
+        access_token = keyring.get_access_token(config.host)
+
     if access_token:
         auth_header = config.headers.get("Authorization")
 

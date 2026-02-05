@@ -52,6 +52,7 @@ class AuthenticationWebServer(HTTPServer):
         self.debug = kwargs.get("debug", False)
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
+        self.no_keyring = kwargs.get("no_keyring", False)
         self.exception = None
 
         super().__init__(
@@ -90,6 +91,7 @@ class AuthenticationWebServer(HTTPServer):
             session=self.session,
             refresh_api_on_success=self.refresh_api_on_success,
             server_instance=self,
+            no_keyring=self.no_keyring,
         )
 
     def _handle_request_noblock(self):
@@ -133,6 +135,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         self.session = kwargs.get("session")
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.server_instance = kwargs.get("server_instance")
+        self.no_keyring = kwargs.get("no_keyring", False)
 
         super().__init__(request, client_address, server)
 
@@ -200,11 +203,17 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if access_token:
-                store_sso_tokens(
-                    self.api_host,
-                    access_token,
-                    refresh_token,
-                )
+                if self.no_keyring:
+                    click.echo(
+                        "SSO tokens not stored (--no-keyring enabled)",
+                        err=True,
+                    )
+                else:
+                    store_sso_tokens(
+                        self.api_host,
+                        access_token,
+                        refresh_token,
+                    )
 
                 if self.refresh_api_on_success and self.server_instance:
                     self.server_instance.refresh_api_config_after_auth()
@@ -220,11 +229,17 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 access_token, refresh_token = exchange_2fa_token(
                     self.api_host, two_factor_token, totp_token, session=self.session
                 )
-                store_sso_tokens(
-                    self.api_host,
-                    access_token,
-                    refresh_token,
-                )
+                if self.no_keyring:
+                    click.echo(
+                        "SSO tokens not stored (--no-keyring enabled)",
+                        err=True,
+                    )
+                else:
+                    store_sso_tokens(
+                        self.api_host,
+                        access_token,
+                        refresh_token,
+                    )
 
                 if self.refresh_api_on_success and self.server_instance:
                     self.server_instance.refresh_api_config_after_auth()
