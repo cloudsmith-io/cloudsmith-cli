@@ -1,6 +1,5 @@
 """Tests for the auth command."""
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -47,7 +46,7 @@ def mock_auth_server():
 class TestAuthenticateCommand:
     """Tests for the authenticate command."""
 
-    def test_no_keyring_flag_passed_to_webserver(
+    def test_auth_command_invokes_webserver(
         self,
         runner,
         mock_saml_session,
@@ -55,39 +54,17 @@ class TestAuthenticateCommand:
         mock_webbrowser,
         mock_auth_server,
     ):
-        """Verify --no-keyring flag is passed to AuthenticationWebServer."""
-        runner.invoke(
-            authenticate,
-            ["--owner", "testorg", "--no-keyring"],
-            catch_exceptions=False,
-        )
-
-        # Verify AuthenticationWebServer was called with no_keyring=True
-        mock_auth_server.assert_called_once()
-        call_kwargs = mock_auth_server.call_args.kwargs
-        assert call_kwargs.get("no_keyring") is True
-
-    def test_no_keyring_flag_defaults_to_false(
-        self,
-        runner,
-        mock_saml_session,
-        mock_get_idp_url,
-        mock_webbrowser,
-        mock_auth_server,
-    ):
-        """Verify no_keyring defaults to False when flag not provided."""
+        """Verify auth command creates AuthenticationWebServer."""
         runner.invoke(
             authenticate,
             ["--owner", "testorg"],
             catch_exceptions=False,
         )
 
-        # Verify AuthenticationWebServer was called with no_keyring=False
+        # Verify AuthenticationWebServer was called
         mock_auth_server.assert_called_once()
-        call_kwargs = mock_auth_server.call_args.kwargs
-        assert call_kwargs.get("no_keyring") is False
 
-    def test_no_keyring_flag_sets_env_var(
+    def test_auth_command_opens_browser(
         self,
         runner,
         mock_saml_session,
@@ -95,21 +72,32 @@ class TestAuthenticateCommand:
         mock_webbrowser,
         mock_auth_server,
     ):
-        """Verify --no-keyring flag sets CLOUDSMITH_NO_KEYRING env var."""
-        # Ensure env var is not set before test
-        env_backup = os.environ.copy()
-        os.environ.pop("CLOUDSMITH_NO_KEYRING", None)
+        """Verify auth command opens browser with IDP URL."""
+        runner.invoke(
+            authenticate,
+            ["--owner", "testorg"],
+            catch_exceptions=False,
+        )
 
-        try:
-            runner.invoke(
-                authenticate,
-                ["--owner", "testorg", "--no-keyring"],
-                catch_exceptions=False,
-            )
+        # Verify browser was opened
+        mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
 
-            # Verify environment variable was set
-            assert os.environ.get("CLOUDSMITH_NO_KEYRING") == "1"
-        finally:
-            # Restore original environment
-            os.environ.clear()
-            os.environ.update(env_backup)
+    def test_auth_command_passes_owner_to_webserver(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify owner is passed to AuthenticationWebServer."""
+        runner.invoke(
+            authenticate,
+            ["--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        # Verify AuthenticationWebServer was called with owner
+        mock_auth_server.assert_called_once()
+        call_kwargs = mock_auth_server.call_args.kwargs
+        assert call_kwargs.get("owner") == "testorg"

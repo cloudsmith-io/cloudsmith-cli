@@ -9,7 +9,7 @@ import click
 
 from ..core.api.exceptions import ApiException
 from ..core.api.init import initialise_api
-from ..core.keyring import should_use_keyring, store_sso_tokens
+from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 
 
@@ -200,13 +200,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if access_token:
-                if should_use_keyring():
-                    store_sso_tokens(
-                        self.api_host,
-                        access_token,
-                        refresh_token,
-                    )
-                else:
+                if not store_sso_tokens(self.api_host, access_token, refresh_token):
                     click.echo(
                         "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
                         err=True,
@@ -226,13 +220,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 access_token, refresh_token = exchange_2fa_token(
                     self.api_host, two_factor_token, totp_token, session=self.session
                 )
-                if should_use_keyring():
-                    store_sso_tokens(
-                        self.api_host,
-                        access_token,
-                        refresh_token,
-                    )
-                else:
+                if not store_sso_tokens(self.api_host, access_token, refresh_token):
                     click.echo(
                         "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
                         err=True,

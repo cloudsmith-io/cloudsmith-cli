@@ -92,9 +92,15 @@ def get_refresh_token(api_host):
 
 
 def store_sso_tokens(api_host, access_token, refresh_token):
+    """Store SSO tokens in keyring if enabled."""
+    if not should_use_keyring():
+        return False
+
     if access_token:
         store_access_token(api_host=api_host, access_token=access_token)
         update_refresh_attempted_at(api_host=api_host)
 
     if refresh_token:
         store_refresh_token(api_host=api_host, refresh_token=refresh_token)
+
+    return True

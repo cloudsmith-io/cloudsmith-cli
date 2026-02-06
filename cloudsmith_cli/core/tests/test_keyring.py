@@ -184,8 +184,14 @@ class TestKeyring:
     @freeze_time("2024-06-01 10:00:00")
     def test_store_sso_tokens(self, mock_get_user, mock_set_password):
         refresh_attempted_at = datetime.utcnow().isoformat()
-        store_sso_tokens(self.api_host, "access_token", "refresh_token")
 
+        # Ensure keyring is enabled
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
+
+        assert result is True
         assert mock_set_password.call_count == 3
         mock_set_password.assert_any_call(
             "cloudsmith_cli-access_token-https://example.com",
@@ -202,6 +208,16 @@ class TestKeyring:
             "test_user",
             "refresh_token",
         )
+
+    def test_store_sso_tokens_returns_false_when_keyring_disabled(
+        self, mock_get_user, mock_set_password
+    ):
+        """Verify store_sso_tokens returns False and doesn't store when keyring disabled."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
+            result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
+
+        assert result is False
+        mock_set_password.assert_not_called()
 
 
 class TestShouldUseKeyring:
