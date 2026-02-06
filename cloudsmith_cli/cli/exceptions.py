@@ -7,7 +7,7 @@ import sys
 import click
 
 from ..core.api.exceptions import ApiException
-from ..core.keyring import get_access_token
+from ..core.keyring import get_access_token, should_use_keyring
 
 
 @contextlib.contextmanager
@@ -170,7 +170,10 @@ def get_401_error_hint(ctx, opts, exc):
             "you don't have the permission to perform this action."
         )
 
-    access_token = get_access_token(opts.api_host)
+    # Only check keyring if enabled to avoid keyring prompts
+    access_token = None
+    if should_use_keyring():
+        access_token = get_access_token(opts.api_host)
     if access_token:
         return "Since you have an SSO access token set, this probably means that it has expired. Try getting a new token with 'cloudsmith auth', then try again."
 

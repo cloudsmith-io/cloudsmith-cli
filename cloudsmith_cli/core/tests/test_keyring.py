@@ -208,20 +208,11 @@ class TestShouldUseKeyring:
     """Tests for the should_use_keyring function."""
 
     def test_returns_true_by_default(self):
-        """When no flag or env var is set, keyring should be used."""
+        """When env var is not set, keyring should be used."""
         env = os.environ.copy()
         env.pop("CLOUDSMITH_NO_KEYRING", None)
         with patch.dict(os.environ, env, clear=True):
             assert should_use_keyring() is True
-
-    def test_returns_false_when_flag_is_true(self):
-        """When no_keyring_flag is True, keyring should not be used."""
-        assert should_use_keyring(no_keyring_flag=True) is False
-
-    def test_flag_takes_precedence_over_env_var(self):
-        """The flag should take precedence even if env var says otherwise."""
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "0"}):
-            assert should_use_keyring(no_keyring_flag=True) is False
 
     @pytest.mark.parametrize(
         "env_value", ["1", "true", "True", "TRUE", "yes", "Yes", "YES"]

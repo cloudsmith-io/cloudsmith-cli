@@ -68,6 +68,8 @@ def initialise_api(
                     keyring.store_sso_tokens(
                         config.host, new_access_token, new_refresh_token
                     )
+                    # Use the new tokens
+                    access_token = new_access_token
             except ApiException:
                 keyring.update_refresh_attempted_at(config.host)
 
@@ -76,16 +78,25 @@ def initialise_api(
                     fg="yellow",
                 )
 
-                # try falling back to API key auth if refresh fails
+                # Clear access_token to prevent using expired token
+                access_token = None
+
+                # Fall back to API key auth if available
                 if key:
+                    click.secho(
+                        "Falling back to API key authentication.",
+                        fg="yellow",
+                    )
                     config.api_key["X-Api-Key"] = key
 
-            config.headers["Authorization"] = "Bearer {access_token}".format(
-                access_token=access_token
-            )
+            # Only use SSO token if refresh didn't fail
+            if access_token:
+                config.headers["Authorization"] = "Bearer {access_token}".format(
+                    access_token=access_token
+                )
 
-            if config.debug:
-                click.echo("SSO access token config value set")
+                if config.debug:
+                    click.echo("SSO access token config value set")
     elif key:
         config.api_key["X-Api-Key"] = key
 
@@ -94,14 +105,17 @@ def initialise_api(
 
     if headers:
         if "Authorization" in config.headers:
-            auth_type, encoded = config.headers["Authorization"].split(" ")
-            if auth_type == "Basic":
-                decoded = base64.b64decode(encoded)
-                values = decoded.decode("utf-8")
-                config.username, config.password = values.split(":")
+            auth_header_value = config.headers["Authorization"]
+            # Only parse if it looks like a valid Authorization header
+            if auth_header_value and " " in auth_header_value:
+                auth_type, encoded = auth_header_value.split(" ", 1)
+                if auth_type == "Basic":
+                    decoded = base64.b64decode(encoded)
+                    values = decoded.decode("utf-8")
+                    config.username, config.password = values.split(":")
 
-                if config.debug:
-                    click.echo("Username and password config values set")
+                    if config.debug:
+                        click.echo("Username and password config values set")
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
     # present in the cloudsmith_api.Configuration class declaration.

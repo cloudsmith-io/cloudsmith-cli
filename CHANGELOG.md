@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `--no-keyring` flag to `cloudsmith auth` which can only be used when passing `--get-token` flag in order to skip keyring checks. This will allow users to extract their Cloudsmith API key programmatically without requiring user-input. This can also be configured on environment level by setting `CLOUDSMITH_NO_KEYRING=1`.
+- Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
 
 ## [1.12.1] - 2026-02-03
 

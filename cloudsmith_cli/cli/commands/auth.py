@@ -1,6 +1,5 @@
 """CLI/Commands - Authenticate the user."""
 
-import os
 import webbrowser
 
 import click
@@ -17,16 +16,7 @@ AUTH_SERVER_HOST = "127.0.0.1"
 AUTH_SERVER_PORT = 12400
 
 
-def _set_no_keyring_env(ctx, param, value):
-    """Callback to set CLOUDSMITH_NO_KEYRING env var when flag is used."""
-    if value:
-        os.environ["CLOUDSMITH_NO_KEYRING"] = "1"
-    return value
-
-
-def _perform_saml_authentication(
-    opts, owner, enable_token_creation=False, json=False, no_keyring=False
-):
+def _perform_saml_authentication(opts, owner, enable_token_creation=False, json=False):
     """Perform SAML authentication via web browser and local web server."""
     session = create_configured_session(opts)
     api_host = opts.api_config.host
@@ -50,7 +40,6 @@ def _perform_saml_authentication(
         debug=opts.debug,
         refresh_api_on_success=enable_token_creation,
         api_opts=opts.api_config,
-        no_keyring=no_keyring,
     )
 
     auth_server.handle_request()
@@ -92,21 +81,11 @@ def _perform_saml_authentication(
     is_flag=True,
     help="Output token details in json format.",
 )
-@click.option(
-    "--no-keyring",
-    default=False,
-    is_flag=True,
-    callback=_set_no_keyring_env,
-    is_eager=True,
-    help="Skip storing SSO tokens in system keyring. Use this in CI/CD "
-    "environments to avoid keyring permission prompts. Note: SSO tokens "
-    "will not persist for subsequent CLI calls.",
-)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.initialise_api
 @click.pass_context
-def authenticate(ctx, opts, owner, token, force, save_config, json, no_keyring):
+def authenticate(ctx, opts, owner, token, force, save_config, json):
     """Authenticate to Cloudsmith using the org's SAML setup."""
     json = json or utils.should_use_stderr(opts)
     # If using json output, we redirect info messages to stderr
@@ -130,7 +109,7 @@ def authenticate(ctx, opts, owner, token, force, save_config, json, no_keyring):
     context_message = "Failed to authenticate via SSO!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
         _perform_saml_authentication(
-            opts, owner, enable_token_creation=token, json=json, no_keyring=no_keyring
+            opts, owner, enable_token_creation=token, json=json
         )
 
     if token:

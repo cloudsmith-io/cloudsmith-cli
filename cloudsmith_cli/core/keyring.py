@@ -8,14 +8,11 @@ from keyring.errors import KeyringError
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 
 
-def should_use_keyring(no_keyring_flag=False):
-    if no_keyring_flag:
-        return False
-
+def should_use_keyring():
+    """Check if keyring should be used based on CLOUDSMITH_NO_KEYRING env var."""
     env_value = os.environ.get("CLOUDSMITH_NO_KEYRING", "").lower()
     if env_value in ("1", "true", "yes"):
         return False
-
     return True
 
 

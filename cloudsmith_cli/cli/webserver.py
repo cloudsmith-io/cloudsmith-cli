@@ -9,7 +9,7 @@ import click
 
 from ..core.api.exceptions import ApiException
 from ..core.api.init import initialise_api
-from ..core.keyring import store_sso_tokens
+from ..core.keyring import should_use_keyring, store_sso_tokens
 from .saml import exchange_2fa_token
 
 
@@ -52,7 +52,6 @@ class AuthenticationWebServer(HTTPServer):
         self.debug = kwargs.get("debug", False)
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
-        self.no_keyring = kwargs.get("no_keyring", False)
         self.exception = None
 
         super().__init__(
@@ -91,7 +90,6 @@ class AuthenticationWebServer(HTTPServer):
             session=self.session,
             refresh_api_on_success=self.refresh_api_on_success,
             server_instance=self,
-            no_keyring=self.no_keyring,
         )
 
     def _handle_request_noblock(self):
@@ -135,7 +133,6 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         self.session = kwargs.get("session")
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.server_instance = kwargs.get("server_instance")
-        self.no_keyring = kwargs.get("no_keyring", False)
 
         super().__init__(request, client_address, server)
 
@@ -203,16 +200,16 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if access_token:
-                if self.no_keyring:
-                    click.echo(
-                        "SSO tokens not stored (--no-keyring enabled)",
-                        err=True,
-                    )
-                else:
+                if should_use_keyring():
                     store_sso_tokens(
                         self.api_host,
                         access_token,
                         refresh_token,
+                    )
+                else:
+                    click.echo(
+                        "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                        err=True,
                     )
 
                 if self.refresh_api_on_success and self.server_instance:
@@ -229,16 +226,16 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 access_token, refresh_token = exchange_2fa_token(
                     self.api_host, two_factor_token, totp_token, session=self.session
                 )
-                if self.no_keyring:
-                    click.echo(
-                        "SSO tokens not stored (--no-keyring enabled)",
-                        err=True,
-                    )
-                else:
+                if should_use_keyring():
                     store_sso_tokens(
                         self.api_host,
                         access_token,
                         refresh_token,
+                    )
+                else:
+                    click.echo(
+                        "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                        err=True,
                     )
 
                 if self.refresh_api_on_success and self.server_instance:
