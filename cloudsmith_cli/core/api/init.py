@@ -103,19 +103,16 @@ def initialise_api(
         if config.debug:
             click.echo("User API key config value set")
 
-    if headers:
-        if "Authorization" in config.headers:
-            auth_header_value = config.headers["Authorization"]
-            # Only parse if it looks like a valid Authorization header
-            if auth_header_value and " " in auth_header_value:
-                auth_type, encoded = auth_header_value.split(" ", 1)
-                if auth_type == "Basic":
-                    decoded = base64.b64decode(encoded)
-                    values = decoded.decode("utf-8")
-                    config.username, config.password = values.split(":")
+    auth_header = headers and config.headers.get("Authorization")
+    if auth_header and " " in auth_header:
+        auth_type, encoded = auth_header.split(" ", 1)
+        if auth_type == "Basic":
+            decoded = base64.b64decode(encoded)
+            values = decoded.decode("utf-8")
+            config.username, config.password = values.split(":")
 
-                    if config.debug:
-                        click.echo("Username and password config values set")
+            if config.debug:
+                click.echo("Username and password config values set")
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
     # present in the cloudsmith_api.Configuration class declaration.
