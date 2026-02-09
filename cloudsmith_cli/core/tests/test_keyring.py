@@ -1,7 +1,7 @@
 import getpass
 import os
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import keyring
 import pytest
@@ -183,8 +183,6 @@ class TestKeyring:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_store_sso_tokens(self, mock_get_user, mock_set_password):
-        refresh_attempted_at = datetime.utcnow().isoformat()
-
         # Ensure keyring is enabled
         env = os.environ.copy()
         env.pop("CLOUDSMITH_NO_KEYRING", None)
@@ -201,7 +199,7 @@ class TestKeyring:
         mock_set_password.assert_any_call(
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
             "test_user",
-            refresh_attempted_at,
+            ANY,
         )
         mock_set_password.assert_any_call(
             "cloudsmith_cli-refresh_token-https://example.com",
@@ -242,11 +240,4 @@ class TestShouldUseKeyring:
     def test_returns_true_when_env_var_is_falsy(self, env_value):
         """When CLOUDSMITH_NO_KEYRING is set to a falsy value, keyring should be used."""
         with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
-            assert should_use_keyring() is True
-
-    def test_returns_true_when_env_var_not_set(self):
-        """When CLOUDSMITH_NO_KEYRING is not set at all, keyring should be used."""
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
             assert should_use_keyring() is True

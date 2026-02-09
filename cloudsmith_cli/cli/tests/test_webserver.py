@@ -1,5 +1,6 @@
 """Tests for the webserver module."""
 
+from http.server import HTTPServer
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
@@ -12,9 +13,12 @@ class TestAuthenticationWebServer:
 
     def test_sso_access_token_initialized_to_none(self):
         """Verify sso_access_token is initialized to None."""
-        with patch.object(AuthenticationWebServer, "__init__", lambda *a, **kw: None):
-            server = AuthenticationWebServer.__new__(AuthenticationWebServer)
-            server.sso_access_token = None
+
+        def _fake_http_server_init(self, *args, **kwargs):
+            self.socket = MagicMock()
+
+        with patch.object(HTTPServer, "__init__", _fake_http_server_init):
+            server = AuthenticationWebServer(("localhost", 0), MagicMock())
             assert server.sso_access_token is None
 
     def test_refresh_api_config_passes_sso_token(self):
