@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
+- Added `--request-api-key` flag to `cloudsmith auth` command for fully automated, non-interactive API token retrieval. Auto-creates a token if none exists, or auto-rotates (with warning) if one already exists. Compatible with `--save-config` and `CLOUDSMITH_NO_KEYRING`.
+
+### Deprecation Notices
+
+- The `--token` flag on `cloudsmith auth` will be deprecated. Use `--request-api-key` instead.
+- The `--force` flag on `cloudsmith auth` will be deprecated. Use `--request-api-key` instead (force behavior is implied).
+- The `--json` flag on `cloudsmith auth` will be deprecated. Use `--output-format json` instead.
 
 ## [1.12.1] - 2026-02-03
 

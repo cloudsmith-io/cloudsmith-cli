@@ -52,6 +52,7 @@ class AuthenticationWebServer(HTTPServer):
         self.debug = kwargs.get("debug", False)
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
+        self.sso_access_token = None
         self.exception = None
 
         super().__init__(
@@ -78,6 +79,7 @@ class AuthenticationWebServer(HTTPServer):
             user_agent=getattr(self.api_opts, "user_agent", None),
             headers=getattr(self.api_opts, "headers", None),
             rate_limit=getattr(self.api_opts, "rate_limit", True),
+            access_token=self.sso_access_token,
         )
 
     def finish_request(self, request, client_address):
@@ -200,6 +202,12 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if access_token:
+                # Store the access token on the server instance so it can be
+                # passed directly to initialise_api(), avoiding a keyring
+                # roundtrip (critical when CLOUDSMITH_NO_KEYRING is set).
+                if self.server_instance:
+                    self.server_instance.sso_access_token = access_token
+
                 if not store_sso_tokens(self.api_host, access_token, refresh_token):
                     click.echo(
                         "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
@@ -220,6 +228,11 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 access_token, refresh_token = exchange_2fa_token(
                     self.api_host, two_factor_token, totp_token, session=self.session
                 )
+
+                # Store the access token on the server instance (same as above)
+                if self.server_instance:
+                    self.server_instance.sso_access_token = access_token
+
                 if not store_sso_tokens(self.api_host, access_token, refresh_token):
                     click.echo(
                         "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",

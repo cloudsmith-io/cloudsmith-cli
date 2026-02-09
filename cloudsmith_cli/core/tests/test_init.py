@@ -312,3 +312,77 @@ class TestInitialiseApi:
             else:
                 os.environ.pop("CLOUDSMITH_NO_KEYRING", None)
         mocked_store_sso_tokens.assert_not_called()
+
+    def test_initialise_api_uses_direct_access_token_when_keyring_disabled(
+        self,
+        mocked_get_access_token,
+    ):
+        """Verify a directly provided access_token is used even when keyring is disabled.
+
+        This is the critical path for --request-api-key with CLOUDSMITH_NO_KEYRING=1.
+        The SSO callback provides the access token directly, bypassing keyring storage.
+        """
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
+            config = initialise_api(
+                host="https://example.com",
+                access_token="sso_direct_token_abc123",
+            )
+
+        # Keyring should NOT be accessed
+        mocked_get_access_token.assert_not_called()
+        # The directly provided access token should be used as Bearer auth
+        assert config.headers == {"Authorization": "Bearer sso_direct_token_abc123"}
+
+    def test_initialise_api_direct_access_token_takes_precedence_over_keyring(
+        self,
+        mocked_get_access_token,
+    ):
+        """Verify a directly provided access_token takes precedence over keyring."""
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            config = initialise_api(
+                host="https://example.com",
+                access_token="direct_token_xyz",
+            )
+
+        # Keyring should NOT be accessed because we have a direct token
+        mocked_get_access_token.assert_not_called()
+        # The direct access token should be used
+        assert config.headers == {"Authorization": "Bearer direct_token_xyz"}
+
+    def test_initialise_api_direct_access_token_skips_refresh(
+        self,
+        mocked_get_access_token,
+        mocked_get_refresh_token,
+        mocked_should_refresh_access_token,
+        mocked_refresh_access_token,
+        mocked_store_sso_tokens,
+        mocked_update_refresh_attempted_at,
+    ):
+        """Verify a directly provided access_token skips the refresh cycle entirely.
+
+        When the SSO callback provides a fresh token
+        directly (e.g. for --request-api-key with CLOUDSMITH_NO_KEYRING=1),
+        we must NOT attempt to refresh it. The refresh path would fail because
+        there is no refresh_token in keyring, clearing the access_token and
+        leaving zero authentication.
+        """
+        mocked_should_refresh_access_token.return_value = True
+
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
+            config = initialise_api(
+                host="https://example.com",
+                access_token="fresh_sso_token",
+            )
+
+        # Keyring lookup should be skipped (direct token provided)
+        mocked_get_access_token.assert_not_called()
+        # Refresh logic should NOT be triggered for direct tokens
+        mocked_should_refresh_access_token.assert_not_called()
+        mocked_refresh_access_token.assert_not_called()
+        mocked_get_refresh_token.assert_not_called()
+        mocked_store_sso_tokens.assert_not_called()
+        mocked_update_refresh_attempted_at.assert_not_called()
+        # The fresh SSO token should be used as-is
+        assert config.headers == {"Authorization": "Bearer fresh_sso_token"}

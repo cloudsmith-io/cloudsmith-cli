@@ -27,6 +27,7 @@ def initialise_api(
     error_retry_backoff=None,
     error_retry_codes=None,
     error_retry_cb=None,
+    access_token=None,
 ):
     """Initialise the cloudsmith_api.Configuration."""
     # FIXME: pylint: disable=too-many-arguments
@@ -45,49 +46,57 @@ def initialise_api(
     config.verify_ssl = ssl_verify
     config.client_side_validation = False
 
-    # Only attempt keyring operations if keyring is enabled
-    access_token = None
-    if should_use_keyring():
+    # Use directly provided access token (e.g. from SSO callback),
+    # or fall back to keyring lookup if enabled.
+    token_from_keyring = False
+    if not access_token and should_use_keyring():
         access_token = keyring.get_access_token(config.host)
+        token_from_keyring = True
 
     if access_token:
         auth_header = config.headers.get("Authorization")
 
         # overwrite auth header if empty or is basic auth without username or password
         if not auth_header or auth_header == config.get_basic_auth_token():
-            refresh_token = keyring.get_refresh_token(config.host)
+            # Only attempt refresh for tokens retrieved from keyring.
+            # Directly provided tokens (e.g. from SSO callback) are fresh
+            # and don't need a refresh cycle.
+            if token_from_keyring:
+                refresh_token = keyring.get_refresh_token(config.host)
 
-            try:
-                if keyring.should_refresh_access_token(config.host):
-                    new_access_token, new_refresh_token = saml.refresh_access_token(
-                        config.host,
-                        access_token,
-                        refresh_token,
-                        session=saml.create_configured_session(config),
-                    )
-                    keyring.store_sso_tokens(
-                        config.host, new_access_token, new_refresh_token
-                    )
-                    # Use the new tokens
-                    access_token = new_access_token
-            except ApiException:
-                keyring.update_refresh_attempted_at(config.host)
+                try:
+                    if keyring.should_refresh_access_token(config.host):
+                        new_access_token, new_refresh_token = saml.refresh_access_token(
+                            config.host,
+                            access_token,
+                            refresh_token,
+                            session=saml.create_configured_session(config),
+                        )
+                        keyring.store_sso_tokens(
+                            config.host, new_access_token, new_refresh_token
+                        )
+                        # Use the new tokens
+                        access_token = new_access_token
+                except ApiException:
+                    keyring.update_refresh_attempted_at(config.host)
 
-                click.secho(
-                    "An error occurred when attempting to refresh your SSO access token. To refresh this session, run 'cloudsmith auth'",
-                    fg="yellow",
-                )
-
-                # Clear access_token to prevent using expired token
-                access_token = None
-
-                # Fall back to API key auth if available
-                if key:
                     click.secho(
-                        "Falling back to API key authentication.",
+                        "An error occurred when attempting to refresh your SSO access token. To refresh this session, run 'cloudsmith auth'",
                         fg="yellow",
+                        err=True,
                     )
-                    config.api_key["X-Api-Key"] = key
+
+                    # Clear access_token to prevent using expired token
+                    access_token = None
+
+                    # Fall back to API key auth if available
+                    if key:
+                        click.secho(
+                            "Falling back to API key authentication.",
+                            fg="yellow",
+                            err=True,
+                        )
+                        config.api_key["X-Api-Key"] = key
 
             # Only use SSO token if refresh didn't fail
             if access_token:

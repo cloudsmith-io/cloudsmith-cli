@@ -31,6 +31,77 @@ def handle_duplicate_token_error(exc, ctx, opts, save_config, force, json):
     raise exc
 
 
+def request_api_key(ctx, opts, save_config=False):
+    """
+    Request an API key non-interactively.
+
+    This function creates a new token or rotates an existing one without any prompts.
+    Used by the --request-api-key flag in the auth command.
+
+    Returns the token object on success.
+    Raises ApiException on failure.
+    """
+    context_msg = "Failed to retrieve API token!"
+
+    try:
+        # Don't use handle_api_exceptions here so we can catch and handle
+        # the "already has token" error ourselves
+        with utils.maybe_spinner(opts):
+            new_token = api.create_user_token_saml()
+
+        if save_config:
+            create, has_errors = create_config_files(
+                ctx, opts, api_key=new_token.key, force=True
+            )
+            new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+
+        return new_token
+
+    except exceptions.ApiException as exc:
+        if exc.status == 401:
+            # Unauthorized - re-raise with handler
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                raise
+
+        if (
+            exc.status == 400
+            and exc.detail
+            and "User has already created an API key" in exc.detail
+        ):
+            # Token exists - rotate it automatically
+            click.echo(
+                "Warning: Rotating existing API token. Your old key will be invalidated.",
+                err=True,
+            )
+
+            # List tokens and select the first one
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                with utils.maybe_spinner(opts):
+                    api_tokens = api.list_user_tokens()
+
+            if not api_tokens:
+                raise click.ClickException("No existing tokens found to rotate.")
+
+            token_slug = api_tokens[0].slug_perm
+
+            # Refresh the token
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                with utils.maybe_spinner(opts):
+                    new_token = api.refresh_user_token(token_slug)
+
+            if save_config:
+                create, has_errors = create_config_files(
+                    ctx, opts, api_key=new_token.key, force=True
+                )
+                new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+
+            return new_token
+
+        # Other errors - use the handler
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            raise
+
+
 @main.group(cls=command.AliasGroup, name="tokens")
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
