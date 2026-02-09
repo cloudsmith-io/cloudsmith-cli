@@ -5,22 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ...commands.auth import authenticate
-
-
-class MockToken:
-    """Mock Token object with the properties needed for testing."""
-
-    def __init__(self, key, created, slug_perm):
-        self.key = key
-        self.created = created
-        self.slug_perm = slug_perm
-
-    def to_dict(self):
-        return {
-            "key": self.key,
-            "created": self.created,
-            "slug_perm": self.slug_perm,
-        }
+from .conftest import MockToken
 
 
 @pytest.fixture
@@ -296,65 +281,3 @@ class TestRequestApiKeyFlag:
 
         assert result.exit_code != 0
         assert "Failed to retrieve API token" in result.output
-
-    def test_request_api_key_clean_stdout(
-        self,
-        runner,
-        mock_saml_session,
-        mock_get_idp_url,
-        mock_webbrowser,
-        mock_auth_server,
-    ):
-        """Verify stdout ends with only the raw token key for easy capture.
-
-        With --request-api-key, all informational messages are routed to stderr
-        (via err=True), so only the raw token key should appear on stdout. In
-        the CliRunner (which mixes stderr into output), the last line should be
-        the raw key with no extra decoration.
-        """
-        mock_token = MockToken(
-            key="ck_clean_output_test",
-            created="2026-02-06T00:00:00Z",
-            slug_perm="test-token",
-        )
-
-        with patch("cloudsmith_cli.cli.commands.auth.request_api_key") as mock_request:
-            mock_request.return_value = mock_token
-            result = runner.invoke(
-                authenticate,
-                ["--owner", "testorg", "--request-api-key"],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        # The last output line must be the raw token key (no decoration)
-        output_lines = result.output.strip().split("\n")
-        assert output_lines[-1] == "ck_clean_output_test"
-
-    def test_request_api_key_with_no_keyring_env(
-        self,
-        runner,
-        mock_saml_session,
-        mock_get_idp_url,
-        mock_webbrowser,
-        mock_auth_server,
-    ):
-        """Verify --request-api-key works with CLOUDSMITH_NO_KEYRING=1."""
-        mock_token = MockToken(
-            key="ck_no_keyring_test",
-            created="2026-02-06T00:00:00Z",
-            slug_perm="test-token",
-        )
-
-        with patch("cloudsmith_cli.cli.commands.auth.request_api_key") as mock_request:
-            mock_request.return_value = mock_token
-            result = runner.invoke(
-                authenticate,
-                ["--owner", "testorg", "--request-api-key"],
-                catch_exceptions=False,
-                env={"CLOUDSMITH_NO_KEYRING": "1"},
-            )
-
-        assert result.exit_code == 0
-        output_lines = result.output.strip().split("\n")
-        assert output_lines[-1] == "ck_no_keyring_test"

@@ -236,35 +236,26 @@ class TestInitialiseApi:
         """Verify API key is used as fallback when SSO token refresh fails."""
         from ..api.exceptions import ApiException
 
-        # Save original env var value
-        original_no_keyring = os.environ.get("CLOUDSMITH_NO_KEYRING")
+        # Simulate SSO token refresh failure
+        mocked_should_refresh_access_token.return_value = True
+        mocked_refresh_access_token.side_effect = ApiException(
+            status=401, detail="Unauthorized"
+        )
 
-        try:
-            # Ensure keyring is enabled for this test
-            os.environ.pop("CLOUDSMITH_NO_KEYRING", None)
-
-            # Simulate SSO token refresh failure
-            mocked_should_refresh_access_token.return_value = True
-            mocked_refresh_access_token.side_effect = ApiException(
-                status=401, detail="Unauthorized"
-            )
-
+        # Ensure keyring is enabled for this test
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
             config = initialise_api(host="https://example.com", key="fallback_api_key")
 
-            # Should not use expired SSO token
-            assert (
-                "Authorization" not in config.headers
-                or config.headers.get("Authorization") != "Bearer dummy_access_token"
-            )
-            # Should fall back to API key
-            assert config.api_key["X-Api-Key"] == "fallback_api_key"
-            mocked_update_refresh_attempted_at.assert_called_once()
-        finally:
-            # Restore original env var value
-            if original_no_keyring is not None:
-                os.environ["CLOUDSMITH_NO_KEYRING"] = original_no_keyring
-            else:
-                os.environ.pop("CLOUDSMITH_NO_KEYRING", None)
+        # Should not use expired SSO token
+        assert (
+            "Authorization" not in config.headers
+            or config.headers.get("Authorization") != "Bearer dummy_access_token"
+        )
+        # Should fall back to API key
+        assert config.api_key["X-Api-Key"] == "fallback_api_key"
+        mocked_update_refresh_attempted_at.assert_called_once()
         mocked_store_sso_tokens.assert_not_called()
 
     def test_initialise_api_no_auth_when_sso_refresh_fails_without_api_key(
@@ -282,35 +273,26 @@ class TestInitialiseApi:
         # Reset Configuration to clear any state from previous tests
         Configuration.set_default(None)
 
-        # Save original env var value
-        original_no_keyring = os.environ.get("CLOUDSMITH_NO_KEYRING")
+        # Simulate SSO token refresh failure
+        mocked_should_refresh_access_token.return_value = True
+        mocked_refresh_access_token.side_effect = ApiException(
+            status=401, detail="Unauthorized"
+        )
 
-        try:
-            # Ensure keyring is enabled for this test
-            os.environ.pop("CLOUDSMITH_NO_KEYRING", None)
-
-            # Simulate SSO token refresh failure
-            mocked_should_refresh_access_token.return_value = True
-            mocked_refresh_access_token.side_effect = ApiException(
-                status=401, detail="Unauthorized"
-            )
-
+        # Ensure keyring is enabled for this test
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
             config = initialise_api(host="https://example.com", key=None)
 
-            # Should not use expired SSO token
-            assert (
-                "Authorization" not in config.headers
-                or config.headers.get("Authorization") != "Bearer dummy_access_token"
-            )
-            # Should not have API key either
-            assert "X-Api-Key" not in config.api_key
-            mocked_update_refresh_attempted_at.assert_called_once()
-        finally:
-            # Restore original env var value
-            if original_no_keyring is not None:
-                os.environ["CLOUDSMITH_NO_KEYRING"] = original_no_keyring
-            else:
-                os.environ.pop("CLOUDSMITH_NO_KEYRING", None)
+        # Should not use expired SSO token
+        assert (
+            "Authorization" not in config.headers
+            or config.headers.get("Authorization") != "Bearer dummy_access_token"
+        )
+        # Should not have API key either
+        assert "X-Api-Key" not in config.api_key
+        mocked_update_refresh_attempted_at.assert_called_once()
         mocked_store_sso_tokens.assert_not_called()
 
     def test_initialise_api_uses_direct_access_token_when_keyring_disabled(

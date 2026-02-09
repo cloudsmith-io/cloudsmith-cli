@@ -6,21 +6,7 @@ import pytest
 from cloudsmith_cli.cli.commands.tokens import list_tokens, refresh
 from cloudsmith_cli.core.api.exceptions import ApiException
 
-
-class MockToken:
-    """Mock Token object with the properties needed for testing."""
-
-    def __init__(self, key, created, slug_perm):
-        self.key = key
-        self.created = created
-        self.slug_perm = slug_perm
-
-    def to_dict(self):
-        return {
-            "key": self.key,
-            "created": self.created,
-            "slug_perm": self.slug_perm,
-        }
+from .conftest import MockToken
 
 
 @pytest.mark.usefixtures("set_api_host_env_var")
