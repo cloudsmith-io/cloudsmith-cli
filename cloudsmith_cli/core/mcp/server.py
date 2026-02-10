@@ -209,16 +209,10 @@ class DynamicMCPServer:
         ) as http_client:
             for version, endpoint in API_VERSIONS_TO_DISCOVER.items():
                 spec_url = f"{self.api_base_url}/{version}/{endpoint}"
-                try:
-                    response = await http_client.get(spec_url)
-                    response.raise_for_status()
-                except httpx.HTTPStatusError:
-                    # This version is not available, try the next one
-                    continue
+                response = await http_client.get(spec_url)
+                response.raise_for_status()
                 self.spec = response.json()
                 await self._generate_tools_from_spec()
-                # Stop after the first successful spec load to avoid duplicate tools
-                break
 
     def _get_tool_groups(self, tool_name: str) -> List[str]:
         """
