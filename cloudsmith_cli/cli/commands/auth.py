@@ -81,7 +81,7 @@ def _perform_saml_authentication(
     "--json",
     default=False,
     is_flag=True,
-    help="Output token details in json format.",
+    help="[DEPRECATED: Use --output-format json] Output token details in JSON format.",
 )
 @click.option(
     "--request-api-key",

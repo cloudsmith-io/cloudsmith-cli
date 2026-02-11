@@ -14,9 +14,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecation Notices
 
-- The `--token` flag on `cloudsmith auth` will be deprecated. Use `--request-api-key` instead.
-- The `--force` flag on `cloudsmith auth` will be deprecated. Use `--request-api-key` instead (force behavior is implied).
-- The `--json` flag on `cloudsmith auth` will be deprecated. Use `--output-format json` instead.
+- The `--token` flag on `cloudsmith auth` is deprecated. Use `--request-api-key` instead.
+- The `--force` flag on `cloudsmith auth` is deprecated. Use `--request-api-key` instead (force behavior is implied).
+- The `--json` flag on `cloudsmith auth` is deprecated. Use `--output-format json` instead.
 
 ## [1.12.1] - 2026-02-03
 
