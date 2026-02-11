@@ -200,6 +200,7 @@ class TestInitialiseApi:
         mocked_get_access_token,
     ):
         """Verify keyring returns None when CLOUDSMITH_NO_KEYRING=1."""
+        mocked_get_access_token.return_value = None
         with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
             config = initialise_api(host="https://example.com", key="test_api_key")
 
