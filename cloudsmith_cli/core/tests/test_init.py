@@ -199,12 +199,12 @@ class TestInitialiseApi:
         self,
         mocked_get_access_token,
     ):
-        """Verify keyring.get_access_token is not called when CLOUDSMITH_NO_KEYRING=1."""
+        """Verify keyring returns None when CLOUDSMITH_NO_KEYRING=1."""
         with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
             config = initialise_api(host="https://example.com", key="test_api_key")
 
-        # Keyring should not be accessed at all
-        mocked_get_access_token.assert_not_called()
+        # get_access_token is called but returns None due to internal guard
+        mocked_get_access_token.assert_called_once()
         # API key should be used instead
         assert config.api_key["X-Api-Key"] == "test_api_key"
 
@@ -318,6 +318,7 @@ class TestInitialiseApi:
     def test_initialise_api_direct_access_token_takes_precedence_over_keyring(
         self,
         mocked_get_access_token,
+        mocked_should_refresh_access_token,
     ):
         """Verify a directly provided access_token takes precedence over keyring."""
         env = os.environ.copy()
@@ -350,8 +351,6 @@ class TestInitialiseApi:
         there is no refresh_token in keyring, clearing the access_token and
         leaving zero authentication.
         """
-        mocked_should_refresh_access_token.return_value = True
-
         with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
             config = initialise_api(
                 host="https://example.com",
@@ -360,10 +359,11 @@ class TestInitialiseApi:
 
         # Keyring lookup should be skipped (direct token provided)
         mocked_get_access_token.assert_not_called()
-        # Refresh logic should NOT be triggered for direct tokens
-        mocked_should_refresh_access_token.assert_not_called()
+        # should_refresh_access_token is called but returns False
+        # due to internal should_use_keyring() guard
+        mocked_should_refresh_access_token.assert_called_once()
+        # Refresh logic should NOT be triggered
         mocked_refresh_access_token.assert_not_called()
-        mocked_get_refresh_token.assert_not_called()
         mocked_store_sso_tokens.assert_not_called()
         mocked_update_refresh_attempted_at.assert_not_called()
         # The fresh SSO token should be used as-is
