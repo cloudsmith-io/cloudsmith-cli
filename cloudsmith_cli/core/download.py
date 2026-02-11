@@ -11,7 +11,6 @@ import requests
 from . import keyring, ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
-from .keyring import should_use_keyring
 from .rest import create_requests_session
 
 
@@ -40,9 +39,7 @@ def resolve_auth(
 
     # Only attempt keyring operations if keyring is enabled
     config = cloudsmith_api.Configuration()
-    access_token = None
-    if should_use_keyring():
-        access_token = keyring.get_access_token(config.host)
+    access_token = keyring.get_access_token(config.host)
     api_key = api_key_opt or getattr(opts, "api_key", None)
 
     if api_key:

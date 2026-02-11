@@ -99,7 +99,7 @@ def request_api_key(ctx, opts, save_config=False):
 
         # Other errors - use the handler
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            raise
+            raise exc
 
 
 @main.group(cls=command.AliasGroup, name="tokens")
