@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `--tag` option to `download` command for filtering packages by tags
 - Enhanced tag filtering to support all metadata fields shown as tags in UI (format, architecture, distribution, component, etc.)
 - Added download command documentation to README with comprehensive usage examples
+- Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
+- Added `--request-api-key` flag to `cloudsmith auth` command for fully automated, non-interactive API token retrieval. Auto-creates a token if none exists, or auto-rotates (with warning) if one already exists. Compatible with `--save-config` and `CLOUDSMITH_NO_KEYRING`.
+
+### Deprecation Notices
+
+- The `--token` flag on `cloudsmith auth` is deprecated. Use `--request-api-key` instead.
+- The `--force` flag on `cloudsmith auth` is deprecated. Use `--request-api-key` instead (force behavior is implied).
+- The `--json` flag on `cloudsmith auth` is deprecated. Use `--output-format json` instead.
+
+## [1.12.1] - 2026-02-03
+
+### Added
+
+- Added Model Context Protocol (MCP) server support via `cloudsmith mcp` commands. Only STDIO transport is supported for now.
+- Auto-configure supported clients (Claude Desktop, Cursor, VS Code, Gemini CLI) with `cloudsmith mcp configure`
+- List available tools with `cloudsmith mcp list_tools` and tool groups with `cloudsmith mcp list_groups`
+- Filter tools via `mcp_allowed_tools` and `mcp_allowed_tool_groups` configuration options to control which API operations are exposed
+
+## [1.12.0] - 2026-02-02
+
+### Added
+
+- Added Generic Format support for pushing packages to repositories.
+- Added Upstream support for managing upstream proxy configurations.
 
 ## [1.11.2] - 2026-01-22
 

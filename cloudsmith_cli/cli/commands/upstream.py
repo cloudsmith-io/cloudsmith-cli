@@ -24,6 +24,7 @@ UPSTREAM_FORMATS = [
     "dart",
     "deb",
     "docker",
+    "generic",
     "go",
     "helm",
     "hex",

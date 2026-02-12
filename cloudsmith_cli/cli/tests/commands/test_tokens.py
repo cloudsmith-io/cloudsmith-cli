@@ -1,18 +1,12 @@
 from unittest.mock import patch
 
+import click
 import pytest
 
 from cloudsmith_cli.cli.commands.tokens import list_tokens, refresh
 from cloudsmith_cli.core.api.exceptions import ApiException
 
-
-class MockToken:
-    """Mock Token object with the properties needed for testing."""
-
-    def __init__(self, key, created, slug_perm):
-        self.key = key
-        self.created = created
-        self.slug_perm = slug_perm
+from .conftest import MockToken
 
 
 @pytest.mark.usefixtures("set_api_host_env_var")
@@ -118,3 +112,76 @@ class TestRefreshTokenCommand:
             "API error" in error_content
             or "Failed to refresh the token" in error_content
         )
+
+
+@pytest.mark.usefixtures("set_api_host_env_var")
+class TestRequestApiKeyFunction:
+    """Test suite for the request_api_key helper function."""
+
+    def test_request_api_key_creates_new_token(self):
+        """Test successful creation of a new token."""
+        from cloudsmith_cli.cli.commands.tokens import request_api_key
+
+        mock_token = MockToken(
+            key="ck_new_token_123",
+            created="2026-02-06T00:00:00Z",
+            slug_perm="new-token",
+        )
+
+        class MockOpts:
+            debug = False
+            output = None
+            verbose = False
+
+        with patch(
+            "cloudsmith_cli.core.api.user.create_user_token_saml"
+        ) as mock_create:
+            mock_create.return_value = mock_token
+
+            ctx = click.Context(click.Command("test"), info_name="test")
+            result = request_api_key(ctx, MockOpts(), save_config=False)
+
+        assert result is not None
+        assert result.key == "ck_new_token_123"
+
+    def test_request_api_key_rotates_existing_token(self):
+        """Test automatic rotation when token already exists."""
+        from cloudsmith_cli.cli.commands.tokens import request_api_key
+
+        existing_token = MockToken(
+            key="ck_old_token",
+            created="2026-01-01T00:00:00Z",
+            slug_perm="existing-token",
+        )
+        new_token = MockToken(
+            key="ck_rotated_token",
+            created="2026-02-06T00:00:00Z",
+            slug_perm="existing-token",
+        )
+
+        class MockOpts:
+            debug = False
+            output = None
+            verbose = False
+
+        # Create an exception that indicates token already exists
+        duplicate_error = ApiException("Duplicate token error")
+        duplicate_error.status = 400
+        duplicate_error.detail = "User has already created an API key"
+
+        with patch(
+            "cloudsmith_cli.core.api.user.create_user_token_saml"
+        ) as mock_create, patch(
+            "cloudsmith_cli.core.api.user.list_user_tokens"
+        ) as mock_list, patch(
+            "cloudsmith_cli.core.api.user.refresh_user_token"
+        ) as mock_refresh:
+            mock_create.side_effect = duplicate_error
+            mock_list.return_value = [existing_token]
+            mock_refresh.return_value = new_token
+
+            ctx = click.Context(click.Command("test"), info_name="test")
+            result = request_api_key(ctx, MockOpts(), save_config=False)
+
+        assert result is not None
+        assert result.key == "ck_rotated_token"
