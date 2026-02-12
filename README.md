@@ -269,10 +269,10 @@ cloudsmith download your-account/your-repo package-name --version 1.2.3
 # Filter by format and architecture
 cloudsmith download your-account/your-repo package-name --format deb --arch amd64
 
-# Filter by tag (e.g., latest, stable, beta)
+# Filter by package tag (e.g., latest, stable, beta)
 cloudsmith download your-account/your-repo package-name --tag latest
 
-# Combine multiple filters
+# Combine tag with metadata filters
 cloudsmith download your-account/your-repo package-name --tag stable --format deb --arch arm64
 
 # Download all associated files (POM, sources, javadoc, etc.)

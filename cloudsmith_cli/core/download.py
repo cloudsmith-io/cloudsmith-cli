@@ -57,6 +57,10 @@ def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
     """
     Check if a package matches the tag filter.
 
+    Only matches against actual package tags (the 'tags' field),
+    not metadata fields like format, architecture, or distro.
+    Use --format, --arch, and --os for filtering by those fields.
+
     Args:
         pkg: Package dictionary
         tag_filter: Tag to match against
@@ -64,35 +68,10 @@ def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
     Returns:
         True if package matches the tag filter
     """
-    # Check actual tags field (info, version, etc.)
     pkg_tags = pkg.get("tags", {})
     for tag_category in pkg_tags.values():
         if isinstance(tag_category, list) and tag_filter in tag_category:
             return True
-
-    # Check other metadata fields that appear as tags in the UI (case-sensitive)
-    # Check format, architectures, and deb component
-    if (
-        pkg.get("format") == tag_filter
-        or any(arch.get("name") == tag_filter for arch in pkg.get("architectures", []))
-        or pkg.get("identifiers", {}).get("deb_component") == tag_filter
-    ):
-        return True
-
-    # Check distro-related fields
-    distro_name_raw = pkg.get("distro", {}).get("name")
-    distro_version_raw = pkg.get("distro_version", {}).get("name")
-    distro_combo = ""
-    if distro_name_raw and distro_version_raw:
-        # Only build combined tag when both parts are present
-        distro_combo = f"{distro_name_raw}/{distro_version_raw}"
-
-    if (
-        tag_filter == distro_name_raw
-        or tag_filter == distro_version_raw
-        or (distro_combo and tag_filter == distro_combo)
-    ):
-        return True
 
     return False
 

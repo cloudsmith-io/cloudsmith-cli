@@ -43,7 +43,9 @@ from .main import main
     "--arch", "arch_filter", help="Architecture filter (e.g., 'amd64', 'arm64')."
 )
 @click.option(
-    "--tag", "tag_filter", help="Tag filter (e.g., 'latest', 'stable', 'beta')."
+    "--tag",
+    "tag_filter",
+    help="Filter by package tag (e.g., 'latest', 'stable'). Use --format, --arch, --os for metadata filters.",
 )
 @click.option(
     "--outfile",

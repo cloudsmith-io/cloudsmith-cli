@@ -159,20 +159,12 @@ class TestResolvePackage(unittest.TestCase):
                 "name": "test-package",
                 "version": "1.0.0",
                 "format": "deb",
-                "architectures": [{"name": "amd64"}],
-                "distro": {"name": "Ubuntu"},
-                "distro_version": {"name": "noble"},
-                "identifiers": {"deb_component": "main"},
                 "tags": {"info": ["latest"], "version": ["stable"]},
             },
             {
                 "name": "test-package",
                 "version": "0.9.0",
                 "format": "rpm",
-                "architectures": [{"name": "arm64"}],
-                "distro": {"name": "CentOS"},
-                "distro_version": {"name": "8"},
-                "identifiers": {"deb_component": "contrib"},
                 "tags": {"info": ["beta"], "version": ["unstable"]},
             },
         ]
@@ -186,33 +178,22 @@ class TestResolvePackage(unittest.TestCase):
         result = download.resolve_package(
             "owner", "repo", "test-package", tag_filter="latest"
         )
-        self.assertEqual(
-            result["version"], "1.0.0"
-        )  # Only this package has "latest" tag
+        self.assertEqual(result["version"], "1.0.0")
 
-        # Test format filtering as tag - should return v1.0.0 (format "deb")
+        # Test tag from version category - should return v0.9.0 (has "unstable")
         result = download.resolve_package(
-            "owner", "repo", "test-package", tag_filter="deb"
+            "owner", "repo", "test-package", tag_filter="unstable"
         )
-        self.assertEqual(
-            result["version"], "1.0.0"
-        )  # Only this package has format "deb"
+        self.assertEqual(result["version"], "0.9.0")
 
-        # Test architecture filtering as tag - should return v0.9.0 (has "arm64")
-        result = download.resolve_package(
-            "owner", "repo", "test-package", tag_filter="arm64"
-        )
-        self.assertEqual(
-            result["version"], "0.9.0"
-        )  # Only this package has arm64 architecture
+        # Tag filter should NOT match metadata fields like format
+        with self.assertRaises(click.ClickException):
+            download.resolve_package("owner", "repo", "test-package", tag_filter="deb")
 
-        # Test distro filtering as tag - should fail due to case mismatch
+        # Tag filter should NOT match metadata fields like architecture
         with self.assertRaises(click.ClickException):
             download.resolve_package(
-                "owner",
-                "repo",
-                "test-package",
-                tag_filter="ubuntu",  # lowercase won't match "Ubuntu"
+                "owner", "repo", "test-package", tag_filter="amd64"
             )
 
     def test_matches_tag_filter_edge_cases(self):
@@ -221,19 +202,16 @@ class TestResolvePackage(unittest.TestCase):
         # Test package without tags field
         pkg_no_tags = {"name": "test", "format": "deb"}
         self.assertFalse(download._matches_tag_filter(pkg_no_tags, "latest"))
-        self.assertTrue(
-            download._matches_tag_filter(pkg_no_tags, "deb")
-        )  # format match
 
         # Test package with empty tags
         pkg_empty_tags = {"tags": {}, "format": "rpm"}
         self.assertFalse(download._matches_tag_filter(pkg_empty_tags, "latest"))
-        self.assertTrue(download._matches_tag_filter(pkg_empty_tags, "rpm"))
 
-        # Test package with None/empty distro fields
-        pkg_no_distro = {"tags": {"info": ["test"]}}
-        self.assertFalse(download._matches_tag_filter(pkg_no_distro, "ubuntu"))
-        self.assertTrue(download._matches_tag_filter(pkg_no_distro, "test"))
+        # Test matching actual tags
+        pkg_with_tags = {"tags": {"info": ["test", "upstream"]}}
+        self.assertTrue(download._matches_tag_filter(pkg_with_tags, "test"))
+        self.assertTrue(download._matches_tag_filter(pkg_with_tags, "upstream"))
+        self.assertFalse(download._matches_tag_filter(pkg_with_tags, "nonexistent"))
 
         # Test case-sensitive matching for actual tags
         pkg_case_tags = {"tags": {"info": ["Latest", "Beta"]}}
@@ -242,44 +220,26 @@ class TestResolvePackage(unittest.TestCase):
             download._matches_tag_filter(pkg_case_tags, "latest")
         )  # case mismatch
 
-        # Test case-sensitive matching for metadata fields
-        pkg_case_meta = {"format": "Deb", "architectures": [{"name": "ARM64"}]}
-        self.assertTrue(download._matches_tag_filter(pkg_case_meta, "Deb"))
-        self.assertFalse(
-            download._matches_tag_filter(pkg_case_meta, "deb")
-        )  # case mismatch
-        self.assertTrue(download._matches_tag_filter(pkg_case_meta, "ARM64"))
-        self.assertFalse(
-            download._matches_tag_filter(pkg_case_meta, "arm64")
-        )  # case mismatch
+        # Test multiple tag categories
+        pkg_multi_cats = {"tags": {"info": ["upstream"], "version": ["latest"]}}
+        self.assertTrue(download._matches_tag_filter(pkg_multi_cats, "upstream"))
+        self.assertTrue(download._matches_tag_filter(pkg_multi_cats, "latest"))
 
-        # Test component filtering
-        pkg_component = {"identifiers": {"deb_component": "main"}}
-        self.assertTrue(download._matches_tag_filter(pkg_component, "main"))
-        self.assertFalse(download._matches_tag_filter(pkg_component, "contrib"))
-
-        # Test combined distro/version matching
-        pkg_distro_combo = {
+        # Tag filter should NOT match metadata fields
+        pkg_metadata = {
+            "format": "deb",
+            "architectures": [{"name": "arm64"}],
             "distro": {"name": "Ubuntu"},
             "distro_version": {"name": "noble"},
+            "identifiers": {"deb_component": "main"},
+            "tags": {},
         }
-        self.assertTrue(download._matches_tag_filter(pkg_distro_combo, "Ubuntu"))
-        self.assertTrue(download._matches_tag_filter(pkg_distro_combo, "noble"))
-        self.assertTrue(download._matches_tag_filter(pkg_distro_combo, "Ubuntu/noble"))
-        self.assertFalse(
-            download._matches_tag_filter(pkg_distro_combo, "ubuntu/noble")
-        )  # case mismatch
-
-        # Test distro combo with missing fields (should not create "/")
-        pkg_partial_distro = {"distro": {"name": "Ubuntu"}}  # missing distro_version
-        self.assertTrue(download._matches_tag_filter(pkg_partial_distro, "Ubuntu"))
-        self.assertFalse(
-            download._matches_tag_filter(pkg_partial_distro, "Ubuntu/")
-        )  # should not match partial combo
-
-        # Test empty architecture list
-        pkg_empty_arch = {"architectures": []}
-        self.assertFalse(download._matches_tag_filter(pkg_empty_arch, "amd64"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "deb"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "arm64"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "Ubuntu"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "noble"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "main"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "Ubuntu/noble"))
 
     @patch("cloudsmith_cli.core.download.list_packages")
     def test_resolve_package_exact_name_match(self, mock_list_packages):
