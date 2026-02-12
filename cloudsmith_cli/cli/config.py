@@ -208,6 +208,31 @@ class CredentialsReader(ConfigReader):
     config_searchpath = list(_CFG_SEARCH_PATHS)
     config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
 
+    @classmethod
+    def find_existing_files(cls):
+        """Return a list of existing credentials file paths."""
+        paths = []
+        for filename in cls.config_files:
+            for searchpath in cls.config_searchpath:
+                path = os.path.join(searchpath, filename)
+                if os.path.exists(path):
+                    paths.append(path)
+        return paths
+
+    @classmethod
+    def clear_api_key(cls, path):
+        """Clear api_key values in a credentials file, preserving structure."""
+        with open(path) as f:
+            content = f.read()
+        content = re.sub(
+            r"^(api_key)\s*=\s*.*$",
+            r"\1 =",
+            content,
+            flags=re.MULTILINE,
+        )
+        with open(path, "w") as f:
+            f.write(content)
+
 
 class Options:
     """Options object that holds config for the application."""

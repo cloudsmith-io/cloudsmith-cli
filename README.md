@@ -47,6 +47,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
+- `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
