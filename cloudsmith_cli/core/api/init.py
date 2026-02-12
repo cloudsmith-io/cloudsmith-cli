@@ -26,6 +26,7 @@ def initialise_api(
     error_retry_backoff=None,
     error_retry_codes=None,
     error_retry_cb=None,
+    access_token=None,
 ):
     """Initialise the cloudsmith_api.Configuration."""
     # FIXME: pylint: disable=too-many-arguments
@@ -44,7 +45,11 @@ def initialise_api(
     config.verify_ssl = ssl_verify
     config.client_side_validation = False
 
-    access_token = keyring.get_access_token(config.host)
+    # Use directly provided access token (e.g. from SSO callback),
+    # or fall back to keyring lookup if enabled.
+    if not access_token:
+        access_token = keyring.get_access_token(config.host)
+
     if access_token:
         auth_header = config.headers.get("Authorization")
 
@@ -63,40 +68,53 @@ def initialise_api(
                     keyring.store_sso_tokens(
                         config.host, new_access_token, new_refresh_token
                     )
+                    # Use the new tokens
+                    access_token = new_access_token
             except ApiException:
                 keyring.update_refresh_attempted_at(config.host)
 
                 click.secho(
                     "An error occurred when attempting to refresh your SSO access token. To refresh this session, run 'cloudsmith auth'",
                     fg="yellow",
+                    err=True,
                 )
 
-                # try falling back to API key auth if refresh fails
+                # Clear access_token to prevent using expired token
+                access_token = None
+
+                # Fall back to API key auth if available
                 if key:
+                    click.secho(
+                        "Falling back to API key authentication.",
+                        fg="yellow",
+                        err=True,
+                    )
                     config.api_key["X-Api-Key"] = key
 
-            config.headers["Authorization"] = "Bearer {access_token}".format(
-                access_token=access_token
-            )
+            # Only use SSO token if refresh didn't fail
+            if access_token:
+                config.headers["Authorization"] = "Bearer {access_token}".format(
+                    access_token=access_token
+                )
 
-            if config.debug:
-                click.echo("SSO access token config value set")
+                if config.debug:
+                    click.echo("SSO access token config value set")
     elif key:
         config.api_key["X-Api-Key"] = key
 
         if config.debug:
             click.echo("User API key config value set")
 
-    if headers:
-        if "Authorization" in config.headers:
-            auth_type, encoded = config.headers["Authorization"].split(" ")
-            if auth_type == "Basic":
-                decoded = base64.b64decode(encoded)
-                values = decoded.decode("utf-8")
-                config.username, config.password = values.split(":")
+    auth_header = headers and config.headers.get("Authorization")
+    if auth_header and " " in auth_header:
+        auth_type, encoded = auth_header.split(" ", 1)
+        if auth_type == "Basic":
+            decoded = base64.b64decode(encoded)
+            values = decoded.decode("utf-8")
+            config.username, config.password = values.split(":")
 
-                if config.debug:
-                    click.echo("Username and password config values set")
+            if config.debug:
+                click.echo("Username and password config values set")
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
     # present in the cloudsmith_api.Configuration class declaration.

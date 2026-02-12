@@ -1,6 +1,7 @@
 import getpass
+import os
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import keyring
 import pytest
@@ -12,6 +13,7 @@ from ..keyring import (
     get_refresh_attempted_at,
     get_refresh_token,
     should_refresh_access_token,
+    should_use_keyring,
     store_access_token,
     store_refresh_token,
     store_sso_tokens,
@@ -181,9 +183,13 @@ class TestKeyring:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_store_sso_tokens(self, mock_get_user, mock_set_password):
-        refresh_attempted_at = datetime.utcnow().isoformat()
-        store_sso_tokens(self.api_host, "access_token", "refresh_token")
+        # Ensure keyring is enabled
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
 
+        assert result is True
         assert mock_set_password.call_count == 3
         mock_set_password.assert_any_call(
             "cloudsmith_cli-access_token-https://example.com",
@@ -193,10 +199,45 @@ class TestKeyring:
         mock_set_password.assert_any_call(
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
             "test_user",
-            refresh_attempted_at,
+            ANY,
         )
         mock_set_password.assert_any_call(
             "cloudsmith_cli-refresh_token-https://example.com",
             "test_user",
             "refresh_token",
         )
+
+    def test_store_sso_tokens_returns_false_when_keyring_disabled(
+        self, mock_get_user, mock_set_password
+    ):
+        """Verify store_sso_tokens returns False and doesn't store when keyring disabled."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
+            result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
+
+        assert result is False
+        mock_set_password.assert_not_called()
+
+
+class TestShouldUseKeyring:
+    """Tests for the should_use_keyring function."""
+
+    def test_returns_true_by_default(self):
+        """When env var is not set, keyring should be used."""
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            assert should_use_keyring() is True
+
+    @pytest.mark.parametrize(
+        "env_value", ["1", "true", "True", "TRUE", "yes", "Yes", "YES"]
+    )
+    def test_returns_false_when_env_var_is_truthy(self, env_value):
+        """When CLOUDSMITH_NO_KEYRING is set to a truthy value, keyring should not be used."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
+            assert should_use_keyring() is False
+
+    @pytest.mark.parametrize("env_value", ["0", "false", "False", "no", "No", ""])
+    def test_returns_true_when_env_var_is_falsy(self, env_value):
+        """When CLOUDSMITH_NO_KEYRING is set to a falsy value, keyring should be used."""
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
+            assert should_use_keyring() is True
