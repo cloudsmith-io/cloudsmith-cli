@@ -212,11 +212,13 @@ class CredentialsReader(ConfigReader):
     def find_existing_files(cls):
         """Return a list of existing credentials file paths."""
         paths = []
+        seen = set()
         for filename in cls.config_files:
             for searchpath in cls.config_searchpath:
                 path = os.path.join(searchpath, filename)
-                if os.path.exists(path):
+                if os.path.exists(path) and path not in seen:
                     paths.append(path)
+                    seen.add(path)
         return paths
 
     @classmethod

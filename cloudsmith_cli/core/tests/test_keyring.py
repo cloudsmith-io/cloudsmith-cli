@@ -285,3 +285,12 @@ class TestDeleteSsoTokens:
         else:
             mock_get_password.return_value = return_value
         assert has_sso_tokens(self.api_host) is expected
+
+    def test_has_sso_tokens_returns_false_when_keyring_disabled(
+        self, mock_get_user, mock_get_password
+    ):
+        """has_sso_tokens should short-circuit when keyring is disabled."""
+        mock_get_password.return_value = "some_token"
+        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
+            assert has_sso_tokens(self.api_host) is False
+        mock_get_password.assert_not_called()

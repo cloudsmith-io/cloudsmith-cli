@@ -1,3 +1,4 @@
+import json
 import os
 from unittest.mock import patch
 
@@ -108,3 +109,39 @@ class TestLogoutCommand:
             assert "unset CLOUDSMITH_API_KEY" in result.output
         else:
             assert "unset CLOUDSMITH_API_KEY" not in result.output
+
+    def test_json_output(self, runner, mock_deps):
+        """--output-format json emits structured JSON with expected keys."""
+        _, mock_keyring = mock_deps
+        mock_keyring.delete_sso_tokens.return_value = True
+
+        result = runner.invoke(
+            logout,
+            ["--output-format", "json", "--api-host", HOST],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        # Human messages go to stderr; extract the JSON line from stdout.
+        json_line = [
+            line for line in result.output.splitlines() if line.startswith("{")
+        ]
+        assert json_line, f"No JSON found in output: {result.output!r}"
+        payload = json.loads(json_line[0])
+        data = payload["data"]
+        assert data["api_host"] == HOST
+        assert "dry_run" in data
+        sources = data["sources"]
+        assert "credential_file" in sources
+        assert "keyring" in sources
+        assert "environment_api_key" in sources
+
+    def test_keyring_delete_failure(self, runner, mock_deps):
+        """When delete_sso_tokens returns False, report failure."""
+        _, mock_keyring = mock_deps
+        mock_keyring.delete_sso_tokens.return_value = False
+
+        result = runner.invoke(logout, ["--api-host", HOST])
+
+        assert result.exit_code == 0
+        assert "Failed to remove SSO tokens" in result.output

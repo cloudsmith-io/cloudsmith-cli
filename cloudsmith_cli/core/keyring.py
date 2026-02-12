@@ -129,6 +129,8 @@ def _sso_keys(api_host):
 
 def has_sso_tokens(api_host):
     """Check if any SSO tokens exist in the keyring for the given host."""
+    if not should_use_keyring():
+        return False
     return any(_get_value(key) for key in _sso_keys(api_host))
 
 

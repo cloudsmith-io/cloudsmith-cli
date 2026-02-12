@@ -51,9 +51,11 @@ def _clear_keyring(api_host, dry_run, use_stderr):
         click.echo("Would remove SSO tokens from system keyring.", err=use_stderr)
         return {"action": "would_remove"}
 
-    keyring.delete_sso_tokens(api_host)
-    click.echo("Removed SSO tokens from system keyring.", err=use_stderr)
-    return {"action": "removed"}
+    deleted = keyring.delete_sso_tokens(api_host)
+    action = "removed" if deleted else "failed"
+    msg = f"{'Removed' if deleted else 'Failed to remove'} SSO tokens from system keyring."
+    click.secho(msg, fg=None if deleted else "red", err=use_stderr)
+    return {"action": action} if deleted else {"action": action, "message": msg}
 
 
 def _env_api_key_status():
@@ -116,7 +118,7 @@ def logout(ctx, opts, api_host, keyring_only, config_only, dry_run):
         )
 
     if api_host is None:
-        api_host = cloudsmith_api.Configuration().host
+        api_host = opts.api_host or cloudsmith_api.Configuration().host
 
     use_stderr = utils.should_use_stderr(opts)
 
