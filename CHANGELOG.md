@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
 - Added `--request-api-key` flag to `cloudsmith auth` command for fully automated, non-interactive API token retrieval. Auto-creates a token if none exists, or auto-rotates (with warning) if one already exists. Compatible with `--save-config` and `CLOUDSMITH_NO_KEYRING`.
+- Added `cloudsmith logout` command to clear stored authentication credentials and SSO tokens.
+  - Clears credentials from `credentials.ini` and SSO tokens from the system keyring
+  - `--keyring-only` to only clear SSO tokens from the system keyring
+  - `--config-only` to only clear credentials from `credentials.ini`
+  - `--dry-run` to preview what would be removed without making changes
+  - Supports `--output-format json` for programmatic usage
 
 ### Deprecation Notices
 

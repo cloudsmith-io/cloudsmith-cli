@@ -12,6 +12,7 @@ from . import (
     help_,
     list_,
     login,
+    logout,
     mcp,
     metrics,
     move,
