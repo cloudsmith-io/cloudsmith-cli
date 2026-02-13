@@ -3,10 +3,14 @@
 import json
 
 import cloudsmith_api
-from cloudsmith_api.rest import ApiException
+from cloudsmith_api.rest import ApiException as _UpstreamApiException
 
 from .. import ratelimits
-from .exceptions import TwoFactorRequiredException, catch_raise_api_exception
+from .exceptions import (
+    ApiException,
+    TwoFactorRequiredException,
+    catch_raise_api_exception,
+)
 from .init import get_api_client, unset_api_key
 
 
@@ -38,7 +42,7 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
         data, _, headers = client.user_token_create_with_http_info(data=data_dict)
         ratelimits.maybe_rate_limit(client, headers)
         return data.token
-    except ApiException as e:
+    except _UpstreamApiException as e:
         # Check for 2FA requirement
         if e.status == 422 and e.body:
             try:
@@ -97,3 +101,20 @@ def refresh_user_token(token_slug: str) -> dict:
 
     ratelimits.maybe_rate_limit(client, headers)
     return data
+
+
+def get_token_metadata() -> dict | None:
+    """Retrieve metadata for the user's single API token.
+
+    Returns a dict with 'slug' and 'created' keys, or None if unavailable.
+    """
+    try:
+        tokens = list_user_tokens()
+    except ApiException:
+        return None
+
+    if not tokens:
+        return None
+
+    t = tokens[0]
+    return {"slug": t.slug_perm, "created": t.created}
