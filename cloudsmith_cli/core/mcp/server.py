@@ -7,7 +7,7 @@ from urllib import parse
 
 import cloudsmith_api
 import httpx
-import toon_python as toon
+import toon
 from mcp import types
 from mcp.server.fastmcp import FastMCP
 from mcp.shared._httpx_utils import create_mcp_http_client
@@ -516,7 +516,7 @@ class DynamicMCPServer:
                 return toon.encode(result)
             return json.dumps(result, indent=2)
 
-        except (json.JSONDecodeError, toon.ToonEncodingError):
+        except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
         except httpx.HTTPError as e:
             return f"HTTP error: {str(e)}"
