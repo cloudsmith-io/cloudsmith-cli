@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-02-16
+
 ### Added
 
 - Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
