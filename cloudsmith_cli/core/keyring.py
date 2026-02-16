@@ -107,3 +107,34 @@ def store_sso_tokens(api_host, access_token, refresh_token):
         store_refresh_token(api_host=api_host, refresh_token=refresh_token)
 
     return True
+
+
+def _delete_value(key):
+    username = _get_username()
+    try:
+        keyring.delete_password(key, username)
+        return True
+    except KeyringError:
+        return False
+
+
+def _sso_keys(api_host):
+    """Return the keyring service names for all SSO-related entries."""
+    return [
+        ACCESS_TOKEN_KEY.format(api_host=api_host),
+        REFRESH_TOKEN_KEY.format(api_host=api_host),
+        ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY.format(api_host=api_host),
+    ]
+
+
+def has_sso_tokens(api_host):
+    """Check if any SSO tokens exist in the keyring for the given host."""
+    if not should_use_keyring():
+        return False
+    return any(_get_value(key) for key in _sso_keys(api_host))
+
+
+def delete_sso_tokens(api_host):
+    """Delete all SSO tokens from the keyring for the given host."""
+    results = [_delete_value(key) for key in _sso_keys(api_host)]
+    return any(results)
