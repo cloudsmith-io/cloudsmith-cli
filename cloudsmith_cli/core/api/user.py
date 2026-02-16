@@ -97,3 +97,13 @@ def refresh_user_token(token_slug: str) -> dict:
 
     ratelimits.maybe_rate_limit(client, headers)
     return data
+
+
+def get_token_metadata() -> dict | None:
+    """Retrieve metadata for the user's first API token.
+
+    Raises ApiException on failure; callers should handle gracefully.
+    """
+    if t := next(iter(list_user_tokens()), None):
+        return {"slug": t.slug_perm, "created": t.created}
+    return None
