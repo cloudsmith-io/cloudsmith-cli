@@ -73,7 +73,7 @@ def _get_verbose_auth_data(opts, api_host):
         try:
             token_meta = get_token_metadata()
         except ApiException:
-            pass
+            token_meta = None
 
     created = token_meta.get("created") if token_meta else None
     api_key_info["slug"] = token_meta["slug"] if token_meta else None
