@@ -100,14 +100,10 @@ def refresh_user_token(token_slug: str) -> dict:
 
 
 def get_token_metadata() -> dict | None:
-    """Retrieve metadata for the user's single API token.
+    """Retrieve metadata for the user's first API token.
 
-    Returns a dict with 'slug' and 'created' keys, or None if unavailable.
     Raises ApiException on failure; callers should handle gracefully.
     """
-    tokens = list_user_tokens()
-    if not tokens:
-        return None
-
-    t = tokens[0]
-    return {"slug": t.slug_perm, "created": t.created}
+    if t := next(iter(list_user_tokens()), None):
+        return {"slug": t.slug_perm, "created": t.created}
+    return None
