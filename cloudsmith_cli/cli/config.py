@@ -222,18 +222,29 @@ class CredentialsReader(ConfigReader):
         return paths
 
     @classmethod
-    def clear_api_key(cls, path):
-        """Clear api_key values in a credentials file, preserving structure."""
+    def _set_api_key(cls, path, api_key=""):
+        """Write api_key value in a credentials file, preserving structure."""
         with open(path) as f:
             content = f.read()
+        replacement = rf"\1 = {api_key}" if api_key else r"\1 ="
         content = re.sub(
             r"^(api_key)\s*=\s*.*$",
-            r"\1 =",
+            replacement,
             content,
             flags=re.MULTILINE,
         )
         with open(path, "w") as f:
             f.write(content)
+
+    @classmethod
+    def clear_api_key(cls, path):
+        """Clear api_key values in a credentials file, preserving structure."""
+        cls._set_api_key(path)
+
+    @classmethod
+    def update_api_key(cls, path, api_key):
+        """Update api_key value in an existing credentials file, preserving structure."""
+        cls._set_api_key(path, api_key)
 
 
 class Options:
