@@ -51,10 +51,29 @@ class CredentialProvider:
 
 
 class CredentialProviderChain:
-    """Evaluates credential providers in order, returning the first valid result."""
+    """Evaluates credential providers in order, returning the first valid result.
 
-    def __init__(self, providers: list[CredentialProvider]):
-        self.providers = providers
+    If no providers are given, uses the default chain:
+    EnvironmentVariable → ConfigFile → Keyring → OIDC.
+    """
+
+    def __init__(self, providers: list[CredentialProvider] | None = None):
+        if providers is not None:
+            self.providers = providers
+        else:
+            from .providers import (
+                ConfigFileProvider,
+                EnvironmentVariableProvider,
+                KeyringProvider,
+                OidcProvider,
+            )
+
+            self.providers = [
+                EnvironmentVariableProvider(),
+                ConfigFileProvider(),
+                KeyringProvider(),
+                OidcProvider(),
+            ]
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:
         """Evaluate each provider in order. Return the first successful result."""
