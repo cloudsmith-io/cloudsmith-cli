@@ -1,6 +1,7 @@
 """Cloudsmith API - Initialisation."""
 
 import base64
+import logging
 from typing import Type, TypeVar
 
 import click
@@ -10,6 +11,33 @@ from ...cli import saml
 from .. import keyring
 from ..rest import RestClient
 from .exceptions import ApiException
+
+logger = logging.getLogger(__name__)
+
+
+def _try_oidc_credential(config):
+    """Attempt OIDC auto-discovery as a last-resort credential provider.
+
+    Only activates when CLOUDSMITH_ORG and CLOUDSMITH_SERVICE_SLUG are set.
+    """
+    from ..credentials import CredentialContext
+    from ..credentials.providers import OidcProvider
+
+    context = CredentialContext(
+        api_host=config.host,
+        debug=config.debug,
+    )
+
+    provider = OidcProvider()
+    result = provider.resolve(context)
+
+    if result is not None:
+        config.api_key["X-Api-Key"] = result.api_key
+
+        if config.debug:
+            click.echo(f"OIDC credential resolved: {result.source_detail}")
+    elif config.debug:
+        logger.debug("OIDC auto-discovery did not resolve credentials")
 
 
 def initialise_api(
@@ -104,6 +132,9 @@ def initialise_api(
 
         if config.debug:
             click.echo("User API key config value set")
+    else:
+        # No access token and no API key provided — try OIDC auto-discovery
+        _try_oidc_credential(config)
 
     auth_header = headers and config.headers.get("Authorization")
     if auth_header and " " in auth_header:
