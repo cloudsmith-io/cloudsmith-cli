@@ -63,6 +63,14 @@ setup(
         "semver>=2.7.9",
         "urllib3>=2.5",
     ],
+    extras_require={
+        "aws": [
+            "boto3[crt]>=1.26.0",  # For AWS OIDC authentication (includes SSO support)
+        ],
+        "all": [
+            "boto3[crt]>=1.26.0",  # Install all optional dependencies
+        ],
+    },
     entry_points={
         "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
     },
