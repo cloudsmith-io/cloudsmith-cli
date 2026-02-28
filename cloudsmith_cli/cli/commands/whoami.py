@@ -27,25 +27,72 @@ def _get_api_key_source(opts):
     """Determine where the API key was loaded from.
 
     Checks in priority order matching actual resolution:
-    CLI --api-key flag > CLOUDSMITH_API_KEY env var > credentials.ini.
+    CLI --api-key flag > CLOUDSMITH_API_KEY env var > credentials.ini > OIDC.
     """
-    if not opts.api_key:
+    # Check if ANY API key is configured (from any source)
+    api_key_configured = opts.api_key or (
+        hasattr(opts, "api_config") and opts.api_config and opts.api_config.api_key
+    )
+
+    if not api_key_configured:
         return {"configured": False, "source": None, "source_key": None}
 
     env_key = os.environ.get("CLOUDSMITH_API_KEY")
 
-    # If env var is set but differs from the resolved key, CLI flag won
-    if env_key and opts.api_key != env_key:
-        source, key = "CLI --api-key flag", "cli_flag"
+    # If CLI --api-key flag was explicitly passed
+    if opts.api_key:
+        # If env var is set but differs from the CLI flag, CLI flag won
+        if env_key and opts.api_key != env_key:
+            source, key = "CLI --api-key flag", "cli_flag"
+        # If env var is set and matches, it's actually from env var
+        elif env_key and opts.api_key == env_key:
+            suffix = env_key[-4:]
+            source, key = (
+                f"CLOUDSMITH_API_KEY env var (ends with ...{suffix})",
+                "env_var",
+            )
+        # CLI flag was set explicitly (not from env)
+        else:
+            source, key = "CLI --api-key flag", "cli_flag"
+    # No CLI flag, check other sources
     elif env_key:
         suffix = env_key[-4:]
         source, key = f"CLOUDSMITH_API_KEY env var (ends with ...{suffix})", "env_var"
     elif creds := CredentialsReader.find_existing_files():
         source, key = f"credentials.ini ({creds[0]})", "credentials_file"
+    elif _is_oidc_configured():
+        org = os.environ.get("CLOUDSMITH_ORG", "")
+        detector_name = _get_oidc_detector_name()
+        if detector_name:
+            source = f"OIDC auto-discovery: {detector_name} (org: {org})"
+        else:
+            source = f"OIDC auto-discovery (org: {org})"
+        key = "oidc"
     else:
-        source, key = "CLI --api-key flag", "cli_flag"
+        source, key = "Unknown source", "unknown"
 
     return {"configured": True, "source": source, "source_key": key}
+
+
+def _get_oidc_detector_name():
+    """Get the name of the OIDC detector that would be used."""
+    try:
+        from cloudsmith_cli.core.credentials.oidc.detectors import detect_environment
+
+        detector = detect_environment(debug=False)
+        if detector:
+            return detector.name
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Gracefully handle any detection failures - this is for display only
+        pass
+    return None
+
+
+def _is_oidc_configured():
+    """Check if OIDC environment variables are set."""
+    return bool(
+        os.environ.get("CLOUDSMITH_ORG") and os.environ.get("CLOUDSMITH_SERVICE_SLUG")
+    )
 
 
 def _get_sso_status(api_host):
@@ -120,7 +167,12 @@ def _print_verbose_text(data):
                 click.echo(f"  Source: {ak['source']}")
             click.echo("  Note: SSO token is being used instead")
     elif active == "api_key":
-        click.secho("Authentication Method: API Key", fg="cyan", bold=True)
+        if ak.get("source_key") == "oidc":
+            click.secho(
+                "Authentication Method: OIDC Auto-Discovery", fg="cyan", bold=True
+            )
+        else:
+            click.secho("Authentication Method: API Key", fg="cyan", bold=True)
         for label, field in [
             ("Source", "source"),
             ("Token Slug", "slug"),
@@ -128,6 +180,10 @@ def _print_verbose_text(data):
         ]:
             if ak.get(field):
                 click.echo(f"  {label}: {ak[field]}")
+        click.echo()
+        click.echo(
+            "💡 Export this token: " + click.style("cloudsmith print-token", fg="cyan")
+        )
     else:
         click.secho("Authentication Method: None (anonymous)", fg="yellow", bold=True)
 

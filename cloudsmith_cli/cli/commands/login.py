@@ -94,6 +94,12 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
             "Your API key/token is: %(token)s"
             % {"token": click.style(api_key, fg="magenta")}
         )
+        click.echo()
+        click.echo(
+            "💡 Tip: Use "
+            + click.style("cloudsmith print-token", fg="cyan")
+            + " to retrieve this token later"
+        )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)
     new_config_messaging(has_errors, opts, create, api_key=api_key)

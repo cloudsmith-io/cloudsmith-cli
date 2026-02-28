@@ -134,6 +134,30 @@ Or you can get the latest pre-release version from Cloudsmith:
 pip install --upgrade cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
 ```
 
+### Optional Dependencies
+
+The CLI supports optional extras for additional functionality:
+
+#### AWS OIDC Support
+
+For AWS environments (ECS, EKS, EC2), install with `aws` extra to enable automatic credential discovery:
+
+```
+pip install cloudsmith-cli[aws]
+```
+
+This installs `boto3[crt]` for AWS credential chain support, STS token generation, and AWS SSO compatibility.
+
+#### All Optional Features
+
+To install all optional dependencies:
+
+```
+pip install cloudsmith-cli[all]
+```
+
+**Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors. All other CI/CD platforms (GitHub Actions, GitLab CI, CircleCI, Azure DevOps, Bitbucket Pipelines, Jenkins) work without any extras.
+
 ## Configuration
 
 There are two configuration files used by the CLI:
