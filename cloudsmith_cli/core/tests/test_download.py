@@ -152,6 +152,96 @@ class TestResolvePackage(unittest.TestCase):
         )
 
     @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_package_with_tag_filter(self, mock_list_packages):
+        """Test package resolution with tag filter."""
+        mock_packages = [
+            {
+                "name": "test-package",
+                "version": "1.0.0",
+                "format": "deb",
+                "tags": {"info": ["latest"], "version": ["stable"]},
+            },
+            {
+                "name": "test-package",
+                "version": "0.9.0",
+                "format": "rpm",
+                "tags": {"info": ["beta"], "version": ["unstable"]},
+            },
+        ]
+        mock_page_info = Mock()
+        mock_page_info.is_valid = True
+        mock_page_info.page = 1
+        mock_page_info.page_total = 1
+        mock_list_packages.return_value = (mock_packages, mock_page_info)
+
+        # Test actual tag filtering - should return v1.0.0 (has "latest" tag)
+        result = download.resolve_package(
+            "owner", "repo", "test-package", tag_filter="latest"
+        )
+        self.assertEqual(result["version"], "1.0.0")
+
+        # Test tag from version category - should return v0.9.0 (has "unstable")
+        result = download.resolve_package(
+            "owner", "repo", "test-package", tag_filter="unstable"
+        )
+        self.assertEqual(result["version"], "0.9.0")
+
+        # Tag filter should NOT match metadata fields like format
+        with self.assertRaises(click.ClickException):
+            download.resolve_package("owner", "repo", "test-package", tag_filter="deb")
+
+        # Tag filter should NOT match metadata fields like architecture
+        with self.assertRaises(click.ClickException):
+            download.resolve_package(
+                "owner", "repo", "test-package", tag_filter="amd64"
+            )
+
+    def test_matches_tag_filter_edge_cases(self):
+        """Test _matches_tag_filter function with edge cases."""
+
+        # Test package without tags field
+        pkg_no_tags = {"name": "test", "format": "deb"}
+        self.assertFalse(download._matches_tag_filter(pkg_no_tags, "latest"))
+
+        # Test package with empty tags
+        pkg_empty_tags = {"tags": {}, "format": "rpm"}
+        self.assertFalse(download._matches_tag_filter(pkg_empty_tags, "latest"))
+
+        # Test matching actual tags
+        pkg_with_tags = {"tags": {"info": ["test", "upstream"]}}
+        self.assertTrue(download._matches_tag_filter(pkg_with_tags, "test"))
+        self.assertTrue(download._matches_tag_filter(pkg_with_tags, "upstream"))
+        self.assertFalse(download._matches_tag_filter(pkg_with_tags, "nonexistent"))
+
+        # Test case-sensitive matching for actual tags
+        pkg_case_tags = {"tags": {"info": ["Latest", "Beta"]}}
+        self.assertTrue(download._matches_tag_filter(pkg_case_tags, "Latest"))
+        self.assertFalse(
+            download._matches_tag_filter(pkg_case_tags, "latest")
+        )  # case mismatch
+
+        # Test multiple tag categories
+        pkg_multi_cats = {"tags": {"info": ["upstream"], "version": ["latest"]}}
+        self.assertTrue(download._matches_tag_filter(pkg_multi_cats, "upstream"))
+        self.assertTrue(download._matches_tag_filter(pkg_multi_cats, "latest"))
+
+        # Tag filter should NOT match metadata fields
+        pkg_metadata = {
+            "format": "deb",
+            "architectures": [{"name": "arm64"}],
+            "distro": {"name": "Ubuntu"},
+            "distro_version": {"name": "noble"},
+            "identifiers": {"deb_component": "main"},
+            "tags": {},
+        }
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "deb"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "arm64"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "Ubuntu"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "noble"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "main"))
+        self.assertFalse(download._matches_tag_filter(pkg_metadata, "Ubuntu/noble"))
+
+    @patch("cloudsmith_cli.core.download.list_packages")
     def test_resolve_package_exact_name_match(self, mock_list_packages):
         """Test that only exact name matches are returned (not partial)."""
         # API returns both partial and exact matches

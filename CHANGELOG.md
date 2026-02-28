@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `--tag` option to `download` command for filtering packages by tags
+- Enhanced tag filtering to support all metadata fields shown as tags in UI (format, architecture, distribution, component, etc.)
+- Added download command documentation to README with comprehensive usage examples
 - Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
 - Added `--request-api-key` flag to `cloudsmith auth` command for fully automated, non-interactive API token retrieval. Auto-creates a token if none exists, or auto-rotates (with warning) if one already exists. Compatible with `--save-config` and `CLOUDSMITH_NO_KEYRING`.
 - Added `--verbose` (`-v`) flag to `cloudsmith whoami` to show detailed authentication information including active method (API Key or SSO Token), credential source, token metadata, and SSO status. Supports `--output-format json`.

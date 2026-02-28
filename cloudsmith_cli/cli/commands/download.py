@@ -43,6 +43,11 @@ from .main import main
     "--arch", "arch_filter", help="Architecture filter (e.g., 'amd64', 'arm64')."
 )
 @click.option(
+    "--tag",
+    "tag_filter",
+    help="Filter by package tag (e.g., 'latest', 'stable'). Use --format, --arch, --os for metadata filters.",
+)
+@click.option(
     "--outfile",
     type=click.Path(),
     help="Output file path. If not specified, uses the package filename.",
@@ -78,6 +83,7 @@ def download(  # noqa: C901
     format_filter,
     os_filter,
     arch_filter,
+    tag_filter,
     outfile,
     overwrite,
     all_files,
@@ -88,7 +94,7 @@ def download(  # noqa: C901
     Download a package from a Cloudsmith repository.
 
     This command downloads a package binary from a Cloudsmith repository. You can
-    filter packages by version, format, operating system, and architecture.
+    filter packages by version, format, operating system, architecture, and tags.
 
     Examples:
 
@@ -103,6 +109,10 @@ def download(  # noqa: C901
     \b
     # Download with filters and custom output name
     cloudsmith download myorg/myrepo mypackage --format deb --arch amd64 --outfile my-package.deb
+
+    \b
+    # Download a package with a specific tag
+    cloudsmith download myorg/myrepo mypackage --tag latest
 
     \b
     # Download all associated files (POM, sources, javadoc, etc.) for a Maven/NuGet package
@@ -150,6 +160,7 @@ def download(  # noqa: C901
                 format_filter=format_filter,
                 os_filter=os_filter,
                 arch_filter=arch_filter,
+                tag_filter=tag_filter,
                 yes=yes,
             )
 
