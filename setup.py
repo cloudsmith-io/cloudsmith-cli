@@ -72,7 +72,20 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
+        "console_scripts": [
+            "cloudsmith=cloudsmith_cli.cli.commands.main:main",
+            "docker-credential-cloudsmith=cloudsmith_cli.credential_helpers.docker.wrapper:main",
+            "terraform-credentials-cloudsmith=cloudsmith_cli.credential_helpers.terraform.wrapper:main",
+            "cargo-credential-cloudsmith=cloudsmith_cli.credential_helpers.cargo.wrapper:main",
+            "npm-credentials-cloudsmith=cloudsmith_cli.credential_helpers.npm.wrapper:main",
+            "CredentialProvider.Cloudsmith=cloudsmith_cli.credential_helpers.nuget.wrapper:main",
+        ],
+        "keyring.backends": [
+            "cloudsmith=cloudsmith_cli.credential_helpers.pip:CloudsmithKeyringBackend",
+        ],
+        "conda": [
+            "cloudsmith-auth=cloudsmith_cli.credential_helpers.conda.plugin",
+        ],
     },
     keywords=["cloudsmith", "cli", "devops"],
     classifiers=[

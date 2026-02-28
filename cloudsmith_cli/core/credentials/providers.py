@@ -175,6 +175,18 @@ class OidcProvider(CredentialProvider):
                 logger.debug("OidcProvider: No CI/CD environment detected, skipping")
             return None
 
+        # Check cache before retrieving vendor token (avoids expensive STS calls)
+        from .oidc.cache import get_cached_token, store_cached_token
+
+        cached = get_cached_token(context.api_host, org, service_slug)
+        if cached:
+            logger.debug("OidcProvider: Using cached OIDC token")
+            return CredentialResult(
+                api_key=cached,
+                source_name="oidc",
+                source_detail=f"OIDC via {detector.name} [cached] (org: {org}, service: {service_slug})",
+            )
+
         try:
             vendor_token = detector.get_token()
         except Exception:  # pylint: disable=broad-exception-caught
@@ -191,18 +203,6 @@ class OidcProvider(CredentialProvider):
                 "OidcProvider: %s detector returned empty token", detector.name
             )
             return None
-
-        # Check cache before doing a full exchange
-        from .oidc.cache import get_cached_token, store_cached_token
-
-        cached = get_cached_token(context.api_host, org, service_slug)
-        if cached:
-            logger.debug("OidcProvider: Using cached OIDC token")
-            return CredentialResult(
-                api_key=cached,
-                source_name="oidc",
-                source_detail=f"OIDC via {detector.name} [cached] (org: {org}, service: {service_slug})",
-            )
 
         # Exchange vendor JWT for Cloudsmith token
         try:

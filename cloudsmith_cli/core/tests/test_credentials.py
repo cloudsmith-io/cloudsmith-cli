@@ -846,6 +846,7 @@ class TestOidcTokenCache:
         env = {
             "CLOUDSMITH_ORG": "myorg",
             "CLOUDSMITH_SERVICE_SLUG": "mysvc",
+            "CLOUDSMITH_NO_KEYRING": "1",
         }
 
         with patch(
@@ -864,7 +865,8 @@ class TestOidcTokenCache:
             assert result is not None
             assert result.api_key == cached_token
             assert "[cached]" in result.source_detail
-            # exchange should NOT have been called
+            # Neither get_token nor exchange should have been called
+            mock_detector.get_token.assert_not_called()
             mock_exchange.assert_not_called()
 
     @patch("cloudsmith_cli.core.credentials.oidc.exchange.exchange_oidc_token")
@@ -887,6 +889,7 @@ class TestOidcTokenCache:
         env = {
             "CLOUDSMITH_ORG": "myorg",
             "CLOUDSMITH_SERVICE_SLUG": "mysvc",
+            "CLOUDSMITH_NO_KEYRING": "1",
         }
 
         with patch(
