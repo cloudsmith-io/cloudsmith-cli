@@ -32,10 +32,32 @@ _DETECTORS: list[type[EnvironmentDetector]] = [
 ]
 
 
-def detect_environment(debug: bool = False) -> EnvironmentDetector | None:
-    """Try each detector in order, returning the first that matches."""
+def detect_environment(
+    debug: bool = False,
+    proxy: str | None = None,
+    ssl_verify: bool = True,
+    user_agent: str | None = None,
+    headers: dict | None = None,
+) -> EnvironmentDetector | None:
+    """Try each detector in order, returning the first that matches.
+
+    Args:
+        debug: Enable debug logging.
+        proxy: HTTP/HTTPS proxy URL (optional).
+        ssl_verify: Whether to verify SSL certificates (default: True).
+        user_agent: Custom user-agent string (optional).
+        headers: Additional headers to include (optional).
+
+    Returns:
+        The first matching detector instance, or None.
+    """
     for detector_cls in _DETECTORS:
-        detector = detector_cls()
+        detector = detector_cls(
+            proxy=proxy,
+            ssl_verify=ssl_verify,
+            user_agent=user_agent,
+            headers=headers,
+        )
         try:
             if detector.detect():
                 if debug:

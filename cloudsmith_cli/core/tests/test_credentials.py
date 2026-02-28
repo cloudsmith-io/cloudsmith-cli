@@ -157,12 +157,15 @@ class TestGitHubActionsDetector:
         with patch.dict(os.environ, env, clear=True):
             assert detector.detect() is False
 
-    @patch("cloudsmith_cli.core.credentials.oidc.detectors.github_actions.requests.get")
-    def test_get_token(self, mock_get):
+    @patch("cloudsmith_cli.core.credentials.oidc.detectors.github_actions.requests.Session")
+    def test_get_token(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.json.return_value = {"value": "jwt-token-123"}
         mock_response.raise_for_status.return_value = None
-        mock_get.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         detector = GitHubActionsDetector()
         env = {
@@ -173,17 +176,20 @@ class TestGitHubActionsDetector:
             token = detector.get_token()
             assert token == "jwt-token-123"
 
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
+        mock_session.get.assert_called_once()
+        call_args = mock_session.get.call_args
         assert "Bearer gha-token" in call_args.kwargs["headers"]["Authorization"]
         assert "audience=cloudsmith" in call_args.args[0]
 
-    @patch("cloudsmith_cli.core.credentials.oidc.detectors.github_actions.requests.get")
-    def test_get_token_custom_audience(self, mock_get):
+    @patch("cloudsmith_cli.core.credentials.oidc.detectors.github_actions.requests.Session")
+    def test_get_token_custom_audience(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.json.return_value = {"value": "jwt-token-123"}
         mock_response.raise_for_status.return_value = None
-        mock_get.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         detector = GitHubActionsDetector()
         env = {
@@ -195,7 +201,7 @@ class TestGitHubActionsDetector:
             token = detector.get_token()
             assert token == "jwt-token-123"
 
-        assert "audience=custom-aud" in mock_get.call_args.args[0]
+        assert "audience=custom-aud" in mock_session.get.call_args.args[0]
 
 
 class TestGitLabCIDetector:
@@ -255,12 +261,15 @@ class TestAzureDevOpsDetector:
         with patch.dict(os.environ, env, clear=True):
             assert detector.detect() is True
 
-    @patch("cloudsmith_cli.core.credentials.oidc.detectors.azure_devops.requests.post")
-    def test_get_token(self, mock_post):
+    @patch("cloudsmith_cli.core.credentials.oidc.detectors.azure_devops.requests.Session")
+    def test_get_token(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.json.return_value = {"oidcToken": "ado-jwt-123"}
         mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         detector = AzureDevOpsDetector()
         env = {
@@ -271,8 +280,8 @@ class TestAzureDevOpsDetector:
             token = detector.get_token()
             assert token == "ado-jwt-123"
 
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
+        mock_session.post.assert_called_once()
+        call_args = mock_session.post.call_args
         assert call_args.kwargs["json"]["audience"] == "cloudsmith"
 
 
@@ -399,12 +408,15 @@ class TestDetectEnvironment:
 
 
 class TestOidcExchange:
-    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.post")
-    def test_successful_exchange(self, mock_post):
+    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.Session")
+    def test_successful_exchange(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"token": "cloudsmith-jwt-abc"}
-        mock_post.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         token = exchange_oidc_token(
             api_host="https://api.cloudsmith.io",
@@ -414,18 +426,21 @@ class TestOidcExchange:
         )
         assert token == "cloudsmith-jwt-abc"
 
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
+        mock_session.post.assert_called_once()
+        call_args = mock_session.post.call_args
         assert call_args.args[0] == "https://api.cloudsmith.io/openid/test-org/"
         assert call_args.kwargs["json"]["oidc_token"] == "vendor-jwt"
         assert call_args.kwargs["json"]["service_slug"] == "test-service"
 
-    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.post")
-    def test_4xx_raises_immediately(self, mock_post):
+    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.Session")
+    def test_4xx_raises_immediately(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_response.json.return_value = {"detail": "Invalid token"}
-        mock_post.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         with pytest.raises(OidcExchangeError, match="401"):
             exchange_oidc_token(
@@ -435,14 +450,17 @@ class TestOidcExchange:
                 oidc_token="bad-jwt",
             )
         # 4xx should NOT retry
-        assert mock_post.call_count == 1
+        assert mock_session.post.call_count == 1
 
-    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.post")
-    def test_empty_token_raises(self, mock_post):
+    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.Session")
+    def test_empty_token_raises(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"token": ""}
-        mock_post.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         with pytest.raises(OidcExchangeError, match="empty or invalid"):
             exchange_oidc_token(
@@ -452,12 +470,15 @@ class TestOidcExchange:
                 oidc_token="vendor-jwt",
             )
 
-    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.post")
-    def test_host_normalization(self, mock_post):
+    @patch("cloudsmith_cli.core.credentials.oidc.exchange.requests.Session")
+    def test_host_normalization(self, mock_session_cls):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"token": "jwt-123"}
-        mock_post.return_value = mock_response
+        
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+        mock_session_cls.return_value = mock_session
 
         exchange_oidc_token(
             api_host="api.cloudsmith.io",
@@ -465,7 +486,7 @@ class TestOidcExchange:
             service_slug="svc",
             oidc_token="jwt",
         )
-        call_url = mock_post.call_args.args[0]
+        call_url = mock_session.post.call_args.args[0]
         assert call_url == "https://api.cloudsmith.io/openid/myorg/"
 
 

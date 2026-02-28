@@ -26,6 +26,10 @@ def _try_oidc_credential(config):
     context = CredentialContext(
         api_host=config.host,
         debug=config.debug,
+        proxy=config.proxy,
+        ssl_verify=config.verify_ssl,
+        user_agent=config.user_agent,
+        headers=config.headers.copy() if config.headers else None,
     )
 
     provider = OidcProvider()

@@ -163,7 +163,13 @@ class OidcProvider(CredentialProvider):
         from .oidc.exchange import exchange_oidc_token
 
         # Detect CI/CD environment and get vendor JWT
-        detector = detect_environment(debug=context.debug)
+        detector = detect_environment(
+            debug=context.debug,
+            proxy=context.proxy,
+            ssl_verify=context.ssl_verify,
+            user_agent=context.user_agent,
+            headers=context.headers,
+        )
         if detector is None:
             if context.debug:
                 logger.debug("OidcProvider: No CI/CD environment detected, skipping")
@@ -205,6 +211,10 @@ class OidcProvider(CredentialProvider):
                 org=org,
                 service_slug=service_slug,
                 oidc_token=vendor_token,
+                proxy=context.proxy,
+                ssl_verify=context.ssl_verify,
+                user_agent=context.user_agent,
+                headers=context.headers,
             )
         except Exception:  # pylint: disable=broad-exception-caught
             # Exchange can fail for various reasons (network, API errors, auth issues)

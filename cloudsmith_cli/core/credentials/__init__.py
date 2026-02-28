@@ -24,6 +24,11 @@ class CredentialContext:
     debug: bool = False
     # Pre-resolved values from CLI flags (highest priority)
     cli_api_key: str | None = None
+    # API networking configuration
+    proxy: str | None = None
+    ssl_verify: bool = True
+    user_agent: str | None = None
+    headers: dict | None = None
 
 
 @dataclass

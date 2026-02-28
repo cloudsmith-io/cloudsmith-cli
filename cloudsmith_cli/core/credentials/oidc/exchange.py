@@ -21,11 +21,48 @@ DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
 
 
+def create_exchange_session(
+    proxy: str | None = None,
+    ssl_verify: bool = True,
+    user_agent: str | None = None,
+    headers: dict | None = None,
+) -> requests.Session:
+    """Create a requests session configured with networking settings.
+
+    Args:
+        proxy: HTTP/HTTPS proxy URL.
+        ssl_verify: Whether to verify SSL certificates.
+        user_agent: Custom user-agent string.
+        headers: Additional headers to include.
+
+    Returns:
+        Configured requests.Session instance.
+    """
+    session = requests.Session()
+
+    if proxy:
+        session.proxies = {"http": proxy, "https": proxy}
+
+    session.verify = ssl_verify
+
+    if user_agent:
+        session.headers.update({"User-Agent": user_agent})
+
+    if headers:
+        session.headers.update(headers)
+
+    return session
+
+
 def exchange_oidc_token(
     api_host: str,
     org: str,
     service_slug: str,
     oidc_token: str,
+    proxy: str | None = None,
+    ssl_verify: bool = True,
+    user_agent: str | None = None,
+    headers: dict | None = None,
 ) -> str:
     """Exchange a vendor OIDC JWT for a Cloudsmith API token.
 
@@ -34,6 +71,10 @@ def exchange_oidc_token(
         org: The Cloudsmith organization slug.
         service_slug: The Cloudsmith service account slug.
         oidc_token: The vendor OIDC JWT to exchange.
+        proxy: HTTP/HTTPS proxy URL (optional).
+        ssl_verify: Whether to verify SSL certificates (default: True).
+        user_agent: Custom user-agent string (optional).
+        headers: Additional headers to include (optional).
 
     Returns:
         The short-lived Cloudsmith API token.
@@ -52,10 +93,18 @@ def exchange_oidc_token(
         "service_slug": service_slug,
     }
 
+    # Create configured session for the exchange
+    session = create_exchange_session(
+        proxy=proxy,
+        ssl_verify=ssl_verify,
+        user_agent=user_agent,
+        headers=headers,
+    )
+
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = requests.post(
+            response = session.post(
                 url,
                 json=payload,
                 headers={"Content-Type": "application/json"},

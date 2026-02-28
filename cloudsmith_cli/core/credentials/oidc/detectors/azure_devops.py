@@ -33,7 +33,8 @@ class AzureDevOpsDetector(EnvironmentDetector):
         access_token = os.environ["SYSTEM_ACCESSTOKEN"]
         audience = get_oidc_audience()
 
-        response = requests.post(
+        session = self._create_session()
+        response = session.post(
             request_uri,
             json={"audience": audience},
             headers={

@@ -38,7 +38,8 @@ class GitHubActionsDetector(EnvironmentDetector):
         separator = "&" if "?" in request_url else "?"
         url = f"{request_url}{separator}audience={quote(audience, safe='')}"
 
-        response = requests.get(
+        session = self._create_session()
+        response = session.get(
             url,
             headers={
                 "Authorization": f"Bearer {request_token}",
