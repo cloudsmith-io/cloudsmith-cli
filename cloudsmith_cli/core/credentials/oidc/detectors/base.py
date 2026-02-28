@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+import requests
+
 DEFAULT_OIDC_AUDIENCE = "cloudsmith"
 OIDC_AUDIENCE_ENV_VAR = "CLOUDSMITH_OIDC_AUDIENCE"
 
@@ -52,8 +54,6 @@ class EnvironmentDetector:
         Returns:
             Configured requests.Session instance.
         """
-        import requests
-
         session = requests.Session()
 
         if self.proxy:
