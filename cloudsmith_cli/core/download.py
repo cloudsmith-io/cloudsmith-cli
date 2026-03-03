@@ -53,6 +53,29 @@ def resolve_auth(
     return session, headers, auth_source
 
 
+def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
+    """
+    Check if a package matches the tag filter.
+
+    Only matches against actual package tags (the 'tags' field),
+    not metadata fields like format, architecture, or distro.
+    Use --format, --arch, and --os for filtering by those fields.
+
+    Args:
+        pkg: Package dictionary
+        tag_filter: Tag to match against
+
+    Returns:
+        True if package matches the tag filter
+    """
+    pkg_tags = pkg.get("tags", {})
+    for tag_category in pkg_tags.values():
+        if isinstance(tag_category, list) and tag_filter in tag_category:
+            return True
+
+    return False
+
+
 def resolve_package(
     owner: str,
     repo: str,
@@ -62,6 +85,7 @@ def resolve_package(
     format_filter: Optional[str] = None,
     os_filter: Optional[str] = None,
     arch_filter: Optional[str] = None,
+    tag_filter: Optional[str] = None,
     yes: bool = False,
 ) -> Dict:
     """
@@ -75,6 +99,7 @@ def resolve_package(
         format_filter: Optional format filter
         os_filter: Optional OS filter
         arch_filter: Optional architecture filter
+        tag_filter: Optional tag filter
         yes: If True, automatically select best match when multiple found
 
     Returns:
@@ -124,6 +149,9 @@ def resolve_package(
             continue
         # Apply architecture filter
         if arch_filter and pkg.get("architecture") != arch_filter:
+            continue
+        # Apply tag filter
+        if tag_filter and not _matches_tag_filter(pkg, tag_filter):
             continue
         filtered_packages.append(pkg)
     packages = filtered_packages

@@ -9,7 +9,59 @@ from cloudsmith_cli.core.api.exceptions import ApiException
 
 
 class TestDownloadCommand(unittest.TestCase):
-    """Test the download CLI command."""
+    @patch("cloudsmith_cli.core.download.list_packages")
+    @patch("cloudsmith_cli.cli.commands.download.resolve_auth")
+    def test_download_with_tag_filter_integration(
+        self, mock_resolve_auth, mock_list_packages
+    ):
+        """Integration test: download command with --tag filter (end-to-end)."""
+        mock_session = Mock()
+        mock_resolve_auth.return_value = (mock_session, {}, "none")
+
+        # Simulate two packages, only one matches the tag
+        mock_packages = [
+            {
+                "name": "test-package",
+                "version": "1.0.0",
+                "format": "deb",
+                "tags": {"info": ["latest", "beta"]},
+                "filename": "test-package_1.0.0.deb",
+                "cdn_url": "https://example.com/test-package_1.0.0.deb",
+                "size": 1024,
+            },
+            {
+                "name": "test-package",
+                "version": "0.9.0",
+                "format": "deb",
+                "tags": {"info": ["beta"]},
+                "filename": "test-package_0.9.0.deb",
+                "cdn_url": "https://example.com/test-package_0.9.0.deb",
+                "size": 512,
+            },
+        ]
+        mock_page_info = Mock()
+        mock_page_info.is_valid = True
+        mock_page_info.page = 1
+        mock_page_info.page_total = 1
+        mock_list_packages.return_value = (mock_packages, mock_page_info)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            download,
+            [
+                "--config-file",
+                "/dev/null",
+                "testorg/testrepo",
+                "test-package",
+                "--tag",
+                "latest",
+                "--dry-run",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-package v1.0.0", result.output)
+        self.assertNotIn("test-package v0.9.0", result.output)
 
     def setUp(self):
         self.runner = CliRunner()
