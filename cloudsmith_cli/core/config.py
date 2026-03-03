@@ -83,6 +83,28 @@ def create_config_files(ctx, opts, api_key, force=False):
                 )
             continue
 
+        # Update existing credentials file with new API key if provided
+        if (
+            config.present
+            and config.data.get("api_key")
+            and hasattr(config.reader, "update_api_key")
+        ):
+            try:
+                config.reader.update_api_key(
+                    config.reader.get_default_filepath(),
+                    config.data["api_key"],
+                )
+                click.secho("UPDATED", fg="green")
+            except OSError as exc:
+                has_errors = True
+                click.secho("ERROR", fg="red")
+                click.secho(
+                    "The following error occurred while trying to "
+                    "update the file: %(message)s"
+                    % {"message": click.style(exc.strerror, fg="red")}
+                )
+            continue
+
         click.secho("EXISTS" if config.present else "NOT CREATED", fg="yellow")
 
     return create, has_errors

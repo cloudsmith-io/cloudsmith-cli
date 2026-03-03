@@ -185,7 +185,7 @@ tomli==2.4.0
     #   pytest
 tomlkit==0.14.0
     # via pylint
-toon-python==0.1.2
+python-toon==0.1.2
     # via
     #   -r requirements.in
     #   cloudsmith-cli (setup.py)
