@@ -17,6 +17,7 @@ from . import (
     metrics,
     move,
     policy,
+    print_token,
     push,
     quarantine,
     quota,

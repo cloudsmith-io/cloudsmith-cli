@@ -138,3 +138,63 @@ def delete_sso_tokens(api_host):
     """Delete all SSO tokens from the keyring for the given host."""
     results = [_delete_value(key) for key in _sso_keys(api_host)]
     return any(results)
+
+
+# OIDC token storage
+OIDC_TOKEN_KEY = "cloudsmith_cli-oidc_token-{api_host}-{org}-{service_slug}"
+
+
+def store_oidc_token(api_host, org, service_slug, token_data):
+    """Store OIDC token in keyring if enabled.
+
+    Args:
+        api_host: API host (e.g., "api.cloudsmith.io")
+        org: Organization slug
+        service_slug: Service slug
+        token_data: JSON string containing token and expiry
+
+    Returns:
+        True if stored in keyring, False if keyring disabled
+    """
+    if not should_use_keyring():
+        return False
+
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    try:
+        _set_value(key, token_data)
+        return True
+    except KeyringError:
+        return False
+
+
+def get_oidc_token(api_host, org, service_slug):
+    """Retrieve OIDC token from keyring.
+
+    Args:
+        api_host: API host (e.g., "api.cloudsmith.io")
+        org: Organization slug
+        service_slug: Service slug
+
+    Returns:
+        JSON string containing token and expiry, or None if not found
+    """
+    if not should_use_keyring():
+        return None
+
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    return _get_value(key)
+
+
+def delete_oidc_token(api_host, org, service_slug):
+    """Delete OIDC token from keyring.
+
+    Args:
+        api_host: API host (e.g., "api.cloudsmith.io")
+        org: Organization slug
+        service_slug: Service slug
+
+    Returns:
+        True if deleted, False otherwise
+    """
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    return _delete_value(key)
