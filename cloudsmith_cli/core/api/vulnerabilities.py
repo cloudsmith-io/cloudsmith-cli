@@ -19,8 +19,26 @@ def get_vulnerabilities_api():
     return get_api_client(cloudsmith_api.VulnerabilitiesApi)
 
 
-def _generate_html_report(data, owner, repo, output_path=None):
+def _generate_html_report(
+    data, owner, repo, fixable, severity_filter, output_path=None
+):
     """Generate an HTML vulnerability report."""
+
+    # Report filters
+    if fixable is True:
+        fixable_filter = "Fixable"
+    elif fixable is False:
+        fixable_filter = "Non-fixable"
+    else:
+        fixable_filter = "All"
+
+    if fixable_filter == "All" and severity_filter is None:
+        report_filters = "None"
+    elif severity_filter is None:
+        report_filters = f"{fixable_filter}"
+    else:
+        report_filters = f"{fixable_filter} | {severity_filter}"
+
     # Data Extraction
     scan_date_raw = getattr(data, "created_at", None)
     if isinstance(scan_date_raw, datetime.datetime):
@@ -264,6 +282,7 @@ def _generate_html_report(data, owner, repo, output_path=None):
         <div class="logo-area">
             <img src="https://avatars.githubusercontent.com/u/7657912?s=280&v=4" width=30%>
             <h1>Vulnerability Report</h1>
+            <h3>Report filters: {report_filters}</h3>
             <p>Scanned on: <strong>{scan_date}</strong></p>
             <p>Repository: <strong>{html.escape(target_repo)}</strong></p>
             <p>Package: <strong>{html.escape(pkg_name)}</strong></p>
@@ -331,7 +350,7 @@ def _generate_html_report(data, owner, repo, output_path=None):
     with open(filename, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-    click.echo(f"HTML Report generated: {filename}", err=True)
+    click.echo(f"\nHTML Report generated: {filename}", nl=True, err=True)
 
     click.echo("Opening report in browser...", err=True)
     webbrowser.open(f"file://{os.path.abspath(filename)}")
@@ -463,7 +482,7 @@ def get_package_scan_result(
         data.num_vulnerabilities = total_filtered_vulns
 
     if html_report:
-        _generate_html_report(data, owner, repo, html_report)
+        _generate_html_report(data, owner, repo, fixable, severity_filter, html_report)
 
     if utils.maybe_print_as_json(opts, data):
         return
