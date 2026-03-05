@@ -29,15 +29,23 @@ from .main import main
 #     is_flag=True,
 #     help="Show only fixable vulnerabilities.",
 # )
-# @click.option(
-#    "--severity",
-#    "severity_filter",
-#    help="Filter by severities (e.g., 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW').",
-# )
+@click.option(
+    "--severity",
+    "severity_filter",
+    help="Filter by severities (e.g., 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW').",
+)
+@click.option(
+    "--html",
+    "html_report",
+    is_flag=True,
+    help="Generate HTML report of the full assessment.",
+)
 @click.pass_context
-def vulnerabilities(ctx, opts, owner_repo_package, show_assessment):
+def vulnerabilities(
+    ctx, opts, owner_repo_package, show_assessment, severity_filter, html_report
+):
     """
-    Display the vulnerability scan result for a package.
+    Retrieve vulnerability results.
 
     \b
     Usage:
@@ -47,16 +55,16 @@ def vulnerabilities(ctx, opts, owner_repo_package, show_assessment):
     Aliases:
         vulnerabilities, vuln
 
-    \b
+
     Examples:
 
-    # Display the vulnerability scan overview
+    #Display the vulnerability scan overview
     cloudsmith vulnerabilities myorg/repo/pkg_identifier
 
-    # Display the full vulnerability scan result
-    loudsmith vulnerabilities myorg/repo/pkg_identifier --all
+    #Display the full vulnerability scan result
+    cloudsmith vulnerabilities myorg/repo/pkg_identifier --all
 
-    # Filter the result by severity
+    #Filter the result by severity
     cloudsmith vulnerabilities myorg/repo/pkg_identifier --severity CRITICAL,HIGH
 
 
@@ -67,6 +75,7 @@ def vulnerabilities(ctx, opts, owner_repo_package, show_assessment):
     # Use stderr for messages if output is JSON
     use_stderr = utils.should_use_stderr(opts)
 
+    click.echo("")
     click.echo(
         "Retrieving vulnerability results ... ",
         nl=False,
@@ -82,5 +91,8 @@ def vulnerabilities(ctx, opts, owner_repo_package, show_assessment):
                 repo=repo,
                 package=slug,
                 show_assessment=show_assessment,
+                severity_filter=severity_filter,
+                html_report=html_report,
+                # severity_filter=severity_filter
             )
-    click.secho("OK", fg="green", err=use_stderr)
+    # click.secho("OK", fg="green", err=use_stderr)
