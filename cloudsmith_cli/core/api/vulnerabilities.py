@@ -80,34 +80,38 @@ def _generate_html_report(
                 )
             )
             lib_name = str(getattr(result, "package_name", pkg_name))
-            # Try to populate affected and fixed version if available
-            affected_version = getattr(
-                result, "aff_version", getattr(result, "affected_version", "")
-            )
-            fixed_version = getattr(
-                result, "fix_version", getattr(result, "fixed_version", "")
-            )
 
-            affected_ver_html = (
-                f'<span class="affected-version">{html.escape(str(affected_version))}</span>'
-                if affected_version
-                else "-"
+            # Try to populate fixed version if available
+            fixed_version_raw = getattr(
+                result, "fix_version", getattr(result, "fixed_version", None)
             )
+            if hasattr(fixed_version_raw, "version"):
+                fixed_version = fixed_version_raw.version
+            else:
+                fixed_version = str(fixed_version_raw) if fixed_version_raw else ""
+
             fixed_ver_html = (
                 f'<span class="fixed-version">{html.escape(str(fixed_version))}</span>'
                 if fixed_version
                 else "-"
             )
 
+            vuln_description = getattr(result, "description")
+
             # Append Row
             rows_html += f"""
-            <tr>
-                <td><span class="badge badge-{severity_display}">{severity_display.title()}</span></td>
-                <td><a href="#" class="cve-link">{html.escape(vuln_id)}</a></td>
-                <td><strong>{html.escape(lib_name)}</strong></td>
-                <td>{affected_ver_html}</td>
-                <td>{fixed_ver_html}</td>
-            </tr>
+                <details class="vuln-item" data-search="{vuln_id} {lib_name}">
+                    <summary>
+                        <span class="badge badge-{severity_display}">{severity_display.title()}</span>
+                        <strong class="cve">{html.escape(vuln_id)}</strong>
+                        <span class="pkg">{lib_name}</span>
+                        <span style="color: #28a745; font-weight: 600;">{fixed_ver_html}</span>
+                        <span>▼</span>
+                    </summary>
+                <div class="details-content">
+                    <strong>Description:</strong> {vuln_description}.
+                </div>
+                </details>
             """
 
     # Template Construction
@@ -149,6 +153,28 @@ def _generate_html_report(
             border: 1px solid #e1e4e8;
         }}
 
+        .search-container {{
+            margin-bottom: 25px;
+            position: relative;
+        }}
+
+        #vulnSearch {{
+            width: 100%;
+            padding: 12px 15px;
+            font-size: 16px;
+            border: 2px solid #e1e4e8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }}
+
+        #vulnSearch:focus {{
+          border-color: var(--cs-blue);
+        }}
+
+
+
         header {{
             display: flex;
             justify-content: space-between;
@@ -157,6 +183,29 @@ def _generate_html_report(
             padding-bottom: 25px;
             margin-bottom: 30px;
         }}
+
+        /* Table & Details Styling */
+        .header-row {{
+            display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
+            padding: 15px; background: #fafbfc; font-weight: bold; font-size: 12px;
+            color: #586069; text-transform: uppercase; border-bottom: 2px solid #e1e4e8;
+        }}
+
+        details {{ border-bottom: 1px solid #f0f0f0; }}
+        summary {{
+            display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
+            align-items: center; padding: 15px; cursor: pointer;
+        }}
+
+        summary::-webkit-details-marker {{ display: none; }} /* Hide default arrow */
+
+        .details-content {{ padding: 15px 15px 25px 135px; background: #fafbfc; font-size: 14px; }}
+        .badge {{ padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; width: fit-content; }}
+        .badge-CRITICAL {{ background: #ffdce0; color: #af1b2b; }}
+        .badge-HIGH {{ background: #ffe3d2; color: #bc4c00; }}
+        .badge-MEDIUM {{ background: #fff5b1; color: #735c0f; }}
+
+        .hidden {{ display: none; }}
 
         .logo-area h1 {{
             margin: 0;
@@ -209,70 +258,6 @@ def _generate_html_report(
             opacity: 0.9;
         }}
 
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }}
-
-        th {{
-            text-align: left;
-            background: #fafbfc;
-            padding: 15px;
-            font-size: 12px;
-            color: #586069;
-            text-transform: uppercase;
-            border-bottom: 2px solid #e1e4e8;
-        }}
-
-        td {{
-            padding: 15px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
-            vertical-align: middle;
-        }}
-
-        tr:hover {{
-            background-color: #fcfcfc;
-        }}
-
-        .badge {{
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-        }}
-
-        .badge-CRITICAL {{ background: #ffdce0; color: #af1b2b; }}
-        .badge-HIGH {{ background: #ffe3d2; color: #bc4c00; }}
-        .badge-MEDIUM {{ background: #fff5b1; color: #735c0f; }}
-        .badge-LOW {{ background: #e1e4e8; color: #444d56; }}
-        .badge-UNKNOWN {{ background: #e1e4e8; color: #444d56; }}
-
-        .cve-link {{
-            font-weight: 600;
-            color: var(--cs-blue);
-            text-decoration: none;
-        }}
-
-        .fixed-version {{
-            color: var(--success);
-            font-weight: 600;
-            #background: #f0fff4;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }}
-
-        footer {{
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            text-align: center;
-            font-size: 12px;
-            color: #959da5;
-        }}
     </style>
 </head>
 <body>
@@ -283,7 +268,7 @@ def _generate_html_report(
             <img src="https://avatars.githubusercontent.com/u/7657912?s=280&v=4" width=30%>
             <h1>Vulnerability Report</h1>
             <h3>Report filters: {report_filters}</h3>
-            <p>Scanned on: <strong>{scan_date}</strong></p>
+            <p>Scanned: <strong>{scan_date}</strong></p>
             <p>Repository: <strong>{html.escape(target_repo)}</strong></p>
             <p>Package: <strong>{html.escape(pkg_name)}</strong></p>
             <p>Version: <strong>{html.escape(pkg_version)}</strong></p>
@@ -293,6 +278,10 @@ def _generate_html_report(
             <strong>{scan_time}</strong>
         </div>
     </header>
+
+    <div class="search-container">
+        <input type="text" id="vulnSearch" placeholder="Search by CVE or Package name (e.g. 'openssl')..." onkeyup="filterResults()">
+    </div>
 
     <div class="summary-grid">
         <div class="summary-card crit">
@@ -313,25 +302,42 @@ def _generate_html_report(
         </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 15%;">Severity</th>
-                <th style="width: 20%;">Identifier</th>
-                <th style="width: 25%;">Package</th>
-                <th style="width: 20%;">Affected Version</th>
-                <th style="width: 20%;">Fixed Version</th>
-            </tr>
-        </thead>
-        <tbody>
-            {rows_html}
-        </tbody>
-    </table>
+    <div class="header-row">
+        <span>Severity</span>
+        <span>Identifier</span>
+        <span>Package</span>
+        <span>Fixed In</span>
+        <span></span>
+    </div>
+
+    <div id="vulnList">
+        {rows_html}
+    </div>
 
     <footer>
         &copy; {datetime.datetime.now().year} Cloudsmith Inc. • <a href="https://cloudsmith.io" style="color: inherit;">Visit Dashboard</a> • Be Secure. Be Sure.
     </footer>
 </div>
+
+<script>
+function filterResults() {{
+    const input = document.getElementById('vulnSearch').value.toLowerCase();
+    const items = document.querySelectorAll('.vuln-item');
+    let count = 0;
+
+    items.forEach(item => {{
+        const text = item.getAttribute('data-search').toLowerCase();
+        if (text.includes(input)) {{
+            item.classList.remove('hidden');
+            count++;
+        }} else {{
+            item.classList.add('hidden');
+        }}
+    }});
+
+    document.getElementById('counter').innerText = `Showing ${{count}} of ${{items.length}} results`;
+}}
+</script>
 
 </body>
 </html>
