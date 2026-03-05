@@ -24,11 +24,12 @@ from .main import main
     is_flag=True,
     help="Show full assessment with vulnerability details.",
 )
-# @click.option(
-#     "--fixable",
-#     is_flag=True,
-#     help="Show only fixable vulnerabilities.",
-# )
+@click.option(
+    "--fixable/--non-fixable",
+    is_flag=True,
+    default=None,  # Changed to allow None (Show All) vs True/False
+    help="Filter by fixable status (only fixable vs only non-fixable).",
+)
 @click.option(
     "--severity",
     "severity_filter",
@@ -44,7 +45,13 @@ from .main import main
 )
 @click.pass_context
 def vulnerabilities(
-    ctx, opts, owner_repo_package, show_assessment, severity_filter, html_report
+    ctx,
+    opts,
+    owner_repo_package,
+    show_assessment,
+    fixable,
+    severity_filter,
+    html_report,
 ):
     """
     Retrieve vulnerability results.
@@ -71,7 +78,6 @@ def vulnerabilities(
 
 
     """
-
     owner, repo, slug = owner_repo_package
 
     # Use stderr for messages if output is JSON
@@ -95,6 +101,5 @@ def vulnerabilities(
                 show_assessment=show_assessment,
                 severity_filter=severity_filter,
                 html_report=html_report,
-                # severity_filter=severity_filter
+                fixable=fixable,
             )
-    # click.secho("OK", fg="green", err=use_stderr)

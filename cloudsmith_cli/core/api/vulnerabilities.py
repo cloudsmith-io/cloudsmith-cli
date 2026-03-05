@@ -404,7 +404,7 @@ def get_package_scan_identifier(owner, repo, package):
 
 
 def get_package_scan_result(
-    opts, owner, repo, package, show_assessment, severity_filter, html_report
+    opts, owner, repo, package, show_assessment, fixable, severity_filter, html_report
 ):
     """Get the package vulnerability scan result."""
     client = get_vulnerabilities_api()
@@ -421,23 +421,43 @@ def get_package_scan_result(
 
     ratelimits.maybe_rate_limit(client, headers)
 
-    if severity_filter:
-        allowed_severities = [s.strip().lower() for s in severity_filter.split(",")]
-
-        # Filter the results inside the data object
+    # Filter results if severity or fixable flags are active
+    if severity_filter or fixable is not None:
         scans = getattr(data, "scans", [])
         total_filtered_vulns = 0
 
+        allowed_severities = (
+            [s.strip().lower() for s in severity_filter.split(",")]
+            if severity_filter
+            else None
+        )
+
         for scan in scans:
             results = getattr(scan, "results", [])
-            filtered_results = [
-                res
-                for res in results
-                if getattr(res, "severity", "unknown").lower() in allowed_severities
-            ]
-            # update the scan object with filtered results
-            scan.results = filtered_results
-            total_filtered_vulns += len(filtered_results)
+
+            # 1. Filter by Severity
+            if allowed_severities:
+                results = [
+                    res
+                    for res in results
+                    if getattr(res, "severity", "unknown").lower() in allowed_severities
+                ]
+
+            # 2. Filter by Fixable Status
+            # fixable=True: Keep only if has fix_version
+            # fixable=False: Keep only if NO fix_version
+            if fixable is not None:
+                results = [
+                    res
+                    for res in results
+                    if bool(
+                        getattr(res, "fix_version", getattr(res, "fixed_version", None))
+                    )
+                    is fixable
+                ]
+
+            scan.results = results
+            total_filtered_vulns += len(results)
 
         # Update the total count on the main data object
         data.num_vulnerabilities = total_filtered_vulns
