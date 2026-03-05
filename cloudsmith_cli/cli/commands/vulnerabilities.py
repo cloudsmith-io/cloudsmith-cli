@@ -37,8 +37,10 @@ from .main import main
 @click.option(
     "--html",
     "html_report",
-    is_flag=True,
-    help="Generate HTML report of the full assessment.",
+    required=False,
+    is_flag=False,
+    flag_value="DEFAULT",
+    help="Generate HTML report of the full assessment. Optional specify location to store file. ",
 )
 @click.pass_context
 def vulnerabilities(
