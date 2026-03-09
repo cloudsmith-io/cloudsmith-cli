@@ -48,7 +48,6 @@ The CLI currently supports the following commands (and sub-commands):
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
-- `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
@@ -275,6 +274,16 @@ cloudsmith download your-account/your-repo package-name --tag latest
 
 # Combine tag with metadata filters
 cloudsmith download your-account/your-repo package-name --tag stable --format deb --arch arm64
+
+# Filter by filename (exact or glob pattern)
+cloudsmith download your-account/your-repo package-name --filename '*.nupkg'
+cloudsmith download your-account/your-repo package-name --filename 'mypackage-1.0.0.snupkg'
+
+# Download all matching packages (when multiple packages share the same name/version)
+cloudsmith download your-account/your-repo package-name --download-all
+
+# Combine --download-all with --filename to download a subset
+cloudsmith download your-account/your-repo package-name --download-all --filename '*.snupkg'
 
 # Download all associated files (POM, sources, javadoc, etc.)
 cloudsmith download your-account/your-repo package-name --all-files

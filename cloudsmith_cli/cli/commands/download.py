@@ -8,6 +8,7 @@ from ...core.download import (
     get_download_url,
     get_package_detail,
     get_package_files,
+    resolve_all_packages,
     resolve_auth,
     resolve_package,
     stream_download,
@@ -48,6 +49,16 @@ from .main import main
     help="Filter by package tag (e.g., 'latest', 'stable'). Use --format, --arch, --os for metadata filters.",
 )
 @click.option(
+    "--filename",
+    "filename_filter",
+    help="Filter by package filename (e.g., 'mypackage.nupkg'). Supports glob patterns (e.g., '*.snupkg').",
+)
+@click.option(
+    "--download-all",
+    is_flag=True,
+    help="Download all matching packages instead of erroring on multiple matches.",
+)
+@click.option(
     "--outfile",
     type=click.Path(),
     help="Output file path. If not specified, uses the package filename.",
@@ -84,6 +95,8 @@ def download(  # noqa: C901
     os_filter,
     arch_filter,
     tag_filter,
+    filename_filter,
+    download_all,
     outfile,
     overwrite,
     all_files,
@@ -94,7 +107,8 @@ def download(  # noqa: C901
     Download a package from a Cloudsmith repository.
 
     This command downloads a package binary from a Cloudsmith repository. You can
-    filter packages by version, format, operating system, architecture, and tags.
+    filter packages by version, format, operating system, architecture, tags, and
+    filename.
 
     Examples:
 
@@ -115,6 +129,15 @@ def download(  # noqa: C901
     cloudsmith download myorg/myrepo mypackage --tag latest
 
     \b
+    # Download by filename (exact or glob pattern)
+    cloudsmith download myorg/myrepo TestSymbolPkg --filename '*.nupkg'
+    cloudsmith download myorg/myrepo TestSymbolPkg --filename 'TestSymbolPkg.1.0.24406.nupkg'
+
+    \b
+    # Download all matching packages (e.g., .nupkg and .snupkg with same name/version)
+    cloudsmith download myorg/myrepo TestSymbolPkg --version 1.0.24406 --download-all
+
+    \b
     # Download all associated files (POM, sources, javadoc, etc.) for a Maven/NuGet package
     cloudsmith download myorg/myrepo mypackage --all-files
 
@@ -125,7 +148,8 @@ def download(  # noqa: C901
     For private repositories, set: export CLOUDSMITH_API_KEY=your_api_key
 
     If multiple packages match your criteria, you'll see a selection table unless
-    you use --yes to automatically select the best match (highest version, then newest).
+    you use --yes to automatically select the best match (highest version, then newest),
+    or --download-all to download all matches.
 
     When using --all-files, all associated files (such as POM files, sources, javadoc,
     SBOM, etc.) will be downloaded into a folder named {package-name}-{version} unless
@@ -148,21 +172,50 @@ def download(  # noqa: C901
     if opts.debug:
         click.echo(f"Using authentication: {auth_source}", err=True)
 
-    # Find the package
+    # Common filter kwargs shared by resolve_package and resolve_all_packages
+    filter_kwargs = dict(
+        owner=owner,
+        repo=repo,
+        name=name,
+        version=version,
+        format_filter=format_filter,
+        os_filter=os_filter,
+        arch_filter=arch_filter,
+        tag_filter=tag_filter,
+        filename_filter=filename_filter,
+    )
+
+    # --download-all: resolve all matching packages and download each one
+    if download_all:
+        context_msg = "Failed to find packages!"
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                packages = resolve_all_packages(**filter_kwargs)
+
+        if not use_stderr:
+            click.secho("OK", fg="green")
+
+        _download_all_packages(
+            ctx=ctx,
+            opts=opts,
+            packages=packages,
+            owner=owner,
+            repo=repo,
+            session=session,
+            auth_headers=auth_headers,
+            outfile=outfile,
+            overwrite=overwrite,
+            all_files=all_files,
+            dry_run=dry_run,
+            use_stderr=use_stderr,
+        )
+        return
+
+    # Single-package mode (default)
     context_msg = "Failed to find package!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            package = resolve_package(
-                owner=owner,
-                repo=repo,
-                name=name,
-                version=version,
-                format_filter=format_filter,
-                os_filter=os_filter,
-                arch_filter=arch_filter,
-                tag_filter=tag_filter,
-                yes=yes,
-            )
+            package = resolve_package(**filter_kwargs, yes=yes)
 
     if not use_stderr:
         click.secho("OK", fg="green")
@@ -419,6 +472,257 @@ def download(  # noqa: C901
 
     click.echo()
     click.secho("Download completed successfully!", fg="green")
+
+
+def _download_all_packages(  # noqa: C901
+    *,
+    ctx,
+    opts,
+    packages,
+    owner,
+    repo,
+    session,
+    auth_headers,
+    outfile,
+    overwrite,
+    all_files,
+    dry_run,
+    use_stderr,
+):
+    """Download all matching packages into a directory."""
+    # Determine output directory
+    if outfile:
+        output_dir = os.path.abspath(outfile)
+    else:
+        # Use current directory
+        output_dir = os.path.abspath(".")
+
+    if dry_run:
+        click.echo()
+        click.echo(f"Dry run - would download {len(packages)} package(s):")
+        click.echo(f"  To directory: {output_dir}")
+        click.echo()
+        for i, pkg in enumerate(packages, 1):
+            filename = pkg.get("filename", "unknown")
+            size = _format_package_size(pkg)
+            click.echo(
+                f"  {i}. {pkg.get('name')} v{pkg.get('version')} "
+                f"({pkg.get('format')}) - {filename} [{size}]"
+            )
+            if all_files:
+                # Show sub-files if --all-files
+                context_msg = "Failed to get package details!"
+                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                    detail = get_package_detail(
+                        owner=owner, repo=repo, identifier=pkg["slug"]
+                    )
+                sub_files = get_package_files(detail)
+                for f in sub_files:
+                    primary = " (primary)" if f.get("is_primary") else ""
+                    click.echo(
+                        f"     [{f.get('tag', 'file')}] {f['filename']}{primary}"
+                    )
+        return
+
+    # Create output directory if needed
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    elif not os.path.isdir(output_dir):
+        raise click.ClickException(
+            f"Output path '{output_dir}' exists but is not a directory."
+        )
+
+    if not use_stderr:
+        click.echo(f"\nDownloading {len(packages)} package(s) to: {output_dir}")
+        click.echo()
+
+    all_downloaded_files = []
+    total_success = 0
+    total_failed = 0
+
+    for pkg_idx, pkg in enumerate(packages, 1):
+        pkg_name = pkg.get("name", "unknown")
+        pkg_version = pkg.get("version", "unknown")
+        pkg_filename = pkg.get("filename", "")
+
+        if not use_stderr:
+            click.echo(
+                f"[{pkg_idx}/{len(packages)}] {pkg_name} v{pkg_version} "
+                f"({pkg_filename})"
+            )
+
+        if all_files:
+            # Download all sub-files for this package
+            context_msg = f"Failed to get details for {pkg_name}!"
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                detail = get_package_detail(
+                    owner=owner, repo=repo, identifier=pkg["slug"]
+                )
+            sub_files = get_package_files(detail)
+
+            for file_info in sub_files:
+                filename = file_info["filename"]
+                file_url = file_info["cdn_url"]
+                file_path = os.path.join(output_dir, filename)
+                tag = file_info.get("tag", "file")
+
+                if not use_stderr:
+                    click.echo(f"  [{tag}] {filename} ...", nl=False)
+
+                try:
+                    context_msg = f"Failed to download {filename}!"
+                    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                        stream_download(
+                            url=file_url,
+                            outfile=file_path,
+                            session=session,
+                            headers=auth_headers,
+                            overwrite=overwrite,
+                            quiet=True,
+                        )
+                    if not use_stderr:
+                        click.secho(" OK", fg="green")
+                    total_success += 1
+                    all_downloaded_files.append(
+                        {
+                            "filename": filename,
+                            "path": file_path,
+                            "package": pkg_name,
+                            "version": pkg_version,
+                            "tag": tag,
+                            "status": "OK",
+                        }
+                    )
+                except Exception as e:  # pylint: disable=broad-except
+                    if not use_stderr:
+                        click.secho(" FAILED", fg="red")
+                    total_failed += 1
+                    all_downloaded_files.append(
+                        {
+                            "filename": filename,
+                            "path": file_path,
+                            "package": pkg_name,
+                            "version": pkg_version,
+                            "tag": tag,
+                            "status": "FAILED",
+                            "error": str(e),
+                        }
+                    )
+        else:
+            # Download the primary package file
+            download_url = pkg.get("cdn_url") or pkg.get("download_url")
+            filename = pkg_filename or f"{pkg_name}-{pkg_version}"
+            file_path = os.path.join(output_dir, filename)
+
+            if not download_url:
+                # Fall back to detailed package info
+                context_msg = f"Failed to get details for {pkg_name}!"
+                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                    detail = get_package_detail(
+                        owner=owner, repo=repo, identifier=pkg["slug"]
+                    )
+                    download_url = (
+                        detail.get("cdn_url")
+                        or detail.get("download_url")
+                        or detail.get("file_url")
+                    )
+
+            if not download_url:
+                if not use_stderr:
+                    click.secho("  No download URL available - SKIPPED", fg="yellow")
+                total_failed += 1
+                all_downloaded_files.append(
+                    {
+                        "filename": filename,
+                        "path": file_path,
+                        "package": pkg_name,
+                        "version": pkg_version,
+                        "status": "FAILED",
+                        "error": "No download URL",
+                    }
+                )
+                continue
+
+            if not use_stderr:
+                click.echo(f"  Downloading {filename} ...", nl=False)
+
+            try:
+                context_msg = f"Failed to download {filename}!"
+                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                    stream_download(
+                        url=download_url,
+                        outfile=file_path,
+                        session=session,
+                        headers=auth_headers,
+                        overwrite=overwrite,
+                        quiet=True,
+                    )
+                if not use_stderr:
+                    click.secho(" OK", fg="green")
+                total_success += 1
+                all_downloaded_files.append(
+                    {
+                        "filename": filename,
+                        "path": file_path,
+                        "package": pkg_name,
+                        "version": pkg_version,
+                        "status": "OK",
+                    }
+                )
+            except Exception as e:  # pylint: disable=broad-except
+                if not use_stderr:
+                    click.secho(" FAILED", fg="red")
+                total_failed += 1
+                all_downloaded_files.append(
+                    {
+                        "filename": filename,
+                        "path": file_path,
+                        "package": pkg_name,
+                        "version": pkg_version,
+                        "status": "FAILED",
+                        "error": str(e),
+                    }
+                )
+
+    # Build JSON output
+    json_output = {
+        "packages": [
+            {
+                "name": p.get("name"),
+                "version": p.get("version"),
+                "format": p.get("format"),
+                "filename": p.get("filename"),
+                "slug": p.get("slug"),
+            }
+            for p in packages
+        ],
+        "output_directory": output_dir,
+        "files": all_downloaded_files,
+        "summary": {
+            "total_packages": len(packages),
+            "total_files": total_success + total_failed,
+            "success": total_success,
+            "failed": total_failed,
+        },
+    }
+
+    if utils.maybe_print_as_json(opts, json_output):
+        return
+
+    click.echo()
+    total = total_success + total_failed
+    if total_failed == 0:
+        click.secho(
+            f"All {total_success} file(s) from {len(packages)} package(s) "
+            f"downloaded successfully!",
+            fg="green",
+        )
+    else:
+        click.secho(
+            f"Downloaded {total_success}/{total} file(s) from "
+            f"{len(packages)} package(s).",
+            fg="yellow",
+        )
 
 
 def _get_extension_for_format(pkg_format: str) -> str:

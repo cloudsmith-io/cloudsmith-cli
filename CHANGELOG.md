@@ -5,9 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+
+## [1.14.0] - 2026-03-09
+
+### Added
+
 - Added `--tag` option to `download` command for filtering packages by tags
 - Added download command documentation to README with comprehensive usage examples
+- Added `--filename` option to `download` command for filtering by package filename, with support for glob patterns (e.g., `--filename '*.snupkg'`)
+- Added `--download-all` flag to `download` command to download all matching packages instead of erroring on multiple matches
+- Multiple packages table now includes a Filename column for easier disambiguation
+
 
 ## [1.13.0] - 2026-02-16
 

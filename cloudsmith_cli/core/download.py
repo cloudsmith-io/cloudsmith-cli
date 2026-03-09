@@ -1,5 +1,6 @@
 """Core download functionality for Cloudsmith packages."""
 
+import fnmatch
 import hashlib
 import os
 from typing import Dict, List, Optional, Tuple
@@ -76,7 +77,7 @@ def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
     return False
 
 
-def resolve_package(
+def _search_packages(
     owner: str,
     repo: str,
     name: str,
@@ -86,10 +87,13 @@ def resolve_package(
     os_filter: Optional[str] = None,
     arch_filter: Optional[str] = None,
     tag_filter: Optional[str] = None,
-    yes: bool = False,
-) -> Dict:
+    filename_filter: Optional[str] = None,
+) -> List[Dict]:
     """
-    Find a single package matching the criteria, handling multiple matches.
+    Search for packages matching criteria, returning all matches.
+
+    Uses server-side filtering where possible, then applies client-side
+    filters for fields not supported by the API query language.
 
     Args:
         owner: Repository owner
@@ -100,13 +104,10 @@ def resolve_package(
         os_filter: Optional OS filter
         arch_filter: Optional architecture filter
         tag_filter: Optional tag filter
-        yes: If True, automatically select best match when multiple found
+        filename_filter: Optional filename filter (supports glob patterns)
 
     Returns:
-        The package dict
-
-    Raises:
-        click.ClickException: If 0 packages found (exit code 2) or >1 found without --yes (exit code 3)
+        List of matching package dicts
     """
     # Build search query - use server-side filtering where possible
     query_parts = [f"name:{name}"]
@@ -114,6 +115,9 @@ def resolve_package(
         query_parts.append(f"version:{version}")
     if format_filter:
         query_parts.append(f"format:{format_filter}")
+    # Use server-side filename filtering for exact matches (no wildcards)
+    if filename_filter and not any(c in filename_filter for c in "*?["):
+        query_parts.append(f"filename:{filename_filter}")
 
     query = " AND ".join(query_parts)
 
@@ -138,10 +142,9 @@ def resolve_package(
         page += 1
 
     # Apply client-side filters for fields not supported server-side
-    # First, filter for exact name match (API does partial matching)
     filtered_packages = []
     for pkg in packages:
-        # Exact name match (case-insensitive)
+        # Exact name match (case-insensitive, API does partial matching)
         if pkg.get("name", "").lower() != name.lower():
             continue
         # Apply OS filter
@@ -153,8 +156,112 @@ def resolve_package(
         # Apply tag filter
         if tag_filter and not _matches_tag_filter(pkg, tag_filter):
             continue
+        # Apply filename filter (glob patterns are client-side only)
+        if filename_filter and any(c in filename_filter for c in "*?["):
+            if not fnmatch.fnmatch(pkg.get("filename", ""), filename_filter):
+                continue
         filtered_packages.append(pkg)
-    packages = filtered_packages
+
+    return filtered_packages
+
+
+def resolve_all_packages(
+    owner: str,
+    repo: str,
+    name: str,
+    *,
+    version: Optional[str] = None,
+    format_filter: Optional[str] = None,
+    os_filter: Optional[str] = None,
+    arch_filter: Optional[str] = None,
+    tag_filter: Optional[str] = None,
+    filename_filter: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Find all packages matching the criteria.
+
+    Args:
+        owner: Repository owner
+        repo: Repository name
+        name: Package name to search for
+        version: Optional version filter
+        format_filter: Optional format filter
+        os_filter: Optional OS filter
+        arch_filter: Optional architecture filter
+        tag_filter: Optional tag filter
+        filename_filter: Optional filename filter (supports glob patterns)
+
+    Returns:
+        List of matching package dicts
+
+    Raises:
+        click.ClickException: If no packages found (exit code 2)
+    """
+    packages = _search_packages(
+        owner=owner,
+        repo=repo,
+        name=name,
+        version=version,
+        format_filter=format_filter,
+        os_filter=os_filter,
+        arch_filter=arch_filter,
+        tag_filter=tag_filter,
+        filename_filter=filename_filter,
+    )
+
+    if not packages:
+        exc = click.ClickException("No packages found matching the specified criteria.")
+        exc.exit_code = 2
+        raise exc
+
+    return packages
+
+
+def resolve_package(
+    owner: str,
+    repo: str,
+    name: str,
+    *,
+    version: Optional[str] = None,
+    format_filter: Optional[str] = None,
+    os_filter: Optional[str] = None,
+    arch_filter: Optional[str] = None,
+    tag_filter: Optional[str] = None,
+    filename_filter: Optional[str] = None,
+    yes: bool = False,
+) -> Dict:
+    """
+    Find a single package matching the criteria, handling multiple matches.
+
+    Args:
+        owner: Repository owner
+        repo: Repository name
+        name: Package name to search for
+        version: Optional version filter
+        format_filter: Optional format filter
+        os_filter: Optional OS filter
+        arch_filter: Optional architecture filter
+        tag_filter: Optional tag filter
+        filename_filter: Optional filename filter (supports glob patterns)
+        yes: If True, automatically select best match when multiple found
+
+    Returns:
+        The package dict
+
+    Raises:
+        click.ClickException: If 0 packages found (exit code 2) or >1 found without --yes (exit code 3)
+    """
+    packages = _search_packages(
+        owner=owner,
+        repo=repo,
+        name=name,
+        version=version,
+        format_filter=format_filter,
+        os_filter=os_filter,
+        arch_filter=arch_filter,
+        tag_filter=tag_filter,
+        filename_filter=filename_filter,
+    )
 
     # Handle results
     if not packages:
@@ -167,32 +274,11 @@ def resolve_package(
 
     # Multiple packages found
     if not yes:
-        click.echo("Multiple packages found:")
-        click.echo()
-
-        # Display table of matches
-        headers = ["#", "Name", "Version", "Format", "Size", "Created"]
-        rows = []
-
-        for i, pkg in enumerate(packages, 1):
-            rows.append(
-                [
-                    str(i),
-                    click.style(pkg.get("name", ""), fg="cyan"),
-                    click.style(pkg.get("version", ""), fg="yellow"),
-                    click.style(pkg.get("format", ""), fg="blue"),
-                    click.style(_format_size(pkg.get("size", 0)), fg="green"),
-                    click.style(_format_date(pkg.get("uploaded_at", "")), fg="white"),
-                ]
-            )
-
-        # Import here to avoid circular imports
-        from ..cli.utils import pretty_print_table
-
-        pretty_print_table(headers, rows)
-        click.echo()
+        _display_multiple_packages(packages)
         exc = click.ClickException(
-            "Multiple packages found. Use --yes to auto-select the best match, or add more specific filters."
+            "Multiple packages found. Use --yes to auto-select the best match, "
+            "--download-all to download all matches, or add more specific filters "
+            "(e.g., --filename '*.nupkg')."
         )
         exc.exit_code = 3
         raise exc
@@ -205,6 +291,34 @@ def resolve_package(
     )
 
     return best_package
+
+
+def _display_multiple_packages(packages: List[Dict]) -> None:
+    """Display a table of multiple matching packages."""
+    click.echo("Multiple packages found:")
+    click.echo()
+
+    headers = ["#", "Name", "Version", "Format", "Filename", "Size", "Created"]
+    rows = []
+
+    for i, pkg in enumerate(packages, 1):
+        rows.append(
+            [
+                str(i),
+                click.style(pkg.get("name", ""), fg="cyan"),
+                click.style(pkg.get("version", ""), fg="yellow"),
+                click.style(pkg.get("format", ""), fg="blue"),
+                click.style(pkg.get("filename", ""), fg="magenta"),
+                click.style(_format_size(pkg.get("size", 0)), fg="green"),
+                click.style(_format_date(pkg.get("uploaded_at", "")), fg="white"),
+            ]
+        )
+
+    # Import here to avoid circular imports
+    from ..cli.utils import pretty_print_table
+
+    pretty_print_table(headers, rows)
+    click.echo()
 
 
 def get_download_url(package: Dict) -> str:

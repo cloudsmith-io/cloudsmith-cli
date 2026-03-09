@@ -383,6 +383,173 @@ class TestDownloadCommand(unittest.TestCase):
         self.assertEqual(_format_package_size({"size": 1048576}), "1.0 MB")
         self.assertEqual(_format_package_size({}), "Unknown")
 
+    @patch("cloudsmith_cli.core.download.list_packages")
+    @patch("cloudsmith_cli.cli.commands.download.resolve_auth")
+    def test_download_with_filename_filter(self, mock_resolve_auth, mock_list_packages):
+        """Integration test: --filename filter disambiguates packages."""
+        mock_session = Mock()
+        mock_resolve_auth.return_value = (mock_session, {}, "none")
+
+        mock_packages = [
+            {
+                "name": "TestSymbolPkg",
+                "version": "1.0.24406",
+                "format": "nuget",
+                "filename": "TestSymbolPkg.1.0.24406.nupkg",
+                "cdn_url": "https://example.com/TestSymbolPkg.nupkg",
+                "size": 13000,
+            },
+            {
+                "name": "TestSymbolPkg",
+                "version": "1.0.24406",
+                "format": "nuget",
+                "filename": "TestSymbolPkg.1.0.24406.snupkg",
+                "cdn_url": "https://example.com/TestSymbolPkg.snupkg",
+                "size": 3200,
+            },
+        ]
+        mock_page_info = Mock()
+        mock_page_info.is_valid = True
+        mock_page_info.page = 1
+        mock_page_info.page_total = 1
+        mock_list_packages.return_value = (mock_packages, mock_page_info)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            download,
+            [
+                "--config-file",
+                "/dev/null",
+                "aflac-sandbox/test-repo",
+                "TestSymbolPkg",
+                "--filename",
+                "*.snupkg",
+                "--dry-run",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("TestSymbolPkg.1.0.24406.snupkg", result.output)
+        self.assertNotIn("TestSymbolPkg.1.0.24406.nupkg", result.output)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    @patch("cloudsmith_cli.cli.commands.download.resolve_auth")
+    def test_download_all_matching_packages(
+        self, mock_resolve_auth, mock_list_packages
+    ):
+        """Integration test: --download-all downloads all matching packages."""
+        mock_session = Mock()
+        mock_resolve_auth.return_value = (mock_session, {}, "none")
+
+        mock_packages = [
+            {
+                "name": "TestSymbolPkg",
+                "version": "1.0.24406",
+                "format": "nuget",
+                "filename": "TestSymbolPkg.1.0.24406.nupkg",
+                "cdn_url": "https://example.com/TestSymbolPkg.nupkg",
+                "size": 13000,
+                "slug": "test-slug-1",
+            },
+            {
+                "name": "TestSymbolPkg",
+                "version": "1.0.24406",
+                "format": "nuget",
+                "filename": "TestSymbolPkg.1.0.24406.snupkg",
+                "cdn_url": "https://example.com/TestSymbolPkg.snupkg",
+                "size": 3200,
+                "slug": "test-slug-2",
+            },
+        ]
+        mock_page_info = Mock()
+        mock_page_info.is_valid = True
+        mock_page_info.page = 1
+        mock_page_info.page_total = 1
+        mock_list_packages.return_value = (mock_packages, mock_page_info)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            download,
+            [
+                "--config-file",
+                "/dev/null",
+                "aflac-sandbox/test-repo",
+                "TestSymbolPkg",
+                "--download-all",
+                "--dry-run",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2 package(s)", result.output)
+        self.assertIn("TestSymbolPkg.1.0.24406.nupkg", result.output)
+        self.assertIn("TestSymbolPkg.1.0.24406.snupkg", result.output)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    @patch("cloudsmith_cli.cli.commands.download.resolve_auth")
+    def test_download_all_with_filename_filter(
+        self, mock_resolve_auth, mock_list_packages
+    ):
+        """Integration test: --download-all + --filename filter combined."""
+        mock_session = Mock()
+        mock_resolve_auth.return_value = (mock_session, {}, "none")
+
+        mock_packages = [
+            {
+                "name": "TestPkg",
+                "version": "1.0.0",
+                "format": "nuget",
+                "filename": "TestPkg.1.0.0.nupkg",
+                "cdn_url": "https://example.com/TestPkg.nupkg",
+                "size": 13000,
+                "slug": "slug-1",
+            },
+            {
+                "name": "TestPkg",
+                "version": "1.0.0",
+                "format": "nuget",
+                "filename": "TestPkg.1.0.0.snupkg",
+                "cdn_url": "https://example.com/TestPkg.snupkg",
+                "size": 3200,
+                "slug": "slug-2",
+            },
+            {
+                "name": "TestPkg",
+                "version": "2.0.0",
+                "format": "nuget",
+                "filename": "TestPkg.2.0.0.nupkg",
+                "cdn_url": "https://example.com/TestPkg2.nupkg",
+                "size": 15000,
+                "slug": "slug-3",
+            },
+        ]
+        mock_page_info = Mock()
+        mock_page_info.is_valid = True
+        mock_page_info.page = 1
+        mock_page_info.page_total = 1
+        mock_list_packages.return_value = (mock_packages, mock_page_info)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            download,
+            [
+                "--config-file",
+                "/dev/null",
+                "org/repo",
+                "TestPkg",
+                "--download-all",
+                "--filename",
+                "*.nupkg",
+                "--dry-run",
+            ],
+        )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2 package(s)", result.output)
+        self.assertIn("TestPkg.1.0.0.nupkg", result.output)
+        self.assertIn("TestPkg.2.0.0.nupkg", result.output)
+        self.assertNotIn("snupkg", result.output)
+
 
 if __name__ == "__main__":
     unittest.main()
