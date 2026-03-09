@@ -288,7 +288,7 @@ def download(  # noqa: C901
         for idx, file_info in enumerate(files_to_download, 1):
             filename = file_info["filename"]
             file_url = file_info["cdn_url"]
-            output_path = os.path.join(output_dir, filename)
+            output_path = _safe_join(output_dir, filename)
 
             primary_marker = " (primary)" if file_info.get("is_primary") else ""
             tag = file_info.get("tag", "file")
@@ -408,7 +408,7 @@ def download(  # noqa: C901
     if not outfile:
         # Extract filename from URL or use package name + format
         if package.get("filename"):
-            outfile = package["filename"]
+            outfile = os.path.basename(package["filename"])
         else:
             # Fallback to package name with extension based on format
             pkg_format = package.get("format", "bin")
@@ -552,7 +552,11 @@ def _download_all_packages(  # noqa: C901
             )
 
         if all_files:
-            # Download all sub-files for this package
+            # Download all sub-files for this package into a per-package subdir
+            pkg_subdir = os.path.join(output_dir, f"{pkg_name}-{pkg_version}")
+            if not os.path.exists(pkg_subdir):
+                os.makedirs(pkg_subdir)
+
             context_msg = f"Failed to get details for {pkg_name}!"
             with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
                 detail = get_package_detail(
@@ -563,7 +567,7 @@ def _download_all_packages(  # noqa: C901
             for file_info in sub_files:
                 filename = file_info["filename"]
                 file_url = file_info["cdn_url"]
-                file_path = os.path.join(output_dir, filename)
+                file_path = _safe_join(pkg_subdir, filename)
                 tag = file_info.get("tag", "file")
 
                 if not use_stderr:
@@ -612,7 +616,7 @@ def _download_all_packages(  # noqa: C901
             # Download the primary package file
             download_url = pkg.get("cdn_url") or pkg.get("download_url")
             filename = pkg_filename or f"{pkg_name}-{pkg_version}"
-            file_path = os.path.join(output_dir, filename)
+            file_path = _safe_join(output_dir, filename)
 
             if not download_url:
                 # Fall back to detailed package info
@@ -723,6 +727,23 @@ def _download_all_packages(  # noqa: C901
             f"{len(packages)} package(s).",
             fg="yellow",
         )
+
+
+def _safe_join(base_dir, filename):
+    """Safely join base_dir and filename, preventing path traversal."""
+    # Strip path separators and use only the basename
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        raise click.ClickException(
+            f"Invalid filename '{filename}' — cannot be empty after sanitization."
+        )
+    result = os.path.join(base_dir, safe_name)
+    # Final check: resolved path must be under base_dir
+    if not os.path.realpath(result).startswith(os.path.realpath(base_dir) + os.sep):
+        raise click.ClickException(
+            f"Filename '{filename}' resolves outside the target directory."
+        )
+    return result
 
 
 def _get_extension_for_format(pkg_format: str) -> str:
