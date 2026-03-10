@@ -114,233 +114,233 @@ def _generate_html_report(
                 </details>
             """
 
-    # Template Construction
-    html_content = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloudsmith Vulnerability Report</title>
-    <style>
-        :root {{
-            --cs-blue: #0366d6;
-            --cs-dark: #24292e;
-            --CRITICAL: #d73a49;
-            --HIGH: #f66a0a;
-            --MEDIUM: #fb8c00;
-            --LOW: #6a737d;
-            --bg-light: #f6f8fa;
-            --success: #28a745;
-        }}
+            # Template Construction
+            html_content = f"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Cloudsmith Vulnerability Report</title>
+                <style>
+                    :root {{
+                        --cs-blue: #0366d6;
+                        --cs-dark: #24292e;
+                        --CRITICAL: #d73a49;
+                        --HIGH: #f66a0a;
+                        --MEDIUM: #fb8c00;
+                        --LOW: #6a737d;
+                        --bg-light: #f6f8fa;
+                        --success: #28a745;
+                    }}
 
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: var(--cs-dark);
-            background-color: var(--bg-light);
-            margin: 0;
-            padding: 40px;
-        }}
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                        line-height: 1.6;
+                        color: var(--cs-dark);
+                        background-color: var(--bg-light);
+                        margin: 0;
+                        padding: 40px;
+                    }}
 
-        .container {{
-            max-width: 1000px;
-            margin: auto;
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-            border: 1px solid #e1e4e8;
-        }}
+                    .container {{
+                        max-width: 1000px;
+                        margin: auto;
+                        background: white;
+                        padding: 40px;
+                        border-radius: 12px;
+                        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+                        border: 1px solid #e1e4e8;
+                    }}
 
-        .search-container {{
-            margin-bottom: 25px;
-            position: relative;
-        }}
+                    .search-container {{
+                        margin-bottom: 25px;
+                        position: relative;
+                    }}
 
-        #vulnSearch {{
-            width: 100%;
-            padding: 12px 15px;
-            font-size: 16px;
-            border: 2px solid #e1e4e8;
-            border-radius: 8px;
-            box-sizing: border-box;
-            outline: none;
-            transition: border-color 0.2s;
-        }}
+                    #vulnSearch {{
+                        width: 100%;
+                        padding: 12px 15px;
+                        font-size: 16px;
+                        border: 2px solid #e1e4e8;
+                        border-radius: 8px;
+                        box-sizing: border-box;
+                        outline: none;
+                        transition: border-color 0.2s;
+                    }}
 
-        #vulnSearch:focus {{
-          border-color: var(--cs-blue);
-        }}
+                    #vulnSearch:focus {{
+                    border-color: var(--cs-blue);
+                    }}
 
 
 
-        header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid var(--bg-light);
-            padding-bottom: 25px;
-            margin-bottom: 30px;
-        }}
+                    header {{
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        border-bottom: 2px solid var(--bg-light);
+                        padding-bottom: 25px;
+                        margin-bottom: 30px;
+                    }}
 
-        /* Table & Details Styling */
-        .header-row {{
-            display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
-            padding: 15px; background: #fafbfc; font-weight: bold; font-size: 12px;
-            color: #586069; text-transform: uppercase; border-bottom: 2px solid #e1e4e8;
-        }}
+                    /* Table & Details Styling */
+                    .header-row {{
+                        display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
+                        padding: 15px; background: #fafbfc; font-weight: bold; font-size: 12px;
+                        color: #586069; text-transform: uppercase; border-bottom: 2px solid #e1e4e8;
+                    }}
 
-        details {{ border-bottom: 1px solid #f0f0f0; }}
-        summary {{
-            display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
-            align-items: center; padding: 15px; cursor: pointer;
-        }}
+                    details {{ border-bottom: 1px solid #f0f0f0; }}
+                    summary {{
+                        display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
+                        align-items: center; padding: 15px; cursor: pointer;
+                    }}
 
-        summary::-webkit-details-marker {{ display: none; }} /* Hide default arrow */
+                    summary::-webkit-details-marker {{ display: none; }} /* Hide default arrow */
 
-        .details-content {{ padding: 15px 15px 25px 135px; background: #fafbfc; font-size: 14px; }}
-        .badge {{ padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; width: fit-content; }}
-        .badge-CRITICAL {{ background: #ffdce0; color: #af1b2b; }}
-        .badge-HIGH {{ background: #ffe3d2; color: #bc4c00; }}
-        .badge-MEDIUM {{ background: #fff5b1; color: #735c0f; }}
+                    .details-content {{ padding: 15px 15px 25px 135px; background: #fafbfc; font-size: 14px; }}
+                    .badge {{ padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; width: fit-content; }}
+                    .badge-CRITICAL {{ background: #ffdce0; color: #af1b2b; }}
+                    .badge-HIGH {{ background: #ffe3d2; color: #bc4c00; }}
+                    .badge-MEDIUM {{ background: #fff5b1; color: #735c0f; }}
 
-        .hidden {{ display: none; }}
+                    .hidden {{ display: none; }}
 
-        .logo-area h1 {{
-            margin: 0;
-            color: var(--cs-blue);
-            font-size: 24px;
-            letter-spacing: -0.5px;
-        }}
+                    .logo-area h1 {{
+                        margin: 0;
+                        color: var(--cs-blue);
+                        font-size: 24px;
+                        letter-spacing: -0.5px;
+                    }}
 
-        .logo-area p {{
-            margin: 5px 0 0 0;
-            color: #586069;
-            font-size: 14px;
-        }}
+                    .logo-area p {{
+                        margin: 5px 0 0 0;
+                        color: #586069;
+                        font-size: 14px;
+                    }}
 
-        .meta-info {{
-            text-align: right;
-            font-size: 13px;
-            color: #6a737d;
-        }}
+                    .meta-info {{
+                        text-align: right;
+                        font-size: 13px;
+                        color: #6a737d;
+                    }}
 
-        .summary-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-bottom: 35px;
-        }}
+                    .summary-grid {{
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 15px;
+                        margin-bottom: 35px;
+                    }}
 
-        .summary-card {{
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            color: white;
-        }}
+                    .summary-card {{
+                        padding: 20px;
+                        border-radius: 8px;
+                        text-align: center;
+                        color: white;
+                    }}
 
-        .summary-card.crit {{ background-color: var(--CRITICAL); }}
-        .summary-card.high {{ background-color: var(--HIGH); }}
-        .summary-card.med {{ background-color: var(--MEDIUM); }}
-        .summary-card.low {{ background-color: var(--LOW); }}
+                    .summary-card.crit {{ background-color: var(--CRITICAL); }}
+                    .summary-card.high {{ background-color: var(--HIGH); }}
+                    .summary-card.med {{ background-color: var(--MEDIUM); }}
+                    .summary-card.low {{ background-color: var(--LOW); }}
 
-        .summary-card .count {{
-            display: block;
-            font-size: 28px;
-            font-weight: 800;
-        }}
+                    .summary-card .count {{
+                        display: block;
+                        font-size: 28px;
+                        font-weight: 800;
+                    }}
 
-        .summary-card .label {{
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.9;
-        }}
+                    .summary-card .label {{
+                        font-size: 12px;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        opacity: 0.9;
+                    }}
 
-    </style>
-</head>
-<body>
+                </style>
+            </head>
+            <body>
 
-<div class="container">
-    <header>
-        <div class="logo-area">
-            <img src="https://avatars.githubusercontent.com/u/7657912?s=280&v=4" width=30%>
-            <h1>Vulnerability Report</h1>
-            <h3>Report filters: {report_filters}</h3>
-            <p>Scanned: <strong>{scan_date}</strong></p>
-            <p>Repository: <strong>{html.escape(target_repo)}</strong></p>
-            <p>Package: <strong>{html.escape(pkg_name)}</strong></p>
-            <p>Version: <strong>{html.escape(pkg_version)}</strong></p>
-        </div>
-        <div class="meta-info">
-            Generated by Cloudsmith CLI<br>
-            <strong>{scan_time}</strong>
-        </div>
-    </header>
+            <div class="container">
+                <header>
+                    <div class="logo-area">
+                        <img src="https://avatars.githubusercontent.com/u/7657912?s=280&v=4" width=30%>
+                        <h1>Vulnerability Report</h1>
+                        <h3>Report filters: {report_filters}</h3>
+                        <p>Scanned: <strong>{scan_date}</strong></p>
+                        <p>Repository: <strong>{html.escape(target_repo)}</strong></p>
+                        <p>Package: <strong>{html.escape(pkg_name)}</strong></p>
+                        <p>Version: <strong>{html.escape(pkg_version)}</strong></p>
+                    </div>
+                    <div class="meta-info">
+                        Generated by Cloudsmith CLI<br>
+                        <strong>{scan_time}</strong>
+                    </div>
+                </header>
 
-    <div class="search-container">
-        <input type="text" id="vulnSearch" placeholder="Search by CVE or Package name (e.g. 'openssl')..." onkeyup="filterResults()">
-    </div>
+                <div class="search-container">
+                    <input type="text" id="vulnSearch" placeholder="Search by CVE or Package name (e.g. 'openssl')..." onkeyup="filterResults()">
+                </div>
 
-    <div class="summary-grid">
-        <div class="summary-card crit">
-            <span class="count">{counts['critical']}</span>
-            <span class="label">Critical</span>
-        </div>
-        <div class="summary-card high">
-            <span class="count">{counts['high']}</span>
-            <span class="label">High</span>
-        </div>
-        <div class="summary-card med">
-            <span class="count">{counts['medium']}</span>
-            <span class="label">Medium</span>
-        </div>
-        <div class="summary-card low">
-            <span class="count">{counts['low']}</span>
-            <span class="label">Low</span>
-        </div>
-    </div>
+                <div class="summary-grid">
+                    <div class="summary-card crit">
+                        <span class="count">{counts['critical']}</span>
+                        <span class="label">Critical</span>
+                    </div>
+                    <div class="summary-card high">
+                        <span class="count">{counts['high']}</span>
+                        <span class="label">High</span>
+                    </div>
+                    <div class="summary-card med">
+                        <span class="count">{counts['medium']}</span>
+                        <span class="label">Medium</span>
+                    </div>
+                    <div class="summary-card low">
+                        <span class="count">{counts['low']}</span>
+                        <span class="label">Low</span>
+                    </div>
+                </div>
 
-    <div class="header-row">
-        <span>Severity</span>
-        <span>Identifier</span>
-        <span>Package</span>
-        <span>Fixed In</span>
-        <span></span>
-    </div>
+                <div class="header-row">
+                    <span>Severity</span>
+                    <span>Identifier</span>
+                    <span>Package</span>
+                    <span>Fixed In</span>
+                    <span></span>
+                </div>
 
-    <div id="vulnList">
-        {rows_html}
-    </div>
+                <div id="vulnList">
+                    {rows_html}
+                </div>
 
-    <footer>
-        &copy; {datetime.datetime.now().year} Cloudsmith Inc. • <a href="https://cloudsmith.io" style="color: inherit;">Visit Dashboard</a> • Be Secure. Be Sure.
-    </footer>
-</div>
+                <footer>
+                    &copy; {datetime.datetime.now().year} Cloudsmith Inc. • <a href="https://cloudsmith.io" style="color: inherit;">Visit Dashboard</a> • Be Secure. Be Sure.
+                </footer>
+            </div>
 
-<script>
-function filterResults() {{
-    const input = document.getElementById('vulnSearch').value.toLowerCase();
-    const items = document.querySelectorAll('.vuln-item');
-    let count = 0;
+            <script>
+            function filterResults() {{
+                const input = document.getElementById('vulnSearch').value.toLowerCase();
+                const items = document.querySelectorAll('.vuln-item');
+                let count = 0;
 
-    items.forEach(item => {{
-        const text = item.getAttribute('data-search').toLowerCase();
-        if (text.includes(input)) {{
-            item.classList.remove('hidden');
-            count++;
-        }} else {{
-            item.classList.add('hidden');
-        }}
-    }});
+                items.forEach(item => {{
+                    const text = item.getAttribute('data-search').toLowerCase();
+                    if (text.includes(input)) {{
+                        item.classList.remove('hidden');
+                        count++;
+                    }} else {{
+                        item.classList.add('hidden');
+                    }}
+                }});
 
-    document.getElementById('counter').innerText = `Showing ${{count}} of ${{items.length}} results`;
-}}
-</script>
+                document.getElementById('counter').innerText = `Showing ${{count}} of ${{items.length}} results`;
+            }}
+            </script>
 
-</body>
-</html>
+            </body>
+            </html>
     """
 
     default_filename = f"vuln-report-{pkg_name}-{pkg_version}.html".replace("/", "_")
@@ -423,6 +423,89 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
     else:
         click.echo(
             f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
+        )
+    click.echo()
+
+
+def _print_vulnerabilities_assessment_table(data, severity_filter=None):
+    """Print vulnerabilities assessment as a table."""
+    # Group vulnerabilities by package
+    grouped_vulns = {}
+
+    allowed_severities = None
+    if severity_filter:
+        allowed_severities = [s.strip().lower() for s in severity_filter.split(",")]
+
+    # Get top level package info as fallback
+    pkg_data = getattr(data, "package", None)
+    top_pkg_name = getattr(pkg_data, "name", "Unknown")
+
+    # Get scan data
+    scans = getattr(data, "scans", [])
+    for scan in scans:
+        results = getattr(scan, "results", [])
+        for result in results:
+            # Filter by severity if requested
+            if allowed_severities:
+                severity = getattr(result, "severity", "unknown").lower()
+                if severity not in allowed_severities:
+                    continue
+
+            pkg_name = getattr(result, "package_name", top_pkg_name)
+            if pkg_name not in grouped_vulns:
+                grouped_vulns[pkg_name] = []
+            grouped_vulns[pkg_name].append(result)
+
+    if not grouped_vulns:
+        click.echo("\nNo vulnerabilities found matching criteria.")
+        return
+
+    # Severity mapping for sorting
+    sev_map = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+
+    # Iterate through sorted packages
+    for pkg_name in sorted(grouped_vulns.keys()):
+        vulns = grouped_vulns[pkg_name]
+
+        # Sort vulns by severity (Critical first)
+        vulns.sort(
+            key=lambda r: sev_map.get(getattr(r, "severity", "unknown").lower(), 99)
+        )
+
+        rows = []
+        for result in vulns:
+            # Severity
+            severity = getattr(result, "severity", "Unknown").title()
+
+            # ID
+            vuln_id = getattr(
+                result, "vulnerability_id", getattr(result, "identifier", "Unknown")
+            )
+
+            # Fixed Version
+            fixed_raw = getattr(
+                result, "fix_version", getattr(result, "fixed_version", None)
+            )
+            if hasattr(fixed_raw, "version"):
+                fixed_version = fixed_raw.version
+            else:
+                fixed_version = str(fixed_raw) if fixed_raw else "-"
+
+            # References
+            references = getattr(result, "references", "")
+            reference = references[0] if references else ""
+
+            # Title / Description
+            title_txt = getattr(result, "title", reference)
+            title = f"{title_txt} [{reference}]" if reference else title_txt
+
+            rows.append([severity, vuln_id, fixed_version, title])
+
+        click.echo()
+        utils.pretty_print_table(
+            headers=["Severity", "Vulnerability", "Fixed Version", "Title"],
+            rows=rows,
+            title=f"Package: {pkg_name}",
         )
     click.echo()
 
@@ -510,4 +593,5 @@ def get_package_scan_result(
     _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns)
 
     if show_assessment:
-        click.echo(f"{data}")
+        # click.echo(f"{data}")
+        _print_vulnerabilities_assessment_table(data, severity_filter)
