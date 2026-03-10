@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 - Added `--tag` option to `download` command for filtering packages by tags
 - Added download command documentation to README with comprehensive usage examples
+
+## [1.14.0] - 2026-03-11
+
+### Added
+
 - Added `vulnerabilities` (`-vuln`) command to a retrieve security scan results against a package
   - Summary View (Default): Displays a high-level count of vulnerabilities broken down by severity (Critical, High, Medium, Low, Unknown).
   - Assessment View `--show-assessment` (`-A`): Provides a detailed breakdown where vulnerabilities are:
@@ -18,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
     - By Severity: `--severity` Show only specific levels (e.g., just Critical and High).
     - By Status: `--fixable | --non-fixable` Filter to show only "Fixable" vulnerabilities (where a patch exists) or "Non-Fixable" ones.
   - Supports `--output-format json | pretty_json` for programmatic usage
+
 
 ## [1.13.0] - 2026-02-16
 
