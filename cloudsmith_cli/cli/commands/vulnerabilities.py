@@ -71,7 +71,7 @@ def vulnerabilities(
     cloudsmith vulnerabilities myorg/repo/pkg_identifier
 
     #Display the full vulnerability scan result
-    cloudsmith vulnerabilities myorg/repo/pkg_identifier --all
+    cloudsmith vulnerabilities myorg/repo/pkg_identifier --A / --show-assessment
 
     #Filter the result by severity
     cloudsmith vulnerabilities myorg/repo/pkg_identifier --severity CRITICAL,HIGH
@@ -81,14 +81,13 @@ def vulnerabilities(
     owner, repo, slug = owner_repo_package
 
     # Use stderr for messages if output is JSON
-    use_stderr = utils.should_use_stderr(opts)
+    # use_stderr = utils.should_use_stderr(opts)
 
-    click.echo("")
-    click.echo(
-        "Retrieving vulnerability results ... ",
-        nl=False,
-        err=use_stderr,
-    )
+    # click.echo(
+    #     "Retrieving vulnerability results ... ",
+    #     nl=False,
+    #     err=use_stderr,
+    # )
 
     context_msg = "Failed to retrieve vulnerability report!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):

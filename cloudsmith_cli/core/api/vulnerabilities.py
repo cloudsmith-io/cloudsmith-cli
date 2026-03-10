@@ -362,8 +362,9 @@ function filterResults() {{
     webbrowser.open(f"file://{os.path.abspath(filename)}")
 
 
-def _print_vulnerabilities_summary_table(opts, data):
+def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns):
     """Print vulnerabilities as a table."""
+
     severity_keys = {
         "Critical": "critical",
         "High": "high",
@@ -372,14 +373,18 @@ def _print_vulnerabilities_summary_table(opts, data):
         "Unknown": "unknown",
     }
 
+    if severity_filter:
+        allowed = [s.strip().lower() for s in severity_filter.split(",")]
+        severity_keys = {k: v for k, v in severity_keys.items() if v in allowed}
+
     headers = ["Package"]
     headers.extend(severity_keys.keys())
 
     # Get package name and version for the target label
-    package_data = getattr(data, "package", None)
-    pkg_name = getattr(package_data, "name", "Unknown")
-    pkg_version = getattr(package_data, "version", "Unknown")
-    target_label = f"{pkg_name}-{pkg_version}"
+    pkg_data = getattr(data, "package", None)
+    pkg_name = getattr(pkg_data, "name", "Unknown")
+    pkg_version = getattr(pkg_data, "version", "Unknown")
+    target_label = f"{pkg_name}:{pkg_version}"
 
     # Initialize aggregate counts
     counts = {v: 0 for v in severity_keys.values()}
@@ -392,7 +397,7 @@ def _print_vulnerabilities_summary_table(opts, data):
             severity = getattr(result, "severity", "unknown").lower()
             if severity in counts:
                 counts[severity] += 1
-            else:
+            elif "unknown" in counts:
                 counts["unknown"] += 1
 
     # Create the single summary row
@@ -409,8 +414,16 @@ def _print_vulnerabilities_summary_table(opts, data):
         headers=headers, rows=rows, title="Vulnerabilities Summary"
     )
 
-    click.echo()
-    click.echo(f"Total Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}")
+    if severity_filter:
+        filters = severity_filter.upper()
+        click.echo(
+            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
+        )
+        click.echo(f"\nTotal {filters} Vulnerabilities: {total_filtered_vulns}")
+    else:
+        click.echo(
+            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
+        )
     click.echo()
 
 
@@ -434,6 +447,8 @@ def get_package_scan_result(
     """Get the package vulnerability scan result."""
     client = get_vulnerabilities_api()
 
+    total_filtered_vulns = 0
+
     with catch_raise_api_exception():
         scan_identifier = get_package_scan_identifier(
             owner=owner, repo=repo, package=package
@@ -449,7 +464,6 @@ def get_package_scan_result(
     # Filter results if severity or fixable flags are active
     if severity_filter or fixable is not None:
         scans = getattr(data, "scans", [])
-        total_filtered_vulns = 0
 
         allowed_severities = (
             [s.strip().lower() for s in severity_filter.split(",")]
@@ -485,7 +499,7 @@ def get_package_scan_result(
             total_filtered_vulns += len(results)
 
         # Update the total count on the main data object
-        data.num_vulnerabilities = total_filtered_vulns
+        # data.num_vulnerabilities = total_filtered_vulns
 
     if html_report:
         _generate_html_report(data, owner, repo, fixable, severity_filter, html_report)
@@ -493,7 +507,7 @@ def get_package_scan_result(
     if utils.maybe_print_as_json(opts, data):
         return
 
-    _print_vulnerabilities_summary_table(opts, data)
+    _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns)
 
     if show_assessment:
         click.echo(f"{data}")
