@@ -493,11 +493,16 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
 
             # References
             references = getattr(result, "references", "")
-            reference = references[0] if references else ""
+            reference_url = references[0] if references else ""
 
             # Title / Description
-            title_txt = getattr(result, "title", reference)
-            title = f"{title_txt} [{reference}]" if reference else title_txt
+            title_txt = getattr(result, "title", reference_url)
+
+            if reference_url:
+                coloured_url = click.style(f"{reference_url}", fg="blue")
+                title = f"{title_txt} [{coloured_url}]"
+            else:
+                title = title_txt
 
             rows.append([severity, vuln_id, fixed_version, title])
 
