@@ -268,7 +268,7 @@ def _generate_html_report(
                         <img src="https://avatars.githubusercontent.com/u/7657912?s=280&v=4" width=30%>
                         <h1>Vulnerability Report</h1>
                         <h3>Report filters: {report_filters}</h3>
-                        <p>Scanned: <strong>{scan_date}</strong></p>
+                        <p>Scan date: <strong>{scan_date}</strong></p>
                         <p>Repository: <strong>{html.escape(target_repo)}</strong></p>
                         <p>Package: <strong>{html.escape(pkg_name)}</strong></p>
                         <p>Version: <strong>{html.escape(pkg_version)}</strong></p>
