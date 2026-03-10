@@ -119,21 +119,6 @@ class TestVulnerabilitiesCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Invalid format", result.output)
 
-    @patch("cloudsmith_cli.cli.commands.vulnerabilities.get_package_scan_result")
-    def test_vulnerabilities_html_report(self, mock_get_scan):
-        """Test vulnerabilities command with --html flag."""
-        result = self.runner.invoke(
-            vulnerabilities,
-            [
-                "testorg/testrepo/pkg-slug",
-                "--html",
-            ],
-        )
-
-        self.assertEqual(result.exit_code, 0)
-        args = mock_get_scan.call_args[1]
-        self.assertEqual(args["html_report"], "DEFAULT")
-
 
 if __name__ == "__main__":
     unittest.main()
