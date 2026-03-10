@@ -35,23 +35,9 @@ from .main import main
     "severity_filter",
     help="Filter by severities (e.g., 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW').",
 )
-@click.option(
-    "--html",
-    "html_report",
-    required=False,
-    is_flag=False,
-    flag_value="DEFAULT",
-    help="Generate HTML report of the full assessment. Optional specify location to store file. ",
-)
 @click.pass_context
 def vulnerabilities(
-    ctx,
-    opts,
-    owner_repo_package,
-    show_assessment,
-    fixable,
-    severity_filter,
-    html_report,
+    ctx, opts, owner_repo_package, show_assessment, fixable, severity_filter
 ):
     """
     Retrieve vulnerability results.
@@ -67,14 +53,17 @@ def vulnerabilities(
 
     Examples:
 
-    #Display the vulnerability scan overview
+    #Display the vulnerability summary
     cloudsmith vulnerabilities myorg/repo/pkg_identifier
 
-    #Display the full vulnerability scan result
+    #Display detailed vulnerability assessment
     cloudsmith vulnerabilities myorg/repo/pkg_identifier --A / --show-assessment
 
     #Filter the result by severity
-    cloudsmith vulnerabilities myorg/repo/pkg_identifier --severity CRITICAL,HIGH
+    cloudsmith vulnerabilities myorg/repo/pkg_identifier --severity critical,high
+
+    #Filter by fixable or non-fixable vulnerabilities
+    cloudsmith vulnerabilities myorg/repo/pkg_identifier --fixable / --non-fixable
 
 
     """
@@ -99,6 +88,5 @@ def vulnerabilities(
                 package=slug,
                 show_assessment=show_assessment,
                 severity_filter=severity_filter,
-                html_report=html_report,
                 fixable=fixable,
             )
