@@ -81,7 +81,24 @@ def _generate_html_report(
             )
             lib_name = str(getattr(result, "package_name", pkg_name))
 
-            # Try to populate fixed version if available
+            # Try to populate affected and fixed version if available
+
+            affected_version_raw = getattr(
+                result, "affected_version", getattr(result, "affected_version", None)
+            )
+            if hasattr(affected_version_raw, "version"):
+                affected_version = affected_version_raw.version
+            else:
+                affected_version = (
+                    str(affected_version_raw) if affected_version_raw else ""
+                )
+
+            affected_ver_html = (
+                f'<span class="fixed-version">{html.escape(str(affected_version))}</span>'
+                if affected_version
+                else "-"
+            )
+
             fixed_version_raw = getattr(
                 result, "fix_version", getattr(result, "fixed_version", None)
             )
@@ -105,6 +122,7 @@ def _generate_html_report(
                         <span class="badge badge-{severity_display}">{severity_display.title()}</span>
                         <strong class="cve">{html.escape(vuln_id)}</strong>
                         <span class="pkg">{lib_name}</span>
+                        <span style="font-weight: 600;">{affected_ver_html}</span>
                         <span style="color: #28a745; font-weight: 600;">{fixed_ver_html}</span>
                         <span>▼</span>
                     </summary>
@@ -186,14 +204,14 @@ def _generate_html_report(
 
                     /* Table & Details Styling */
                     .header-row {{
-                        display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
+                        display: grid; grid-template-columns: 120px 180px 1fr 150px 150px 40px;
                         padding: 15px; background: #fafbfc; font-weight: bold; font-size: 12px;
                         color: #586069; text-transform: uppercase; border-bottom: 2px solid #e1e4e8;
                     }}
 
                     details {{ border-bottom: 1px solid #f0f0f0; }}
                     summary {{
-                        display: grid; grid-template-columns: 120px 180px 1fr 150px 40px;
+                        display: grid; grid-template-columns: 120px 180px 1fr 150px 150px 40px;
                         align-items: center; padding: 15px; cursor: pointer;
                     }}
 
@@ -306,7 +324,8 @@ def _generate_html_report(
                     <span>Severity</span>
                     <span>Identifier</span>
                     <span>Package</span>
-                    <span>Fixed In</span>
+                    <span>Affected Version</span>
+                    <span>Fixed Version</span>
                     <span></span>
                 </div>
 
@@ -482,6 +501,15 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
                 result, "vulnerability_id", getattr(result, "identifier", "Unknown")
             )
 
+            # Affected Version
+            affected_raw = getattr(
+                result, "affected_version", getattr(result, "affected_version", None)
+            )
+            if hasattr(affected_raw, "version"):
+                affected_version = affected_raw.version
+            else:
+                affected_version = str(affected_raw) if affected_raw else "-"
+
             # Fixed Version
             fixed_raw = getattr(
                 result, "fix_version", getattr(result, "fixed_version", None)
@@ -504,11 +532,17 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
             else:
                 title = title_txt
 
-            rows.append([severity, vuln_id, fixed_version, title])
+            rows.append([severity, vuln_id, affected_version, fixed_version, title])
 
         click.echo()
         utils.pretty_print_table(
-            headers=["Severity", "Vulnerability", "Fixed Version", "Title"],
+            headers=[
+                "Severity",
+                "Vulnerability",
+                "Affected Version",
+                "Fixed Version",
+                "Title",
+            ],
             rows=rows,
             title=f"Package: {pkg_name}",
         )
