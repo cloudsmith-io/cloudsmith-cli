@@ -149,7 +149,9 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
                 result, "affected_version", getattr(result, "affected_version", None)
             )
             if hasattr(affected_raw, "version"):
-                affected_version = affected_raw.version
+                aff_version = affected_raw.version
+                affected_operator = affected_raw.operator
+                affected_version = f"{affected_operator} {aff_version}"
             else:
                 affected_version = str(affected_raw) if affected_raw else "-"
 
@@ -158,21 +160,14 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
                 result, "fix_version", getattr(result, "fixed_version", None)
             )
             if hasattr(fixed_raw, "version"):
-                fixed_version = fixed_raw.version
+                fix_version = fixed_raw.version
+                fixed_operator = fixed_raw.operator
+                fixed_version = f"{fixed_operator} {fix_version}"
             else:
                 fixed_version = str(fixed_raw) if fixed_raw else "-"
 
-            # References
-            references = getattr(result, "references", "")
-            reference_url = references[0] if references else ""
-
             # Title / Description
-            title_txt = getattr(result, "title", reference_url)
-
-            if reference_url:
-                title = f"{title_txt} [link={reference_url}][blue]{reference_url}[/blue][/link]"
-            else:
-                title = title_txt
+            title = getattr(result, "title", "")
 
             rows.append(
                 [
