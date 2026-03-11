@@ -107,7 +107,7 @@ class TestVulnerabilitiesCommand(unittest.TestCase):
         args = mock_get_scan.call_args[1]
         self.assertFalse(args["fixable"])
 
-    def test_vulnerabilities_invalid_slug(self, mock_get_scan):
+    def test_vulnerabilities_invalid_slug(self):
         """Test validation of invalid package slug."""
         result = self.runner.invoke(
             vulnerabilities,
