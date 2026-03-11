@@ -60,6 +60,7 @@ setup(
         "python-toon==0.1.2",
         "requests>=2.18.4",
         "requests_toolbelt>=1.0.0",
+        "rich>=13.0.0",
         "semver>=2.7.9",
         "urllib3>=2.5",
     ],

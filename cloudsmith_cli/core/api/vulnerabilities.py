@@ -29,8 +29,9 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
         allowed = [s.strip().lower() for s in severity_filter.split(",")]
         severity_keys = {k: v for k, v in severity_keys.items() if v in allowed}
 
-    headers = ["Package"]
-    headers.extend(severity_keys.keys())
+    headers = [{"header": "Package", "justify": "left", "style": "cyan"}]
+    for key in severity_keys.keys():
+        headers.append({"header": key, "justify": "center", "style": "white"})
 
     # Get package name and version for the target label
     pkg_data = getattr(data, "package", None)
@@ -62,9 +63,7 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
     click.echo()
     click.echo()
 
-    utils.pretty_print_table(
-        headers=headers, rows=rows, title="Vulnerabilities Summary"
-    )
+    utils.rich_print_table(headers=headers, rows=rows, title="Vulnerabilities Summary")
 
     if severity_filter:
         filters = severity_filter.upper()
@@ -129,6 +128,16 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
         for result in vulns:
             # Severity
             severity = getattr(result, "severity", "Unknown").title()
+            severity_style = "white"
+            s = severity.lower()
+            if s == "critical":
+                severity_style = "red bold"
+            elif s == "high":
+                severity_style = "red"
+            elif s == "medium":
+                severity_style = "yellow"
+            elif s == "low":
+                severity_style = "blue"
 
             # ID
             vuln_id = getattr(
@@ -161,15 +170,22 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
             title_txt = getattr(result, "title", reference_url)
 
             if reference_url:
-                coloured_url = click.style(f"{reference_url}", fg="blue")
-                title = f"{title_txt} [{coloured_url}]"
+                title = f"{title_txt} [link={reference_url}][blue]{reference_url}[/blue][/link]"
             else:
                 title = title_txt
 
-            rows.append([severity, vuln_id, affected_version, fixed_version, title])
+            rows.append(
+                [
+                    f"[{severity_style}]{severity}[/{severity_style}]",
+                    vuln_id,
+                    affected_version,
+                    fixed_version,
+                    title,
+                ]
+            )
 
         click.echo()
-        utils.pretty_print_table(
+        utils.rich_print_table(
             headers=[
                 "Severity",
                 "Vulnerability",
@@ -179,6 +195,7 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
             ],
             rows=rows,
             title=f"Package: {pkg_name}",
+            show_lines=True,
         )
     click.echo()
 
