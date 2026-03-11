@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `vulnerabilities` (`-vuln`) command to a retrieve security scan results against a package
+- Added `vulnerabilities` command to retrieve security scan results for a package
   - Summary View (Default): Displays a high-level count of vulnerabilities broken down by severity (Critical, High, Medium, Low, Unknown).
   - Assessment View `--show-assessment` (`-A`): Provides a detailed breakdown where vulnerabilities are:
     - Grouped by the specific affected upstream package / dependency.
