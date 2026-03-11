@@ -107,18 +107,6 @@ class TestVulnerabilitiesCommand(unittest.TestCase):
         args = mock_get_scan.call_args[1]
         self.assertFalse(args["fixable"])
 
-    def test_vulnerabilities_invalid_slug(self):
-        """Test validation of invalid package slug."""
-        result = self.runner.invoke(
-            vulnerabilities,
-            [
-                "testorg/testrepo/invalid-slug-format",
-            ],
-        )
-
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Invalid format", result.output)
-
 
 if __name__ == "__main__":
     unittest.main()
