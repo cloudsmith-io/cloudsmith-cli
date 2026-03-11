@@ -58,7 +58,7 @@ def vulnerabilities(
 
     \b
     # Display detailed vulnerability assessment
-    cloudsmith vulnerabilities myorg/repo/pkg_identifier --A / --show-assessment
+    cloudsmith vulnerabilities myorg/repo/pkg_identifier -A / --show-assessment
 
     \b
     # Filter the result by severity
