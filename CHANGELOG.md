@@ -16,9 +16,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `vulnerabilities` (`-vuln`) command to a retrieve security scan results against a package
   - Summary View (Default): Displays a high-level count of vulnerabilities broken down by severity (Critical, High, Medium, Low, Unknown).
   - Assessment View `--show-assessment` (`-A`): Provides a detailed breakdown where vulnerabilities are:
-    -  Grouped by the specific affected upstream package / dependency.
+    - Grouped by the specific affected upstream package / dependency.
     - Sorted by severity (Critical first).
-    - Richly Formatted with details on affected/fixed versions and clickable links to vulnerability references.
+    - Richly formatted tables.
   - Filtering Capabilities:
     - By Severity: `--severity` Show only specific levels (e.g., just Critical and High).
     - By Status: `--fixable | --non-fixable` Filter to show only "Fixable" vulnerabilities (where a patch exists) or "Non-Fixable" ones.
