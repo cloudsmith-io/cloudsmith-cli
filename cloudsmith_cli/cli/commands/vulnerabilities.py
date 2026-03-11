@@ -22,7 +22,7 @@ from .main import main
     "-A",
     "--show-assessment",
     is_flag=True,
-    help="Show full assessment with vulnerability details.",
+    help="Show assessment with vulnerability details.",
 )
 @click.option(
     "--fixable/--non-fixable",
@@ -40,7 +40,7 @@ def vulnerabilities(
     ctx, opts, owner_repo_package, show_assessment, fixable, severity_filter
 ):
     """
-    Retrieve vulnerability results.
+    Retrieve vulnerability scan results for a package.
 
     \b
     Usage:
@@ -50,33 +50,27 @@ def vulnerabilities(
     Aliases:
         vulnerabilities, vuln
 
-
     Examples:
 
-    #Display the vulnerability summary
+    \b
+    # Display the vulnerability summary
     cloudsmith vulnerabilities myorg/repo/pkg_identifier
 
-    #Display detailed vulnerability assessment
+    \b
+    # Display detailed vulnerability assessment
     cloudsmith vulnerabilities myorg/repo/pkg_identifier --A / --show-assessment
 
-    #Filter the result by severity
+    \b
+    # Filter the result by severity
     cloudsmith vulnerabilities myorg/repo/pkg_identifier --severity critical,high
 
-    #Filter by fixable or non-fixable vulnerabilities
+    \b
+    # Filter by fixable or non-fixable vulnerabilities
     cloudsmith vulnerabilities myorg/repo/pkg_identifier --fixable / --non-fixable
 
 
     """
     owner, repo, slug = owner_repo_package
-
-    # Use stderr for messages if output is JSON
-    # use_stderr = utils.should_use_stderr(opts)
-
-    # click.echo(
-    #     "Retrieving vulnerability results ... ",
-    #     nl=False,
-    #     err=use_stderr,
-    # )
 
     context_msg = "Failed to retrieve vulnerability report!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
