@@ -9,6 +9,7 @@ import click
 
 from ..core.api.exceptions import ApiException
 from ..core.api.init import initialise_api
+from ..core.credentials import CredentialResult
 from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 
@@ -79,7 +80,15 @@ class AuthenticationWebServer(HTTPServer):
             user_agent=getattr(self.api_opts, "user_agent", None),
             headers=getattr(self.api_opts, "headers", None),
             rate_limit=getattr(self.api_opts, "rate_limit", True),
-            access_token=self.sso_access_token,
+            credential=(
+                CredentialResult(
+                    api_key=self.sso_access_token,
+                    source_name="sso",
+                    auth_type="bearer",
+                )
+                if self.sso_access_token
+                else None
+            ),
         )
 
     def finish_request(self, request, client_address):
