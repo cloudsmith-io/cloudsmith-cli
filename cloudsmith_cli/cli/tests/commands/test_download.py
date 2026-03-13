@@ -112,7 +112,7 @@ class TestDownloadCommand(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Download completed successfully!", result.output)
+        self.assertIn("downloaded successfully", result.output)
 
         # Verify calls
         mock_resolve_pkg.assert_called_once()
@@ -149,7 +149,7 @@ class TestDownloadCommand(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Dry run - would download:", result.output)
+        self.assertIn("Dry run - would download", result.output)
         self.assertIn("test-package v1.0.0", result.output)
 
     @patch("cloudsmith_cli.cli.commands.download.resolve_auth")

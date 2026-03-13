@@ -1,5 +1,7 @@
 """CLI/Commands - Download packages."""
 
+# Copyright 2025 Cloudsmith Ltd
+
 import os
 
 import click
@@ -85,7 +87,7 @@ from .main import main
     help="Automatically select the best match when multiple packages are found.",
 )
 @click.pass_context
-def download(  # noqa: C901
+def download(
     ctx,
     opts,
     owner_repo,
@@ -156,8 +158,6 @@ def download(  # noqa: C901
     you specify a custom directory with --outfile.
     """
     owner, repo = owner_repo
-
-    # Use stderr for messages if output is JSON
     use_stderr = utils.should_use_stderr(opts)
 
     if not use_stderr:
@@ -166,13 +166,12 @@ def download(  # noqa: C901
             f"{click.style(owner, bold=True)}/{click.style(repo, bold=True)} ...",
         )
 
-    # Resolve authentication
+    # Step 1: Authenticate
     session, auth_headers, auth_source = resolve_auth(opts)
-
     if opts.debug:
         click.echo(f"Using authentication: {auth_source}", err=True)
 
-    # Common filter kwargs shared by resolve_package and resolve_all_packages
+    # Step 2: Find package(s)
     filter_kwargs = dict(
         owner=owner,
         repo=repo,
@@ -184,347 +183,122 @@ def download(  # noqa: C901
         tag_filter=tag_filter,
         filename_filter=filename_filter,
     )
+    packages = _find_packages(ctx, opts, filter_kwargs, download_all, yes, use_stderr)
 
-    # --download-all: resolve all matching packages and download each one
+    # Step 3: Resolve download items (url + output path for each file)
+    download_items = _resolve_download_items(
+        ctx, opts, packages, owner, repo, all_files, outfile, use_stderr
+    )
+
+    # Step 4: Dry-run or download
+    if dry_run:
+        _display_dry_run(packages, download_items, all_files)
+        return
+
+    _perform_downloads(
+        ctx,
+        opts,
+        packages,
+        download_items,
+        session,
+        auth_headers,
+        overwrite,
+        all_files,
+        use_stderr,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 2: Find packages
+# ---------------------------------------------------------------------------
+
+
+def _find_packages(ctx, opts, filter_kwargs, download_all, yes, use_stderr):
+    """Find matching packages using the API."""
     if download_all:
         context_msg = "Failed to find packages!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
                 packages = resolve_all_packages(**filter_kwargs)
-
-        if not use_stderr:
-            click.secho("OK", fg="green")
-
-        _download_all_packages(
-            ctx=ctx,
-            opts=opts,
-            packages=packages,
-            owner=owner,
-            repo=repo,
-            session=session,
-            auth_headers=auth_headers,
-            outfile=outfile,
-            overwrite=overwrite,
-            all_files=all_files,
-            dry_run=dry_run,
-            use_stderr=use_stderr,
-        )
-        return
-
-    # Single-package mode (default)
-    context_msg = "Failed to find package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package = resolve_package(**filter_kwargs, yes=yes)
+    else:
+        context_msg = "Failed to find package!"
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
+                packages = [resolve_package(**filter_kwargs, yes=yes)]
 
     if not use_stderr:
         click.secho("OK", fg="green")
 
-    # Get detailed package info if we need more fields for download URL or all files
-    package_detail = None
-
-    if all_files:
-        # For --all-files, we always need the detailed package info to get the files array
-        if not use_stderr:
-            click.echo("Getting package details ...", nl=False)
-        context_msg = "Failed to get package details!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                package_detail = get_package_detail(
-                    owner=owner, repo=repo, identifier=package["slug"]
-                )
-        if not use_stderr:
-            click.secho("OK", fg="green")
-
-        # Get all downloadable files
-        files_to_download = get_package_files(package_detail)
-
-        if not files_to_download:
-            raise click.ClickException("No downloadable files found for this package.")
-
-        # Create output directory for all files
-        if outfile:
-            # If user specified an outfile, use it as the directory
-            output_dir = os.path.abspath(outfile)
-        else:
-            # Create directory named: {package-name}-{version}
-            pkg_name = package_detail.get("name", name)
-            pkg_version = package_detail.get("version", "unknown")
-            output_dir = os.path.abspath(f"{pkg_name}-{pkg_version}")
-
-        # Create directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        elif not os.path.isdir(output_dir):
-            raise click.ClickException(
-                f"Output path '{output_dir}' exists but is not a directory."
-            )
-
-        if dry_run:
-            click.echo()
-            click.echo("Dry run - would download:")
-            click.echo(f"  Package: {package.get('name')} v{package.get('version')}")
-            click.echo(f"  Format: {package.get('format')}")
-            click.echo(f"  Files: {len(files_to_download)}")
-            click.echo(f"  To directory: {output_dir}")
-            click.echo()
-            for file_info in files_to_download:
-                primary_marker = " (primary)" if file_info.get("is_primary") else ""
-                click.echo(
-                    f"    [{file_info.get('tag', 'file')}] {file_info['filename']}{primary_marker} - "
-                    f"{_format_file_size(file_info.get('size', 0))}"
-                )
-            return
-
-        # Download all files
-        if not use_stderr:
-            click.echo(f"\nDownloading {len(files_to_download)} files to: {output_dir}")
-            click.echo()
-
-        success_count = 0
-        failed_files = []
-        downloaded_files = []
-
-        for idx, file_info in enumerate(files_to_download, 1):
-            filename = file_info["filename"]
-            file_url = file_info["cdn_url"]
-            output_path = _safe_join(output_dir, filename)
-
-            primary_marker = " (primary)" if file_info.get("is_primary") else ""
-            tag = file_info.get("tag", "file")
-
-            if not use_stderr:
-                click.echo(
-                    f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
-                    nl=False,
-                )
-            else:
-                click.echo(
-                    f"[{idx}/{len(files_to_download)}] [{tag}] {filename}{primary_marker} ...",
-                    nl=False,
-                    err=True,
-                )
-
-            try:
-                context_msg = f"Failed to download {filename}!"
-                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                    stream_download(
-                        url=file_url,
-                        outfile=output_path,
-                        session=session,
-                        headers=auth_headers,
-                        overwrite=overwrite,
-                        quiet=True,  # Suppress per-file progress bars for cleaner output
-                    )
-                if not use_stderr:
-                    click.secho(" OK", fg="green")
-                else:
-                    click.echo(" OK", err=True)
-                success_count += 1
-                downloaded_files.append(
-                    {
-                        "filename": filename,
-                        "path": output_path,
-                        "tag": tag,
-                        "is_primary": file_info.get("is_primary", False),
-                        "size": file_info.get("size", 0),
-                        "status": "OK",
-                    }
-                )
-            except Exception as e:  # pylint: disable=broad-except
-                if not use_stderr:
-                    click.secho(" FAILED", fg="red")
-                else:
-                    click.echo(" FAILED", err=True)
-                failed_files.append((filename, str(e)))
-                downloaded_files.append(
-                    {
-                        "filename": filename,
-                        "path": output_path,
-                        "tag": tag,
-                        "is_primary": file_info.get("is_primary", False),
-                        "size": file_info.get("size", 0),
-                        "status": "FAILED",
-                        "error": str(e),
-                    }
-                )
-
-        # Build JSON output for all-files download
-        json_output = {
-            "package": {
-                "name": package.get("name"),
-                "version": package.get("version"),
-                "format": package.get("format"),
-                "slug": package.get("slug"),
-            },
-            "output_directory": output_dir,
-            "files": downloaded_files,
-            "summary": {
-                "total": len(files_to_download),
-                "success": success_count,
-                "failed": len(failed_files),
-            },
-        }
-
-        if utils.maybe_print_as_json(opts, json_output):
-            return
-
-        click.echo()
-        if success_count == len(files_to_download):
-            click.secho(
-                f"All {success_count} files downloaded successfully!",
-                fg="green",
-            )
-        else:
-            click.secho(
-                f"Downloaded {success_count}/{len(files_to_download)} files.",
-                fg="yellow",
-            )
-            if failed_files:
-                click.echo("\nFailed files:")
-                for filename, error in failed_files:
-                    click.echo(f"  - {filename}: {error}")
-
-        return
-
-    # Single file download (original behavior)
-    download_url = get_download_url(package)
-
-    if not download_url:
-        # Try getting detailed package info
-        if not use_stderr:
-            click.echo("Getting package details ...", nl=False)
-        context_msg = "Failed to get package details!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                package_detail = get_package_detail(
-                    owner=owner, repo=repo, identifier=package["slug"]
-                )
-                download_url = get_download_url(package_detail or package)
-        if not use_stderr:
-            click.secho("OK", fg="green")
-
-    # Determine output filename
-    if not outfile:
-        # Extract filename from URL or use package name + format
-        if package.get("filename"):
-            outfile = os.path.basename(package["filename"])
-        else:
-            # Fallback to package name with extension based on format
-            pkg_format = package.get("format", "bin")
-            extension = _get_extension_for_format(pkg_format)
-            outfile = f"{package.get('name', name)}-{package.get('version', 'latest')}.{extension}"
-
-    # Ensure outfile is not a directory
-    outfile = os.path.abspath(outfile)
-
-    if dry_run:
-        click.echo()
-        click.echo("Dry run - would download:")
-        click.echo(f"  Package: {package.get('name')} v{package.get('version')}")
-        click.echo(f"  Format: {package.get('format')}")
-        click.echo(f"  Size: {_format_package_size(package)}")
-        click.echo(f"  From: {download_url}")
-        click.echo(f"  To: {outfile}")
-        click.echo(f"  Overwrite: {'Yes' if overwrite else 'No'}")
-        return
-
-    # Perform the download
-    context_msg = "Failed to download package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        stream_download(
-            url=download_url,
-            outfile=outfile,
-            session=session,
-            headers=auth_headers,
-            overwrite=overwrite,
-            quiet=utils.should_use_stderr(opts),
-        )
-
-    # Build JSON output for single-file download
-    json_output = {
-        "package": {
-            "name": package.get("name"),
-            "version": package.get("version"),
-            "format": package.get("format"),
-            "slug": package.get("slug"),
-        },
-        "output_directory": os.path.dirname(outfile),
-        "files": [
-            {
-                "filename": os.path.basename(outfile),
-                "path": outfile,
-                "tag": "file",
-                "is_primary": True,
-                "size": package.get("size", 0),
-                "status": "OK",
-            }
-        ],
-        "summary": {
-            "total": 1,
-            "success": 1,
-            "failed": 0,
-        },
-    }
-
-    if utils.maybe_print_as_json(opts, json_output):
-        return
-
-    click.echo()
-    click.secho("Download completed successfully!", fg="green")
+    return packages
 
 
-def _download_all_packages(  # noqa: C901
-    *,
-    ctx,
-    opts,
-    packages,
-    owner,
-    repo,
-    session,
-    auth_headers,
-    outfile,
-    overwrite,
-    all_files,
-    dry_run,
-    use_stderr,
+# ---------------------------------------------------------------------------
+# Step 3: Resolve download items
+# ---------------------------------------------------------------------------
+
+
+def _resolve_download_items(
+    ctx, opts, packages, owner, repo, all_files, outfile, use_stderr
 ):
-    """Download all matching packages into a directory."""
+    """
+    Resolve each package into a list of download items.
+
+    Returns a list of dicts, each with keys:
+        filename, url, output_path, tag, is_primary, size, package_name,
+        package_version, status
+    """
+    items = []
+
+    for pkg in packages:
+        if all_files:
+            items.extend(
+                _resolve_all_files_items(
+                    ctx, opts, pkg, owner, repo, outfile, use_stderr
+                )
+            )
+        else:
+            items.append(
+                _resolve_single_file_item(
+                    ctx,
+                    opts,
+                    pkg,
+                    owner,
+                    repo,
+                    outfile,
+                    len(packages) > 1,
+                    use_stderr,
+                )
+            )
+
+    return items
+
+
+def _resolve_all_files_items(ctx, opts, pkg, owner, repo, outfile, use_stderr):
+    """Resolve all sub-files for a single package (--all-files mode)."""
+    pkg_name = pkg.get("name", "unknown")
+    pkg_version = pkg.get("version", "unknown")
+
+    if not use_stderr:
+        click.echo("Getting package details ...", nl=False)
+
+    context_msg = f"Failed to get details for {pkg_name}!"
+    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+        with maybe_spinner(opts):
+            detail = get_package_detail(owner=owner, repo=repo, identifier=pkg["slug"])
+
+    if not use_stderr:
+        click.secho("OK", fg="green")
+
+    sub_files = get_package_files(detail)
+    if not sub_files:
+        raise click.ClickException("No downloadable files found for this package.")
+
     # Determine output directory
     if outfile:
         output_dir = os.path.abspath(outfile)
     else:
-        # Use current directory
-        output_dir = os.path.abspath(".")
+        output_dir = os.path.abspath(f"{pkg_name}-{pkg_version}")
 
-    if dry_run:
-        click.echo()
-        click.echo(f"Dry run - would download {len(packages)} package(s):")
-        click.echo(f"  To directory: {output_dir}")
-        click.echo()
-        for i, pkg in enumerate(packages, 1):
-            filename = pkg.get("filename", "unknown")
-            size = _format_package_size(pkg)
-            click.echo(
-                f"  {i}. {pkg.get('name')} v{pkg.get('version')} "
-                f"({pkg.get('format')}) - {filename} [{size}]"
-            )
-            if all_files:
-                # Show sub-files if --all-files
-                context_msg = "Failed to get package details!"
-                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                    detail = get_package_detail(
-                        owner=owner, repo=repo, identifier=pkg["slug"]
-                    )
-                sub_files = get_package_files(detail)
-                for f in sub_files:
-                    primary = " (primary)" if f.get("is_primary") else ""
-                    click.echo(
-                        f"     [{f.get('tag', 'file')}] {f['filename']}{primary}"
-                    )
-        return
-
-    # Create output directory if needed
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     elif not os.path.isdir(output_dir):
@@ -532,163 +306,185 @@ def _download_all_packages(  # noqa: C901
             f"Output path '{output_dir}' exists but is not a directory."
         )
 
-    if not use_stderr:
-        click.echo(f"\nDownloading {len(packages)} package(s) to: {output_dir}")
-        click.echo()
+    items = []
+    for f in sub_files:
+        items.append(
+            {
+                "filename": f["filename"],
+                "url": f["cdn_url"],
+                "output_path": _safe_join(output_dir, f["filename"]),
+                "tag": f.get("tag", "file"),
+                "is_primary": f.get("is_primary", False),
+                "size": f.get("size", 0),
+                "package_name": pkg_name,
+                "package_version": pkg_version,
+                "status": None,
+            }
+        )
+    return items
 
-    all_downloaded_files = []
-    total_success = 0
-    total_failed = 0
 
-    for pkg_idx, pkg in enumerate(packages, 1):
-        pkg_name = pkg.get("name", "unknown")
-        pkg_version = pkg.get("version", "unknown")
-        pkg_filename = pkg.get("filename", "")
+def _resolve_single_file_item(
+    ctx, opts, pkg, owner, repo, outfile, multi_package, use_stderr
+):
+    """Resolve a single primary file for a package."""
+    pkg_name = pkg.get("name", "unknown")
+    pkg_version = pkg.get("version", "unknown")
 
+    download_url = get_download_url(pkg)
+
+    if not download_url:
+        # Fall back to detailed package info
         if not use_stderr:
-            click.echo(
-                f"[{pkg_idx}/{len(packages)}] {pkg_name} v{pkg_version} "
-                f"({pkg_filename})"
-            )
-
-        if all_files:
-            # Download all sub-files for this package into a per-package subdir
-            pkg_subdir = os.path.join(output_dir, f"{pkg_name}-{pkg_version}")
-            if not os.path.exists(pkg_subdir):
-                os.makedirs(pkg_subdir)
-
-            context_msg = f"Failed to get details for {pkg_name}!"
-            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            click.echo("Getting package details ...", nl=False)
+        context_msg = "Failed to get package details!"
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with maybe_spinner(opts):
                 detail = get_package_detail(
                     owner=owner, repo=repo, identifier=pkg["slug"]
                 )
-            sub_files = get_package_files(detail)
+                download_url = get_download_url(detail or pkg)
+        if not use_stderr:
+            click.secho("OK", fg="green")
 
-            for file_info in sub_files:
-                filename = file_info["filename"]
-                file_url = file_info["cdn_url"]
-                file_path = _safe_join(pkg_subdir, filename)
-                tag = file_info.get("tag", "file")
+    # Determine output path
+    if outfile and not multi_package:
+        output_path = os.path.abspath(outfile)
+    elif multi_package:
+        output_dir = os.path.abspath(outfile) if outfile else os.path.abspath(".")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        filename = pkg.get("filename") or f"{pkg_name}-{pkg_version}"
+        output_path = _safe_join(output_dir, filename)
+    elif pkg.get("filename"):
+        output_path = os.path.abspath(os.path.basename(pkg["filename"]))
+    else:
+        pkg_format = pkg.get("format", "bin")
+        extension = _get_extension_for_format(pkg_format)
+        output_path = os.path.abspath(f"{pkg_name}-{pkg_version}.{extension}")
 
-                if not use_stderr:
-                    click.echo(f"  [{tag}] {filename} ...", nl=False)
+    return {
+        "filename": os.path.basename(output_path),
+        "url": download_url,
+        "output_path": output_path,
+        "tag": "file",
+        "is_primary": True,
+        "size": pkg.get("size", 0),
+        "package_name": pkg_name,
+        "package_version": pkg_version,
+        "status": None,
+    }
 
-                try:
-                    context_msg = f"Failed to download {filename}!"
-                    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                        stream_download(
-                            url=file_url,
-                            outfile=file_path,
-                            session=session,
-                            headers=auth_headers,
-                            overwrite=overwrite,
-                            quiet=True,
-                        )
-                    if not use_stderr:
-                        click.secho(" OK", fg="green")
-                    total_success += 1
-                    all_downloaded_files.append(
-                        {
-                            "filename": filename,
-                            "path": file_path,
-                            "package": pkg_name,
-                            "version": pkg_version,
-                            "tag": tag,
-                            "status": "OK",
-                        }
-                    )
-                except Exception as e:  # pylint: disable=broad-except
-                    if not use_stderr:
-                        click.secho(" FAILED", fg="red")
-                    total_failed += 1
-                    all_downloaded_files.append(
-                        {
-                            "filename": filename,
-                            "path": file_path,
-                            "package": pkg_name,
-                            "version": pkg_version,
-                            "tag": tag,
-                            "status": "FAILED",
-                            "error": str(e),
-                        }
-                    )
-        else:
-            # Download the primary package file
-            download_url = pkg.get("cdn_url") or pkg.get("download_url")
-            filename = pkg_filename or f"{pkg_name}-{pkg_version}"
-            file_path = _safe_join(output_dir, filename)
 
-            if not download_url:
-                # Fall back to detailed package info
-                context_msg = f"Failed to get details for {pkg_name}!"
-                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                    detail = get_package_detail(
-                        owner=owner, repo=repo, identifier=pkg["slug"]
-                    )
-                    download_url = (
-                        detail.get("cdn_url")
-                        or detail.get("download_url")
-                        or detail.get("file_url")
-                    )
+# ---------------------------------------------------------------------------
+# Step 4a: Dry-run display (shared by all paths)
+# ---------------------------------------------------------------------------
 
-            if not download_url:
-                if not use_stderr:
-                    click.secho("  No download URL available - SKIPPED", fg="yellow")
-                total_failed += 1
-                all_downloaded_files.append(
-                    {
-                        "filename": filename,
-                        "path": file_path,
-                        "package": pkg_name,
-                        "version": pkg_version,
-                        "status": "FAILED",
-                        "error": "No download URL",
-                    }
+
+def _display_dry_run(packages, download_items, all_files):
+    """Display what would be downloaded without actually downloading."""
+    click.echo()
+    click.echo(
+        f"Dry run - would download {len(download_items)} file(s) "
+        f"from {len(packages)} package(s):"
+    )
+    click.echo()
+
+    for item in download_items:
+        primary_marker = " (primary)" if item.get("is_primary") else ""
+        size = _format_file_size(item.get("size", 0))
+        tag = item.get("tag", "file")
+        click.echo(f"  [{tag}] {item['filename']}{primary_marker} - {size}")
+        click.echo(f"    Package: {item['package_name']} v{item['package_version']}")
+        click.echo(f"    To: {item['output_path']}")
+
+
+# ---------------------------------------------------------------------------
+# Step 4b: Perform downloads
+# ---------------------------------------------------------------------------
+
+
+def _perform_downloads(
+    ctx,
+    opts,
+    packages,
+    download_items,
+    session,
+    auth_headers,
+    overwrite,
+    all_files,
+    use_stderr,
+):
+    """Download all resolved items and report results."""
+    total = len(download_items)
+    if not use_stderr:
+        click.echo(f"\nDownloading {total} file(s):")
+        click.echo()
+
+    results = []
+
+    for idx, item in enumerate(download_items, 1):
+        filename = item["filename"]
+        url = item["url"]
+        output_path = item["output_path"]
+        tag = item.get("tag", "file")
+        primary_marker = " (primary)" if item.get("is_primary") else ""
+
+        # Handle missing download URL as a skip, not a failure
+        if not url:
+            _echo_progress(
+                use_stderr, f"[{idx}/{total}] [{tag}] {filename}{primary_marker} ..."
+            )
+            _echo_status(use_stderr, " SKIPPED", fg="yellow")
+            results.append({**item, "status": "SKIPPED", "error": "No download URL"})
+            continue
+
+        _echo_progress(
+            use_stderr, f"[{idx}/{total}] [{tag}] {filename}{primary_marker} ..."
+        )
+
+        try:
+            context_msg = f"Failed to download {filename}!"
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                stream_download(
+                    url=url,
+                    outfile=output_path,
+                    session=session,
+                    headers=auth_headers,
+                    overwrite=overwrite,
+                    quiet=True,
                 )
-                continue
+            _echo_status(use_stderr, " OK", fg="green")
+            results.append({**item, "status": "OK"})
+        except Exception as e:  # pylint: disable=broad-except
+            _echo_status(use_stderr, " FAILED", fg="red")
+            results.append({**item, "status": "FAILED", "error": str(e)})
 
-            if not use_stderr:
-                click.echo(f"  Downloading {filename} ...", nl=False)
+    # Report results
+    _report_results(opts, packages, results, all_files)
 
-            try:
-                context_msg = f"Failed to download {filename}!"
-                with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                    stream_download(
-                        url=download_url,
-                        outfile=file_path,
-                        session=session,
-                        headers=auth_headers,
-                        overwrite=overwrite,
-                        quiet=True,
-                    )
-                if not use_stderr:
-                    click.secho(" OK", fg="green")
-                total_success += 1
-                all_downloaded_files.append(
-                    {
-                        "filename": filename,
-                        "path": file_path,
-                        "package": pkg_name,
-                        "version": pkg_version,
-                        "status": "OK",
-                    }
-                )
-            except Exception as e:  # pylint: disable=broad-except
-                if not use_stderr:
-                    click.secho(" FAILED", fg="red")
-                total_failed += 1
-                all_downloaded_files.append(
-                    {
-                        "filename": filename,
-                        "path": file_path,
-                        "package": pkg_name,
-                        "version": pkg_version,
-                        "status": "FAILED",
-                        "error": str(e),
-                    }
-                )
 
-    # Build JSON output
+def _echo_progress(use_stderr, message):
+    """Print progress message to stdout or stderr."""
+    click.echo(message, nl=False, err=use_stderr)
+
+
+def _echo_status(use_stderr, message, fg=None):
+    """Print styled status message to stdout or stderr."""
+    if fg and not use_stderr:
+        click.secho(message, fg=fg)
+    elif use_stderr:
+        click.echo(message, err=True)
+    else:
+        click.echo(message)
+
+
+def _report_results(opts, packages, results, all_files):
+    """Build JSON output and print summary."""
+    success = [r for r in results if r["status"] == "OK"]
+    failed = [r for r in results if r["status"] == "FAILED"]
+    skipped = [r for r in results if r["status"] == "SKIPPED"]
+
     json_output = {
         "packages": [
             {
@@ -700,13 +496,26 @@ def _download_all_packages(  # noqa: C901
             }
             for p in packages
         ],
-        "output_directory": output_dir,
-        "files": all_downloaded_files,
+        "files": [
+            {
+                "filename": r["filename"],
+                "path": r["output_path"],
+                "package": r["package_name"],
+                "version": r["package_version"],
+                "tag": r.get("tag", "file"),
+                "is_primary": r.get("is_primary", False),
+                "size": r.get("size", 0),
+                "status": r["status"],
+                **({"error": r["error"]} if "error" in r else {}),
+            }
+            for r in results
+        ],
         "summary": {
             "total_packages": len(packages),
-            "total_files": total_success + total_failed,
-            "success": total_success,
-            "failed": total_failed,
+            "total_files": len(results),
+            "success": len(success),
+            "failed": len(failed),
+            "skipped": len(skipped),
         },
     }
 
@@ -714,31 +523,33 @@ def _download_all_packages(  # noqa: C901
         return
 
     click.echo()
-    total = total_success + total_failed
-    if total_failed == 0:
-        click.secho(
-            f"All {total_success} file(s) from {len(packages)} package(s) "
-            f"downloaded successfully!",
-            fg="green",
-        )
+    if not failed and not skipped:
+        click.secho(f"All {len(success)} file(s) downloaded successfully!", fg="green")
     else:
-        click.secho(
-            f"Downloaded {total_success}/{total} file(s) from "
-            f"{len(packages)} package(s).",
-            fg="yellow",
-        )
+        click.secho(f"Downloaded {len(success)}/{len(results)} file(s).", fg="yellow")
+        if failed:
+            click.echo("\nFailed files:")
+            for r in failed:
+                click.echo(f"  - {r['filename']}: {r.get('error', 'Unknown error')}")
+        if skipped:
+            click.echo("\nSkipped files (no download URL):")
+            for r in skipped:
+                click.echo(f"  - {r['filename']}")
+
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
 
 
 def _safe_join(base_dir, filename):
     """Safely join base_dir and filename, preventing path traversal."""
-    # Strip path separators and use only the basename
     safe_name = os.path.basename(filename)
     if not safe_name:
         raise click.ClickException(
             f"Invalid filename '{filename}' — cannot be empty after sanitization."
         )
     result = os.path.join(base_dir, safe_name)
-    # Final check: resolved path must be under base_dir
     if not os.path.realpath(result).startswith(os.path.realpath(base_dir) + os.sep):
         raise click.ClickException(
             f"Filename '{filename}' resolves outside the target directory."
@@ -746,7 +557,7 @@ def _safe_join(base_dir, filename):
     return result
 
 
-def _get_extension_for_format(pkg_format: str) -> str:
+def _get_extension_for_format(pkg_format):
     """Get appropriate file extension for package format."""
     format_extensions = {
         "deb": "deb",
@@ -765,20 +576,18 @@ def _get_extension_for_format(pkg_format: str) -> str:
     return format_extensions.get(pkg_format.lower(), "bin")
 
 
-def _format_package_size(package: dict) -> str:
+def _format_package_size(package):
     """Format package size for display."""
     size = package.get("size", 0)
     return _format_file_size(size)
 
 
-def _format_file_size(size: int) -> str:
+def _format_file_size(size):
     """Format file size in bytes to human-readable format."""
     if size == 0:
         return "Unknown"
-
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size < 1024.0:
             return f"{size:.1f} {unit}"
         size /= 1024.0
-
     return f"{size:.1f} PB"
