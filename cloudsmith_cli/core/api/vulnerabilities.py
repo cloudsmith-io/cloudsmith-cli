@@ -215,8 +215,6 @@ def get_package_scan_result(
     """Get the package vulnerability scan result."""
     client = get_vulnerabilities_api()
 
-    total_filtered_vulns = 0
-
     with catch_raise_api_exception():
         scan_identifier = get_package_scan_identifier(
             owner=owner, repo=repo, package=package
@@ -229,47 +227,4 @@ def get_package_scan_result(
 
     ratelimits.maybe_rate_limit(client, headers)
 
-    # Filter results if severity or fixable flags are active
-    if severity_filter or fixable is not None:
-        scans = getattr(data, "scans", [])
-
-        allowed_severities = (
-            [s.strip().lower() for s in severity_filter.split(",")]
-            if severity_filter
-            else None
-        )
-
-        for scan in scans:
-            results = getattr(scan, "results", [])
-
-            # 1. Filter by Severity
-            if allowed_severities:
-                results = [
-                    res
-                    for res in results
-                    if getattr(res, "severity", "unknown").lower() in allowed_severities
-                ]
-
-            # 2. Filter by Fixable Status
-            # fixable=True: Keep only if has fix_version
-            # fixable=False: Keep only if NO fix_version
-            if fixable is not None:
-                results = [
-                    res
-                    for res in results
-                    if bool(
-                        getattr(res, "fix_version", getattr(res, "fixed_version", None))
-                    )
-                    is fixable
-                ]
-
-            scan.results = results
-            total_filtered_vulns += len(results)
-
-    if utils.maybe_print_as_json(opts, data):
-        return
-
-    _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns)
-
-    if show_assessment:
-        _print_vulnerabilities_assessment_table(data, severity_filter)
+    return data

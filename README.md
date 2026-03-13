@@ -114,7 +114,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `rpm`:                  Manage rpm upstreams for a repository.
   - `ruby`:                 Manage ruby upstreams for a repository.
   - `swift`:                Manage swift upstreams for a repository.
-- `vulnerabilities`       Retrieve vulnerability results for a package.
+- `vulnerabilities`:      Retrieve vulnerability results for a package.
 - `whoami`:               Retrieve your current authentication status.
 
 ## Installation

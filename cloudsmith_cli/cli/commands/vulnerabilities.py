@@ -2,7 +2,11 @@
 
 import click
 
-from ...core.api.vulnerabilities import get_package_scan_result
+from ...core.api.vulnerabilities import (
+    _print_vulnerabilities_assessment_table,
+    _print_vulnerabilities_summary_table,
+    get_package_scan_result,
+)
 from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from .main import main
@@ -70,12 +74,16 @@ def vulnerabilities(
 
 
     """
+    use_stderr = utils.should_use_stderr(opts)
+
     owner, repo, slug = owner_repo_package
+
+    total_filtered_vulns = 0
 
     context_msg = "Failed to retrieve vulnerability report!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with utils.maybe_spinner(opts):
-            get_package_scan_result(
+            data = get_package_scan_result(
                 opts=opts,
                 owner=owner,
                 repo=repo,
@@ -84,3 +92,50 @@ def vulnerabilities(
                 severity_filter=severity_filter,
                 fixable=fixable,
             )
+
+    click.secho("OK", fg="green", err=use_stderr)
+
+    # Filter results if severity or fixable flags are active
+    if severity_filter or fixable is not None:
+        scans = getattr(data, "scans", [])
+
+        allowed_severities = (
+            [s.strip().lower() for s in severity_filter.split(",")]
+            if severity_filter
+            else None
+        )
+
+        for scan in scans:
+            results = getattr(scan, "results", [])
+
+            # 1. Filter by Severity
+            if allowed_severities:
+                results = [
+                    res
+                    for res in results
+                    if getattr(res, "severity", "unknown").lower() in allowed_severities
+                ]
+
+            # 2. Filter by Fixable Status
+            # fixable=True: Keep only if has fix_version
+            # fixable=False: Keep only if NO fix_version
+            if fixable is not None:
+                results = [
+                    res
+                    for res in results
+                    if bool(
+                        getattr(res, "fix_version", getattr(res, "fixed_version", None))
+                    )
+                    is fixable
+                ]
+
+            scan.results = results
+            total_filtered_vulns += len(results)
+
+    if utils.maybe_print_as_json(opts, data):
+        return
+
+    _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns)
+
+    if show_assessment:
+        _print_vulnerabilities_assessment_table(data, severity_filter)
