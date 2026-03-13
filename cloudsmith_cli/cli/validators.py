@@ -126,6 +126,12 @@ def validate_required_owner_optional_repo(ctx, param, value):
     return validate_slashes(param, value, minimum=1, maximum=2, form=form)
 
 
+def validate_required_owner_repo_optional_slug_perm(ctx, param, value):
+    """Ensure that owner/repo is formatted correctly, where owner/repo is required and slug_perm is optional."""
+    form = "OWNER/REPO[/SLUG_PERM]"
+    return validate_slashes(param, value, minimum=2, maximum=3, form=form)
+
+
 def validate_owner(ctx, param, value):
     """Ensure that owner is formatted correctly."""
     # pylint: disable=unused-argument
