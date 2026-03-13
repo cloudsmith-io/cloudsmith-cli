@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `--tag` option to `download` command for filtering packages by tags
 - Added download command documentation to README with comprehensive usage examples
 
-## [1.14.0] - 2026-03-11
+## [1.14.0] - 2026-03-13
 
 ### Added
 
