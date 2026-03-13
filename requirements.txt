@@ -163,6 +163,8 @@ requests==2.32.5
     #   requests-toolbelt
 requests-toolbelt==1.0.0
     # via cloudsmith-cli (setup.py)
+rich==14.3.3
+    # via cloudsmith-cli (setup.py)
 semver==3.0.4
     # via cloudsmith-cli (setup.py)
 six==1.17.0

@@ -26,5 +26,6 @@ from . import (
     tags,
     tokens,
     upstream,
+    vulnerabilities,
     whoami,
 )

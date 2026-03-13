@@ -7,6 +7,8 @@ from datetime import date, datetime
 
 import click
 from click_spinner import spinner
+from rich.console import Console
+from rich.table import Table
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
@@ -87,6 +89,28 @@ def pretty_print_table(headers, rows, title=None):
     pretty_print_row(table.headers, table.plain_headers)
     for k, row in enumerate(table.rows):
         pretty_print_row(row, table.plain_rows[k])
+
+
+def rich_print_table(headers, rows, title=None, show_lines=False):
+    """Rich table from headers and rows."""
+    console = Console()
+    table = Table(title=title, show_lines=show_lines)
+
+    for header in headers:
+        if isinstance(header, dict):
+            table.add_column(
+                header.get("header", ""),
+                justify=header.get("justify", "left"),
+                style=header.get("style", "none"),
+                no_wrap=header.get("no_wrap", False),
+            )
+        else:
+            table.add_column(str(header))
+
+    for row in rows:
+        table.add_row(*row)
+
+    console.print(table)
 
 
 def print_rate_limit_info(opts, rate_info):
