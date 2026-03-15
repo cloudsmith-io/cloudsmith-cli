@@ -5,6 +5,7 @@ import pytest
 
 from ...core.api.init import initialise_api
 from ...core.api.repos import create_repo, delete_repo
+from ...core.credentials import CredentialResult
 from .utils import random_str
 
 
@@ -51,7 +52,9 @@ def organization():
 @pytest.fixture()
 def tmp_repository(organization, api_host, api_key):
     """Yield a temporary repository."""
-    initialise_api(host=api_host, key=api_key)
+    initialise_api(
+        host=api_host, credential=CredentialResult(api_key=api_key, source_name="test")
+    )
     repo_data = create_repo(organization, {"name": random_str()})
     yield repo_data
     delete_repo(organization, repo_data["slug"])

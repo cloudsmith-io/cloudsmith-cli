@@ -1,60 +1,6 @@
-import os
-from unittest.mock import patch
-
-import pytest
 from cloudsmith_api import Configuration
 
-from ...cli import saml
-from .. import keyring
 from ..api.init import initialise_api
-
-
-@pytest.fixture
-def mocked_get_access_token():
-    with patch.object(
-        keyring, "get_access_token", return_value="dummy_access_token"
-    ) as get_access_token_mock:
-        yield get_access_token_mock
-
-
-@pytest.fixture
-def mocked_get_refresh_token():
-    with patch.object(
-        keyring, "get_refresh_token", return_value="dummy_refresh_token"
-    ) as get_refresh_token_mock:
-        yield get_refresh_token_mock
-
-
-@pytest.fixture
-def mocked_should_refresh_access_token():
-    with patch.object(
-        keyring, "should_refresh_access_token", return_value=False
-    ) as should_refresh_access_token_mock:
-        yield should_refresh_access_token_mock
-
-
-@pytest.fixture
-def mocked_refresh_access_token():
-    with patch.object(
-        saml,
-        "refresh_access_token",
-        return_value=("new_access_token", "new_refresh_token"),
-    ) as refresh_access_token_mock:
-        yield refresh_access_token_mock
-
-
-@pytest.fixture
-def mocked_store_sso_tokens():
-    with patch.object(keyring, "store_sso_tokens") as store_sso_tokens_mock:
-        yield store_sso_tokens_mock
-
-
-@pytest.fixture
-def mocked_update_refresh_attempted_at():
-    with patch.object(
-        keyring, "update_refresh_attempted_at"
-    ) as update_refresh_attempted_at_mock:
-        yield update_refresh_attempted_at_mock
 
 
 class TestInitialiseApi:
@@ -65,14 +11,10 @@ class TestInitialiseApi:
         # Configuration class to its vanilla, unmodified behaviour/state.
         Configuration.set_default(None)
 
-    def test_initialise_api_sets_cloudsmith_api_config_default(
-        self, mocked_get_access_token
-    ):
+    def test_initialise_api_sets_cloudsmith_api_config_default(self):
         """Assert that the extra attributes we add to the cloudsmith_cli.Configuration class
         are present on newly-created instances of that class.
         """
-        mocked_get_access_token.return_value = None
-
         # Read and understand the Configuration class's initialiser.
         # Notice how the _default class attribute is used if not None.
         # https://github.com/cloudsmith-io/cloudsmith-api/blob/57963fff5b7818783b3d87246495275545d505df/bindings/python/src/cloudsmith_api/configuration.py#L32-L40
@@ -122,64 +64,49 @@ class TestInitialiseApi:
             is not new_config_after_initialise
         )
 
-    def test_initialise_api_with_refreshable_access_token_set(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-        mocked_refresh_access_token,
-        mocked_store_sso_tokens,
-        mocked_update_refresh_attempted_at,
-    ):
-        mocked_should_refresh_access_token.return_value = True
+    def test_initialise_api_sets_bearer_auth_with_access_token(self):
+        """Verify access_token is set as Bearer auth header."""
+        from cloudsmith_cli.core.credentials import CredentialResult
 
-        # Ensure keyring is enabled for this test
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            config = initialise_api(host="https://example.com")
-
-        assert config.headers == {"Authorization": "Bearer new_access_token"}
-        mocked_refresh_access_token.assert_called_once()
-        mocked_store_sso_tokens.assert_called_once_with(
-            "https://example.com", "new_access_token", "new_refresh_token"
+        credential = CredentialResult(
+            api_key="test_access_token", source_name="test", auth_type="bearer"
         )
+        config = initialise_api(
+            host="https://example.com",
+            credential=credential,
+        )
+        assert config.headers == {"Authorization": "Bearer test_access_token"}
 
-    def test_initialise_api_with_recently_refreshed_access_token_and_empty_basic_auth_set(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-        mocked_refresh_access_token,
-        mocked_store_sso_tokens,
-        mocked_update_refresh_attempted_at,
-    ):
-        auth_header = Configuration().get_basic_auth_token()
+    def test_initialise_api_sets_api_key(self):
+        """Verify key is set as X-Api-Key header."""
+        from cloudsmith_cli.core.credentials import CredentialResult
 
-        # Ensure keyring is enabled for this test
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            config = initialise_api(
-                host="https://example.com", headers={"Authorization": auth_header}
-            )
+        credential = CredentialResult(
+            api_key="test_api_key", source_name="test", auth_type="api_key"
+        )
+        config = initialise_api(
+            host="https://example.com",
+            credential=credential,
+        )
+        assert config.api_key["X-Api-Key"] == "test_api_key"
 
-        assert config.headers == {"Authorization": "Bearer dummy_access_token"}
-        assert config.username == ""
-        assert config.password == ""
-        mocked_refresh_access_token.assert_not_called()
-        mocked_store_sso_tokens.assert_not_called()
-        mocked_update_refresh_attempted_at.assert_not_called()
+    def test_initialise_api_bearer_credential(self):
+        """Verify bearer credential sets Authorization header, not X-Api-Key."""
+        from cloudsmith_cli.core.credentials import CredentialResult
 
-    def test_initialise_api_with_recently_refreshed_access_token_and_present_basic_auth(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-        mocked_refresh_access_token,
-        mocked_store_sso_tokens,
-        mocked_update_refresh_attempted_at,
-    ):
+        Configuration.set_default(None)
+        credential = CredentialResult(
+            api_key="test_access_token", source_name="test", auth_type="bearer"
+        )
+        config = initialise_api(
+            host="https://example.com",
+            credential=credential,
+        )
+        assert config.headers == {"Authorization": "Bearer test_access_token"}
+        assert "X-Api-Key" not in config.api_key
+
+    def test_initialise_api_with_basic_auth_header(self):
+        """Verify basic auth header is parsed into username and password."""
         temp_config = Configuration()
         temp_config.username = "username"
         temp_config.password = "password"
@@ -191,181 +118,3 @@ class TestInitialiseApi:
         assert config.headers == {"Authorization": auth_header}
         assert config.username == "username"
         assert config.password == "password"
-        mocked_refresh_access_token.assert_not_called()
-        mocked_store_sso_tokens.assert_not_called()
-        mocked_update_refresh_attempted_at.assert_not_called()
-
-    def test_initialise_api_skips_keyring_when_env_var_set(
-        self,
-        mocked_get_access_token,
-    ):
-        """Verify keyring returns None when CLOUDSMITH_NO_KEYRING=1."""
-        mocked_get_access_token.return_value = None
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
-            config = initialise_api(host="https://example.com", key="test_api_key")
-
-        # get_access_token is called but returns None due to internal guard
-        mocked_get_access_token.assert_called_once()
-        # API key should be used instead
-        assert config.api_key["X-Api-Key"] == "test_api_key"
-
-    def test_initialise_api_uses_keyring_when_env_var_not_set(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-    ):
-        """Verify keyring is accessed when CLOUDSMITH_NO_KEYRING is not set."""
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            config = initialise_api(host="https://example.com")
-
-        # Keyring should be accessed
-        mocked_get_access_token.assert_called_once()
-        assert config.headers == {"Authorization": "Bearer dummy_access_token"}
-
-    def test_initialise_api_falls_back_to_api_key_when_sso_refresh_fails(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-        mocked_refresh_access_token,
-        mocked_store_sso_tokens,
-        mocked_update_refresh_attempted_at,
-    ):
-        """Verify API key is used as fallback when SSO token refresh fails."""
-        from ..api.exceptions import ApiException
-
-        # Simulate SSO token refresh failure
-        mocked_should_refresh_access_token.return_value = True
-        mocked_refresh_access_token.side_effect = ApiException(
-            status=401, detail="Unauthorized"
-        )
-
-        # Ensure keyring is enabled for this test
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            config = initialise_api(host="https://example.com", key="fallback_api_key")
-
-        # Should not use expired SSO token
-        assert (
-            "Authorization" not in config.headers
-            or config.headers.get("Authorization") != "Bearer dummy_access_token"
-        )
-        # Should fall back to API key
-        assert config.api_key["X-Api-Key"] == "fallback_api_key"
-        mocked_update_refresh_attempted_at.assert_called_once()
-        mocked_store_sso_tokens.assert_not_called()
-
-    def test_initialise_api_no_auth_when_sso_refresh_fails_without_api_key(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-        mocked_refresh_access_token,
-        mocked_store_sso_tokens,
-        mocked_update_refresh_attempted_at,
-    ):
-        """Verify expired SSO token is not used when refresh fails and no API key available."""
-        from ..api.exceptions import ApiException
-
-        # Reset Configuration to clear any state from previous tests
-        Configuration.set_default(None)
-
-        # Simulate SSO token refresh failure
-        mocked_should_refresh_access_token.return_value = True
-        mocked_refresh_access_token.side_effect = ApiException(
-            status=401, detail="Unauthorized"
-        )
-
-        # Ensure keyring is enabled for this test
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            config = initialise_api(host="https://example.com", key=None)
-
-        # Should not use expired SSO token
-        assert (
-            "Authorization" not in config.headers
-            or config.headers.get("Authorization") != "Bearer dummy_access_token"
-        )
-        # Should not have API key either
-        assert "X-Api-Key" not in config.api_key
-        mocked_update_refresh_attempted_at.assert_called_once()
-        mocked_store_sso_tokens.assert_not_called()
-
-    def test_initialise_api_uses_direct_access_token_when_keyring_disabled(
-        self,
-        mocked_get_access_token,
-    ):
-        """Verify a directly provided access_token is used even when keyring is disabled.
-
-        This is the critical path for --request-api-key with CLOUDSMITH_NO_KEYRING=1.
-        The SSO callback provides the access token directly, bypassing keyring storage.
-        """
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
-            config = initialise_api(
-                host="https://example.com",
-                access_token="sso_direct_token_abc123",
-            )
-
-        # Keyring should NOT be accessed
-        mocked_get_access_token.assert_not_called()
-        # The directly provided access token should be used as Bearer auth
-        assert config.headers == {"Authorization": "Bearer sso_direct_token_abc123"}
-
-    def test_initialise_api_direct_access_token_takes_precedence_over_keyring(
-        self,
-        mocked_get_access_token,
-        mocked_should_refresh_access_token,
-    ):
-        """Verify a directly provided access_token takes precedence over keyring."""
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            config = initialise_api(
-                host="https://example.com",
-                access_token="direct_token_xyz",
-            )
-
-        # Keyring should NOT be accessed because we have a direct token
-        mocked_get_access_token.assert_not_called()
-        # The direct access token should be used
-        assert config.headers == {"Authorization": "Bearer direct_token_xyz"}
-
-    def test_initialise_api_direct_access_token_skips_refresh(
-        self,
-        mocked_get_access_token,
-        mocked_get_refresh_token,
-        mocked_should_refresh_access_token,
-        mocked_refresh_access_token,
-        mocked_store_sso_tokens,
-        mocked_update_refresh_attempted_at,
-    ):
-        """Verify a directly provided access_token skips the refresh cycle entirely.
-
-        When the SSO callback provides a fresh token
-        directly (e.g. for --request-api-key with CLOUDSMITH_NO_KEYRING=1),
-        we must NOT attempt to refresh it. The refresh path would fail because
-        there is no refresh_token in keyring, clearing the access_token and
-        leaving zero authentication.
-        """
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
-            config = initialise_api(
-                host="https://example.com",
-                access_token="fresh_sso_token",
-            )
-
-        # Keyring lookup should be skipped (direct token provided)
-        mocked_get_access_token.assert_not_called()
-        # should_refresh_access_token is called but returns False
-        # due to internal should_use_keyring() guard
-        mocked_should_refresh_access_token.assert_called_once()
-        # Refresh logic should NOT be triggered
-        mocked_refresh_access_token.assert_not_called()
-        mocked_store_sso_tokens.assert_not_called()
-        mocked_update_refresh_attempted_at.assert_not_called()
-        # The fresh SSO token should be used as-is
-        assert config.headers == {"Authorization": "Bearer fresh_sso_token"}
