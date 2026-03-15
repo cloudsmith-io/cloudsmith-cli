@@ -21,6 +21,10 @@ class CredentialContext:
     profile: str | None = None
     debug: bool = False
     keyring_refresh_failed: bool = False
+    oidc_audience: str | None = None
+    oidc_org: str | None = None
+    oidc_service_slug: str | None = None
+    oidc_discovery_disabled: bool = False
 
 
 @dataclass
