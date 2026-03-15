@@ -31,6 +31,10 @@ class CredentialContext:
     profile: str | None = None
     debug: bool = False
     keyring_refresh_failed: bool = False
+    oidc_audience: str | None = None
+    oidc_org: str | None = None
+    oidc_service_slug: str | None = None
+    oidc_discovery_disabled: bool = False
 
 
 @dataclass
@@ -57,18 +61,19 @@ class CredentialProviderChain:
     """Evaluates credential providers in order, returning the first valid result.
 
     If no providers are given, uses the default chain:
-    Keyring → CLIFlag.
+    Keyring → CLIFlag → OIDC.
     """
 
     def __init__(self, providers: list[CredentialProvider] | None = None):
         if providers is not None:
             self.providers = providers
         else:
-            from .providers import CLIFlagProvider, KeyringProvider
+            from .providers import CLIFlagProvider, KeyringProvider, OidcProvider
 
             self.providers = [
                 KeyringProvider(),
                 CLIFlagProvider(),
+                OidcProvider(),
             ]
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:

@@ -66,6 +66,9 @@ class ConfigSchema:
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
+        oidc_audience = ConfigParam(name="oidc_audience", type=str)
+        oidc_org = ConfigParam(name="oidc_org", type=str)
+        oidc_service_slug = ConfigParam(name="oidc_service_slug", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -415,6 +418,48 @@ class Options:
         tool_groups = [group.strip() for group in value.split(",")]
 
         self._set_option("mcp_allowed_tool_groups", tool_groups)
+
+    @property
+    def oidc_audience(self):
+        """Get value for OIDC audience."""
+        return self._get_option("oidc_audience")
+
+    @oidc_audience.setter
+    def oidc_audience(self, value):
+        """Set value for OIDC audience."""
+        self._set_option("oidc_audience", value)
+
+    @property
+    def oidc_org(self):
+        """Get value for OIDC organisation slug."""
+        return self._get_option("oidc_org")
+
+    @oidc_org.setter
+    def oidc_org(self, value):
+        """Set value for OIDC organisation slug."""
+        self._set_option("oidc_org", value)
+
+    @property
+    def oidc_service_slug(self):
+        """Get value for OIDC service slug."""
+        return self._get_option("oidc_service_slug")
+
+    @oidc_service_slug.setter
+    def oidc_service_slug(self, value):
+        """Set value for OIDC service slug."""
+        self._set_option("oidc_service_slug", value)
+
+    @property
+    def oidc_discovery_disabled(self):
+        """Get value for OIDC discovery disabled flag."""
+        return self._get_option("oidc_discovery_disabled", default=False)
+
+    @oidc_discovery_disabled.setter
+    def oidc_discovery_disabled(self, value):
+        """Set value for OIDC discovery disabled flag."""
+        self._set_option(
+            "oidc_discovery_disabled", bool(value) if value is not None else False
+        )
 
     @property
     def output(self):
