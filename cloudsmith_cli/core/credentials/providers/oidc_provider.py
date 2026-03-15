@@ -1,4 +1,4 @@
-"""OIDC credential provider for CI/CD environments."""
+"""OIDC credential provider."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class OidcProvider(CredentialProvider):
-    """Resolves credentials via OIDC auto-discovery in CI/CD environments.
+    """Resolves credentials via OIDC auto-discovery.
 
     Requires CLOUDSMITH_ORG and CLOUDSMITH_SERVICE_SLUG to be set (via env
-    vars or click options).  Auto-detects the CI/CD environment, fetches the
-    vendor OIDC JWT, and exchanges it for a short-lived Cloudsmith API token.
+    vars or click options).  Auto-detects the environment, fetches the vendor
+    OIDC JWT, and exchanges it for a short-lived Cloudsmith API token.
     """
 
     name = "oidc"
@@ -61,7 +61,9 @@ class OidcProvider(CredentialProvider):
         detector = detect_environment(context=context)
         if detector is None:
             if context.debug:
-                logger.debug("OidcProvider: No CI/CD environment detected, skipping")
+                logger.debug(
+                    "OidcProvider: No supported OIDC environment detected, skipping"
+                )
             return None
 
         try:
