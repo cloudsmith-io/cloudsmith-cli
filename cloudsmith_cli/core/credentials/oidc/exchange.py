@@ -1,6 +1,6 @@
 """Cloudsmith OIDC token exchange.
 
-Exchanges a vendor CI/CD OIDC JWT for a short-lived Cloudsmith API token
+Exchanges a vendor OIDC JWT for a short-lived Cloudsmith API token
 via the POST /openid/{org}/ endpoint.
 
 References:

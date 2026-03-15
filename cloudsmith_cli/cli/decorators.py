@@ -314,7 +314,7 @@ def resolve_credentials(f):
         default=None,
         is_flag=True,
         envvar="CLOUDSMITH_OIDC_DISCOVERY_DISABLED",
-        help="Disable OIDC auto-discovery in CI/CD environments.",
+        help="Disable OIDC auto-discovery.",
     )
     @click.pass_context
     @functools.wraps(f)

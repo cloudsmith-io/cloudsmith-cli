@@ -1,4 +1,4 @@
-"""Base class and utilities for CI/CD environment OIDC detectors."""
+"""Base class and utilities for OIDC environment detectors."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class EnvironmentDetector:
-    """Base class for CI/CD environment detectors."""
+    """Base class for OIDC environment detectors."""
 
     name: str = "base"
 
@@ -17,7 +17,7 @@ class EnvironmentDetector:
         self.context = context
 
     def detect(self) -> bool:
-        """Return True if running in this CI/CD environment."""
+        """Return True if running in a supported OIDC environment."""
         raise NotImplementedError
 
     def get_token(self) -> str:
