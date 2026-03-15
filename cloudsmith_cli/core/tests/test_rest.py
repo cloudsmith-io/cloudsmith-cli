@@ -5,9 +5,21 @@ from ..api.init import initialise_api
 from ..rest import RestClient
 
 
+@pytest.fixture(autouse=True)
+def patch_httpretty_socket(monkeypatch):
+    """Patch httpretty's fake socket to handle shutdown() which urllib3 2.0+ calls."""
+    import httpretty.core
+
+    monkeypatch.setattr(
+        httpretty.core.fakesock.socket,
+        "shutdown",
+        lambda self, how: None,
+        raising=False,
+    )
+
+
 class TestRestClient:
     @httpretty.activate(allow_net_connect=False, verbose=True)
-    @pytest.mark.usefixtures("mock_keyring")
     def test_implicit_retry_for_status_codes(self):
         """Assert that the rest client retries certain status codes automatically."""
         # initialise_api() needs to be called before RestClient can be instantiated,
@@ -39,32 +51,3 @@ class TestRestClient:
 
         assert len(httpretty.latest_requests()) == 6
         assert r.status == 200
-
-
-@pytest.fixture
-def mock_keyring(monkeypatch):
-    """Mock keyring functions to prevent reading real SSO tokens from the system keyring.
-
-    This is necessary because initialise_api() checks the keyring for SSO tokens,
-    and if found, it attempts to refresh them via a network request. When running
-    this test in isolation with httpretty mocking enabled, that network request
-    will fail because it's not mocked.
-    """
-    # Import here to avoid circular imports
-    import httpretty.core
-
-    from .. import keyring
-
-    # Mock all keyring getter functions to return None/False
-    monkeypatch.setattr(keyring, "get_access_token", lambda api_host: None)
-    monkeypatch.setattr(keyring, "get_refresh_token", lambda api_host: None)
-    monkeypatch.setattr(keyring, "should_refresh_access_token", lambda api_host: False)
-
-    # Patch httpretty's fake socket to handle shutdown() which urllib3 2.0+ calls
-    # This fixes: "Failed to socket.shutdown because a real socket does not exist"
-    monkeypatch.setattr(
-        httpretty.core.fakesock.socket,
-        "shutdown",
-        lambda self, how: None,
-        raising=False,
-    )
