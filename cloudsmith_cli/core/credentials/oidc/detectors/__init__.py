@@ -1,4 +1,4 @@
-"""CI/CD environment detectors for OIDC token retrieval."""
+"""Environment detectors for OIDC token retrieval."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def detect_environment(
         try:
             if detector.detect():
                 if context.debug:
-                    logger.debug("Detected CI/CD environment: %s", detector.name)
+                    logger.debug("Detected OIDC environment: %s", detector.name)
                 return detector
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug(
@@ -38,5 +38,5 @@ def detect_environment(
             continue
 
     if context.debug:
-        logger.debug("No CI/CD environment detected for OIDC")
+        logger.debug("No supported OIDC environment detected")
     return None
