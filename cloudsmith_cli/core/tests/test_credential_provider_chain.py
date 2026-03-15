@@ -75,6 +75,7 @@ class TestCredentialProviderChain:
 
     def test_default_chain_order(self):
         chain = CredentialProviderChain()
-        assert len(chain.providers) == 2
+        assert len(chain.providers) == 3
         assert chain.providers[0].name == "keyring"
         assert chain.providers[1].name == "cli_flag"
+        assert chain.providers[2].name == "oidc"
