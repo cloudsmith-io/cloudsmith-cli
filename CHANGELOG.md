@@ -5,9 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
+
+
+## [1.15.0] - 2026-03-18
+
+### Added
+
 - Added `--tag` option to `download` command for filtering packages by tags
 - Added download command documentation to README with comprehensive usage examples
+- Added `--filename` option to `download` command for filtering by package filename, with support for glob patterns (e.g., `--filename '*.snupkg'`)
+- Added `--download-all` flag to `download` command to download all matching packages instead of erroring on multiple matches
+- Multiple packages table now includes a Filename column for easier disambiguation
+
+## [1.14.0] - 2026-03-11
+
+### Added
+
+- Added `vulnerabilities` command to retrieve security scan results for a package
+  - Summary View (Default): Displays a high-level count of vulnerabilities broken down by severity (Critical, High, Medium, Low, Unknown).
+  - Assessment View `--show-assessment` (`-A`): Provides a detailed breakdown where vulnerabilities are:
+    - Grouped by the specific affected upstream package / dependency.
+    - Sorted by severity (Critical first).
+    - Richly formatted tables.
+  - Filtering Capabilities:
+    - By Severity: `--severity` Show only specific levels (e.g., just Critical and High).
+    - By Status: `--fixable | --non-fixable` Filter to show only "Fixable" vulnerabilities (where a patch exists) or "Non-Fixable" ones.
+  - Supports `--output-format json | pretty_json` for programmatic usage
 
 ## [1.14.0] - 2026-03-13
 

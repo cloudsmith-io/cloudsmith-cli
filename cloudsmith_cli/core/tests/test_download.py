@@ -107,10 +107,10 @@ class TestResolvePackage(unittest.TestCase):
         mock_select_best.assert_called_once_with(mock_packages)
 
     @patch("cloudsmith_cli.core.download.list_packages")
-    @patch("cloudsmith_cli.cli.utils.pretty_print_table")
+    @patch("cloudsmith_cli.core.download.Console")
     @patch("click.echo")
     def test_resolve_package_multiple_matches_no_yes(
-        self, mock_echo, mock_pretty_print, mock_list_packages
+        self, mock_echo, mock_console_cls, mock_list_packages
     ):
         """Test package resolution with multiple matches without --yes."""
         mock_packages = [
@@ -127,7 +127,7 @@ class TestResolvePackage(unittest.TestCase):
             download.resolve_package("owner", "repo", "test-package", yes=False)
 
         self.assertEqual(cm.exception.exit_code, 3)
-        mock_pretty_print.assert_called_once()
+        mock_console_cls().print.assert_called_once()
 
     @patch("cloudsmith_cli.core.download.list_packages")
     def test_resolve_package_with_filters(self, mock_list_packages):
@@ -510,6 +510,198 @@ class TestGetPackageFiles(unittest.TestCase):
 
         self.assertEqual(len(files), 1)
         self.assertEqual(files[0]["filename"], "package.rpm")
+
+
+class TestFilenameFilter(unittest.TestCase):
+    """Test filename filtering in _search_packages and resolve functions."""
+
+    def _make_page_info(self):
+        """Create a mock page info for single-page results."""
+        page_info = Mock()
+        page_info.is_valid = True
+        page_info.page = 1
+        page_info.page_total = 1
+        return page_info
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_filename_filter_exact_match(self, mock_list_packages):
+        """Test exact filename filtering (server-side via query)."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        result = download.resolve_package(
+            "owner", "repo", "TestPkg", filename_filter="TestPkg.1.0.0.nupkg"
+        )
+
+        self.assertEqual(result["filename"], "TestPkg.1.0.0.nupkg")
+        # Verify filename was sent in query (server-side)
+        call_query = mock_list_packages.call_args[1]["query"]
+        self.assertIn("filename:TestPkg.1.0.0.nupkg", call_query)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_filename_filter_glob_pattern(self, mock_list_packages):
+        """Test glob pattern filename filtering (client-side via fnmatch)."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.snupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        # Glob *.snupkg should match only the .snupkg file
+        result = download.resolve_package(
+            "owner", "repo", "TestPkg", filename_filter="*.snupkg"
+        )
+
+        self.assertEqual(result["filename"], "TestPkg.1.0.0.snupkg")
+        # Glob patterns should NOT be sent server-side
+        call_query = mock_list_packages.call_args[1]["query"]
+        self.assertNotIn("filename:", call_query)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_filename_filter_glob_nupkg(self, mock_list_packages):
+        """Test glob pattern *.nupkg filters out .snupkg."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.snupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        result = download.resolve_package(
+            "owner", "repo", "TestPkg", filename_filter="*.nupkg"
+        )
+
+        self.assertEqual(result["filename"], "TestPkg.1.0.0.nupkg")
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_filename_filter_no_match(self, mock_list_packages):
+        """Test filename filter with no matches raises error."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        with self.assertRaises(click.ClickException) as cm:
+            download.resolve_package(
+                "owner", "repo", "TestPkg", filename_filter="*.rpm"
+            )
+
+        self.assertEqual(cm.exception.exit_code, 2)
+
+
+class TestResolveAllPackages(unittest.TestCase):
+    """Test resolve_all_packages function."""
+
+    def _make_page_info(self):
+        page_info = Mock()
+        page_info.is_valid = True
+        page_info.page = 1
+        page_info.page_total = 1
+        return page_info
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_all_returns_all_matches(self, mock_list_packages):
+        """Test resolve_all_packages returns all matching packages."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.snupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        result = download.resolve_all_packages("owner", "repo", "TestPkg")
+
+        self.assertEqual(len(result), 2)
+        filenames = [p["filename"] for p in result]
+        self.assertIn("TestPkg.1.0.0.nupkg", filenames)
+        self.assertIn("TestPkg.1.0.0.snupkg", filenames)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_all_no_packages_raises(self, mock_list_packages):
+        """Test resolve_all_packages raises when no packages found."""
+        mock_list_packages.return_value = ([], self._make_page_info())
+
+        with self.assertRaises(click.ClickException) as cm:
+            download.resolve_all_packages("owner", "repo", "nonexistent")
+
+        self.assertEqual(cm.exception.exit_code, 2)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_all_with_filename_filter(self, mock_list_packages):
+        """Test resolve_all_packages with filename filter."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.snupkg"},
+            {"name": "TestPkg", "version": "2.0.0", "filename": "TestPkg.2.0.0.nupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        result = download.resolve_all_packages(
+            "owner", "repo", "TestPkg", filename_filter="*.snupkg"
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["filename"], "TestPkg.1.0.0.snupkg")
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_all_with_version_filter(self, mock_list_packages):
+        """Test resolve_all_packages with version filter."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.nupkg"},
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.1.0.0.snupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        result = download.resolve_all_packages(
+            "owner", "repo", "TestPkg", version="1.0.0"
+        )
+
+        self.assertEqual(len(result), 2)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_resolve_package_error_mentions_download_all(self, mock_list_packages):
+        """Test multiple packages error message mentions --download-all."""
+        mock_packages = [
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.nupkg"},
+            {"name": "TestPkg", "version": "1.0.0", "filename": "TestPkg.snupkg"},
+        ]
+        mock_list_packages.return_value = (mock_packages, self._make_page_info())
+
+        with self.assertRaises(click.ClickException) as cm:
+            download.resolve_package("owner", "repo", "TestPkg", yes=False)
+
+        self.assertIn("--download-all", str(cm.exception))
+        self.assertIn("--filename", str(cm.exception))
+
+
+class TestDisplayMultiplePackages(unittest.TestCase):
+    """Test _display_multiple_packages function."""
+
+    @patch("cloudsmith_cli.core.download.Console")
+    @patch("cloudsmith_cli.core.download.Table")
+    @patch("click.echo")
+    def test_display_includes_filename_column(
+        self, mock_echo, mock_table_cls, mock_console_cls
+    ):
+        """Test that the multiple packages table includes filename."""
+        packages = [
+            {
+                "name": "TestPkg",
+                "version": "1.0.0",
+                "format": "nuget",
+                "filename": "TestPkg.nupkg",
+                "size": 1024,
+                "uploaded_at": "2026-01-27",
+            },
+        ]
+
+        download._display_multiple_packages(packages)
+
+        # Verify that add_column was called with "Filename"
+        column_names = [
+            call.args[0] for call in mock_table_cls().add_column.call_args_list
+        ]
+        self.assertIn("Filename", column_names)
 
 
 if __name__ == "__main__":
