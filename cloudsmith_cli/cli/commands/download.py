@@ -213,7 +213,14 @@ def download(
 # ---------------------------------------------------------------------------
 
 
-def _find_packages(ctx, opts, filter_kwargs, download_all, yes, use_stderr):
+def _find_packages(
+    ctx: click.Context,
+    opts,
+    filter_kwargs: dict,
+    download_all: bool,
+    yes: bool,
+    use_stderr: bool,
+) -> list:
     """Find matching packages using the API."""
     if download_all:
         context_msg = "Failed to find packages!"
@@ -238,8 +245,15 @@ def _find_packages(ctx, opts, filter_kwargs, download_all, yes, use_stderr):
 
 
 def _resolve_download_items(
-    ctx, opts, packages, owner, repo, all_files, outfile, use_stderr
-):
+    ctx: click.Context,
+    opts,
+    packages: list,
+    owner: str,
+    repo: str,
+    all_files: bool,
+    outfile: str,
+    use_stderr: bool,
+) -> list:
     """
     Resolve each package into a list of download items.
 
@@ -273,7 +287,15 @@ def _resolve_download_items(
     return items
 
 
-def _resolve_all_files_items(ctx, opts, pkg, owner, repo, outfile, use_stderr):
+def _resolve_all_files_items(
+    ctx: click.Context,
+    opts,
+    pkg: dict,
+    owner: str,
+    repo: str,
+    outfile: str,
+    use_stderr: bool,
+) -> list:
     """Resolve all sub-files for a single package (--all-files mode)."""
     pkg_name = pkg.get("name", "unknown")
     pkg_version = pkg.get("version", "unknown")
@@ -325,8 +347,15 @@ def _resolve_all_files_items(ctx, opts, pkg, owner, repo, outfile, use_stderr):
 
 
 def _resolve_single_file_item(
-    ctx, opts, pkg, owner, repo, outfile, multi_package, use_stderr
-):
+    ctx: click.Context,
+    opts,
+    pkg: dict,
+    owner: str,
+    repo: str,
+    outfile: str,
+    multi_package: bool,
+    use_stderr: bool,
+) -> dict:
     """Resolve a single primary file for a package."""
     pkg_name = pkg.get("name", "unknown")
     pkg_version = pkg.get("version", "unknown")
@@ -381,7 +410,7 @@ def _resolve_single_file_item(
 # ---------------------------------------------------------------------------
 
 
-def _display_dry_run(packages, download_items, all_files):
+def _display_dry_run(packages: list, download_items: list, all_files: bool) -> None:
     """Display what would be downloaded without actually downloading."""
     click.echo()
     click.echo(
@@ -405,16 +434,16 @@ def _display_dry_run(packages, download_items, all_files):
 
 
 def _perform_downloads(
-    ctx,
+    ctx: click.Context,
     opts,
-    packages,
-    download_items,
+    packages: list,
+    download_items: list,
     session,
-    auth_headers,
-    overwrite,
-    all_files,
-    use_stderr,
-):
+    auth_headers: dict,
+    overwrite: bool,
+    all_files: bool,
+    use_stderr: bool,
+) -> None:
     """Download all resolved items and report results."""
     total = len(download_items)
     if not use_stderr:
@@ -464,12 +493,12 @@ def _perform_downloads(
     _report_results(opts, packages, results, all_files)
 
 
-def _echo_progress(use_stderr, message):
+def _echo_progress(use_stderr: bool, message: str) -> None:
     """Print progress message to stdout or stderr."""
     click.echo(message, nl=False, err=use_stderr)
 
 
-def _echo_status(use_stderr, message, fg=None):
+def _echo_status(use_stderr: bool, message: str, fg: str = None) -> None:
     """Print styled status message to stdout or stderr."""
     if fg and not use_stderr:
         click.secho(message, fg=fg)
@@ -479,7 +508,7 @@ def _echo_status(use_stderr, message, fg=None):
         click.echo(message)
 
 
-def _report_results(opts, packages, results, all_files):
+def _report_results(opts, packages: list, results: list, all_files: bool) -> None:
     """Build JSON output and print summary."""
     success = [r for r in results if r["status"] == "OK"]
     failed = [r for r in results if r["status"] == "FAILED"]
@@ -542,13 +571,11 @@ def _report_results(opts, packages, results, all_files):
 # ---------------------------------------------------------------------------
 
 
-def _safe_join(base_dir, filename):
+def _safe_join(base_dir: str, filename: str) -> str:
     """Safely join base_dir and filename, preventing path traversal."""
     safe_name = os.path.basename(filename)
     if not safe_name:
-        raise click.ClickException(
-            f"Invalid filename '{filename}' — cannot be empty after sanitization."
-        )
+        raise click.ClickException(f"Invalid filename '{filename}'.")
     result = os.path.join(base_dir, safe_name)
     if not os.path.realpath(result).startswith(os.path.realpath(base_dir) + os.sep):
         raise click.ClickException(
@@ -557,7 +584,7 @@ def _safe_join(base_dir, filename):
     return result
 
 
-def _get_extension_for_format(pkg_format):
+def _get_extension_for_format(pkg_format: str) -> str:
     """Get appropriate file extension for package format."""
     format_extensions = {
         "deb": "deb",
@@ -576,13 +603,13 @@ def _get_extension_for_format(pkg_format):
     return format_extensions.get(pkg_format.lower(), "bin")
 
 
-def _format_package_size(package):
+def _format_package_size(package: dict) -> str:
     """Format package size for display."""
     size = package.get("size", 0)
     return _format_file_size(size)
 
 
-def _format_file_size(size):
+def _format_file_size(size: int) -> str:
     """Format file size in bytes to human-readable format."""
     if size == 0:
         return "Unknown"

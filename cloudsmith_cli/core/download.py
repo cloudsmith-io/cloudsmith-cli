@@ -295,29 +295,28 @@ def resolve_package(
 
 def _display_multiple_packages(packages: List[Dict]) -> None:
     """Display a table of multiple matching packages."""
+    from rich.console import Console
+    from rich.table import Table
+
     click.echo("Multiple packages found:")
     click.echo()
 
-    headers = ["#", "Name", "Version", "Format", "Filename", "Size", "Created"]
-    rows = []
+    table = Table(title=None, show_lines=False)
+    for header in ["#", "Name", "Version", "Format", "Filename", "Size", "Created"]:
+        table.add_column(header)
 
     for i, pkg in enumerate(packages, 1):
-        rows.append(
-            [
-                str(i),
-                click.style(pkg.get("name", ""), fg="cyan"),
-                click.style(pkg.get("version", ""), fg="yellow"),
-                click.style(pkg.get("format", ""), fg="blue"),
-                click.style(pkg.get("filename", ""), fg="magenta"),
-                click.style(_format_size(pkg.get("size", 0)), fg="green"),
-                click.style(_format_date(pkg.get("uploaded_at", "")), fg="white"),
-            ]
+        table.add_row(
+            str(i),
+            pkg.get("name", ""),
+            pkg.get("version", ""),
+            pkg.get("format", ""),
+            pkg.get("filename", ""),
+            _format_size(pkg.get("size", 0)),
+            _format_date(pkg.get("uploaded_at", "")),
         )
 
-    # Import here to avoid circular imports
-    from ..cli.utils import pretty_print_table
-
-    pretty_print_table(headers, rows)
+    Console().print(table)
     click.echo()
 
 
