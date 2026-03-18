@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Tuple
 import click
 import cloudsmith_api
 import requests
+from rich.console import Console
+from rich.table import Table
 
 from . import keyring, ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
@@ -295,9 +297,6 @@ def resolve_package(
 
 def _display_multiple_packages(packages: List[Dict]) -> None:
     """Display a table of multiple matching packages."""
-    from rich.console import Console
-    from rich.table import Table
-
     click.echo("Multiple packages found:")
     click.echo()
 

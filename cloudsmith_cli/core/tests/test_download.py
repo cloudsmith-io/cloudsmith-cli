@@ -107,10 +107,10 @@ class TestResolvePackage(unittest.TestCase):
         mock_select_best.assert_called_once_with(mock_packages)
 
     @patch("cloudsmith_cli.core.download.list_packages")
-    @patch("cloudsmith_cli.cli.utils.pretty_print_table")
+    @patch("cloudsmith_cli.core.download.Console")
     @patch("click.echo")
     def test_resolve_package_multiple_matches_no_yes(
-        self, mock_echo, mock_pretty_print, mock_list_packages
+        self, mock_echo, mock_console_cls, mock_list_packages
     ):
         """Test package resolution with multiple matches without --yes."""
         mock_packages = [
@@ -127,7 +127,7 @@ class TestResolvePackage(unittest.TestCase):
             download.resolve_package("owner", "repo", "test-package", yes=False)
 
         self.assertEqual(cm.exception.exit_code, 3)
-        mock_pretty_print.assert_called_once()
+        mock_console_cls().print.assert_called_once()
 
     @patch("cloudsmith_cli.core.download.list_packages")
     def test_resolve_package_with_filters(self, mock_list_packages):
@@ -677,9 +677,12 @@ class TestResolveAllPackages(unittest.TestCase):
 class TestDisplayMultiplePackages(unittest.TestCase):
     """Test _display_multiple_packages function."""
 
-    @patch("cloudsmith_cli.cli.utils.pretty_print_table")
+    @patch("cloudsmith_cli.core.download.Console")
+    @patch("cloudsmith_cli.core.download.Table")
     @patch("click.echo")
-    def test_display_includes_filename_column(self, mock_echo, mock_table):
+    def test_display_includes_filename_column(
+        self, mock_echo, mock_table_cls, mock_console_cls
+    ):
         """Test that the multiple packages table includes filename."""
         packages = [
             {
@@ -694,9 +697,11 @@ class TestDisplayMultiplePackages(unittest.TestCase):
 
         download._display_multiple_packages(packages)
 
-        mock_table.assert_called_once()
-        headers = mock_table.call_args[0][0]
-        self.assertIn("Filename", headers)
+        # Verify that add_column was called with "Filename"
+        column_names = [
+            call.args[0] for call in mock_table_cls().add_column.call_args_list
+        ]
+        self.assertIn("Filename", column_names)
 
 
 if __name__ == "__main__":
