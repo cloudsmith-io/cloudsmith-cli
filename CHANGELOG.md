@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-03-24
+
+### Added
+
+- Added Alpine Upstream support for managing upstream configurations.
 
 ## [1.15.0] - 2026-03-19
 
