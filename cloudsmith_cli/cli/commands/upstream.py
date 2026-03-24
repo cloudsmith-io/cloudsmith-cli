@@ -18,6 +18,7 @@ from ..utils import (
 from .main import main
 
 UPSTREAM_FORMATS = [
+    "alpine",
     "cargo",
     "conda",
     "cran",
