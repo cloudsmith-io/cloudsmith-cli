@@ -56,8 +56,8 @@ setup(
         "json5>=0.9.0",  # For parsing JSONC (JSON with comments) in VS Code settings
         "cloudsmith-api>=2.0.25,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
-        "mcp==1.9.1",
-        "python-toon==0.1.2",
+        "mcp>=1.9.1",
+        "python-toon>=0.1.2",
         "requests>=2.18.4",
         "requests_toolbelt>=1.0.0",
         "rich>=13.0.0",
