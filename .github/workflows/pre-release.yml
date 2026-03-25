@@ -1,0 +1,150 @@
+# Pre-release workflow: Build and publish dev packages to Cloudsmith for manual testing.
+#
+# Trigger by either:
+#   1. Adding the 'pre-release' label to a PR
+#   2. Commenting '/pre-release' on a PR (must be repo collaborator)
+#
+# The pre-release version is {base}.dev{pr_number}{epoch} (e.g. 1.13.0.dev421741712838).
+# Each re-trigger produces a unique version so previous pre-releases are preserved.
+
+name: Pre-release
+
+on:
+    pull_request:
+        types: [labeled]
+    issue_comment:
+        types: [created]
+
+concurrency:
+    group: pre-release-${{ github.event.pull_request.number || github.event.issue.number }}
+    cancel-in-progress: true
+
+jobs:
+    pre-release:
+        name: Build and publish pre-release
+        # Trigger on 'pre-release' label OR '/pre-release' comment from a collaborator
+        if: >-
+            (github.event_name == 'pull_request' &&
+             github.event.label.name == 'pre-release') ||
+            (github.event_name == 'issue_comment' &&
+             github.event.issue.pull_request &&
+             startsWith(github.event.comment.body, '/pre-release') &&
+             contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+        runs-on: ubuntu-latest
+        permissions:
+            id-token: write
+            contents: read
+            issues: write
+            pull-requests: write
+        env:
+            CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+            CLOUDSMITH_SVC_SLUG: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+        steps:
+            - name: React to slash command
+              if: github.event_name == 'issue_comment'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  COMMENT_ID: ${{ github.event.comment.id }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  gh api "repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" \
+                    -f content=eyes --silent
+
+            - name: Resolve PR details
+              id: pr
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  EVENT_NAME: ${{ github.event_name }}
+                  ISSUE_NUMBER: ${{ github.event.issue.number }}
+                  PR_NUMBER_LABEL: ${{ github.event.pull_request.number }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  if [ "${EVENT_NAME}" = "issue_comment" ]; then
+                    PR_NUMBER="${ISSUE_NUMBER}"
+                  else
+                    PR_NUMBER="${PR_NUMBER_LABEL}"
+                  fi
+                  echo "number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+                  PR_JSON=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")
+                  echo "sha=$(echo "${PR_JSON}" | jq -r .head.sha)" >> "${GITHUB_OUTPUT}"
+
+                  # Block builds from forked PRs (the fork code would run with repo secrets)
+                  IS_FORK=$(echo "${PR_JSON}" | jq -r '.head.repo.fork // false')
+                  if [ "${IS_FORK}" = "true" ]; then
+                    echo "::error::Pre-release builds are not supported for PRs from forks"
+                    exit 1
+                  fi
+
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+              with:
+                  ref: ${{ steps.pr.outputs.sha }}
+                  persist-credentials: false
+
+            - name: Set up Python 3.10
+              uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # 6.1.0
+              with:
+                  python-version: "3.10"
+
+            - name: Set pre-release version
+              id: version
+              env:
+                  PR_NUMBER: ${{ steps.pr.outputs.number }}
+              run: |
+                  BASE_VERSION=$(cat VERSION)
+                  EPOCH=$(date +%s)
+                  PRE_VERSION="${BASE_VERSION}.dev${PR_NUMBER}${EPOCH}"
+                  echo "${PRE_VERSION}" > VERSION
+                  echo "${PRE_VERSION}" > cloudsmith_cli/data/VERSION
+                  echo "version=${PRE_VERSION}" >> "${GITHUB_OUTPUT}"
+
+            - name: Install build dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install setuptools wheel
+
+            - name: Build packages
+              run: python setup.py sdist bdist_wheel
+
+            - name: Install and authenticate Cloudsmith CLI
+              uses: cloudsmith-io/cloudsmith-cli-action@76c8ff51a34bea1036d9b7708f10a929624a1910 # v2.0.1
+              with:
+                  oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
+                  oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+
+            - name: Publish to Cloudsmith
+              env:
+                  PKG_REPO: ${{ vars.CLOUDSMITH_NAMESPACE }}/cli
+              run: |
+                  cloudsmith push python "${PKG_REPO}" dist/*.tar.gz
+                  cloudsmith push python "${PKG_REPO}" dist/*.whl
+
+            - name: Comment on PR with install instructions
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  VERSION: ${{ steps.version.outputs.version }}
+                  PR_NUMBER: ${{ steps.pr.outputs.number }}
+                  HEAD_SHA: ${{ steps.pr.outputs.sha }}
+                  REPO: ${{ github.repository }}
+                  CS_NS: ${{ vars.CLOUDSMITH_NAMESPACE }}
+              run: |
+                  cat > /tmp/comment.md << COMMENT
+                  🚀 **Pre-release \`${VERSION}\` published to Cloudsmith!**
+
+                  Install with:
+                  \`\`\`
+                  pip install --extra-index-url https://dl.cloudsmith.io/public/${CS_NS}/cli/python/simple/ cloudsmith-cli==${VERSION}
+                  \`\`\`
+
+                  _Built from ${HEAD_SHA}_
+                  COMMENT
+                  gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body-file /tmp/comment.md
+
+            - name: Remove pre-release label
+              if: github.event_name == 'pull_request'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PR_NUMBER: ${{ steps.pr.outputs.number }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  gh pr edit "${PR_NUMBER}" --repo "${REPO}" --remove-label pre-release || true
