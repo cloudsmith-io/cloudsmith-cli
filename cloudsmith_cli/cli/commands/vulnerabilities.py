@@ -18,11 +18,38 @@ from .main import main
 
 
 def get_packages_in_repo(opts, owner, repo):
-    """Get list of packages in a repository."""
+    """Get all packages in a repository, paginating through all pages."""
+    all_packages = []
+    page = 1
+    page_size = 100  # fetch in larger batches for efficiency
+
     try:
-        packages, _ = list_packages(
-            opts=opts, owner=owner, repo=repo, query=None, sort=None
-        )
+        while True:
+            packages, page_info = list_packages(
+                opts=opts,
+                owner=owner,
+                repo=repo,
+                query=None,
+                sort=None,
+                page=page,
+                page_size=page_size,
+            )
+
+            if packages:
+                all_packages.extend(packages)
+
+            # No page info means single page or no results
+            if not page_info:
+                break
+
+            current_page = getattr(page_info, "page", page)
+            total_pages = getattr(page_info, "page_total", 1)
+
+            if current_page >= total_pages:
+                break
+
+            page += 1
+
     except Exception as exc:
         raise click.ClickException(
             f"Failed to list packages for '{owner}/{repo}'. "
@@ -30,13 +57,13 @@ def get_packages_in_repo(opts, owner, repo):
             f"Detail: {exc}"
         ) from exc
 
-    if not packages:
+    if not all_packages:
         raise click.ClickException(
             f"No packages found in '{owner}/{repo}'. "
             f"The repository may be empty, or the owner/repo names may be incorrect."
         )
 
-    return [pkg["slug_perm"] for pkg in packages]
+    return [pkg["slug_perm"] for pkg in all_packages]
 
 
 def _has_scan_results(data):
@@ -336,12 +363,20 @@ def vulnerabilities(
         )
 
         if not repo_summary_rows:
-            click.secho(
-                f"No vulnerability scan results found for any packages "
-                f"in '{owner}/{repo}'.",
-                fg="yellow",
-                err=use_stderr,
-            )
+            if severity_filter or fixable is not None:
+                click.secho(
+                    f"No vulnerabilities matched the applied filters "
+                    f"for any packages in '{owner}/{repo}'.",
+                    fg="yellow",
+                    err=use_stderr,
+                )
+            else:
+                click.secho(
+                    f"No vulnerability scan results found for any packages "
+                    f"in '{owner}/{repo}'.",
+                    fg="yellow",
+                    err=use_stderr,
+                )
             return
 
         json_output = {
