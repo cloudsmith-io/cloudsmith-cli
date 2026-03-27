@@ -183,7 +183,7 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
 def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     """Silently collect scan data for all packages with a progress bar.
 
-    Returns list of (label, counts) tuples sorted by total desc.
+    Returns list of (slug, label, counts) tuples sorted by total desc.
     """
     rows = []
     console = Console(stderr=True)
@@ -232,11 +232,11 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
             label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
 
             counts = _aggregate_severity_counts(data, severity_filter)
-            rows.append((label, counts))
+            rows.append((slug, label, counts))
             progress.advance(task)
 
     # Sort by total vulnerability count descending
-    rows.sort(key=lambda row: sum(row[1].values()), reverse=True)
+    rows.sort(key=lambda row: sum(row[2].values()), reverse=True)
 
     return rows
 
@@ -345,15 +345,23 @@ def vulnerabilities(
             "owner": owner,
             "repository": repo,
             "packages": [
-                {"package": label, "vulnerabilities": counts}
-                for label, counts in repo_summary_rows
+                {
+                    "slug_perm": slug_perm,
+                    "package": label,
+                    "vulnerabilities": counts,
+                }
+                for slug_perm, label, counts in repo_summary_rows
             ],
         }
 
         if utils.maybe_print_as_json(opts, json_output):
             return
 
-        _print_repo_summary_table(repo_summary_rows, severity_filter)
+        # Table only needs label and counts
+        _print_repo_summary_table(
+            [(label, counts) for _, label, counts in repo_summary_rows],
+            severity_filter,
+        )
         return
 
     # Single-package mode
