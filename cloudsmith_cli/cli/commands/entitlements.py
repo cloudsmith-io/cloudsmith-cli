@@ -6,7 +6,7 @@ from operator import itemgetter
 import click
 
 from ...core.api import entitlements as api
-from ...core.pagination import MAX_PAGE_SIZE, paginate_iterator
+from ...core.pagination import paginate_iterator
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import fmt_datetime, maybe_spinner
@@ -102,10 +102,10 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, page_
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             entitlements_, page_info = paginate_iterator(
-                api.list_entitlements(
+                lambda ps: api.list_entitlements(
                     owner=owner,
                     repo=repo,
-                    page_size=page_size if page_size > 0 else MAX_PAGE_SIZE,
+                    page_size=ps,
                     show_tokens=show_tokens,
                 ),
                 page_all=page_all,

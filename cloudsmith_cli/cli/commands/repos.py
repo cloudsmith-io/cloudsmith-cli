@@ -6,7 +6,7 @@ from operator import itemgetter
 import click
 
 from ...core.api import repos as api
-from ...core.pagination import MAX_PAGE_SIZE, paginate_iterator
+from ...core.pagination import paginate_iterator
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
@@ -130,11 +130,7 @@ def get(ctx, opts, owner_repo, page, page_size, page_all):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             repos_, page_info = paginate_iterator(
-                api.list_repos(
-                    owner=owner,
-                    repo=repo,
-                    page_size=page_size if page_size > 0 else MAX_PAGE_SIZE,
-                ),
+                lambda ps: api.list_repos(owner=owner, repo=repo, page_size=ps),
                 page_all=page_all,
                 page=page,
                 page_size=page_size,

@@ -7,7 +7,7 @@ import click
 
 from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
-from ...core.pagination import MAX_PAGE_SIZE, paginate_iterator
+from ...core.pagination import paginate_iterator
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
@@ -219,10 +219,10 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             packages_, page_info = paginate_iterator(
-                list_packages(
+                lambda ps: list_packages(
                     owner=owner,
                     repo=repo,
-                    page_size=page_size if page_size > 0 else MAX_PAGE_SIZE,
+                    page_size=ps,
                     query=query,
                     sort=sort,
                 ),

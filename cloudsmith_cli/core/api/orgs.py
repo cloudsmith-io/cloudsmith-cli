@@ -60,7 +60,7 @@ def delete_vulnerability_policy(owner, slug_perm):
         client.vulnerability_policy_delete(org=owner, slug_perm=slug_perm)
 
 
-def list_license_policies(owner, page, page_size):
+def list_license_policies(owner, page_size):
     """List license policies in a namespace."""
     client = get_orgs_api()
 
@@ -102,7 +102,7 @@ def delete_license_policy(owner, slug_perm):
         client.license_policy_delete(org=owner, slug_perm=slug_perm)
 
 
-def list_deny_policies(owner, page, page_size):
+def list_deny_policies(owner, page_size):
     """List deny policies in a namespace."""
     client = get_orgs_api()
 

@@ -3,7 +3,7 @@
 import click
 
 from ....core.api import orgs
-from ....core.pagination import paginate_results
+from ....core.pagination import paginate_iterator
 from ... import command, decorators, utils
 from ...exceptions import handle_api_exceptions
 from ...utils import fmt_datetime, maybe_spinner
@@ -69,20 +69,23 @@ def list_deny_policies(ctx, opts, owner, page, page_size, page_all):
     context_msg = "Failed to get deny policies!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            data, page_info = paginate_results(
-                orgs.list_deny_policies, page_all, page, page_size, owner=owner
+            policies, page_info = paginate_iterator(
+                lambda ps: orgs.list_deny_policies(owner=owner, page_size=ps),
+                page_all=page_all,
+                page=page,
+                page_size=page_size,
             )
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    if utils.maybe_print_as_json(opts, data, page_info):
+    if utils.maybe_print_as_json(opts, policies, page_info):
         return
 
-    print_deny_policies(data)
+    print_deny_policies(policies)
 
     click.echo()
 
-    num_results = len(data)
+    num_results = len(policies)
     list_suffix = "deny polic%s" % ("y" if num_results == 1 else "ies")
     utils.pretty_print_list_info(
         num_results=num_results,

@@ -5,7 +5,7 @@ import json
 import click
 
 from ....core.api import orgs as api
-from ....core.pagination import paginate_results
+from ....core.pagination import paginate_iterator
 from ... import command, decorators, utils, validators
 from ...exceptions import handle_api_exceptions
 from ...utils import (
@@ -107,8 +107,11 @@ def ls(ctx, opts, owner, page, page_size, page_all):
     context_msg = "Failed to get license policies!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            policies, page_info = paginate_results(
-                api.list_license_policies, page_all, page, page_size, owner=owner
+            policies, page_info = paginate_iterator(
+                lambda ps: api.list_license_policies(owner=owner, page_size=ps),
+                page_all=page_all,
+                page=page,
+                page_size=page_size,
             )
 
     click.secho("OK", fg="green", err=use_stderr)
