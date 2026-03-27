@@ -321,7 +321,16 @@ def vulnerabilities(
             )
             return
 
-        if utils.maybe_print_as_json(opts, repo_summary_rows):
+        json_output = {
+            "owner": owner,
+            "repository": repo,
+            "packages": [
+                {"package": label, "vulnerabilities": counts}
+                for label, counts in repo_summary_rows
+            ],
+        }
+
+        if utils.maybe_print_as_json(opts, json_output):
             return
 
         _print_repo_summary_table(repo_summary_rows, severity_filter)
