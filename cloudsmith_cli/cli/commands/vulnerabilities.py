@@ -301,6 +301,7 @@ def vulnerabilities(
             fg="yellow",
             err=use_stderr,
         )
+        return
 
     # Repo summary mode: collect everything silently, then output once
     if repo_summary:
