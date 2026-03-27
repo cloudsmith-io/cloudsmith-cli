@@ -1,7 +1,6 @@
 """CLI/Commands - Get an API token."""
 
 import click
-import cloudsmith_api
 import semver
 
 from ...core.api.rates import get_rate_limits
@@ -91,10 +90,8 @@ def service(ctx, opts):
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    config = cloudsmith_api.Configuration()
-
     data = {
-        "endpoint": config.host,
+        "endpoint": opts.api_config.host,
         "status": status,
         "version": version,
     }
@@ -103,7 +100,9 @@ def service(ctx, opts):
         return
 
     click.echo()
-    click.echo(f"The service endpoint is: {click.style(config.host, bold=True)}")
+    click.echo(
+        f"The service endpoint is: {click.style(opts.api_config.host, bold=True)}"
+    )
     click.echo(f"The service status is:   {click.style(status, bold=True)}")
     click.echo(
         f"The service version is:  {click.style(version, bold=True)} ",

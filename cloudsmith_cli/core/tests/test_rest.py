@@ -11,8 +11,7 @@ class TestRestClient:
     def test_implicit_retry_for_status_codes(self):
         """Assert that the rest client retries certain status codes automatically."""
         # initialise_api() needs to be called before RestClient can be instantiated,
-        # because it adds default attributes to cloudsmith_api.Configuration which
-        # RestClient expects to be there.
+        # because create_requests_session reads from the module-level CliConfig.
         # In the context of a full test suite run, this will probably have already
         # happened elsewhere. But just in case this test is ever run in isolation...
         initialise_api()

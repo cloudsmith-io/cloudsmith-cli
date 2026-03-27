@@ -1,7 +1,7 @@
 """CLI/Commands - Get an API token."""
 
 import click
-import cloudsmith_api
+from cloudsmith_sdk import CloudsmithApiError
 
 from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
@@ -73,7 +73,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
                         totp_token=totp_token,
                         two_factor_token=e.two_factor_token,
                     )
-        except cloudsmith_api.rest.ApiException:
+        except CloudsmithApiError:
             click.echo("\r\033[K", nl=False, err=use_stderr)
             click.secho(
                 "Authentication failed: The entered TOTP token is not valid.",
@@ -82,7 +82,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
             )
             ctx.exit(1)
 
-    except cloudsmith_api.rest.ApiException as e:
+    except CloudsmithApiError as e:
         click.echo("\r\033[K", nl=False, err=use_stderr)
         click.secho(f"Authentication failed: {str(e)}", fg="red", err=use_stderr)
         ctx.exit(1)

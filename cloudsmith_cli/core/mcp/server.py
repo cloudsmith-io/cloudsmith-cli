@@ -5,7 +5,6 @@ import json
 from typing import Any, Dict, List, Optional
 from urllib import parse
 
-import cloudsmith_api
 import httpx
 import toon
 from mcp import types
@@ -176,7 +175,7 @@ class DynamicMCPServer:
 
     def __init__(
         self,
-        api_config: cloudsmith_api.Configuration = None,
+        api_config=None,
         use_toon=True,
         allow_destructive_tools=False,
         debug_mode=False,

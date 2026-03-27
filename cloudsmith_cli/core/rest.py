@@ -9,10 +9,11 @@ from urllib.parse import urlencode
 
 import requests
 import requests.exceptions
-from cloudsmith_api.configuration import Configuration
-from cloudsmith_api.rest import ApiException, RESTClientObject
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from .api.exceptions import ApiException
+from .api.init import get_cli_config
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ def create_requests_session(
 ):
     """Create a requests session that retries some errors."""
     # pylint: disable=too-many-branches
-    config = Configuration()
+    config = get_cli_config()
 
     if retries is None:
         if config.error_retry_max is None:  # pylint: disable=no-member
@@ -87,14 +88,8 @@ def create_requests_session(
     if ssl_verify is None:
         ssl_verify = config.verify_ssl
 
-    if ssl_cert is None:
-        if config.cert_file and config.key_file:
-            ssl_cert = (config.cert_file, config.key_file)
-        elif config.cert_file:
-            ssl_cert = config.cert_file
-
     if proxy is None:
-        proxy = Configuration().proxy
+        proxy = get_cli_config().proxy
 
     session = session or requests.Session()
     session.verify = ssl_verify
@@ -160,7 +155,7 @@ class RestResponse(io.IOBase):
         return self.response.headers.get(name, default)
 
 
-class RestClient(RESTClientObject):
+class RestClient:
     """A rest client interface based on requests, with retry."""
 
     def __init__(self, *args, **kwargs):
@@ -224,7 +219,7 @@ class RestClient(RESTClientObject):
                 # Cannot generate the request from given parameters
                 msg = """Cannot prepare a request message for provided arguments.
                          Please check that your arguments match declared content type."""
-                raise ApiException(status=0, reason=msg)
+                raise ApiException(status=0, detail=msg)
 
         try:
             resp = self.session.request(
@@ -237,7 +232,7 @@ class RestClient(RESTClientObject):
             )
         except requests.exceptions.RequestException as exc:
             msg = f"{type(exc).__name__}\n{str(exc)}"
-            raise ApiException(status=0, reason=msg)
+            raise ApiException(status=0, detail=msg)
 
         resp.encoding = resp.apparent_encoding or "utf-8"
         rest_resp = RestResponse(resp)
@@ -246,6 +241,11 @@ class RestClient(RESTClientObject):
             logger.debug("response body: %s", rest_resp.data)
 
         if not 200 <= rest_resp.status <= 299:
-            raise ApiException(http_resp=rest_resp)
+            raise ApiException(
+                status=rest_resp.status,
+                detail=rest_resp.reason,
+                headers=rest_resp.getheaders(),
+                body=rest_resp.data,
+            )
 
         return rest_resp

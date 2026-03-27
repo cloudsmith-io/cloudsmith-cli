@@ -1,8 +1,7 @@
 from unittest.mock import patch
 
-import cloudsmith_api
-
 from ....cli.commands.mcp import list_groups, list_tools
+from ....core.api.init import CliConfig
 from ....core.mcp.data import OpenAPITool
 from ....core.mcp.server import DynamicMCPServer
 
@@ -277,9 +276,10 @@ class TestMCPServerDynamicToolGeneration:
         }
 
         # Create API config
-        api_config = cloudsmith_api.Configuration()
-        api_config.host = "https://api.cloudsmith.io"
-        api_config.api_key = {"X-Api-Key": "test-key"}
+        api_config = CliConfig(
+            host="https://api.cloudsmith.io",
+            api_key={"X-Api-Key": "test-key"},
+        )
 
         # Create MCP server instance
         server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
@@ -334,9 +334,10 @@ class TestMCPServerDynamicToolGeneration:
             }
         }
 
-        api_config = cloudsmith_api.Configuration()
-        api_config.host = "https://api.cloudsmith.io"
-        api_config.api_key = {"X-Api-Key": "test-key"}
+        api_config = CliConfig(
+            host="https://api.cloudsmith.io",
+            api_key={"X-Api-Key": "test-key"},
+        )
 
         # Create server with filtering - only allow repos group
         server = DynamicMCPServer(api_config=api_config, allowed_tool_groups=["repos"])

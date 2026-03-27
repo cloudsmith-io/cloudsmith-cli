@@ -2,11 +2,12 @@ import os
 from unittest.mock import patch
 
 import pytest
-from cloudsmith_api import Configuration
+
+import cloudsmith_cli.core.api.init as init_module
 
 from ...cli import saml
 from .. import keyring
-from ..api.init import initialise_api
+from ..api.init import CliConfig, initialise_api
 
 
 @pytest.fixture
@@ -58,28 +59,15 @@ def mocked_update_refresh_attempted_at():
 
 
 class TestInitialiseApi:
-    def setup_class(cls):  # pylint: disable=no-self-argument
-        # For the purposes of these tests, we need to explicitly call set_default(None) at the
-        # outset because other tests in the suite may have called initialise_api() already.
-        # Resetting Configuration._default to None here effectively reverts the
-        # Configuration class to its vanilla, unmodified behaviour/state.
-        Configuration.set_default(None)
+    def setup_method(self):
+        # Reset the module-level config before each test
+        init_module._cli_config = None
 
-    def test_initialise_api_sets_cloudsmith_api_config_default(
-        self, mocked_get_access_token
-    ):
-        """Assert that the extra attributes we add to the cloudsmith_cli.Configuration class
-        are present on newly-created instances of that class.
-        """
+    def test_initialise_api_sets_cli_config(self, mocked_get_access_token):
+        """Assert that initialise_api stores a CliConfig with expected attributes."""
         mocked_get_access_token.return_value = None
 
-        # Read and understand the Configuration class's initialiser.
-        # Notice how the _default class attribute is used if not None.
-        # https://github.com/cloudsmith-io/cloudsmith-api/blob/57963fff5b7818783b3d87246495275545d505df/bindings/python/src/cloudsmith_api/configuration.py#L32-L40
-
-        # There are a number of attributes which we automagically add to instances of
-        # cloudsmith_api.Configuration().
-        extra_config_attrs = [
+        config_attrs = [
             "rate_limit",
             "error_retry_max",
             "error_retry_backoff",
@@ -87,40 +75,15 @@ class TestInitialiseApi:
             "error_retry_cb",
         ]
 
-        # We do that in our initialise_api() function by
-        # (i) creating a new instance of Configuration and adding attributes/values to it.
-        # (ii) calling the cloudsmith_api.Configuration.set_default(config) classmethod.
+        # Before initialise_api, module-level config should be None
+        assert init_module._cli_config is None
 
-        # Because Configuration._default is None, a newly-created instance of
-        # cloudsmith_api.Configuration() should not have any other attributes than those
-        # in the auto-generated swagger-codegen class declaration.
-        new_config_before_initialise = Configuration()
-        assert all(
-            not hasattr(new_config_before_initialise, attr)
-            for attr in extra_config_attrs
-        )
+        config = initialise_api()
+        assert isinstance(config, CliConfig)
+        assert all(hasattr(config, attr) for attr in config_attrs)
 
-        # Our initialise_api() function should create an instance of
-        # cloudsmith_api.Configuration, add some extra attributes to it, set default values
-        # and pass that instance to cloudsmith_api.Configuration.set_default().
-        config_from_initialise = initialise_api()
-        assert all(hasattr(config_from_initialise, attr) for attr in extra_config_attrs)
-        assert (
-            Configuration._default  # pylint: disable=protected-access
-            is config_from_initialise
-        )
-
-        # After which point, any newly-created instances of cloudsmith_api.Configuration
-        # should automagically include copies of those "extra" attributes we assigned to
-        # the "default" config instance in our initialise_api() function.
-        new_config_after_initialise = Configuration()
-        assert all(
-            hasattr(new_config_after_initialise, attr) for attr in extra_config_attrs
-        )
-        assert (
-            Configuration._default  # pylint: disable=protected-access
-            is not new_config_after_initialise
-        )
+        # After initialise_api, module-level config should be set
+        assert init_module._cli_config is config
 
     def test_initialise_api_with_refreshable_access_token_set(
         self,
@@ -154,7 +117,7 @@ class TestInitialiseApi:
         mocked_store_sso_tokens,
         mocked_update_refresh_attempted_at,
     ):
-        auth_header = Configuration().get_basic_auth_token()
+        auth_header = CliConfig().get_basic_auth_token()
 
         # Ensure keyring is enabled for this test
         env = os.environ.copy()
@@ -180,9 +143,7 @@ class TestInitialiseApi:
         mocked_store_sso_tokens,
         mocked_update_refresh_attempted_at,
     ):
-        temp_config = Configuration()
-        temp_config.username = "username"
-        temp_config.password = "password"
+        temp_config = CliConfig(username="username", password="password")
         auth_header = temp_config.get_basic_auth_token()
         config = initialise_api(
             host="https://example.com", headers={"Authorization": auth_header}
@@ -270,9 +231,6 @@ class TestInitialiseApi:
     ):
         """Verify expired SSO token is not used when refresh fails and no API key available."""
         from ..api.exceptions import ApiException
-
-        # Reset Configuration to clear any state from previous tests
-        Configuration.set_default(None)
 
         # Simulate SSO token refresh failure
         mocked_should_refresh_access_token.return_value = True

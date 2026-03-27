@@ -5,23 +5,39 @@ import requests
 from ..core.api.exceptions import ApiException
 
 
-def create_configured_session(opts):
+def create_configured_session(
+    opts=None, *, proxy=None, ssl_verify=None, user_agent=None, headers=None
+):
     """
-    Create a requests session configured with the options from opts.
+    Create a requests session configured with the given options.
+
+    Accepts either an opts object (with api_ssl_verify, api_proxy, etc.)
+    or explicit keyword arguments.
     """
     session = requests.Session()
 
-    if hasattr(opts, "api_ssl_verify") and opts.api_ssl_verify is not None:
-        session.verify = opts.api_ssl_verify
+    _proxy = proxy or (getattr(opts, "api_proxy", None) if opts else None)
+    _ssl_verify = (
+        ssl_verify
+        if ssl_verify is not None
+        else (getattr(opts, "api_ssl_verify", None) if opts else None)
+    )
+    _user_agent = user_agent or (
+        getattr(opts, "api_user_agent", None) if opts else None
+    )
+    _headers = headers or (getattr(opts, "api_headers", None) if opts else None)
 
-    if hasattr(opts, "api_proxy") and opts.api_proxy:
-        session.proxies = {"http": opts.api_proxy, "https": opts.api_proxy}
+    if _ssl_verify is not None:
+        session.verify = _ssl_verify
 
-    if hasattr(opts, "api_user_agent") and opts.api_user_agent:
-        session.headers.update({"User-Agent": opts.api_user_agent})
+    if _proxy:
+        session.proxies = {"http": _proxy, "https": _proxy}
 
-    if hasattr(opts, "api_headers") and opts.api_headers:
-        session.headers.update(opts.api_headers)
+    if _user_agent:
+        session.headers.update({"User-Agent": _user_agent})
+
+    if _headers:
+        session.headers.update(_headers)
 
     return session
 

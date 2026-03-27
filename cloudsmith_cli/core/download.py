@@ -5,10 +5,9 @@ import os
 from typing import Dict, List, Optional, Tuple
 
 import click
-import cloudsmith_api
 import requests
 
-from . import keyring, ratelimits, utils
+from . import keyring, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
 from .rest import create_requests_session
@@ -38,7 +37,9 @@ def resolve_auth(
     # Priority: explicit --api-key > SSO token > configured API key
 
     # Only attempt keyring operations if keyring is enabled
-    config = cloudsmith_api.Configuration()
+    from .api.init import get_cli_config
+
+    config = get_cli_config()
     access_token = keyring.get_access_token(config.host)
     api_key = api_key_opt or getattr(opts, "api_key", None)
 
@@ -292,11 +293,8 @@ def get_package_detail(owner: str, repo: str, identifier: str) -> Dict:
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.packages_read_with_http_info(
-            owner=owner, repo=repo, identifier=identifier
-        )
+        data = client.packages_read(owner=owner, repo=repo, identifier=identifier)
 
-    ratelimits.maybe_rate_limit(client, headers)
     return data.to_dict()
 
 

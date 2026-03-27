@@ -3,7 +3,7 @@
 import json
 
 import cloudsmith_sdk
-from cloudsmith_api.rest import ApiException
+from cloudsmith_sdk import CloudsmithApiError
 from cloudsmith_sdk.models import UserAuthTokenRequest
 
 from .exceptions import TwoFactorRequiredException, catch_raise_api_exception
@@ -39,9 +39,9 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
     try:
         data = client.token_create(body=token_create_request)
         return data.token
-    except ApiException as e:
+    except CloudsmithApiError as e:
         # Check for 2FA requirement
-        if e.status == 422 and e.body:
+        if e.status_code == 422 and e.body:
             try:
                 response_data = json.loads(e.body)
                 if response_data.get("two_factor_required"):

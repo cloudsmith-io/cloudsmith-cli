@@ -4,9 +4,9 @@
 import os
 
 import click
-import cloudsmith_api
 
 from ...core import keyring
+from ...core.api.init import DEFAULT_API_HOST
 from .. import decorators, utils
 from ..config import CredentialsReader
 from .main import main
@@ -118,7 +118,7 @@ def logout(ctx, opts, api_host, keyring_only, config_only, dry_run):
         )
 
     if api_host is None:
-        api_host = opts.api_host or cloudsmith_api.Configuration().host
+        api_host = opts.api_host or DEFAULT_API_HOST
 
     use_stderr = utils.should_use_stderr(opts)
 

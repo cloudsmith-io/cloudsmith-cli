@@ -1,16 +1,64 @@
 """Cloudsmith API - Initialisation."""
 
+from __future__ import annotations
+
 import base64
-from typing import Type, TypeVar
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 import click
-import cloudsmith_api
 import cloudsmith_sdk
 
 from ...cli import saml
 from .. import keyring
-from ..rest import RestClient
 from .exceptions import ApiException
+
+DEFAULT_API_HOST = "https://api.cloudsmith.io"
+
+
+@dataclass
+class CliConfig:
+    """CLI configuration — replaces cloudsmith_api.Configuration singleton."""
+
+    # Connection
+    host: str = DEFAULT_API_HOST
+    debug: bool = False
+    proxy: str | None = None
+    verify_ssl: bool = True
+    user_agent: str | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+
+    # Auth (resolved state)
+    api_key: dict[str, str] = field(default_factory=dict)
+    username: str = ""
+    password: str = ""
+
+    # Rate limiting
+    rate_limit: bool = True
+    rate_limit_callback: Callable | None = None
+
+    # Retry
+    error_retry_max: int | None = None
+    error_retry_backoff: float | None = None
+    error_retry_codes: Any | None = None
+    error_retry_cb: Callable | None = None
+
+    def get_basic_auth_token(self) -> str:
+        """Get HTTP basic authentication header string."""
+        if self.username or self.password:
+            credentials = f"{self.username}:{self.password}".encode()
+            return "Basic " + base64.b64encode(credentials).decode("utf-8")
+        return ""
+
+
+_cli_config: CliConfig | None = None
+
+
+def get_cli_config() -> CliConfig:
+    """Get the current CLI configuration."""
+    if _cli_config is None:
+        return CliConfig()
+    return _cli_config
 
 
 def initialise_api(
@@ -29,24 +77,24 @@ def initialise_api(
     error_retry_cb=None,
     access_token=None,
 ):
-    """Initialise the cloudsmith_api.Configuration."""
-    # FIXME: pylint: disable=too-many-arguments
+    """Initialise the CLI configuration."""
+    # pylint: disable=too-many-arguments
+    global _cli_config
 
-    config = cloudsmith_api.Configuration()
-
-    config.debug = debug
-    config.host = host if host else config.host
-    config.proxy = proxy if proxy else config.proxy
-    config.user_agent = user_agent
-    config.headers = headers if headers else {}
-    config.rate_limit = rate_limit
-    config.rate_limit_callback = rate_limit_callback
-    config.error_retry_max = error_retry_max
-    config.error_retry_backoff = error_retry_backoff
-    config.error_retry_codes = error_retry_codes
-    config.error_retry_cb = error_retry_cb
-    config.verify_ssl = ssl_verify
-    config.client_side_validation = False
+    config = CliConfig(
+        debug=debug,
+        host=host if host else DEFAULT_API_HOST,
+        proxy=proxy or None,
+        verify_ssl=ssl_verify if ssl_verify is not None else True,
+        user_agent=user_agent,
+        headers=headers if headers else {},
+        rate_limit=rate_limit if rate_limit is not None else True,
+        rate_limit_callback=rate_limit_callback,
+        error_retry_max=error_retry_max,
+        error_retry_backoff=error_retry_backoff,
+        error_retry_codes=error_retry_codes,
+        error_retry_cb=error_retry_cb,
+    )
 
     # Use directly provided access token (e.g. from SSO callback),
     # or fall back to keyring lookup if enabled.
@@ -66,7 +114,12 @@ def initialise_api(
                         config.host,
                         access_token,
                         refresh_token,
-                        session=saml.create_configured_session(config),
+                        session=saml.create_configured_session(
+                            proxy=config.proxy,
+                            ssl_verify=config.verify_ssl,
+                            user_agent=config.user_agent,
+                            headers=config.headers,
+                        ),
                     )
                     keyring.store_sso_tokens(
                         config.host, new_access_token, new_refresh_token
@@ -96,9 +149,7 @@ def initialise_api(
 
             # Only use SSO token if refresh didn't fail
             if access_token:
-                config.headers["Authorization"] = "Bearer {access_token}".format(
-                    access_token=access_token
-                )
+                config.headers["Authorization"] = f"Bearer {access_token}"
 
                 if config.debug:
                     click.echo("SSO access token config value set")
@@ -119,29 +170,20 @@ def initialise_api(
             if config.debug:
                 click.echo("Username and password config values set")
 
-    # Important! Some of the attributes set above (e.g. error_retry_max) are not
-    # present in the cloudsmith_api.Configuration class declaration.
-    # By calling the set_default() method, we ensure that future instances of that
-    # class will include those attributes, and their (default) values.
-    cloudsmith_api.Configuration.set_default(config)
-
+    _cli_config = config
     return config
 
 
-T = TypeVar("T")
-
-
-def get_sdk_auth() -> (
+def _resolve_sdk_auth(
+    config: CliConfig,
+) -> (
     cloudsmith_sdk.BasicAuth
     | cloudsmith_sdk.BearerTokenAuth
     | cloudsmith_sdk.ApiTokenAuth
     | None
 ):
-    """Get an SDK auth object based on the current configuration."""
-    config = cloudsmith_api.Configuration()
-    headers = getattr(config, "headers", {})
-
-    auth_header = headers.get("Authorization")
+    """Resolve SDK auth from CLI configuration."""
+    auth_header = config.headers.get("Authorization")
     if auth_header and " " in auth_header:
         auth_type, token = auth_header.split(" ", 1)
         if auth_type == "Bearer":
@@ -150,7 +192,7 @@ def get_sdk_auth() -> (
             return cloudsmith_sdk.BasicAuth(
                 username=config.username, password=config.password
             )
-    elif "X-Api-Key" in config.api_key:
+    if "X-Api-Key" in config.api_key:
         return cloudsmith_sdk.ApiTokenAuth(token=config.api_key["X-Api-Key"])
 
     return None
@@ -158,54 +200,20 @@ def get_sdk_auth() -> (
 
 def get_new_api_client() -> cloudsmith_sdk.CloudsmithClient:
     """Get an API client (with configuration)."""
-    # TODO(egarcia): Needs to be removed before we can remove the old api client
-    config = cloudsmith_api.Configuration()
-    rate_limit = getattr(config, "rate_limit", True)
-    rate_limit_callback = getattr(config, "rate_limit_callback", None)
+    config = get_cli_config()
 
-    client = cloudsmith_sdk.CloudsmithClient(
+    return cloudsmith_sdk.CloudsmithClient(
         base_url=config.host,
-        auth=get_sdk_auth(),
-        user_agent=getattr(config, "user_agent", None),
-        extra_headers=getattr(config, "headers", None),
+        auth=_resolve_sdk_auth(config),
+        user_agent=config.user_agent,
+        extra_headers=config.headers or None,
         rate_limit=cloudsmith_sdk.RateLimitConfig(
-            callback=rate_limit_callback if rate_limit else None
+            callback=config.rate_limit_callback if config.rate_limit else None
         ),
     )
-
-    return client
-
-
-def get_api_client(cls: Type[T]) -> T:
-    """Get an API client (with configuration)."""
-    config = cloudsmith_api.Configuration()
-    client = cls()
-    client.config = config
-    client.api_client.rest_client = RestClient(
-        error_retry_cb=getattr(config, "error_retry_cb", None),
-        respect_retry_after_header=getattr(config, "rate_limit", True),
-    )
-
-    user_agent = getattr(config, "user_agent", None)
-    if user_agent:
-        client.api_client.user_agent = user_agent
-
-    headers = getattr(config, "headers", None)
-    if headers:
-        for k, v in headers.items():
-            client.api_client.set_default_header(k, v)
-
-    return client
 
 
 def unset_api_key():
     """Unset the API key."""
-    config = cloudsmith_api.Configuration()
-
-    try:
-        del config.api_key["X-Api-Key"]
-    except KeyError:
-        pass
-
-    if hasattr(cloudsmith_api.Configuration, "set_default"):
-        cloudsmith_api.Configuration.set_default(config)
+    config = get_cli_config()
+    config.api_key.pop("X-Api-Key", None)
