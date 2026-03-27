@@ -195,7 +195,7 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TextColumn("({task.completed}/{task.total})"),
         console=console,
-        transient=True,  # remove progress bar when done
+        transient=True,
     ) as progress:
         task = progress.add_task("Scanning packages...", total=len(slugs))
 
@@ -216,7 +216,6 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
                 progress.advance(task)
                 continue
 
-            # Skip packages with no scan data
             if not data or not _has_scan_results(data):
                 progress.advance(task)
                 continue
@@ -232,7 +231,11 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
             label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
 
             counts = _aggregate_severity_counts(data, severity_filter)
-            rows.append((slug, label, counts))
+
+            # Skip packages where filters removed all vulnerabilities
+            if sum(counts.values()) > 0:
+                rows.append((slug, label, counts))
+
             progress.advance(task)
 
     # Sort by total vulnerability count descending
