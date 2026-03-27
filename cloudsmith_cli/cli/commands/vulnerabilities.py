@@ -4,6 +4,7 @@
 
 import click
 from rich.console import Console
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from ...core.api.packages import list_packages
@@ -180,39 +181,59 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
 
 
 def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
-    """Silently collect scan data for all packages. Returns list of (label, counts) tuples."""
+    """Silently collect scan data for all packages with a progress bar.
+
+    Returns list of (label, counts) tuples sorted by total desc.
+    """
     rows = []
+    console = Console(stderr=True)
 
-    for slug in slugs:
-        try:
-            data = get_package_scan_result(
-                opts=opts,
-                owner=owner,
-                repo=repo,
-                package=slug,
-                show_assessment=False,
-                severity_filter=severity_filter,
-                fixable=fixable,
-            )
-        except Exception:  # pylint: disable=broad-exception-caught
-            continue
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(bar_width=40),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("({task.completed}/{task.total})"),
+        console=console,
+        transient=True,  # remove progress bar when done
+    ) as progress:
+        task = progress.add_task("Scanning packages...", total=len(slugs))
 
-        # Skip packages with no scan data
-        if not data or not _has_scan_results(data):
-            continue
+        for slug in slugs:
+            progress.update(task, description=f"Processing {slug}...")
 
-        # Apply filters if active
-        if severity_filter or fixable is not None:
-            _apply_filters(data, severity_filter, fixable)
+            try:
+                data = get_package_scan_result(
+                    opts=opts,
+                    owner=owner,
+                    repo=repo,
+                    package=slug,
+                    show_assessment=False,
+                    severity_filter=severity_filter,
+                    fixable=fixable,
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                progress.advance(task)
+                continue
 
-        # Build label from package metadata
-        pkg_data = getattr(data, "package", None)
-        pkg_name = getattr(pkg_data, "name", slug)
-        pkg_version = getattr(pkg_data, "version", "")
-        label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
+            # Skip packages with no scan data
+            if not data or not _has_scan_results(data):
+                progress.advance(task)
+                continue
 
-        counts = _aggregate_severity_counts(data, severity_filter)
-        rows.append((label, counts))
+            # Apply filters if active
+            if severity_filter or fixable is not None:
+                _apply_filters(data, severity_filter, fixable)
+
+            # Build label from package metadata
+            pkg_data = getattr(data, "package", None)
+            pkg_name = getattr(pkg_data, "name", slug)
+            pkg_version = getattr(pkg_data, "version", "")
+            label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
+
+            counts = _aggregate_severity_counts(data, severity_filter)
+            rows.append((label, counts))
+            progress.advance(task)
 
     # Sort by total vulnerability count descending
     rows.sort(key=lambda row: sum(row[1].values()), reverse=True)
@@ -303,14 +324,13 @@ def vulnerabilities(
         )
         return
 
-    # Repo summary mode: collect everything silently, then output once
+    # Repo summary mode: collect with progress bar, then output once
     if repo_summary:
         slugs = get_packages_in_repo(opts, owner, repo)
 
-        with utils.maybe_spinner(opts):
-            repo_summary_rows = _collect_repo_scan_data(
-                opts, owner, repo, slugs, severity_filter, fixable
-            )
+        repo_summary_rows = _collect_repo_scan_data(
+            opts, owner, repo, slugs, severity_filter, fixable
+        )
 
         if not repo_summary_rows:
             click.secho(
