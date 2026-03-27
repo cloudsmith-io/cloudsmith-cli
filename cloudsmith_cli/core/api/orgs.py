@@ -1,60 +1,55 @@
 """API - Packages endpoints."""
 
-import cloudsmith_api
+import cloudsmith_sdk
+from cloudsmith_sdk.models import (
+    OrganizationPackageLicensePolicyRequest,
+    OrganizationPackageVulnerabilityPolicyRequest,
+    PackageDenyPolicyRequest,
+)
 
-from .. import ratelimits
-from ..pagination import PageInfo
 from .exceptions import catch_raise_api_exception
-from .init import get_api_client
+from .init import get_new_api_client
 
 
-def get_orgs_api():
+def get_orgs_api() -> cloudsmith_sdk.OrgsApi:
     """Get the orgs API client."""
-    return get_api_client(cloudsmith_api.OrgsApi)
+    return get_new_api_client().orgs
 
 
-def list_vulnerability_policies(owner, page, page_size):
+def list_vulnerability_policies(owner, page_size):
     """List vulnerability policies in a namespace."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        policies, _, headers = client.orgs_vulnerability_policy_list_with_http_info(
-            org=owner, page=page, page_size=page_size
-        )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    page_info = PageInfo.from_headers(headers)
-    return [policy.to_dict() for policy in policies], page_info
+        return client.vulnerability_policy_list(org=owner, page_size=page_size)
 
 
 def create_vulnerability_policy(owner, policy_config):
     """Create a vulnerability policy in a namespace."""
     client = get_orgs_api()
 
-    with catch_raise_api_exception():
-        policy, _, headers = client.orgs_vulnerability_policy_create_with_http_info(
-            org=owner, data=policy_config
-        )
+    vulnerability_policy_request = (
+        OrganizationPackageVulnerabilityPolicyRequest.from_dict(policy_config)
+    )
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return policy.to_dict()
+    with catch_raise_api_exception():
+        return client.vulnerability_policy_create(
+            org=owner, body=vulnerability_policy_request
+        )
 
 
 def update_vulnerability_policy(owner, slug_perm, policy_config):
     """Update a vulnerability policy in a namespace."""
     client = get_orgs_api()
 
-    with catch_raise_api_exception():
-        (
-            data,
-            _,
-            headers,
-        ) = client.orgs_vulnerability_policy_partial_update_with_http_info(
-            owner, slug_perm, data=policy_config
-        )
+    vulnerability_policy_request = (
+        OrganizationPackageVulnerabilityPolicyRequest.from_dict(policy_config)
+    )
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return data.to_dict()
+    with catch_raise_api_exception():
+        return client.vulnerability_policy_partial_update(
+            org=owner, slug_perm=slug_perm, body=vulnerability_policy_request
+        )
 
 
 def delete_vulnerability_policy(owner, slug_perm):
@@ -62,11 +57,7 @@ def delete_vulnerability_policy(owner, slug_perm):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        _, _, headers = client.orgs_vulnerability_policy_delete_with_http_info(
-            owner, slug_perm
-        )
-
-    ratelimits.maybe_rate_limit(client, headers)
+        client.vulnerability_policy_delete(org=owner, slug_perm=slug_perm)
 
 
 def list_license_policies(owner, page, page_size):
@@ -74,39 +65,33 @@ def list_license_policies(owner, page, page_size):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        policies, _, headers = client.orgs_license_policy_list_with_http_info(
-            org=owner, page=page, page_size=page_size
-        )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    page_info = PageInfo.from_headers(headers)
-    return [policy.to_dict() for policy in policies], page_info
+        return client.license_policy_list(org=owner, page_size=page_size)
 
 
 def create_license_policy(owner, policy_config):
     """Create a license policy in a namespace."""
     client = get_orgs_api()
 
-    with catch_raise_api_exception():
-        policy, _, headers = client.orgs_license_policy_create_with_http_info(
-            org=owner, data=policy_config
-        )
+    license_policy_request = OrganizationPackageLicensePolicyRequest.from_dict(
+        policy_config
+    )
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return policy.to_dict()
+    with catch_raise_api_exception():
+        return client.license_policy_create(org=owner, body=license_policy_request)
 
 
 def update_license_policy(owner, slug_perm, policy_config):
     """Update a license policy in a namespace."""
     client = get_orgs_api()
 
-    with catch_raise_api_exception():
-        policy, _, headers = client.orgs_license_policy_partial_update_with_http_info(
-            org=owner, slug_perm=slug_perm, data=policy_config
-        )
+    license_policy_request = OrganizationPackageLicensePolicyRequest.from_dict(
+        policy_config
+    )
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return policy.to_dict()
+    with catch_raise_api_exception():
+        return client.license_policy_partial_update(
+            org=owner, slug_perm=slug_perm, body=license_policy_request
+        )
 
 
 def delete_license_policy(owner, slug_perm):
@@ -114,11 +99,7 @@ def delete_license_policy(owner, slug_perm):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        _, _, headers = client.orgs_license_policy_delete_with_http_info(
-            owner, slug_perm
-        )
-
-    ratelimits.maybe_rate_limit(client, headers)
+        client.license_policy_delete(org=owner, slug_perm=slug_perm)
 
 
 def list_deny_policies(owner, page, page_size):
@@ -126,26 +107,17 @@ def list_deny_policies(owner, page, page_size):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        policies, _, headers = client.orgs_deny_policy_list_with_http_info(
-            org=owner, page=page, page_size=page_size
-        )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    page_info = PageInfo.from_headers(headers)
-    return [policy.to_dict() for policy in policies], page_info
+        return client.deny_policy_list(org=owner, page_size=page_size)
 
 
 def create_deny_policy(owner, policy_config):
     """Create a deny policy in a namespace."""
     client = get_orgs_api()
 
-    with catch_raise_api_exception():
-        policy, _, headers = client.orgs_deny_policy_create_with_http_info(
-            org=owner, data=policy_config
-        )
+    deny_policy_request = PackageDenyPolicyRequest.from_dict(policy_config)
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return policy.to_dict()
+    with catch_raise_api_exception():
+        return client.deny_policy_create(org=owner, body=deny_policy_request)
 
 
 def get_deny_policy(owner, slug_perm):
@@ -153,25 +125,19 @@ def get_deny_policy(owner, slug_perm):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        policy, _, headers = client.orgs_deny_policy_read_with_http_info(
-            org=owner, slug_perm=slug_perm
-        )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    return policy.to_dict()
+        return client.deny_policy_read(org=owner, slug_perm=slug_perm)
 
 
 def update_deny_policy(owner, slug_perm, policy_config):
     """Update a deny policy in a namespace."""
     client = get_orgs_api()
 
-    with catch_raise_api_exception():
-        policy, _, headers = client.orgs_deny_policy_partial_update_with_http_info(
-            org=owner, slug_perm=slug_perm, data=policy_config
-        )
+    deny_policy_request = PackageDenyPolicyRequest.from_dict(policy_config)
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return policy.to_dict()
+    with catch_raise_api_exception():
+        return client.deny_policy_partial_update(
+            org=owner, slug_perm=slug_perm, body=deny_policy_request
+        )
 
 
 def delete_deny_policy(owner, slug_perm):
@@ -179,6 +145,4 @@ def delete_deny_policy(owner, slug_perm):
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        _, _, headers = client.orgs_deny_policy_delete_with_http_info(owner, slug_perm)
-
-    ratelimits.maybe_rate_limit(client, headers)
+        client.deny_policy_delete(org=owner, slug_perm=slug_perm)

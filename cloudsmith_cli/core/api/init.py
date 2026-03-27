@@ -5,6 +5,7 @@ from typing import Type, TypeVar
 
 import click
 import cloudsmith_api
+import cloudsmith_sdk
 
 from ...cli import saml
 from .. import keyring
@@ -30,7 +31,9 @@ def initialise_api(
 ):
     """Initialise the cloudsmith_api.Configuration."""
     # FIXME: pylint: disable=too-many-arguments
+
     config = cloudsmith_api.Configuration()
+
     config.debug = debug
     config.host = host if host else config.host
     config.proxy = proxy if proxy else config.proxy
@@ -126,6 +129,51 @@ def initialise_api(
 
 
 T = TypeVar("T")
+
+
+def get_sdk_auth() -> (
+    cloudsmith_sdk.BasicAuth
+    | cloudsmith_sdk.BearerTokenAuth
+    | cloudsmith_sdk.ApiTokenAuth
+    | None
+):
+    """Get an SDK auth object based on the current configuration."""
+    config = cloudsmith_api.Configuration()
+    headers = getattr(config, "headers", {})
+
+    auth_header = headers.get("Authorization")
+    if auth_header and " " in auth_header:
+        auth_type, token = auth_header.split(" ", 1)
+        if auth_type == "Bearer":
+            return cloudsmith_sdk.BearerTokenAuth(token=token)
+        elif auth_type == "Basic":
+            return cloudsmith_sdk.BasicAuth(
+                username=config.username, password=config.password
+            )
+    elif "X-Api-Key" in config.api_key:
+        return cloudsmith_sdk.ApiTokenAuth(token=config.api_key["X-Api-Key"])
+
+    return None
+
+
+def get_new_api_client() -> cloudsmith_sdk.CloudsmithClient:
+    """Get an API client (with configuration)."""
+    # TODO(egarcia): Needs to be removed before we can remove the old api client
+    config = cloudsmith_api.Configuration()
+    rate_limit = getattr(config, "rate_limit", True)
+    rate_limit_callback = getattr(config, "rate_limit_callback", None)
+
+    client = cloudsmith_sdk.CloudsmithClient(
+        base_url=config.host,
+        auth=get_sdk_auth(),
+        user_agent=getattr(config, "user_agent", None),
+        extra_headers=getattr(config, "headers", None),
+        rate_limit=cloudsmith_sdk.RateLimitConfig(
+            callback=rate_limit_callback if rate_limit else None
+        ),
+    )
+
+    return client
 
 
 def get_api_client(cls: Type[T]) -> T:

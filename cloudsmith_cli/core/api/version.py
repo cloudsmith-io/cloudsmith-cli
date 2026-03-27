@@ -7,7 +7,7 @@ import semver
 
 def get_version():
     """Get the raw/unparsed version of the API as a string."""
-    return importlib.metadata.version("cloudsmith_api")
+    return importlib.metadata.version("cloudsmith-sdk-python")
 
 
 def get_version_info():

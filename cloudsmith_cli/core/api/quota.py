@@ -1,15 +1,12 @@
 """API - Quota endpoints."""
 
-import cloudsmith_api
-
-from .. import ratelimits
 from .exceptions import catch_raise_api_exception
-from .init import get_api_client
+from .init import get_new_api_client
 
 
 def get_quota_api():
     """Get the Quota API client."""
-    return get_api_client(cloudsmith_api.QuotaApi)
+    return get_new_api_client().quota
 
 
 def quota_limits(owner=None, oss=False, **kwargs):
@@ -20,22 +17,9 @@ def quota_limits(owner=None, oss=False, **kwargs):
     api_kwargs.update(
         {param: value for param, value in kwargs.items() if value is not None}
     )
-
-    if oss:
-        if hasattr(client, "quota_oss_read_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.quota_oss_read_with_http_info(
-                    owner=owner, **api_kwargs
-                )
-    elif not oss:
-        if hasattr(client, "quota_read_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.quota_read_with_http_info(
-                    owner=owner, **api_kwargs
-                )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res
+    with catch_raise_api_exception():
+        read_quota = getattr(client, "%sread" % ("oss_" if oss else ""))
+        return read_quota(owner=owner, **api_kwargs)
 
 
 def quota_history(owner=None, oss=False, **kwargs):
@@ -47,18 +31,6 @@ def quota_history(owner=None, oss=False, **kwargs):
         {param: value for param, value in kwargs.items() if value is not None}
     )
 
-    if oss:
-        if hasattr(client, "quota_oss_history_read_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.quota_oss_history_read_with_http_info(
-                    owner=owner, **api_kwargs
-                )
-    elif not oss:
-        if hasattr(client, "quota_history_read_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.quota_history_read_with_http_info(
-                    owner=owner, **api_kwargs
-                )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res
+    with catch_raise_api_exception():
+        read_history = getattr(client, "%shistory_read" % ("oss_" if oss else ""))
+        return read_history(owner=owner, **api_kwargs)

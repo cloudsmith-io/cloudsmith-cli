@@ -1,16 +1,16 @@
 """API - Packages endpoints."""
 
-import cloudsmith_api
+import cloudsmith_sdk
+from cloudsmith_sdk.models import RepositoryCreateRequest, RepositoryRequestPatch
 
-from .. import ratelimits, utils
-from ..pagination import PageInfo
+from .. import utils
 from .exceptions import catch_raise_api_exception
-from .init import get_api_client
+from .init import get_new_api_client
 
 
-def get_repos_api():
+def get_repos_api() -> cloudsmith_sdk.ReposApi:
     """Get the repos API client."""
-    return get_api_client(cloudsmith_api.ReposApi)
+    return get_new_api_client().repos
 
 
 def list_repos(owner=None, **kwargs):
@@ -19,56 +19,36 @@ def list_repos(owner=None, **kwargs):
 
     api_kwargs = {}
     api_kwargs.update(utils.get_page_kwargs(**kwargs))
+    with catch_raise_api_exception():
+        if owner:
+            repo = kwargs.get("repo", None)
+            if repo is not None:
+                return [client.read(owner=owner, identifier=repo).to_dict()]
 
-    if owner:
-        repo = kwargs.get("repo", None)
-        if repo is not None:
-            if hasattr(client, "repos_read_with_http_info"):
-                with catch_raise_api_exception():
-                    res, _, headers = client.repos_read_with_http_info(owner, repo)
-                    res = [res]
-        else:
-            api_kwargs["owner"] = owner
+            return client.namespace_list(owner=owner, **api_kwargs)
 
-            if hasattr(client, "repos_namespace_list_with_http_info"):
-                with catch_raise_api_exception():
-                    res, _, headers = client.repos_namespace_list_with_http_info(
-                        **api_kwargs
-                    )
-    else:
-        if hasattr(client, "repos_user_list_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.repos_user_list_with_http_info(**api_kwargs)
-
-    ratelimits.maybe_rate_limit(client, headers)
-    page_info = PageInfo.from_headers(headers)
-    return [x.to_dict() for x in res], page_info
+        return client.user_list(**api_kwargs)
 
 
 def create_repo(owner, repo_config):
     """Create a repository in a namespace."""
     client = get_repos_api()
 
-    with catch_raise_api_exception():
-        data, _, headers = client.repos_create_with_http_info(
-            owner=owner, data=repo_config
-        )
+    repo_create_request = RepositoryCreateRequest.from_dict(repo_config)
 
-    ratelimits.maybe_rate_limit(client, headers)
-    return data.to_dict()
+    with catch_raise_api_exception():
+        return client.create(owner=owner, body=repo_create_request)
 
 
 def update_repo(owner, repo, repo_config):
     """Update a repo in a namespace."""
     client = get_repos_api()
+    repo_update_request = RepositoryRequestPatch.from_dict(repo_config)
 
     with catch_raise_api_exception():
-        data, _, headers = client.repos_partial_update_with_http_info(
-            owner, repo, data=repo_config
+        return client.partial_update(
+            owner=owner, identifier=repo, body=repo_update_request
         )
-
-    ratelimits.maybe_rate_limit(client, headers)
-    return data.to_dict()
 
 
 def delete_repo(owner, repo):
@@ -76,6 +56,4 @@ def delete_repo(owner, repo):
     client = get_repos_api()
 
     with catch_raise_api_exception():
-        _, _, headers = client.repos_delete_with_http_info(owner, repo)
-
-    ratelimits.maybe_rate_limit(client, headers)
+        client.delete(owner=owner, identifier=repo)

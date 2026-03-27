@@ -5,6 +5,7 @@ import contextlib
 import sys
 
 import click
+from cloudsmith_sdk import CloudsmithApiError
 
 from ..core.api.exceptions import ApiException
 from ..core.keyring import get_access_token
@@ -23,7 +24,15 @@ def handle_api_exceptions(
 
     try:
         yield
-    except ApiException as exc:
+    except (CloudsmithApiError, ApiException) as exc:
+        if isinstance(exc, CloudsmithApiError):
+            exc = ApiException(
+                exc.status_code,
+                detail=exc.detail or exc.reason,
+                headers=exc.headers,
+                body=exc.body,
+                fields=exc.fields,
+            )
         context_msg = context_msg or "Failed to perform operation!"
         detail, fields = get_details(exc)
         hint = get_error_hint(ctx, opts, exc)

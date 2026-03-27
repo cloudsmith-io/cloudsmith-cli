@@ -2,17 +2,17 @@
 
 import json
 
-import cloudsmith_api
+import cloudsmith_sdk
 from cloudsmith_api.rest import ApiException
+from cloudsmith_sdk.models import UserAuthTokenRequest
 
-from .. import ratelimits
 from .exceptions import TwoFactorRequiredException, catch_raise_api_exception
-from .init import get_api_client, unset_api_key
+from .init import get_new_api_client, unset_api_key
 
 
-def get_user_api():
+def get_user_api() -> cloudsmith_sdk.UserApi:
     """Get the user API client."""
-    return get_api_client(cloudsmith_api.UserApi)
+    return get_new_api_client().user
 
 
 def get_user_token(login, password, totp_token=None, two_factor_token=None):
@@ -34,9 +34,10 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
             "password": password,
         }
 
+    token_create_request = UserAuthTokenRequest.from_dict(data_dict)
+
     try:
-        data, _, headers = client.user_token_create_with_http_info(data=data_dict)
-        ratelimits.maybe_rate_limit(client, headers)
+        data = client.token_create(body=token_create_request)
         return data.token
     except ApiException as e:
         # Check for 2FA requirement
@@ -60,9 +61,8 @@ def create_user_token_saml() -> dict:
     client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.user_tokens_create_with_http_info()
+        data = client.tokens_create()
 
-    ratelimits.maybe_rate_limit(client, headers)
     return data
 
 
@@ -71,9 +71,8 @@ def get_user_brief():
     client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.user_self_with_http_info()
+        data = client.self()
 
-    ratelimits.maybe_rate_limit(client, headers)
     return data.authenticated, data.slug, data.email, data.name
 
 
@@ -82,10 +81,7 @@ def list_user_tokens() -> list[dict]:
     client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.user_tokens_list_with_http_info()
-
-    ratelimits.maybe_rate_limit(client, headers)
-    return data.results
+        return list(client.tokens_list())
 
 
 def refresh_user_token(token_slug: str) -> dict:
@@ -93,10 +89,7 @@ def refresh_user_token(token_slug: str) -> dict:
     client = get_user_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.user_tokens_refresh_with_http_info(token_slug)
-
-    ratelimits.maybe_rate_limit(client, headers)
-    return data
+        return client.tokens_refresh(token_slug)
 
 
 def get_token_metadata() -> dict | None:

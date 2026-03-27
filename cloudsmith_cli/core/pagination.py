@@ -1,8 +1,9 @@
 """Core pagination utilities."""
 
+import itertools
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
-MAX_PAGE_SIZE = 1000
+MAX_PAGE_SIZE = 500
 
 
 class PageInfo:
@@ -63,20 +64,52 @@ class PageInfo:
         )
 
     @classmethod
-    def from_headers(cls, headers):
-        """Create PageInfo from HTTP headers."""
+    def from_page_iterator(cls, iterator, page=None):
+        """Create PageInfo from an SDK PageIterator."""
+
+        def _get_int_attr(obj, name):
+            value = getattr(obj, name, None)
+            return value if isinstance(value, int) else None
+
         info = PageInfo()
-
-        if "X-Pagination-Count" in headers:
-            info.count = int(headers["X-Pagination-Count"])
-        if "X-Pagination-Page" in headers:
-            info.page = int(headers["X-Pagination-Page"])
-        if "X-Pagination-PageSize" in headers:
-            info.page_size = int(headers["X-Pagination-PageSize"])
-        if "X-Pagination-PageTotal" in headers:
-            info.page_total = int(headers["X-Pagination-PageTotal"])
-
+        info.count = _get_int_attr(iterator, "count")
+        info.page = page or _get_int_attr(iterator, "current_page")
+        info.page_size = _get_int_attr(iterator, "page_size")
+        info.page_total = _get_int_attr(iterator, "page_total")
         return info
+
+
+def paginate_iterator(
+    iterator,
+    page_all: bool,
+    page: int = 1,
+    page_size: int = 30,
+) -> Tuple[List[Any], PageInfo]:
+    """Apply client-side pagination to an iterator.
+
+    Use this for API endpoints backed by the new SDK, which handles
+    server-side pagination internally via iterators.
+
+    When page_all is False, only consumes enough items from the iterator
+    to fill the requested page, avoiding fetching all results.
+    """
+    if page_all:
+        all_results = list(iterator)
+        page_info = PageInfo.from_page_iterator(iterator, page=1)
+        page_info.count = page_info.count or len(all_results)
+        page_info.page_size = MAX_PAGE_SIZE
+        page_info.page_total = (
+            -(-page_info.count // MAX_PAGE_SIZE) if page_info.count else 0
+        )
+        return all_results, page_info
+
+    start = (page - 1) * page_size
+    page_results = list(itertools.islice(iterator, start, start + page_size))
+    page_info = PageInfo.from_page_iterator(iterator, page=page)
+    if page_info.count is not None:
+        page_info.page_size = page_size
+
+    return page_results, page_info
 
 
 def paginate_results(

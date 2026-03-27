@@ -5,7 +5,7 @@ import json
 import click
 
 from ...core.api import upstreams as api
-from ...core.pagination import paginate_results
+from ...core.pagination import MAX_PAGE_SIZE, paginate_iterator
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import (
@@ -43,12 +43,13 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
     """Print upstreams as a table or output in another format."""
 
     def build_row(u):
+        u = u.to_dict()
         row = [
             click.style(u["name"], fg="cyan"),
             click.style(maybe_truncate_string(u["upstream_url"]), fg="cyan"),
             click.style(str(u["auth_mode"]), fg="yellow"),
             click.style(
-                maybe_truncate_string(str(u["auth_secret"] or "")),
+                maybe_truncate_string(str(u.get("auth_secret", ""))),
                 fg="yellow",
             ),
             click.style(str(u["auth_username"] or ""), fg="yellow"),
@@ -182,14 +183,16 @@ def build_upstream_list_command(upstream_fmt):
         context_msg = "Failed to get upstreams!"
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
-                upstreams, page_info = paginate_results(
-                    api.list_upstreams,
-                    page_all,
-                    page,
-                    page_size,
-                    owner=owner,
-                    repo=repo,
-                    upstream_format=upstream_fmt,
+                upstreams, page_info = paginate_iterator(
+                    api.list_upstreams(
+                        owner=owner,
+                        repo=repo,
+                        page_size=page_size if page_size > 0 else MAX_PAGE_SIZE,
+                        upstream_format=upstream_fmt,
+                    ),
+                    page_all=page_all,
+                    page=page,
+                    page_size=page_size,
                 )
 
         if not use_stderr:

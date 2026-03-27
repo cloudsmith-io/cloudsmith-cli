@@ -1,7 +1,7 @@
 """CLI/Commands - Push packages."""
 
-import math
 import os
+import threading
 import time
 from datetime import datetime
 
@@ -9,13 +9,7 @@ import click
 
 from ...core import utils as core_utils
 from ...core.api.exceptions import ApiException
-from ...core.api.files import (
-    CHUNK_SIZE,
-    multi_part_upload_file,
-    request_file_upload,
-    upload_file as api_upload_file,
-    validate_request_file_upload,
-)
+from ...core.api.init import get_new_api_client
 from ...core.api.packages import (
     create_package as api_create_package,
     get_package_formats,
@@ -29,130 +23,66 @@ from ..utils import maybe_spinner
 from .main import main
 
 
-def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
-    """Validate parameters for requesting a file upload."""
+def _upload_file(ctx, opts, owner, repo, filepath, skip_errors):
+    """Upload a file using the SDK."""
     filename = click.format_filename(filepath)
     basename = os.path.basename(filename)
-
-    use_stderr = utils.should_use_stderr(opts)
-
-    click.echo(
-        "Checking %(filename)s file upload parameters ... "
-        % {"filename": click.style(basename, bold=True)},
-        nl=False,
-        err=use_stderr,
-    )
-
-    context_msg = "Failed to validate upload parameters!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
-    ):
-        with maybe_spinner(opts):
-            md5_checksum = validate_request_file_upload(
-                owner=owner, repo=repo, filepath=filename
-            )
-
-    click.secho("OK", fg="green", err=use_stderr)
-
-    return md5_checksum
-
-
-def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
-    """Upload a package file via the API."""
-    filename = click.format_filename(filepath)
-    basename = os.path.basename(filename)
-
     filesize = core_utils.get_file_size(filepath=filename)
-    projected_chunks = math.floor(filesize / CHUNK_SIZE) + 1
-    is_multi_part_upload = projected_chunks > 1
-
     use_stderr = utils.should_use_stderr(opts)
-
-    click.echo(
-        "Requesting file upload for %(filename)s ... "
-        % {"filename": click.style(basename, bold=True)},
-        nl=False,
-        err=use_stderr,
-    )
-
-    context_msg = "Failed to request file upload!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
-    ):
-        with maybe_spinner(opts):
-            identifier, upload_url, upload_fields = request_file_upload(
-                owner=owner,
-                repo=repo,
-                filepath=filename,
-                md5_checksum=md5_checksum,
-                is_multi_part_upload=is_multi_part_upload,
-            )
-
-    click.secho("OK", fg="green", err=use_stderr)
 
     context_msg = "Failed to upload file!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        label = f"Uploading {click.style(basename, bold=True)}:"
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    ):
+        client = get_new_api_client()
+        tracker = client.create_upload_tracker(filename)
 
-        if not is_multi_part_upload:
-            if use_stderr:
-                api_upload_file(
-                    upload_url=upload_url,
-                    upload_fields=upload_fields,
-                    filepath=filename,
-                )
-            else:
-                # We can upload the whole file in one go.
-                with click.progressbar(
-                    length=filesize,
-                    label=label,
-                    fill_char=click.style("#", fg="green"),
-                    empty_char=click.style("-", fg="red"),
-                ) as pb:
-
-                    def progress_callback(monitor):
-                        pb.update(monitor.bytes_read)
-
-                    api_upload_file(
-                        upload_url=upload_url,
-                        upload_fields=upload_fields,
-                        filepath=filename,
-                        callback=progress_callback,
-                    )
+        if use_stderr:
+            click.echo(
+                "Uploading %(filename)s ... "
+                % {"filename": click.style(basename, bold=True)},
+                nl=False,
+                err=True,
+            )
+            result = client.upload_file(owner, repo, filename, tracker=tracker)
+            click.secho("OK", fg="green", err=True)
         else:
-            if use_stderr:
-                multi_part_upload_file(
-                    opts=opts,
-                    upload_url=upload_url,
-                    owner=owner,
-                    repo=repo,
-                    filepath=filename,
-                    upload_id=identifier,
-                    callback=lambda: None,
-                )
-            else:
-                # The file is sufficiently large that we need to upload in chunks.
-                with click.progressbar(
-                    length=projected_chunks,
-                    label=label,
-                    fill_char=click.style("#", fg="green"),
-                    empty_char=click.style("-", fg="red"),
-                ) as pb:
+            label = f"Uploading {click.style(basename, bold=True)}:"
+            upload_start = time.monotonic()
 
-                    def progress_callback():
-                        pb.update(1)
+            def show_speed(_item):
+                elapsed = time.monotonic() - upload_start
+                if elapsed > 0:
+                    speed = tracker.bytes_uploaded / elapsed
+                    if speed >= 1024 * 1024:
+                        return f"{speed / (1024 * 1024):.1f} MB/s"
+                    return f"{speed / 1024:.1f} KB/s"
+                return ""
 
-                    multi_part_upload_file(
-                        opts=opts,
-                        upload_url=upload_url,
-                        owner=owner,
-                        repo=repo,
-                        filepath=filename,
-                        callback=progress_callback,
-                        upload_id=identifier,
-                    )
+            with click.progressbar(
+                length=filesize,
+                label=label,
+                fill_char=click.style("#", fg="green"),
+                empty_char=click.style("-", fg="red"),
+                item_show_func=show_speed,
+            ) as pb:
+                stop_event = threading.Event()
 
-    return identifier
+                def poll_progress():
+                    while not stop_event.is_set():
+                        pb.update(tracker.bytes_uploaded - pb.pos)
+                        stop_event.wait(0.1)
+
+                poll_thread = threading.Thread(target=poll_progress, daemon=True)
+                poll_thread.start()
+                try:
+                    result = client.upload_file(owner, repo, filename, tracker=tracker)
+                finally:
+                    stop_event.set()
+                    poll_thread.join()
+                    pb.update(filesize - pb.pos)
+
+    return result.identifier
 
 
 def validate_create_package(
@@ -405,15 +335,18 @@ def upload_files_and_create_package(
         **kwargs,
     )
 
-    # 2. Validate file upload parameters
-    md5_checksums = {}
+    if dry_run:
+        click.echo()
+        click.secho("You requested a dry run so skipping upload.", fg="yellow")
+        return
+
+    # 2. Upload any arguments that look like files
     for k, v in kwargs.items():
         if not v:
             continue
 
-        # Handle a single file
         if k.endswith("_file"):
-            md5_checksums[k] = validate_upload_file(
+            kwargs[k] = _upload_file(
                 ctx=ctx,
                 opts=opts,
                 owner=owner,
@@ -422,10 +355,9 @@ def upload_files_and_create_package(
                 skip_errors=skip_errors,
             )
 
-        # Check if the key is "extra_files" (to handle multiple files)
         if k == "extra_files" and isinstance(v, list):
-            md5_checksums[k] = [
-                validate_upload_file(
+            kwargs[k] = [
+                _upload_file(
                     ctx=ctx,
                     opts=opts,
                     owner=owner,
@@ -436,44 +368,7 @@ def upload_files_and_create_package(
                 for file in v
             ]
 
-    if dry_run:
-        click.echo()
-        click.secho("You requested a dry run so skipping upload.", fg="yellow")
-        return
-
-    # 3. Upload any arguments that look like files
-    for k, v in kwargs.items():
-        if not v:
-            continue
-
-        # Handle a single file
-        if k.endswith("_file"):
-            kwargs[k] = upload_file(
-                ctx=ctx,
-                opts=opts,
-                owner=owner,
-                repo=repo,
-                filepath=v,
-                skip_errors=skip_errors,
-                md5_checksum=md5_checksums[k],
-            )
-
-        # Check if the key is "extra_files" (to handle multiple files)
-        if k == "extra_files" and isinstance(v, list):
-            kwargs[k] = [
-                upload_file(
-                    ctx=ctx,
-                    opts=opts,
-                    owner=owner,
-                    repo=repo,
-                    filepath=file,
-                    skip_errors=skip_errors,
-                    md5_checksum=md5_checksums[k][idx],
-                )
-                for idx, file in enumerate(v)
-            ]
-
-    # 4. Create the package with package files and additional arguments
+    # 3. Create the package with package files and additional arguments
     slug_perm, slug = create_package(
         ctx=ctx,
         opts=opts,
@@ -487,7 +382,7 @@ def upload_files_and_create_package(
     if no_wait_for_sync:
         return slug_perm, slug
 
-    # 5. (optionally) Wait for the package to synchronise
+    # 4. (optionally) Wait for the package to synchronise
     wait_for_package_sync(
         ctx=ctx,
         opts=opts,

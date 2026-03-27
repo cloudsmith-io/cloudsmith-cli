@@ -2,9 +2,8 @@
 
 import contextlib
 import http.client
-import json
 
-from cloudsmith_api.rest import ApiException as _ApiException
+from cloudsmith_sdk import CloudsmithApiError
 
 
 class ApiException(Exception):
@@ -31,23 +30,15 @@ def catch_raise_api_exception():
     """Context manager that translates upstream API exceptions."""
     try:
         yield
-    except _ApiException as exc:
-        detail = None
-        fields = None
-
-        if exc.body:
-            try:
-                # pylint: disable=no-member
-                data = json.loads(exc.body)
-                detail = data.get("detail", None)
-                fields = data.get("fields", None)
-            except ValueError:
-                pass
-
-        detail = detail or exc.reason
-
+    except CloudsmithApiError as exc:
+        detail = exc.detail or exc.reason
+        fields = exc.fields
         raise ApiException(
-            exc.status, detail=detail, headers=exc.headers, body=exc.body, fields=fields
+            exc.status_code,
+            detail=detail,
+            headers=exc.headers,
+            body=exc.body,
+            fields=fields,
         )
 
 

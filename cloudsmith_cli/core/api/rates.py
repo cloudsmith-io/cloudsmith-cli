@@ -1,16 +1,15 @@
 """API - Status endpoints."""
 
-import cloudsmith_api
+import cloudsmith_sdk
 
-from .. import ratelimits
 from ..ratelimits import RateLimitsInfo
 from .exceptions import catch_raise_api_exception
-from .init import get_api_client
+from .init import get_new_api_client
 
 
-def get_rates_api():
+def get_rates_api() -> cloudsmith_sdk.RatesApi:
     """Get the status API client."""
-    return get_api_client(cloudsmith_api.RatesApi)
+    return get_new_api_client().rates
 
 
 def get_rate_limits():
@@ -18,9 +17,7 @@ def get_rate_limits():
     client = get_rates_api()
 
     with catch_raise_api_exception():
-        data, _, headers = client.rates_limits_list_with_http_info()
-
-    ratelimits.maybe_rate_limit(client, headers)
+        data = client.limits_list()
 
     return {
         k: RateLimitsInfo.from_dict(v)
