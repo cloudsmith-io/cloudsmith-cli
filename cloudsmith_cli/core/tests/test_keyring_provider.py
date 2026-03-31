@@ -3,7 +3,7 @@
 import os
 from unittest.mock import MagicMock, patch
 
-from cloudsmith_cli.core.credentials import CredentialContext
+from cloudsmith_cli.core.credentials.models import CredentialContext
 from cloudsmith_cli.core.credentials.providers import KeyringProvider
 
 

@@ -5,7 +5,7 @@ import pytest
 
 from ...core.api.init import initialise_api
 from ...core.api.repos import create_repo, delete_repo
-from ...core.credentials import CredentialResult
+from ...core.credentials.models import CredentialResult
 from .utils import random_str
 
 

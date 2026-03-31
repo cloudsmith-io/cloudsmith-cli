@@ -7,9 +7,10 @@ import click
 from cloudsmith_cli.cli import validators
 
 from ..core.api.init import initialise_api as _initialise_api
-from ..core.credentials import CredentialContext, CredentialProviderChain
-from ..core.credentials.session import create_session as _create_session
+from ..core.credentials.chain import CredentialProviderChain
+from ..core.credentials.models import CredentialContext
 from ..core.mcp import server
+from ..core.rest import create_requests_session as _create_session
 from . import config, utils
 
 

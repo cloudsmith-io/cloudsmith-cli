@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 
-from .. import CredentialContext, CredentialProvider, CredentialResult
+from ....cli.saml import refresh_access_token
+from ....core import keyring
+from ..models import CredentialContext, CredentialResult
+from ..provider import CredentialProvider
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +18,6 @@ class KeyringProvider(CredentialProvider):
     name = "keyring"
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:
-        from ....cli.saml import refresh_access_token
-        from ....core import keyring
-
         if not keyring.should_use_keyring():
             return None
 

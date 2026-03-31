@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from .. import CredentialContext, CredentialProvider, CredentialResult
+from ..models import CredentialContext, CredentialResult
+from ..provider import CredentialProvider
 
 
 class CLIFlagProvider(CredentialProvider):

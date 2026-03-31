@@ -1,11 +1,8 @@
 """Tests for the credential provider chain."""
 
-from cloudsmith_cli.core.credentials import (
-    CredentialContext,
-    CredentialProvider,
-    CredentialProviderChain,
-    CredentialResult,
-)
+from cloudsmith_cli.core.credentials.chain import CredentialProviderChain
+from cloudsmith_cli.core.credentials.models import CredentialContext, CredentialResult
+from cloudsmith_cli.core.credentials.provider import CredentialProvider
 
 
 class DummyProvider(CredentialProvider):

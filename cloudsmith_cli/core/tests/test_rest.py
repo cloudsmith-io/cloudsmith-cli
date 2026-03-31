@@ -2,7 +2,7 @@ import httpretty
 import pytest
 
 from ..api.init import initialise_api
-from ..rest import RestClient
+from ..rest import RestClient, create_requests_session
 
 
 @pytest.fixture(autouse=True)
@@ -51,3 +51,17 @@ class TestRestClient:
 
         assert len(httpretty.latest_requests()) == 6
         assert r.status == 200
+
+
+class TestCreateRequestsSession:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        initialise_api()
+
+    def test_sets_user_agent_header(self):
+        session = create_requests_session(user_agent="test-agent/1.0")
+        assert session.headers["User-Agent"] == "test-agent/1.0"
+
+    def test_sets_extra_headers(self):
+        session = create_requests_session(headers={"X-Custom": "value"})
+        assert session.headers["X-Custom"] == "value"

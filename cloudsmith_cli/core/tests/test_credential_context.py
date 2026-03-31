@@ -1,6 +1,6 @@
 """Tests for the CredentialContext class."""
 
-from cloudsmith_cli.core.credentials import CredentialContext
+from cloudsmith_cli.core.credentials.models import CredentialContext
 
 
 class TestCredentialContext:

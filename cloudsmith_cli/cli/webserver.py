@@ -9,7 +9,7 @@ import click
 
 from ..core.api.exceptions import ApiException
 from ..core.api.init import initialise_api
-from ..core.credentials import CredentialResult
+from ..core.credentials.models import CredentialResult
 from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 

@@ -66,7 +66,7 @@ class TestInitialiseApi:
 
     def test_initialise_api_sets_bearer_auth_with_access_token(self):
         """Verify access_token is set as Bearer auth header."""
-        from cloudsmith_cli.core.credentials import CredentialResult
+        from cloudsmith_cli.core.credentials.models import CredentialResult
 
         credential = CredentialResult(
             api_key="test_access_token", source_name="test", auth_type="bearer"
@@ -79,7 +79,7 @@ class TestInitialiseApi:
 
     def test_initialise_api_sets_api_key(self):
         """Verify key is set as X-Api-Key header."""
-        from cloudsmith_cli.core.credentials import CredentialResult
+        from cloudsmith_cli.core.credentials.models import CredentialResult
 
         credential = CredentialResult(
             api_key="test_api_key", source_name="test", auth_type="api_key"
@@ -92,7 +92,7 @@ class TestInitialiseApi:
 
     def test_initialise_api_bearer_credential(self):
         """Verify bearer credential sets Authorization header, not X-Api-Key."""
-        from cloudsmith_cli.core.credentials import CredentialResult
+        from cloudsmith_cli.core.credentials.models import CredentialResult
 
         Configuration.set_default(None)
         credential = CredentialResult(

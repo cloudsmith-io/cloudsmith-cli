@@ -1,6 +1,6 @@
 """Tests for the CLI flag credential provider."""
 
-from cloudsmith_cli.core.credentials import CredentialContext
+from cloudsmith_cli.core.credentials.models import CredentialContext
 from cloudsmith_cli.core.credentials.providers import CLIFlagProvider
 
 
