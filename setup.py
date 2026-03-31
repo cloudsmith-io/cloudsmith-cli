@@ -65,7 +65,10 @@ setup(
         "urllib3>=2.5",
     ],
     entry_points={
-        "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
+        "console_scripts": [
+            "cloudsmith=cloudsmith_cli.cli.commands.main:main",
+            "docker-credential-cloudsmith=cloudsmith_cli.credential_helpers.docker.wrapper:main",
+        ]
     },
     keywords=["cloudsmith", "cli", "devops"],
     classifiers=[
