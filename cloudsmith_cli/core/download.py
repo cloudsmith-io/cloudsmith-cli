@@ -453,19 +453,8 @@ def stream_download(  # noqa: C901
         if "Authorization" in request_headers and request_headers[
             "Authorization"
         ].startswith("Bearer "):
-            # SSO Bearer tokens don't work with /basic/ endpoints - need API key
-            if not quiet:
-                click.echo(
-                    "Warning: SSO authentication detected. Private repository downloads require an API key.",
-                    err=True,
-                )
-                click.echo("Options:", err=True)
-                click.echo(
-                    "  1. Set environment variable: export CLOUDSMITH_API_KEY=your_api_key",
-                    err=True,
-                )
-                click.echo("  2. Use command option: --api-key YOUR_KEY", err=True)
-            # Remove Authorization header since it won't work
+            bearer_token = request_headers["Authorization"].split("Bearer ", 1)[1]
+            auth = ("token", bearer_token)
             request_headers = {
                 k: v for k, v in request_headers.items() if k != "Authorization"
             }
