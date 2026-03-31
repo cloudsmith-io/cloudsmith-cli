@@ -57,6 +57,7 @@ setup(
         "cloudsmith-api>=2.0.25,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "mcp==1.9.1",
+        "PyJWT>=2.0.0",
         "python-toon==0.1.2",
         "requests>=2.18.4",
         "requests_toolbelt>=1.0.0",
@@ -64,6 +65,14 @@ setup(
         "semver>=2.7.9",
         "urllib3>=2.5",
     ],
+    extras_require={
+        "aws": [
+            "boto3[crt]>=1.26.0",
+        ],
+        "all": [
+            "boto3[crt]>=1.26.0",
+        ],
+    },
     entry_points={
         "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
     },

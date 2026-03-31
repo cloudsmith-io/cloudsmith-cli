@@ -294,11 +294,47 @@ def initialise_session(f):
 def resolve_credentials(f):
     """Resolve credentials via the provider chain. Depends on initialise_session."""
 
+    @click.option(
+        "--oidc-audience",
+        envvar="CLOUDSMITH_OIDC_AUDIENCE",
+        help="The OIDC audience for token requests.",
+    )
+    @click.option(
+        "--oidc-org",
+        envvar="CLOUDSMITH_ORG",
+        help="The Cloudsmith organisation slug for OIDC token exchange.",
+    )
+    @click.option(
+        "--oidc-service-slug",
+        envvar="CLOUDSMITH_SERVICE_SLUG",
+        help="The Cloudsmith service slug for OIDC token exchange.",
+    )
+    @click.option(
+        "--oidc-discovery-disabled",
+        default=None,
+        is_flag=True,
+        envvar="CLOUDSMITH_OIDC_DISCOVERY_DISABLED",
+        help="Disable OIDC auto-discovery.",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        oidc_audience = kwargs.pop("oidc_audience")
+        oidc_org = kwargs.pop("oidc_org")
+        oidc_service_slug = kwargs.pop("oidc_service_slug")
+        oidc_discovery_disabled = _pop_boolean_flag(kwargs, "oidc_discovery_disabled")
+
+        if oidc_audience:
+            opts.oidc_audience = oidc_audience
+        if oidc_org:
+            opts.oidc_org = oidc_org
+        if oidc_service_slug:
+            opts.oidc_service_slug = oidc_service_slug
+        if oidc_discovery_disabled:
+            opts.oidc_discovery_disabled = oidc_discovery_disabled
 
         context = CredentialContext(
             session=opts.session,
@@ -307,6 +343,10 @@ def resolve_credentials(f):
             creds_file_path=ctx.meta.get("creds_file"),
             profile=ctx.meta.get("profile"),
             debug=opts.debug,
+            oidc_audience=opts.oidc_audience,
+            oidc_org=opts.oidc_org,
+            oidc_service_slug=opts.oidc_service_slug,
+            oidc_discovery_disabled=opts.oidc_discovery_disabled,
         )
 
         chain = CredentialProviderChain()

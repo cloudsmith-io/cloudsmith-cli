@@ -18,18 +18,19 @@ class CredentialProviderChain:
     """Evaluates credential providers in order, returning the first valid result.
 
     If no providers are given, uses the default chain:
-    Keyring → CLIFlag.
+    Keyring → CLIFlag → OIDC.
     """
 
     def __init__(self, providers: list[CredentialProvider] | None = None):
         if providers is not None:
             self.providers = providers
         else:
-            from .providers import CLIFlagProvider, KeyringProvider
+            from .providers import CLIFlagProvider, KeyringProvider, OidcProvider
 
             self.providers = [
                 KeyringProvider(),
                 CLIFlagProvider(),
+                OidcProvider(),
             ]
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:
