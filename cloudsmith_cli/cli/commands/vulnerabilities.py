@@ -63,7 +63,10 @@ def get_packages_in_repo(opts, owner, repo):
             f"The repository may be empty, or the owner/repo names may be incorrect."
         )
 
-    return [pkg["slug_perm"] for pkg in all_packages]
+    return [
+        (pkg["slug_perm"], pkg.get("name", pkg["slug_perm"]), pkg.get("version", ""))
+        for pkg in all_packages
+    ]
 
 
 def _has_scan_results(data):
@@ -189,18 +192,28 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
     table.add_column("Total", justify="center", header_style="bold white")
 
     grand_total = 0
+    num_sev_cols = len(severity_keys)
 
-    for label, counts in package_rows:
-        row_total = 0
+    for label, counts, status in package_rows:
         cells = [label]
-        for _display, sev_key in severity_keys.items():
-            count = counts.get(sev_key, 0)
-            cells.append(_colorize_count(count, sev_key))
-            row_total += count
-        total_style = "[bold red]" if row_total > 0 else "[dim]"
-        cells.append(f"{total_style}{row_total}[/]")
+        if status == "no_scan":
+            cells.append("[dim italic]Security scan not supported[/dim italic]")
+            cells.extend([""] * (num_sev_cols - 1))
+            cells.append("")
+        elif status == "no_issues_found":
+            cells.append("[bold green]No issues found[/bold green]")
+            cells.extend([""] * (num_sev_cols - 1))
+            cells.append("")
+        else:
+            row_total = 0
+            for _display, sev_key in severity_keys.items():
+                count = counts.get(sev_key, 0)
+                cells.append(_colorize_count(count, sev_key))
+                row_total += count
+            total_style = "[bold red]" if row_total > 0 else "[dim]"
+            cells.append(f"{total_style}{row_total}[/]")
+            grand_total += row_total
         table.add_row(*cells)
-        grand_total += row_total
 
     console.print()
     console.print(table)
@@ -210,7 +223,9 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
 def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     """Silently collect scan data for all packages with a progress bar.
 
-    Returns list of (slug, label, counts) tuples sorted by total desc.
+    Returns list of (slug, label, counts, status) tuples where status is one of
+    "vulnerable", "safe", or "no_scan". Sorted: vulnerable (by count desc),
+    then safe, then no_scan.
     """
     rows = []
     console = Console(stderr=True)
@@ -226,8 +241,13 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     ) as progress:
         task = progress.add_task("Scanning packages...", total=len(slugs))
 
-        for slug in slugs:
+        for slug, pkg_name_fallback, pkg_version_fallback in slugs:
             progress.update(task, description=f"Processing {slug}...")
+            fallback_label = (
+                f"{pkg_name_fallback}:{pkg_version_fallback}"
+                if pkg_version_fallback
+                else pkg_name_fallback
+            )
 
             try:
                 data = get_package_scan_result(
@@ -240,10 +260,26 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
                     fixable=fixable,
                 )
             except Exception:  # pylint: disable=broad-exception-caught
+                rows.append((slug, fallback_label, {}, "no_scan"))
                 progress.advance(task)
                 continue
 
+            # Build label from scan response metadata, fall back to list_packages data
+            pkg_data = getattr(data, "package", None) if data else None
+            pkg_name = (
+                getattr(pkg_data, "name", pkg_name_fallback)
+                if pkg_data
+                else pkg_name_fallback
+            )
+            pkg_version = (
+                getattr(pkg_data, "version", pkg_version_fallback)
+                if pkg_data
+                else pkg_version_fallback
+            )
+            label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
+
             if not data or not _has_scan_results(data):
+                rows.append((slug, label, {}, "no_scan"))
                 progress.advance(task)
                 continue
 
@@ -251,24 +287,22 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
             if severity_filter or fixable is not None:
                 _apply_filters(data, severity_filter, fixable)
 
-            # Build label from package metadata
-            pkg_data = getattr(data, "package", None)
-            pkg_name = getattr(pkg_data, "name", slug)
-            pkg_version = getattr(pkg_data, "version", "")
-            label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
-
             counts = _aggregate_severity_counts(data, severity_filter)
 
-            # Skip packages where filters removed all vulnerabilities
             if sum(counts.values()) > 0:
-                rows.append((slug, label, counts))
+                rows.append((slug, label, counts, "vulnerable"))
+            else:
+                rows.append((slug, label, counts, "no_issues_found"))
 
             progress.advance(task)
 
-    # Sort by total vulnerability count descending
-    rows.sort(key=lambda row: sum(row[2].values()), reverse=True)
+    # Sort: vulnerable first (by total desc), then safe, then no_scan
+    vulnerable = [r for r in rows if r[3] == "vulnerable"]
+    vulnerable.sort(key=lambda r: sum(r[2].values()), reverse=True)
+    safe = [r for r in rows if r[3] == "no_issues_found"]
+    no_scan = [r for r in rows if r[3] == "no_scan"]
 
-    return rows
+    return vulnerable + safe + no_scan
 
 
 @main.command()
@@ -363,20 +397,12 @@ def vulnerabilities(
         )
 
         if not repo_summary_rows:
-            if severity_filter or fixable is not None:
-                click.secho(
-                    f"No vulnerabilities matched the applied filters "
-                    f"for any packages in '{owner}/{repo}'.",
-                    fg="yellow",
-                    err=use_stderr,
-                )
-            else:
-                click.secho(
-                    f"No vulnerability scan results found for any packages "
-                    f"in '{owner}/{repo}'.",
-                    fg="yellow",
-                    err=use_stderr,
-                )
+            click.secho(
+                f"No scan data could be retrieved for any packages "
+                f"in '{owner}/{repo}'.",
+                fg="yellow",
+                err=use_stderr,
+            )
             return
 
         json_output = {
@@ -386,18 +412,19 @@ def vulnerabilities(
                 {
                     "slug_perm": slug_perm,
                     "package": label,
+                    "status": status,
                     "vulnerabilities": counts,
                 }
-                for slug_perm, label, counts in repo_summary_rows
+                for slug_perm, label, counts, status in repo_summary_rows
             ],
         }
 
         if utils.maybe_print_as_json(opts, json_output):
             return
 
-        # Table only needs label and counts
+        # Table only needs label, counts, and status
         _print_repo_summary_table(
-            [(label, counts) for _, label, counts in repo_summary_rows],
+            [(label, counts, status) for _, label, counts, status in repo_summary_rows],
             severity_filter,
         )
         return
