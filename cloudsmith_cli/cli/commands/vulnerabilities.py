@@ -453,10 +453,6 @@ def vulnerabilities(
         )
         return
 
-    # Single-package mode
-    slugs = [slug]
-    data = None
-
     try:
         with utils.maybe_spinner(opts):
             data = get_package_scan_result(
