@@ -186,6 +186,7 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
     )
 
     table.add_column("Package", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Identifier", justify="left", style="dim", no_wrap=True)
     for display_name, sev_key in severity_keys.items():
         color = SEVERITY_COLORS.get(sev_key, "white")
         table.add_column(display_name, justify="center", header_style=f"bold {color}")
@@ -194,8 +195,8 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
     grand_total = 0
     num_sev_cols = len(severity_keys)
 
-    for label, counts, status in package_rows:
-        cells = [label]
+    for slug_perm, label, counts, status in package_rows:
+        cells = [label, slug_perm]
         if status == "no_scan":
             cells.append("[dim italic]Security scan not supported[/dim italic]")
             cells.extend([""] * (num_sev_cols - 1))
@@ -297,11 +298,14 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
             progress.advance(task)
 
     # Sort: vulnerable first (by total desc), then safe, then no_scan
+    # When filters are active, only return packages with matching vulnerabilities
+    filters_active = severity_filter or fixable is not None
     vulnerable = [r for r in rows if r[3] == "vulnerable"]
     vulnerable.sort(key=lambda r: sum(r[2].values()), reverse=True)
+    if filters_active:
+        return vulnerable
     safe = [r for r in rows if r[3] == "no_issues_found"]
     no_scan = [r for r in rows if r[3] == "no_scan"]
-
     return vulnerable + safe + no_scan
 
 
@@ -397,12 +401,29 @@ def vulnerabilities(
         )
 
         if not repo_summary_rows:
-            click.secho(
-                f"No scan data could be retrieved for any packages "
-                f"in '{owner}/{repo}'.",
-                fg="yellow",
-                err=use_stderr,
-            )
+            if severity_filter or fixable is not None:
+                filter_desc = severity_filter.upper() if severity_filter else None
+                if fixable is True:
+                    filter_desc = (
+                        f"{filter_desc}, fixable" if filter_desc else "fixable"
+                    )
+                elif fixable is False:
+                    filter_desc = (
+                        f"{filter_desc}, non-fixable" if filter_desc else "non-fixable"
+                    )
+                click.secho(
+                    f"No packages found matching filter(s) [{filter_desc}] "
+                    f"in '{owner}/{repo}'.",
+                    fg="yellow",
+                    err=use_stderr,
+                )
+            else:
+                click.secho(
+                    f"No scan data could be retrieved for any packages "
+                    f"in '{owner}/{repo}'.",
+                    fg="yellow",
+                    err=use_stderr,
+                )
             return
 
         json_output = {
@@ -424,7 +445,10 @@ def vulnerabilities(
 
         # Table only needs label, counts, and status
         _print_repo_summary_table(
-            [(label, counts, status) for _, label, counts, status in repo_summary_rows],
+            [
+                (slug_perm, label, counts, status)
+                for slug_perm, label, counts, status in repo_summary_rows
+            ],
             severity_filter,
         )
         return
