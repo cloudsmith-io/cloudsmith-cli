@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added repository-level vulnerability summary (`cloudsmith vulnerabilities OWNER/REPO`)
+  - Aggregates scan results across all packages into a single color-coded table
+  - Packages sorted by total vulnerability count (descending)
+  - Supports `--severity` and `--fixable/--non-fixable` filters
+
 ## [1.16.0] - 2026-03-24
 
 ### Added

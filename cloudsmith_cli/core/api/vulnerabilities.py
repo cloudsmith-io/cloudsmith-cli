@@ -2,11 +2,22 @@
 
 import click
 import cloudsmith_api
+from rich.console import Console
+from rich.table import Table
 
 from ...cli import utils
 from .. import ratelimits
 from .exceptions import catch_raise_api_exception
 from .init import get_api_client
+
+# Severity color mapping for consistent styling
+SEVERITY_COLORS = {
+    "critical": "red",
+    "high": "bright_red",
+    "medium": "yellow",
+    "low": "blue",
+    "unknown": "dim white",
+}
 
 
 def get_vulnerabilities_api():
@@ -14,8 +25,16 @@ def get_vulnerabilities_api():
     return get_api_client(cloudsmith_api.VulnerabilitiesApi)
 
 
+def _colorize_count(count, severity_key):
+    """Return a rich-styled count string, colored only when count > 0."""
+    if count > 0:
+        color = SEVERITY_COLORS.get(severity_key, "white")
+        return f"[{color}]{count}[/{color}]"
+    return f"[dim]{count}[/dim]"
+
+
 def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns):
-    """Print vulnerabilities as a table."""
+    """Print vulnerabilities as a color-coded table."""
 
     severity_keys = {
         "Critical": "critical",
@@ -28,10 +47,6 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
     if severity_filter:
         allowed = [s.strip().lower() for s in severity_filter.split(",")]
         severity_keys = {k: v for k, v in severity_keys.items() if v in allowed}
-
-    headers = [{"header": "Package", "justify": "left", "style": "cyan"}]
-    for key in severity_keys.keys():
-        headers.append({"header": key, "justify": "center", "style": "white"})
 
     # Get package name and version for the target label
     pkg_data = getattr(data, "package", None)
@@ -53,29 +68,43 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
             elif "unknown" in counts:
                 counts["unknown"] += 1
 
-    # Create the single summary row
-    row = [target_label]
-    for _header, key in severity_keys.items():
-        row.append(str(counts[key]))
+    # Build the rich table
+    console = Console()
+    table = Table(
+        title="Vulnerabilities Summary",
+        show_header=True,
+        header_style="bold",
+        show_lines=True,
+        border_style="bright_black",
+        padding=(0, 1),
+    )
 
-    rows = [row]
+    table.add_column("Package", justify="left", style="cyan", no_wrap=True)
+    for display_name, sev_key in severity_keys.items():
+        color = SEVERITY_COLORS.get(sev_key, "white")
+        table.add_column(display_name, justify="center", header_style=f"bold {color}")
+    table.add_column("Total", justify="center", header_style="bold white")
 
-    click.echo()
-    click.echo()
+    # Build the row
+    row_total = 0
+    cells = [target_label]
+    for _display, sev_key in severity_keys.items():
+        count = counts.get(sev_key, 0)
+        cells.append(_colorize_count(count, sev_key))
+        row_total += count
+    total_style = "[bold red]" if row_total > 0 else "[dim]"
+    cells.append(f"{total_style}{row_total}[/]")
+    table.add_row(*cells)
 
-    utils.rich_print_table(headers=headers, rows=rows, title="Vulnerabilities Summary")
+    console.print()
+    console.print(table)
 
     if severity_filter:
-        filters = severity_filter.upper()
-        click.echo(
-            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
+        console.print(
+            f"\nFiltered Vulnerabilities: [bold]{total_filtered_vulns}[/bold]\n"
         )
-        click.echo(f"\nTotal {filters} Vulnerabilities: {total_filtered_vulns}")
     else:
-        click.echo(
-            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
-        )
-    click.echo()
+        console.print(f"\nTotal Vulnerabilities: [bold]{row_total}[/bold]\n")
 
 
 def _print_vulnerabilities_assessment_table(data, severity_filter=None):
@@ -205,6 +234,12 @@ def get_package_scan_identifier(owner, repo, package):
         )
 
     ratelimits.maybe_rate_limit(client, headers)
+
+    if not data:
+        # click.echo(
+        #     f"No vulnerability scan results found for package: {package}", err=True
+        # )
+        return None
 
     return data[0].identifier
 
