@@ -236,9 +236,6 @@ def get_package_scan_identifier(owner, repo, package):
     ratelimits.maybe_rate_limit(client, headers)
 
     if not data:
-        # click.echo(
-        #     f"No vulnerability scan results found for package: {package}", err=True
-        # )
         return None
 
     return data[0].identifier
