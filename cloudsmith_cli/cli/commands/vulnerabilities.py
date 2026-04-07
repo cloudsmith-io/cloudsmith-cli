@@ -13,60 +13,9 @@ from ...core.api.vulnerabilities import (
     _print_vulnerabilities_summary_table,
     get_package_scan_result,
 )
+from ...core.pagination import paginate_results
 from .. import decorators, utils, validators
 from .main import main
-
-
-def get_packages_in_repo(opts, owner, repo):
-    """Get all packages in a repository, paginating through all pages."""
-    all_packages = []
-    page = 1
-    page_size = 100  # fetch in larger batches for efficiency
-
-    try:
-        while True:
-            packages, page_info = list_packages(
-                opts=opts,
-                owner=owner,
-                repo=repo,
-                query=None,
-                sort=None,
-                page=page,
-                page_size=page_size,
-            )
-
-            if packages:
-                all_packages.extend(packages)
-
-            # No page info means single page or no results
-            if not page_info:
-                break
-
-            current_page = getattr(page_info, "page", page)
-            total_pages = getattr(page_info, "page_total", 1)
-
-            if current_page >= total_pages:
-                break
-
-            page += 1
-
-    except Exception as exc:
-        raise click.ClickException(
-            f"Failed to list packages for '{owner}/{repo}'. "
-            f"Please check the owner and repository names are correct. "
-            f"Detail: {exc}"
-        ) from exc
-
-    if not all_packages:
-        raise click.ClickException(
-            f"No packages found in '{owner}/{repo}'. "
-            f"The repository may be empty, or the owner/repo names may be incorrect."
-        )
-
-    return [
-        (pkg["slug_perm"], pkg.get("name", pkg["slug_perm"]), pkg.get("version", ""))
-        for pkg in all_packages
-    ]
 
 
 def _has_scan_results(data):
@@ -336,9 +285,8 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     "severity_filter",
     help="Filter by severities (e.g., 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW').",
 )
-@click.pass_context
 def vulnerabilities(
-    ctx, opts, owner_repo_package, show_assessment, fixable, severity_filter
+    opts, owner_repo_package, show_assessment, fixable, severity_filter
 ):
     """
     Retrieve vulnerability scan results for a package.
@@ -394,7 +342,37 @@ def vulnerabilities(
 
     # Repo summary mode: collect with progress bar, then output once
     if repo_summary:
-        slugs = get_packages_in_repo(opts, owner, repo)
+        try:
+            all_packages, _ = paginate_results(
+                list_packages,
+                page_all=True,
+                page=1,
+                owner=owner,
+                repo=repo,
+                query=None,
+                sort=None,
+            )
+        except Exception as exc:
+            raise click.ClickException(
+                f"Failed to list packages for '{owner}/{repo}'. "
+                f"Please check the owner and repository names are correct. "
+                f"Detail: {exc}"
+            ) from exc
+
+        if not all_packages:
+            raise click.ClickException(
+                f"No packages found in '{owner}/{repo}'. "
+                f"The repository may be empty, or the owner/repo names may be incorrect."
+            )
+
+        slugs = [
+            (
+                pkg["slug_perm"],
+                pkg.get("name", pkg["slug_perm"]),
+                pkg.get("version", ""),
+            )
+            for pkg in all_packages
+        ]
 
         repo_summary_rows = _collect_repo_scan_data(
             opts, owner, repo, slugs, severity_filter, fixable
