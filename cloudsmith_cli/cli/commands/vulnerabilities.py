@@ -2,6 +2,8 @@
 
 # Copyright 2026 Cloudsmith Ltd
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import click
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
@@ -170,6 +172,9 @@ def _print_repo_summary_table(package_rows, severity_filter=None):
     console.print(f"\nTotal Vulnerabilities: [bold]{grand_total}[/bold]\n")
 
 
+_SCAN_WORKERS = 10
+
+
 def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     """Silently collect scan data for all packages with a progress bar.
 
@@ -177,6 +182,50 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     "vulnerable", "safe", or "no_scan". Sorted: vulnerable (by count desc),
     then safe, then no_scan.
     """
+
+    def _scan_one(slug, pkg_name_fallback, pkg_version_fallback):
+        fallback_label = (
+            f"{pkg_name_fallback}:{pkg_version_fallback}"
+            if pkg_version_fallback
+            else pkg_name_fallback
+        )
+        try:
+            data = get_package_scan_result(
+                opts=opts,
+                owner=owner,
+                repo=repo,
+                package=slug,
+                show_assessment=False,
+                severity_filter=severity_filter,
+                fixable=fixable,
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            return (slug, fallback_label, {}, "no_scan")
+
+        # Build label from scan response metadata, fall back to list_packages data
+        pkg_data = getattr(data, "package", None) if data else None
+        pkg_name = (
+            getattr(pkg_data, "name", pkg_name_fallback)
+            if pkg_data
+            else pkg_name_fallback
+        )
+        pkg_version = (
+            getattr(pkg_data, "version", pkg_version_fallback)
+            if pkg_data
+            else pkg_version_fallback
+        )
+        label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
+
+        if not data or not _has_scan_results(data):
+            return (slug, label, {}, "no_scan")
+
+        if severity_filter or fixable is not None:
+            _apply_filters(data, severity_filter, fixable)
+
+        counts = _aggregate_severity_counts(data, severity_filter)
+        status = "vulnerable" if sum(counts.values()) > 0 else "no_issues_found"
+        return (slug, label, counts, status)
+
     rows = []
     console = Console(stderr=True)
 
@@ -191,60 +240,14 @@ def _collect_repo_scan_data(opts, owner, repo, slugs, severity_filter, fixable):
     ) as progress:
         task = progress.add_task("Scanning packages...", total=len(slugs))
 
-        for slug, pkg_name_fallback, pkg_version_fallback in slugs:
-            progress.update(task, description=f"Processing {slug}...")
-            fallback_label = (
-                f"{pkg_name_fallback}:{pkg_version_fallback}"
-                if pkg_version_fallback
-                else pkg_name_fallback
-            )
-
-            try:
-                data = get_package_scan_result(
-                    opts=opts,
-                    owner=owner,
-                    repo=repo,
-                    package=slug,
-                    show_assessment=False,
-                    severity_filter=severity_filter,
-                    fixable=fixable,
-                )
-            except Exception:  # pylint: disable=broad-exception-caught
-                rows.append((slug, fallback_label, {}, "no_scan"))
+        with ThreadPoolExecutor(max_workers=_SCAN_WORKERS) as executor:
+            futures = {
+                executor.submit(_scan_one, slug, name, version): slug
+                for slug, name, version in slugs
+            }
+            for future in as_completed(futures):
+                rows.append(future.result())
                 progress.advance(task)
-                continue
-
-            # Build label from scan response metadata, fall back to list_packages data
-            pkg_data = getattr(data, "package", None) if data else None
-            pkg_name = (
-                getattr(pkg_data, "name", pkg_name_fallback)
-                if pkg_data
-                else pkg_name_fallback
-            )
-            pkg_version = (
-                getattr(pkg_data, "version", pkg_version_fallback)
-                if pkg_data
-                else pkg_version_fallback
-            )
-            label = f"{pkg_name}:{pkg_version}" if pkg_version else pkg_name
-
-            if not data or not _has_scan_results(data):
-                rows.append((slug, label, {}, "no_scan"))
-                progress.advance(task)
-                continue
-
-            # Apply filters if active
-            if severity_filter or fixable is not None:
-                _apply_filters(data, severity_filter, fixable)
-
-            counts = _aggregate_severity_counts(data, severity_filter)
-
-            if sum(counts.values()) > 0:
-                rows.append((slug, label, counts, "vulnerable"))
-            else:
-                rows.append((slug, label, counts, "no_issues_found"))
-
-            progress.advance(task)
 
     # Sort: vulnerable first (by total desc), then safe, then no_scan
     # When filters are active, only return packages with matching vulnerabilities
