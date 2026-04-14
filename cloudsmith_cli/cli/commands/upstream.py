@@ -66,9 +66,27 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
             click.style(fmt_bool(u["verify_ssl"]), fg="green"),
         ]
 
+        if upstream_fmt == "alpine":
+            # RSA verification fields are alpine-only
+            row.append(
+                click.style(
+                    maybe_truncate_string(str(u.get("rsa_key_inline", "") or "")),
+                    fg="yellow",
+                )
+            )
+            row.append(click.style(str(u.get("rsa_key_url", "") or ""), fg="yellow"))
+            row.append(
+                click.style(str(u.get("rsa_verification", "") or ""), fg="yellow")
+            )
+            row.append(
+                click.style(
+                    str(u.get("rsa_verification_status", "") or ""), fg="yellow"
+                )
+            )
+
         if upstream_fmt == "deb":
             # `Component`, `Distribution Versions` and `Upstream Distribution` are deb-only
-            row.append(click.style(str(u.get("component", None)), fg="yellow"))
+            row.append(click.style(str(u.get("component", None) or ""), fg="yellow"))
             row.append(
                 click.style(
                     str(maybe_truncate_list(u.get("distro_versions", []))),
@@ -76,7 +94,9 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
                 )
             )
             row.append(
-                click.style(str(u.get("upstream_distribution", None)), fg="yellow")
+                click.style(
+                    str(u.get("upstream_distribution", None) or ""), fg="yellow"
+                )
             )
 
         if upstream_fmt == "rpm":
@@ -103,6 +123,12 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
         "Updated At",
         "Verify SSL",
     ]
+
+    if upstream_fmt == "alpine":
+        headers.append("RSA Key Inline")
+        headers.append("RSA Key URL")
+        headers.append("RSA Verification")
+        headers.append("RSA Verification Status")
 
     if upstream_fmt == "deb":
         headers.append("Component")
