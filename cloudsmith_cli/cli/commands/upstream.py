@@ -75,14 +75,18 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
                 )
             )
             row.append(click.style(str(u.get("rsa_key_url", "") or ""), fg="yellow"))
-            row.append(click.style(str(u.get("rsa_verification", "")), fg="yellow"))
             row.append(
-                click.style(str(u.get("rsa_verification_status", "")), fg="yellow")
+                click.style(str(u.get("rsa_verification", "") or ""), fg="yellow")
+            )
+            row.append(
+                click.style(
+                    str(u.get("rsa_verification_status", "") or ""), fg="yellow"
+                )
             )
 
         if upstream_fmt == "deb":
             # `Component`, `Distribution Versions` and `Upstream Distribution` are deb-only
-            row.append(click.style(str(u.get("component", None)), fg="yellow"))
+            row.append(click.style(str(u.get("component", None) or ""), fg="yellow"))
             row.append(
                 click.style(
                     str(maybe_truncate_list(u.get("distro_versions", []))),
@@ -90,7 +94,9 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
                 )
             )
             row.append(
-                click.style(str(u.get("upstream_distribution", None)), fg="yellow")
+                click.style(
+                    str(u.get("upstream_distribution", None) or ""), fg="yellow"
+                )
             )
 
         if upstream_fmt == "rpm":
