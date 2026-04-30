@@ -191,6 +191,74 @@ class TestListMetadata:
         assert exc_info.value.fields == {"source_kind": ["Not a valid choice."]}
 
 
+class TestGetMetadata:
+    @httpretty.activate(allow_net_connect=False)
+    def test_success_returns_metadata_entry(self):
+        body = {
+            "slug_perm": META,
+            "content": {"foo": "bar"},
+            "content_type": "application/json",
+            "classification": "generic",
+            "source_kind": "customer",
+            "source_identity": "cloudsmith-cli@1.16.0",
+            "is_canonical": True,
+            "source_table": "package_metadata",
+            "created_at": "2026-04-30T12:34:56Z",
+        }
+        httpretty.register_uri(
+            httpretty.GET,
+            DETAIL_URL,
+            body=json.dumps(body),
+            status=200,
+            content_type="application/json",
+        )
+
+        result = metadata.get_metadata(PKG, META)
+
+        assert result == body
+        sent = _last_request()
+        assert sent.method == "GET"
+        assert sent.headers.get("X-Api-Key") == "test-api-key"
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_404_on_unknown_metadata(self):
+        httpretty.register_uri(
+            httpretty.GET,
+            DETAIL_URL,
+            body=json.dumps({"detail": "Not found."}),
+            status=404,
+            content_type="application/json",
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            metadata.get_metadata(PKG, META)
+
+        assert exc_info.value.status == 404
+        assert exc_info.value.detail == "Not found."
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_422_raises_with_fields(self):
+        body = {
+            "detail": "Validation failed.",
+            "fields": {"metadata_slug_perm": ["Invalid metadata slug."]},
+        }
+        httpretty.register_uri(
+            httpretty.GET,
+            DETAIL_URL,
+            body=json.dumps(body),
+            status=422,
+            content_type="application/json",
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            metadata.get_metadata(PKG, META)
+
+        assert exc_info.value.status == 422
+        assert exc_info.value.fields == {
+            "metadata_slug_perm": ["Invalid metadata slug."]
+        }
+
+
 class TestCreateMetadata:
     @httpretty.activate(allow_net_connect=False)
     def test_success_posts_required_fields(self):

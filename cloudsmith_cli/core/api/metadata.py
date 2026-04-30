@@ -177,6 +177,20 @@ def list_metadata(
     return results, page_info
 
 
+def get_metadata(package_slug_perm: str, metadata_slug_perm: str):
+    """Retrieve a single metadata entry attached to a package."""
+    client = get_metadata_api()
+    response = _request(
+        client,
+        "GET",
+        "packages",
+        package_slug_perm,
+        "metadata",
+        metadata_slug_perm,
+    )
+    return _response_json(response)
+
+
 def create_metadata(
     package_slug_perm: str,
     *,
