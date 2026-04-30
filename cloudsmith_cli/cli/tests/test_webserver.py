@@ -40,7 +40,11 @@ class TestAuthenticationWebServer:
 
                 mock_init_api.assert_called_once()
                 call_kwargs = mock_init_api.call_args.kwargs
-                assert call_kwargs.get("access_token") == "test_sso_token_123"
+                credential = call_kwargs.get("credential")
+                assert credential is not None
+                assert credential.api_key == "test_sso_token_123"
+                assert credential.auth_type == "bearer"
+                assert credential.source_name == "sso"
 
 
 class TestAuthenticationWebRequestHandlerKeyring:

@@ -1,14 +1,11 @@
 """CLI/Commands - Retrieve authentication status."""
 
-import os
-
 import click
 
 from ...core import keyring
 from ...core.api.exceptions import ApiException
 from ...core.api.user import get_token_metadata, get_user_brief
 from .. import decorators, utils
-from ..config import CredentialsReader
 from ..exceptions import handle_api_exceptions
 from .main import main
 
@@ -26,26 +23,17 @@ def _get_active_method(api_config):
 def _get_api_key_source(opts):
     """Determine where the API key was loaded from.
 
-    Checks in priority order matching actual resolution:
-    CLI --api-key flag > CLOUDSMITH_API_KEY env var > credentials.ini.
+    Uses the credential provider chain result attached by initialise_api.
     """
-    if not opts.api_key:
-        return {"configured": False, "source": None, "source_key": None}
+    credential = getattr(opts, "credential", None)
+    if credential:
+        return {
+            "configured": True,
+            "source": credential.source_detail or credential.source_name,
+            "source_key": credential.source_name,
+        }
 
-    env_key = os.environ.get("CLOUDSMITH_API_KEY")
-
-    # If env var is set but differs from the resolved key, CLI flag won
-    if env_key and opts.api_key != env_key:
-        source, key = "CLI --api-key flag", "cli_flag"
-    elif env_key:
-        suffix = env_key[-4:]
-        source, key = f"CLOUDSMITH_API_KEY env var (ends with ...{suffix})", "env_var"
-    elif creds := CredentialsReader.find_existing_files():
-        source, key = f"credentials.ini ({creds[0]})", "credentials_file"
-    else:
-        source, key = "CLI --api-key flag", "cli_flag"
-
-    return {"configured": True, "source": source, "source_key": key}
+    return {"configured": False, "source": None, "source_key": None}
 
 
 def _get_sso_status(api_host):

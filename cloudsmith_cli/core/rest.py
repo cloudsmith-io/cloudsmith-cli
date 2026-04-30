@@ -61,28 +61,26 @@ def create_requests_session(
     session=None,
     error_retry_cb=None,
     respect_retry_after_header=True,
+    user_agent=None,
+    headers=None,
 ):
     """Create a requests session that retries some errors."""
     # pylint: disable=too-many-branches
     config = Configuration()
 
     if retries is None:
-        if config.error_retry_max is None:  # pylint: disable=no-member
-            retries = 5
-        else:
-            retries = config.error_retry_max  # pylint: disable=no-member
+        retry_max = getattr(config, "error_retry_max", None)
+        retries = retry_max if retry_max is not None else 5
 
     if backoff_factor is None:
-        if config.error_retry_backoff is None:  # pylint: disable=no-member
-            backoff_factor = 0.23
-        else:
-            backoff_factor = config.error_retry_backoff  # pylint: disable=no-member
+        retry_backoff = getattr(config, "error_retry_backoff", None)
+        backoff_factor = retry_backoff if retry_backoff is not None else 0.23
 
     if status_forcelist is None:
-        if config.error_retry_codes is None:  # pylint: disable=no-member
-            status_forcelist = [500, 502, 503, 504]
-        else:
-            status_forcelist = config.error_retry_codes  # pylint: disable=no-member
+        retry_codes = getattr(config, "error_retry_codes", None)
+        status_forcelist = (
+            retry_codes if retry_codes is not None else [500, 502, 503, 504]
+        )
 
     if ssl_verify is None:
         ssl_verify = config.verify_ssl
@@ -124,6 +122,12 @@ def create_requests_session(
 
     session.mount("http://", adapter)
     session.mount("https://", adapter)
+
+    if user_agent:
+        session.headers["User-Agent"] = user_agent
+
+    if headers:
+        session.headers.update(headers)
 
     return session
 
