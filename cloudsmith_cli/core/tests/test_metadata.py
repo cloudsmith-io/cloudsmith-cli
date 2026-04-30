@@ -2,6 +2,7 @@
 
 import json
 
+import cloudsmith_api
 import httpretty
 import httpretty.core
 import pytest
@@ -372,16 +373,20 @@ class TestDeleteMetadata:
 
 
 class TestAuthHeaders:
-    @httpretty.activate(allow_net_connect=False)
-    def test_sso_authorization_header_takes_precedence(self):
-        # initialise_api with no key, then mutate Configuration to mimic post-SSO state
-        import cloudsmith_api
-
+    @staticmethod
+    def _override_config(monkeypatch, *, api_key=None, headers=None):
         cfg = cloudsmith_api.Configuration()
-        cfg.api_key = {}
-        cfg.headers = {"Authorization": "Bearer sso-token"}
-        cloudsmith_api.Configuration.set_default(cfg)
+        cfg.api_key = api_key if api_key is not None else cfg.api_key
+        cfg.headers = headers if headers is not None else cfg.headers
+        monkeypatch.setattr(cloudsmith_api.Configuration, "_default", cfg)
 
+    @httpretty.activate(allow_net_connect=False)
+    def test_sso_authorization_header_takes_precedence(self, monkeypatch):
+        self._override_config(
+            monkeypatch,
+            api_key={"X-Api-Key": "test-api-key"},
+            headers={"Authorization": "Bearer sso-token"},
+        )
         httpretty.register_uri(
             httpretty.GET,
             LIST_URL,
@@ -395,3 +400,23 @@ class TestAuthHeaders:
         sent = _last_request()
         assert sent.headers.get("Authorization") == "Bearer sso-token"
         assert sent.headers.get("X-Api-Key") is None
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_extra_config_headers_are_preserved(self, monkeypatch):
+        self._override_config(
+            monkeypatch,
+            headers={"X-Custom-Header": "custom-value"},
+        )
+        httpretty.register_uri(
+            httpretty.GET,
+            LIST_URL,
+            body=json.dumps({"results": []}),
+            status=200,
+            content_type="application/json",
+        )
+
+        metadata.list_metadata(PKG)
+
+        sent = _last_request()
+        assert sent.headers.get("X-Custom-Header") == "custom-value"
+        assert sent.headers.get("X-Api-Key") == "test-api-key"

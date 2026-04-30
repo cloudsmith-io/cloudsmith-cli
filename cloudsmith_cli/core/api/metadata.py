@@ -95,15 +95,14 @@ def _build_headers(config):
     the X-Api-Key header.
     """
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    headers.update(getattr(config, "headers", None) or {})
 
     user_agent = getattr(config, "user_agent", None)
     if user_agent:
         headers["User-Agent"] = user_agent
 
-    extra = getattr(config, "headers", None) or {}
-    auth_header = extra.get("Authorization")
-    if auth_header:
-        headers["Authorization"] = auth_header
+    if headers.get("Authorization"):
+        headers.pop("X-Api-Key", None)
     else:
         api_key = (config.api_key or {}).get("X-Api-Key")
         if api_key:
