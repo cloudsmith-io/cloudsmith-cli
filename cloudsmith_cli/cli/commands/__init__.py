@@ -14,6 +14,7 @@ from . import (
     login,
     logout,
     mcp,
+    metadata,
     metrics,
     move,
     policy,
