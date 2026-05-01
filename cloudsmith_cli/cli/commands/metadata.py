@@ -52,7 +52,9 @@ def _echo_action(message, use_stderr):
 
 def _print_metadata_table(opts, entries, page_info=None, page_all=False):
     """Print a list of metadata entries as a table or JSON."""
-    if utils.maybe_print_as_json(opts, list(entries), page_info=page_info):
+    if utils.maybe_print_as_json(
+        opts, list(entries), page_info=None if page_all else page_info
+    ):
         return
 
     rows = [

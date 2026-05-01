@@ -196,6 +196,7 @@ class TestMetadataList(unittest.TestCase):
         self.assertEqual(
             [item["slug_perm"] for item in payload["data"]], ["first", "second"]
         )
+        self.assertNotIn("meta", payload)
         self.assertEqual(mock_list.call_count, 2)
         self.assertEqual(
             [call.kwargs["page"] for call in mock_list.call_args_list], [1, 2]
