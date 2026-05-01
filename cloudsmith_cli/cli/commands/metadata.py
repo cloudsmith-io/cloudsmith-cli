@@ -69,7 +69,7 @@ def _print_metadata_table(opts, entries, page_info=None, page_all=False):
     click.echo()
 
     num_results = len(rows)
-    list_suffix = "metadata entr%s" % ("ies" if num_results != 1 else "y")
+    list_suffix = f"metadata entr{'ies' if num_results != 1 else 'y'}"
     utils.pretty_print_list_info(
         num_results=num_results,
         page_info=None if page_all else page_info,
