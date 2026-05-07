@@ -23,10 +23,10 @@ from .main import main
 
 _METADATA_HEADERS = [
     "Slug",
-    "Content Type",
+    "Content type",
     "Classification",
-    "Source Kind",
-    "Source Identity",
+    "Source kind",
+    "Source identity",
 ]
 
 
@@ -131,8 +131,6 @@ def _load_content(content_file, inline_content, *, required):
 def metadata_(ctx, opts):  # pylint: disable=unused-argument
     """
     Manage metadata attached to packages in a repository.
-
-    See the help for subcommands for more information on each.
     """
 
 
@@ -181,10 +179,10 @@ def list_metadata(
     """
     List metadata entries attached to a package.
 
-    OWNER/REPO/PACKAGE: identifies the package whose metadata you want to list.
+    OWNER/REPO/PACKAGE: identifies the target package.
 
     METADATA_SLUG_PERM (optional): if given, fetch and display only that single
-    metadata entry. Pagination and filter flags are ignored in this case.
+    metadata entry. Pagination and filter flags are ignored.
 
     \b
     Examples:
@@ -205,7 +203,7 @@ def list_metadata(
             use_stderr,
         )
 
-        context_msg = "Failed to fetch metadata for the package!"
+        context_msg = "Failed to fetch metadata for the package."
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
                 slug_perm = api_get_package_slug_perm(
@@ -231,7 +229,7 @@ def list_metadata(
         use_stderr,
     )
 
-    context_msg = "Failed to list metadata for the package!"
+    context_msg = "Failed to list metadata for the package."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -294,7 +292,7 @@ def list_metadata(
     "source_identity",
     default=None,
     help=(
-        "Free-text identifier indicating where this metadata originated. "
+        "Identifier indicating where the metadata originated. "
         "Defaults to 'cloudsmith-cli@<version>'."
     ),
 )
@@ -311,10 +309,10 @@ def add_metadata(
     """
     Attach a new metadata entry to a package.
 
-    OWNER/REPO/PACKAGE: the package the metadata should be attached to.
+    OWNER/REPO/PACKAGE: identifies the target package.
 
-    Exactly one of --file or --content must be supplied.
-    Content type is set on creation and cannot be changed later.
+    Exactly one of --file or --content must be provided.
+    Content type is set on creation and cannot be changed.
 
     \b
     Examples:
@@ -340,7 +338,7 @@ def add_metadata(
         use_stderr,
     )
 
-    context_msg = "Failed to attach metadata to the package!"
+    context_msg = "Failed to attach metadata to the package."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -397,7 +395,7 @@ def add_metadata(
     "--source-identity",
     "source_identity",
     default=None,
-    help="Update the free-text source identity for this metadata entry.",
+    help="Update the source identity for the metadata entry.",
 )
 @click.pass_context
 def update_metadata(
@@ -410,9 +408,9 @@ def update_metadata(
     source_identity,
 ):
     """
-    Patch an existing metadata entry on a package.
+    Update an existing metadata entry on a package.
 
-    OWNER/REPO/PACKAGE: the package the metadata is attached to.
+    OWNER/REPO/PACKAGE: identifies the target package.
     METADATA_SLUG_PERM: the permanent slug of the metadata entry to update.
 
     Content type cannot be changed after creation.
@@ -451,7 +449,7 @@ def update_metadata(
         use_stderr,
     )
 
-    context_msg = "Failed to update metadata on the package!"
+    context_msg = "Failed to update metadata on the package."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -479,14 +477,14 @@ def update_metadata(
     "--yes",
     default=False,
     is_flag=True,
-    help="Assume yes as default answer to questions (this is dangerous!)",
+    help="Skip confirmation prompts. Use with care.",
 )
 @click.pass_context
 def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
     """
     Remove a metadata entry from a package.
 
-    OWNER/REPO/PACKAGE: the package the metadata is attached to.
+    OWNER/REPO/PACKAGE: identifies the target package.
     METADATA_SLUG_PERM: the permanent slug of the metadata entry to delete.
 
     \b
@@ -514,7 +512,7 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
         use_stderr,
     )
 
-    context_msg = "Failed to remove metadata from the package!"
+    context_msg = "Failed to remove metadata from the package."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
