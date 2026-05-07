@@ -15,8 +15,8 @@ from ..api.init import initialise_api
 API_HOST = "https://api.cloudsmith.io"
 PKG = "pkg-slug"
 META = "meta-slug"
-LIST_URL = f"{API_HOST}/v2/packages/{PKG}/metadata/"
-DETAIL_URL = f"{API_HOST}/v2/packages/{PKG}/metadata/{META}/"
+LIST_URL = f"{API_HOST}/v2/metadata/packages/{PKG}/"
+DETAIL_URL = f"{API_HOST}/v2/metadata/packages/{PKG}/{META}/"
 
 
 @pytest.fixture(autouse=True)
