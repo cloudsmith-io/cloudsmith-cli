@@ -17,6 +17,7 @@ PKG = "pkg-slug"
 META = "meta-slug"
 LIST_URL = f"{API_HOST}/v2/metadata/packages/{PKG}/"
 DETAIL_URL = f"{API_HOST}/v2/metadata/packages/{PKG}/{META}/"
+VALIDATE_URL = f"{API_HOST}/v2/metadata/validate/"
 
 
 @pytest.fixture(autouse=True)
@@ -438,6 +439,131 @@ class TestDeleteMetadata:
 
         assert exc_info.value.status == 422
         assert exc_info.value.fields == {"non_field_errors": ["Metadata is read-only."]}
+
+
+class TestValidateMetadata:
+    @httpretty.activate(allow_net_connect=False)
+    def test_success_returns_true(self):
+        httpretty.register_uri(httpretty.POST, VALIDATE_URL, status=200)
+
+        assert (
+            metadata.validate_metadata(
+                content={"foo": "bar"}, content_type="application/json"
+            )
+            is True
+        )
+
+        sent = _last_request()
+        assert sent.method == "POST"
+        assert json.loads(sent.body) == {
+            "content": {"foo": "bar"},
+            "content_type": "application/json",
+        }
+        assert sent.headers.get("X-Api-Key") == "test-api-key"
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_422_on_non_dict_content(self):
+        body = {
+            "code": "invalid",
+            "detail": "Invalid input.",
+            "fields": {"content": ["Content must be a JSON object."]},
+        }
+        httpretty.register_uri(
+            httpretty.POST,
+            VALIDATE_URL,
+            body=json.dumps(body),
+            status=422,
+            content_type="application/json",
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            metadata.validate_metadata(
+                content="not-an-object", content_type="application/json"
+            )
+
+        assert exc_info.value.status == 422
+        assert exc_info.value.detail == "Invalid input."
+        assert exc_info.value.fields == {"content": ["Content must be a JSON object."]}
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_422_on_failing_schema(self):
+        body = {
+            "code": "invalid",
+            "detail": "Invalid input.",
+            "fields": {
+                "content": [
+                    "Content does not conform to the schema for content type"
+                    " 'application/vnd.jfrog.buildinfo+json'."
+                ]
+            },
+        }
+        httpretty.register_uri(
+            httpretty.POST,
+            VALIDATE_URL,
+            body=json.dumps(body),
+            status=422,
+            content_type="application/json",
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            metadata.validate_metadata(
+                content={"bad": "payload"},
+                content_type="application/vnd.jfrog.buildinfo+json",
+            )
+
+        assert exc_info.value.status == 422
+        assert exc_info.value.detail == "Invalid input."
+        assert "content" in exc_info.value.fields
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_422_on_non_customer_writable_content_type(self):
+        body = {
+            "code": "invalid",
+            "detail": "Invalid input.",
+            "fields": {
+                "content_type": [
+                    "Content type 'application/vnd.cloudsmith.system+json'"
+                    " is not customer-writable."
+                ]
+            },
+        }
+        httpretty.register_uri(
+            httpretty.POST,
+            VALIDATE_URL,
+            body=json.dumps(body),
+            status=422,
+            content_type="application/json",
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            metadata.validate_metadata(
+                content={"foo": "bar"},
+                content_type="application/vnd.cloudsmith.system+json",
+            )
+
+        assert exc_info.value.status == 422
+        assert exc_info.value.detail == "Invalid input."
+        assert "content_type" in exc_info.value.fields
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_401_when_unauthenticated(self):
+        httpretty.register_uri(
+            httpretty.POST,
+            VALIDATE_URL,
+            body=json.dumps(
+                {"detail": "Authentication credentials were not provided."}
+            ),
+            status=401,
+            content_type="application/json",
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            metadata.validate_metadata(
+                content={"foo": "bar"}, content_type="application/json"
+            )
+
+        assert exc_info.value.status == 401
+        assert exc_info.value.detail == "Authentication credentials were not provided."
 
 
 class TestAuthHeaders:
