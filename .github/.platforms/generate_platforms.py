@@ -9,9 +9,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 # Configuration
 PYTHON_VERSIONS = ("3.10", "3.11", "3.12", "3.13", "3.14")

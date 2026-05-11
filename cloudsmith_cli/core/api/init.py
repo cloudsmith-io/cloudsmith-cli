@@ -1,7 +1,7 @@
 """Cloudsmith API - Initialisation."""
 
 import base64
-from typing import Type, TypeVar
+from typing import TypeVar
 
 import click
 import cloudsmith_api
@@ -128,7 +128,7 @@ def initialise_api(
 T = TypeVar("T")
 
 
-def get_api_client(cls: Type[T]) -> T:
+def get_api_client(cls: type[T]) -> T:
     """Get an API client (with configuration)."""
     config = cloudsmith_api.Configuration()
     client = cls()
