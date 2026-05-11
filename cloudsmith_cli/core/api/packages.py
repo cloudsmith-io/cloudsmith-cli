@@ -215,6 +215,24 @@ def get_package_tags(owner, repo, identifier):
     return (data.tags, data.tags_immutable)
 
 
+def get_package_slug_perm(owner, repo, identifier):
+    """Resolve a package's permanent slug from owner/repo/identifier.
+
+    Used by metadata commands that address packages by slug_perm.
+    """
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_read_with_http_info(
+            owner=owner, repo=repo, identifier=identifier
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+
+    # pylint: disable=no-member
+    return data.slug_perm
+
+
 def list_packages(owner, repo, **kwargs):
     """List packages for a repository."""
     client = get_packages_api()
