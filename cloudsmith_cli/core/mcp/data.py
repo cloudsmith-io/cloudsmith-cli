@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -10,8 +10,8 @@ class OpenAPITool:
     description: str
     method: str
     path: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     base_url: str
-    query_filter: Optional[str]
+    query_filter: str | None
     is_destructive: bool = False
     is_read_only: bool = False

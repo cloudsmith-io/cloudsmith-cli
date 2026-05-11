@@ -1,6 +1,7 @@
 """Core pagination utilities."""
 
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 MAX_PAGE_SIZE = 1000
 
@@ -80,12 +81,12 @@ class PageInfo:
 
 
 def paginate_results(
-    api_function: Callable[..., Tuple[Sequence[Any], PageInfo]],
+    api_function: Callable[..., tuple[Sequence[Any], PageInfo]],
     page_all: bool,
     page: int,
     page_size: int = MAX_PAGE_SIZE,
     **kwargs: Any,
-) -> Tuple[List[Any], PageInfo]:
+) -> tuple[list[Any], PageInfo]:
     """Retrieve paginated results.
 
     Behaviour:
@@ -108,9 +109,9 @@ def paginate_results(
         # rather than raising. Downstream pretty printers handle an invalid page_info gracefully.
         return list(results), page_info
 
-    all_results: List[Any] = []
+    all_results: list[Any] = []
     current_page = 1
-    last_page_info: Optional[PageInfo] = None
+    last_page_info: PageInfo | None = None
     while True:
         page_results, last_page_info = api_function(
             page=current_page, page_size=MAX_PAGE_SIZE, **kwargs
