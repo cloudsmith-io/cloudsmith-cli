@@ -165,9 +165,9 @@ def list_metadata(
     response = _request(
         client,
         "GET",
+        "metadata",
         "packages",
         package_slug_perm,
-        "metadata",
         query_params=api_kwargs or None,
     )
 
@@ -183,9 +183,9 @@ def get_metadata(package_slug_perm: str, metadata_slug_perm: str):
     response = _request(
         client,
         "GET",
+        "metadata",
         "packages",
         package_slug_perm,
-        "metadata",
         metadata_slug_perm,
     )
     return _response_json(response)
@@ -206,7 +206,7 @@ def create_metadata(
         "source_identity": source_identity,
     }
     response = _request(
-        client, "POST", "packages", package_slug_perm, "metadata", body=body
+        client, "POST", "metadata", "packages", package_slug_perm, body=body
     )
     return _response_json(response)
 
@@ -238,9 +238,9 @@ def update_metadata(
     response = _request(
         client,
         "PATCH",
+        "metadata",
         "packages",
         package_slug_perm,
-        "metadata",
         metadata_slug_perm,
         body=body,
     )
@@ -253,8 +253,20 @@ def delete_metadata(package_slug_perm: str, metadata_slug_perm: str):
     _request(
         client,
         "DELETE",
+        "metadata",
         "packages",
         package_slug_perm,
-        "metadata",
         metadata_slug_perm,
     )
+
+
+def validate_metadata(*, content: Any, content_type: str):
+    """Validate a metadata payload against its content type schema.
+
+    Hits POST /v2/metadata/validate/ which checks shape and schema without
+    persisting. Server returns 200 on success and 422 on validation failure.
+    """
+    client = get_metadata_api()
+    body = {"content": content, "content_type": content_type}
+    _request(client, "POST", "metadata", "validate", body=body)
+    return True
