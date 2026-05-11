@@ -1,7 +1,7 @@
 """API - Package metadata (v2) endpoints."""
 
 import json
-from typing import Any, Optional, Union
+from typing import Any
 
 import cloudsmith_api
 
@@ -136,10 +136,10 @@ def _response_json(response):
 def list_metadata(
     package_slug_perm: str,
     *,
-    source_kind: Optional[Union[int, str]] = None,
-    classification: Optional[Union[int, str]] = None,
-    page: Optional[int] = None,
-    page_size: Optional[int] = None,
+    source_kind: int | str | None = None,
+    classification: int | str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
 ):
     """List metadata entries attached to a package.
 
@@ -216,7 +216,7 @@ def update_metadata(
     metadata_slug_perm: str,
     *,
     content: Any = None,
-    source_identity: Optional[str] = None,
+    source_identity: str | None = None,
 ):
     """Patch an existing customer-owned metadata entry.
 
