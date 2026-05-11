@@ -15,9 +15,13 @@ from ...core.api.metadata import (
 )
 from ...core.api.packages import get_package_slug_perm as api_get_package_slug_perm
 from ...core.pagination import paginate_results
-from ...core.version import get_version as get_cli_version
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
+from ..metadata_common import (
+    attach_metadata_options,
+    require_metadata_content_type,
+    resolve_metadata_content,
+)
 from ..utils import maybe_spinner
 from .main import main
 
@@ -28,11 +32,6 @@ _METADATA_HEADERS = [
     "Source kind",
     "Source identity",
 ]
-
-
-def _default_source_identity():
-    """Return the default value for --source-identity."""
-    return f"cloudsmith-cli@{get_cli_version()}"
 
 
 def _format_metadata_row(entry):
@@ -93,35 +92,6 @@ def _print_metadata_entry(opts, entry):
         click.echo(json.dumps(content, indent=2, sort_keys=True))
 
 
-def _load_content(content_file, inline_content, *, required):
-    """Resolve --file / --content into a parsed object.
-
-    Enforces the XOR between the two sources. When `required` is True (used
-    by `add`), at least one source must be provided. When False (used by
-    `update`), a missing source means "do not change content".
-    """
-    if content_file is not None and inline_content is not None:
-        raise click.UsageError("--file and --content are mutually exclusive.")
-
-    if content_file is not None:
-        if content_file == "-":
-            raw, source = click.get_text_stream("stdin").read(), "stdin"
-        else:
-            with open(content_file, encoding="utf-8") as fh:
-                raw, source = fh.read(), "--file"
-    elif inline_content is not None:
-        raw, source = inline_content, "--content"
-    elif required:
-        raise click.UsageError("One of --file or --content is required.")
-    else:
-        return None
-
-    try:
-        return json.loads(raw)
-    except ValueError as exc:
-        raise click.UsageError(f"Invalid JSON in {source}: {exc}") from exc
-
-
 @main.group(name="metadata", cls=command.AliasGroup)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
@@ -130,7 +100,7 @@ def _load_content(content_file, inline_content, *, required):
 @click.pass_context
 def metadata_(ctx, opts):  # pylint: disable=unused-argument
     """
-    Manage metadata attached to packages in a repository.
+    Manage package metadata.
     """
 
 
@@ -151,8 +121,9 @@ def metadata_(ctx, opts):  # pylint: disable=unused-argument
     "source_kind",
     default=None,
     help=(
-        "Filter by metadata source kind. Accepts an integer or a name "
-        "(e.g. 'customer', 'third_party'). Ignored when METADATA_SLUG_PERM is given."
+        "Filter by source kind. Accepts an integer or name "
+        "(for example, 'customer' or 'third_party'). Ignored when "
+        "METADATA_SLUG_PERM is given."
     ),
 )
 @click.option(
@@ -160,8 +131,9 @@ def metadata_(ctx, opts):  # pylint: disable=unused-argument
     "classification",
     default=None,
     help=(
-        "Filter by metadata classification. Accepts an integer or a name "
-        "(e.g. 'provenance', 'sbom'). Ignored when METADATA_SLUG_PERM is given."
+        "Filter by classification. Accepts an integer or name "
+        "(for example, 'provenance' or 'sbom'). Ignored when "
+        "METADATA_SLUG_PERM is given."
     ),
 )
 @click.pass_context
@@ -177,25 +149,25 @@ def list_metadata(
     classification,
 ):
     """
-    List metadata entries attached to a package.
+    List package metadata.
 
-    OWNER/REPO/PACKAGE: identifies the target package.
+    OWNER/REPO/PACKAGE: target package.
 
-    METADATA_SLUG_PERM (optional): if given, fetch and display only that single
-    metadata entry. Pagination and filter flags are ignored.
+    METADATA_SLUG_PERM (optional): fetch one metadata entry. Pagination and
+    filters are ignored.
 
     \b
     Examples:
-      $ cloudsmith metadata list your-org/awesome-repo/better-pkg
-      $ cloudsmith metadata list your-org/awesome-repo/better-pkg --classification provenance
-      $ cloudsmith metadata list your-org/awesome-repo/better-pkg meta-slug-perm
+      $ cloudsmith metadata list example-org/example-repo/example-pkg
+      $ cloudsmith metadata list example-org/example-repo/example-pkg --classification provenance
+      $ cloudsmith metadata list example-org/example-repo/example-pkg meta-slug-perm
     """
     owner, repo, package = owner_repo_package
     use_stderr = utils.should_use_stderr(opts)
 
     if metadata_slug_perm:
         _echo_action(
-            "Fetching metadata entry %(metadata)s for the '%(package)s' package ... "
+            "Fetching metadata %(metadata)s for %(package)s ... "
             % {
                 "metadata": click.style(metadata_slug_perm, bold=True),
                 "package": click.style(package, bold=True),
@@ -203,7 +175,7 @@ def list_metadata(
             use_stderr,
         )
 
-        context_msg = "Failed to fetch metadata for the package."
+        context_msg = "Could not fetch package metadata."
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
             with maybe_spinner(opts):
                 slug_perm = api_get_package_slug_perm(
@@ -224,12 +196,12 @@ def list_metadata(
         raise click.UsageError(str(exc)) from exc
 
     _echo_action(
-        "Listing metadata for the '%(package)s' package ... "
+        "Listing metadata for %(package)s ... "
         % {"package": click.style(package, bold=True)},
         use_stderr,
     )
 
-    context_msg = "Failed to list metadata for the package."
+    context_msg = "Could not list package metadata."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -264,7 +236,7 @@ def list_metadata(
     "content_type",
     required=True,
     help=(
-        "The content type of the metadata payload (e.g. 'application/json'). "
+        "Content type for metadata content (for example, 'application/json'). "
         "Content type is immutable after creation."
     ),
 )
@@ -279,21 +251,20 @@ def list_metadata(
         allow_dash=True,
     ),
     default=None,
-    help="Path to a JSON file containing the metadata content. Use '-' for stdin.",
+    help="Read metadata content from a JSON file. Use '-' for stdin.",
 )
 @click.option(
     "--content",
     "inline_content",
     default=None,
-    help=("Inline JSON content for the metadata. Mutually exclusive with --file."),
+    help="Set metadata content from inline JSON. Cannot be used with --file.",
 )
 @click.option(
     "--source-identity",
     "source_identity",
     default=None,
     help=(
-        "Identifier indicating where the metadata originated. "
-        "Defaults to 'cloudsmith-cli@<version>'."
+        "Identifier for the metadata source. " "Defaults to 'cloudsmith-cli@<version>'."
     ),
 )
 @click.pass_context
@@ -307,38 +278,53 @@ def add_metadata(
     source_identity,
 ):
     """
-    Attach a new metadata entry to a package.
+    Attach metadata to a package.
 
-    OWNER/REPO/PACKAGE: identifies the target package.
+    OWNER/REPO/PACKAGE: target package.
 
     Exactly one of --file or --content must be provided.
     Content type is set on creation and cannot be changed.
 
     \b
     Examples:
-      $ cloudsmith metadata add your-org/awesome-repo/better-pkg \\
+      $ cloudsmith metadata add example-org/example-repo/example-pkg \\
             --content-type application/json \\
             --content '{"foo": "bar"}'
-      $ cat payload.json | cloudsmith metadata add your-org/awesome-repo/better-pkg \\
+      $ cat metadata.json | cloudsmith metadata add example-org/example-repo/example-pkg \\
             --content-type application/json \\
             --file -
-      $ cloudsmith metadata add your-org/awesome-repo/better-pkg \\
+      $ cloudsmith metadata add example-org/example-repo/example-pkg \\
             --content-type application/vnd.jfrog.buildinfo+json \\
             --file buildinfo.json
     """
     owner, repo, package = owner_repo_package
     use_stderr = utils.should_use_stderr(opts)
 
-    content = _load_content(content_file, inline_content, required=True)
-    source_identity = source_identity or _default_source_identity()
+    metadata = resolve_metadata_content(
+        content_file=content_file,
+        inline_content=inline_content,
+        required=True,
+        file_option_name="--file",
+        content_option_name="--content",
+    )
+    require_metadata_content_type(
+        content_type=content_type,
+        content_provided=metadata.provided,
+        option_name="--content-type",
+    )
+    metadata = attach_metadata_options(
+        metadata,
+        content_type=content_type,
+        source_identity=source_identity,
+    )
 
     _echo_action(
-        "Attaching metadata to the '%(package)s' package ... "
+        "Attaching metadata to %(package)s ... "
         % {"package": click.style(package, bold=True)},
         use_stderr,
     )
 
-    context_msg = "Failed to attach metadata to the package."
+    context_msg = "Could not attach metadata."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -346,9 +332,9 @@ def add_metadata(
             )
             entry = api_create_metadata(
                 slug_perm,
-                content=content,
-                content_type=content_type,
-                source_identity=source_identity,
+                content=metadata.content,
+                content_type=metadata.content_type,
+                source_identity=metadata.source_identity,
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -377,25 +363,22 @@ def add_metadata(
         allow_dash=True,
     ),
     default=None,
-    help=(
-        "Path to a JSON file containing replacement metadata content. "
-        "Use '-' for stdin."
-    ),
+    help="Read replacement metadata content from a JSON file. Use '-' for stdin.",
 )
 @click.option(
     "--content",
     "inline_content",
     default=None,
     help=(
-        "Inline JSON replacement content for the metadata. Mutually exclusive "
-        "with --file."
+        "Set replacement metadata content from inline JSON. Cannot be used with "
+        "--file."
     ),
 )
 @click.option(
     "--source-identity",
     "source_identity",
     default=None,
-    help="Update the source identity for the metadata entry.",
+    help="Update the metadata source identity.",
 )
 @click.pass_context
 def update_metadata(
@@ -408,40 +391,43 @@ def update_metadata(
     source_identity,
 ):
     """
-    Update an existing metadata entry on a package.
+    Update package metadata.
 
-    OWNER/REPO/PACKAGE: identifies the target package.
-    METADATA_SLUG_PERM: the permanent slug of the metadata entry to update.
+    OWNER/REPO/PACKAGE: target package.
+    METADATA_SLUG_PERM: permanent slug for the metadata entry.
 
     Content type cannot be changed after creation.
 
     \b
     Examples:
-      $ cloudsmith metadata update your-org/awesome-repo/better-pkg meta-slug \\
+      $ cloudsmith metadata update example-org/example-repo/example-pkg meta-slug \\
             --content '{"foo": "baz"}'
-      $ cat payload.json | cloudsmith metadata update your-org/awesome-repo/better-pkg meta-slug \\
+      $ cat metadata.json | cloudsmith metadata update example-org/example-repo/example-pkg meta-slug \\
             --file -
     """
     owner, repo, package = owner_repo_package
     use_stderr = utils.should_use_stderr(opts)
 
-    content = _load_content(content_file, inline_content, required=False)
+    metadata = resolve_metadata_content(
+        content_file=content_file,
+        inline_content=inline_content,
+        required=False,
+        file_option_name="--file",
+        content_option_name="--content",
+    )
 
-    patch_kwargs = {
-        key: value
-        for key, value in (
-            ("content", content),
-            ("source_identity", source_identity),
-        )
-        if value is not None
-    }
+    patch_kwargs = {}
+    if metadata.provided:
+        patch_kwargs["content"] = metadata.content
+    if source_identity is not None:
+        patch_kwargs["source_identity"] = source_identity
     if not patch_kwargs:
         raise click.UsageError(
             "Nothing to update. Provide --file, --content, or --source-identity."
         )
 
     _echo_action(
-        "Updating metadata entry %(metadata)s on the '%(package)s' package ... "
+        "Updating metadata %(metadata)s for %(package)s ... "
         % {
             "metadata": click.style(metadata_slug_perm, bold=True),
             "package": click.style(package, bold=True),
@@ -449,7 +435,7 @@ def update_metadata(
         use_stderr,
     )
 
-    context_msg = "Failed to update metadata on the package."
+    context_msg = "Could not update package metadata."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -477,19 +463,19 @@ def update_metadata(
     "--yes",
     default=False,
     is_flag=True,
-    help="Skip confirmation prompts. Use with care.",
+    help="Skip confirmation prompt.",
 )
 @click.pass_context
 def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
     """
-    Remove a metadata entry from a package.
+    Remove package metadata.
 
-    OWNER/REPO/PACKAGE: identifies the target package.
-    METADATA_SLUG_PERM: the permanent slug of the metadata entry to delete.
+    OWNER/REPO/PACKAGE: target package.
+    METADATA_SLUG_PERM: permanent slug for the metadata entry.
 
     \b
     Example:
-      $ cloudsmith metadata remove your-org/awesome-repo/better-pkg meta-slug
+      $ cloudsmith metadata remove example-org/example-repo/example-pkg meta-slug
     """
     owner, repo, package = owner_repo_package
     use_stderr = utils.should_use_stderr(opts)
@@ -499,20 +485,16 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
         "package": click.style(package, bold=True),
     }
 
-    prompt = (
-        "remove the %(metadata)s metadata entry from the %(package)s package"
-        % remove_args
-    )
+    prompt = "remove metadata %(metadata)s from package %(package)s" % remove_args
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     _echo_action(
-        "Removing metadata entry %(metadata)s from the '%(package)s' package ... "
-        % remove_args,
+        "Removing metadata %(metadata)s from %(package)s ... " % remove_args,
         use_stderr,
     )
 
-    context_msg = "Failed to remove metadata from the package."
+    context_msg = "Could not remove package metadata."
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             slug_perm = api_get_package_slug_perm(
@@ -528,6 +510,6 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
 
     click.echo()
     click.secho(
-        "Removed metadata entry %(slug)s."
+        "Metadata removed: %(slug)s."
         % {"slug": click.style(metadata_slug_perm, bold=True)}
     )
