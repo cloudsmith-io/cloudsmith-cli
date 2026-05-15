@@ -41,16 +41,16 @@ class TestMetadataGroupSmoke(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
         self.assertIn(
-            "$ cloudsmith metadata list example-org/example-repo/example-pkg\n",
+            "$ cloudsmith metadata list your-org/your-repo/your-pkg\n",
             result.output,
         )
         self.assertIn(
-            "$ cloudsmith metadata list example-org/example-repo/example-pkg "
+            "$ cloudsmith metadata list your-org/your-repo/your-pkg "
             "--classification provenance\n",
             result.output,
         )
         self.assertIn(
-            "$ cloudsmith metadata list example-org/example-repo/example-pkg meta-slug-perm\n",
+            "$ cloudsmith metadata list your-org/your-repo/your-pkg meta-slug-perm\n",
             result.output,
         )
 
@@ -59,7 +59,7 @@ class TestMetadataGroupSmoke(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
         self.assertIn(
-            "$ cloudsmith metadata add example-org/example-repo/example-pkg \\\n",
+            "$ cloudsmith metadata add your-org/your-repo/your-pkg \\\n",
             result.output,
         )
         self.assertIn("--content-type application/json \\\n", result.output)
