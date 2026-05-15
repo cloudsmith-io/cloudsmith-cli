@@ -431,7 +431,7 @@ class Options:  # pylint: disable=too-many-public-methods
         if normalised not in {"error", "warn", "0"}:
             raise click.UsageError(
                 f"Invalid metadata_failure_mode {value!r}. "
-                "Expected one of: 'error', 'warn'."
+                "Expected one of: 'error', 'warn', '0'."
             )
         self._set_option("metadata_failure_mode", normalised)
 
