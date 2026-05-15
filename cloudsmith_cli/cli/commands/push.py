@@ -422,8 +422,8 @@ def attach_metadata_to_package(
 
         click.secho(message, fg="yellow", err=True)
         click.secho(
-            "Package upload completed without metadata because failure mode "
-            "is set to warn. Pass ``--on-metadata-failure error`` (or set the "
+            "Package upload completed without metadata. Pass "
+            "``--on-metadata-failure error`` (or set the "
             f"``metadata_failure_mode`` config key / ``${METADATA_FAILURE_MODE_ENV}`` "
             "env var to ``error``) to fail the push instead.",
             fg="yellow",
@@ -846,6 +846,14 @@ def upload_files_and_create_package(
 
     should_attach_metadata = metadata.provided and metadata_failure_info is None
 
+    # Publish a warn-mode resolve failure on ``opts`` BEFORE the package
+    # validation call so the JSON error envelope still carries the metadata
+    # context if ``validate_create_package`` aborts the push (e.g. typo in
+    # --name/--version, bad repo, auth failure).
+    if metadata_failure_info is not None:
+        opts.push_metadata_info = metadata_failure_info
+        _warn_metadata_failure(metadata_failure_info)
+
     # 1. Validate package create parameters. This runs before the metadata
     #    pre-validation so a typo in --name/--version fails fast without
     #    burning a /v2/metadata/validate/ round-trip first.
@@ -862,10 +870,7 @@ def upload_files_and_create_package(
     # 1b. Pre-validate metadata against the server-side schema endpoint so a
     #     malformed payload cannot produce an orphan package (the upload would
     #     succeed and only the attach would fail).
-    if metadata_failure_info is not None:
-        opts.push_metadata_info = metadata_failure_info
-        _warn_metadata_failure(metadata_failure_info)
-    elif should_attach_metadata:
+    if metadata_failure_info is None and should_attach_metadata:
         validation_failure = validate_metadata_payload(
             ctx=ctx,
             opts=opts,
