@@ -158,9 +158,9 @@ def list_metadata(
 
     \b
     Examples:
-      $ cloudsmith metadata list example-org/example-repo/example-pkg
-      $ cloudsmith metadata list example-org/example-repo/example-pkg --classification provenance
-      $ cloudsmith metadata list example-org/example-repo/example-pkg meta-slug-perm
+            $ cloudsmith metadata list your-org/your-repo/your-pkg
+            $ cloudsmith metadata list your-org/your-repo/your-pkg --classification provenance
+            $ cloudsmith metadata list your-org/your-repo/your-pkg meta-slug-perm
     """
     owner, repo, package = owner_repo_package
     use_stderr = utils.should_use_stderr(opts)
@@ -287,13 +287,13 @@ def add_metadata(
 
     \b
     Examples:
-      $ cloudsmith metadata add example-org/example-repo/example-pkg \\
+        $ cloudsmith metadata add your-org/your-repo/your-pkg \\
             --content-type application/json \\
             --content '{"foo": "bar"}'
-      $ cat metadata.json | cloudsmith metadata add example-org/example-repo/example-pkg \\
+        $ cat metadata.json | cloudsmith metadata add your-org/your-repo/your-pkg \\
             --content-type application/json \\
             --file -
-      $ cloudsmith metadata add example-org/example-repo/example-pkg \\
+        $ cloudsmith metadata add your-org/your-repo/your-pkg \\
             --content-type application/vnd.jfrog.buildinfo+json \\
             --file buildinfo.json
     """
@@ -400,9 +400,9 @@ def update_metadata(
 
     \b
     Examples:
-      $ cloudsmith metadata update example-org/example-repo/example-pkg meta-slug \\
+        $ cloudsmith metadata update your-org/your-repo/your-pkg meta-slug \\
             --content '{"foo": "baz"}'
-      $ cat metadata.json | cloudsmith metadata update example-org/example-repo/example-pkg meta-slug \\
+        $ cat metadata.json | cloudsmith metadata update your-org/your-repo/your-pkg meta-slug \\
             --file -
     """
     owner, repo, package = owner_repo_package
@@ -475,7 +475,7 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
 
     \b
     Example:
-      $ cloudsmith metadata remove example-org/example-repo/example-pkg meta-slug
+            $ cloudsmith metadata remove your-org/your-repo/your-pkg meta-slug
     """
     owner, repo, package = owner_repo_package
     use_stderr = utils.should_use_stderr(opts)
