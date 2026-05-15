@@ -49,6 +49,9 @@ from .main import main
 #: invalid metadata content aborts the upload (design requirement: metadata
 #: pushes must surface failures by default). Set to ``0`` or ``warn`` to
 #: downgrade failures to a warning and let the package upload regardless.
+#: Equivalent settings exist as a CLI flag (``--on-metadata-failure``) and a
+#: ``metadata_failure_mode`` key in ``config.ini``; precedence at resolution
+#: time is flag > env > config > default.
 METADATA_FAILURE_MODE_ENV = "CLOUDSMITH_METADATA_FAILURE_MODE"
 METADATA_FAILURE_MODE_WARN = {"0", "warn"}
 #: Click option dest names for the push-time metadata flags. Used by the
@@ -60,17 +63,36 @@ METADATA_KWARG_NAMES = (
     "metadata_content_type",
     "metadata_source_identity",
 )
+#: Click dest name for ``--on-metadata-failure``. Popped off the push kwargs
+#: separately from the metadata payload kwargs so it does not leak into the
+#: package-create API call.
+METADATA_FAILURE_MODE_KWARG = "cli_metadata_failure_mode"
 
 
-def _metadata_failure_is_warn():
-    """Return True iff ``$CLOUDSMITH_METADATA_FAILURE_MODE`` downgrades failures.
+def _metadata_failure_is_warn(opts=None):
+    """Return True iff metadata failures should be downgraded to a warning.
 
-    Single source of truth for the env-var parsing so the validation and
-    attach paths cannot drift (e.g. one accepting ``"false"`` and the
-    other not).
+    Single source of truth for the failure-mode lookup so the validation and
+    attach paths cannot drift. Resolves in precedence order:
+
+    1. ``--on-metadata-failure`` flag (``opts.cli_metadata_failure_mode``)
+    2. ``$CLOUDSMITH_METADATA_FAILURE_MODE`` env var
+    3. ``metadata_failure_mode`` config key (``opts.metadata_failure_mode``)
+    4. Default — ``error``
+
+    ``opts`` is optional so direct callers without a CLI context (legacy
+    tests) keep working on the env-var path.
     """
-    mode = os.environ.get(METADATA_FAILURE_MODE_ENV, "error").strip().lower()
-    return mode in METADATA_FAILURE_MODE_WARN
+    candidates = (
+        getattr(opts, "cli_metadata_failure_mode", None) if opts is not None else None,
+        os.environ.get(METADATA_FAILURE_MODE_ENV),
+        getattr(opts, "metadata_failure_mode", None) if opts is not None else None,
+    )
+    for value in candidates:
+        if value is None:
+            continue
+        return str(value).strip().lower() in METADATA_FAILURE_MODE_WARN
+    return False
 
 
 def _metadata_content_failure_info(exc):
@@ -90,9 +112,10 @@ def _warn_metadata_failure(failure_info):
         err=True,
     )
     click.secho(
-        "Package upload will continue without metadata. "
-        f"Unset ${METADATA_FAILURE_MODE_ENV} (or set it to ``error``) to "
-        "fail the push instead.",
+        "Package upload will continue without metadata. Pass "
+        "``--on-metadata-failure error`` (or set the "
+        f"``metadata_failure_mode`` config key / ``${METADATA_FAILURE_MODE_ENV}`` "
+        "env var to ``error``) to fail the push instead.",
         fg="yellow",
         err=True,
     )
@@ -104,6 +127,7 @@ def resolve_push_metadata_options(
     metadata_content=None,
     metadata_content_type=None,
     metadata_source_identity=None,
+    opts=None,
 ):
     """Resolve push-time metadata flags once before package upload loops."""
     if metadata_content_file is not None and metadata_content is not None:
@@ -137,7 +161,7 @@ def resolve_push_metadata_options(
             content_option_name="--metadata-content",
         )
     except MetadataContentError as exc:
-        if not _metadata_failure_is_warn():
+        if not _metadata_failure_is_warn(opts):
             raise
 
         source_label = exc.source_label or source_label_for(metadata_content_file)
@@ -286,7 +310,7 @@ def validate_metadata_payload(
             "error": detail,
         }
 
-        if not _metadata_failure_is_warn():
+        if not _metadata_failure_is_warn(opts):
             opts.push_metadata_info = failure_info
             _handle_metadata_api_exception(
                 ctx,
@@ -298,9 +322,10 @@ def validate_metadata_payload(
 
         click.secho(message, fg="yellow", err=True)
         click.secho(
-            "Package upload will continue without metadata. "
-            f"Unset ${METADATA_FAILURE_MODE_ENV} (or set it to ``error``) to "
-            "fail the push instead.",
+            "Package upload will continue without metadata. Pass "
+            "``--on-metadata-failure error`` (or set the "
+            f"``metadata_failure_mode`` config key / ``${METADATA_FAILURE_MODE_ENV}`` "
+            "env var to ``error``) to fail the push instead.",
             fg="yellow",
             err=True,
         )
@@ -384,7 +409,7 @@ def attach_metadata_to_package(
             "cli_source_identity": cli_source_identity,
         }
 
-        if not _metadata_failure_is_warn():
+        if not _metadata_failure_is_warn(opts):
             opts.push_metadata_info = failure_info
             _print_metadata_retry_hint(**hint_kwargs)
             _handle_metadata_api_exception(
@@ -397,9 +422,10 @@ def attach_metadata_to_package(
 
         click.secho(message, fg="yellow", err=True)
         click.secho(
-            f"Package upload completed without metadata because "
-            f"${METADATA_FAILURE_MODE_ENV}=warn. Unset the env var "
-            "(or set it to ``error``) to fail the push instead.",
+            "Package upload completed without metadata because failure mode "
+            "is set to warn. Pass ``--on-metadata-failure error`` (or set the "
+            f"``metadata_failure_mode`` config key / ``${METADATA_FAILURE_MODE_ENV}`` "
+            "env var to ``error``) to fail the push instead.",
             fg="yellow",
             err=True,
         )
@@ -815,6 +841,7 @@ def upload_files_and_create_package(
             metadata_content=metadata_content,
             metadata_content_type=metadata_content_type,
             metadata_source_identity=metadata_source_identity,
+            opts=opts,
         )
 
     should_attach_metadata = metadata.provided and metadata_failure_info is None
@@ -983,7 +1010,7 @@ def upload_files_and_create_package(
     return slug_perm, slug
 
 
-def create_push_handlers():
+def create_push_handlers():  # noqa: C901
     """Create a handler for upload per package format."""
     # pylint: disable=fixme
     # HACK: hacky territory - Dynamically generate a handler for each of the
@@ -1082,9 +1109,11 @@ def create_push_handlers():
                 "(for example, SBOM or BuildInfo). Use '-' for stdin. "
                 "Content must be a JSON object. "
                 "Mutually exclusive with --metadata-content. "
-                "Metadata failures abort the push by default; set "
-                "$CLOUDSMITH_METADATA_FAILURE_MODE=warn (or 0) to downgrade "
-                "to a warning and keep the package upload."
+                "Metadata failures abort the push by default; pass "
+                "--on-metadata-failure warn (or set the "
+                "metadata_failure_mode config key / "
+                "$CLOUDSMITH_METADATA_FAILURE_MODE env var to warn) to "
+                "downgrade to a warning and keep the package upload."
             ),
         )
         @click.option(
@@ -1095,9 +1124,11 @@ def create_push_handlers():
                 "Set metadata content from inline JSON. Content must be a "
                 "JSON object. "
                 "Mutually exclusive with --metadata-content-file. "
-                "Metadata failures abort the push by default; set "
-                "$CLOUDSMITH_METADATA_FAILURE_MODE=warn (or 0) to downgrade "
-                "to a warning and keep the package upload."
+                "Metadata failures abort the push by default; pass "
+                "--on-metadata-failure warn (or set the "
+                "metadata_failure_mode config key / "
+                "$CLOUDSMITH_METADATA_FAILURE_MODE env var to warn) to "
+                "downgrade to a warning and keep the package upload."
             ),
         )
         @click.option(
@@ -1120,6 +1151,20 @@ def create_push_handlers():
                 "Defaults to 'cloudsmith-cli@<version>'."
             ),
         )
+        @click.option(
+            "--on-metadata-failure",
+            METADATA_FAILURE_MODE_KWARG,
+            type=click.Choice(["error", "warn"]),
+            default=None,
+            help=(
+                "How to handle push-time metadata failures. 'error' "
+                "(default) aborts the push so CI/CD surfaces broken "
+                "SBOM/BuildInfo uploads; 'warn' downgrades to a warning "
+                "and lets the package upload regardless. Overrides the "
+                "$CLOUDSMITH_METADATA_FAILURE_MODE env var and the "
+                "'metadata_failure_mode' config key for this push."
+            ),
+        )
         @click.pass_context
         def push_handler(ctx, *args, **kwargs):
             """Handle upload for a specific package format."""
@@ -1139,6 +1184,13 @@ def create_push_handlers():
             metadata_kwargs = {
                 key: kwargs.pop(key, None) for key in METADATA_KWARG_NAMES
             }
+
+            # ``--on-metadata-failure`` is also not a package-create kwarg;
+            # publish it onto opts so the failure-mode helper can prefer it
+            # over env/config without an explicit thread through every call.
+            cli_failure_mode = kwargs.pop(METADATA_FAILURE_MODE_KWARG, None)
+            if cli_failure_mode is not None:
+                opts.cli_metadata_failure_mode = cli_failure_mode
 
             package_files = kwargs.pop("package_file")
             if not isinstance(package_files, tuple):
@@ -1161,7 +1213,7 @@ def create_push_handlers():
                 )
 
             metadata, metadata_failure_info = resolve_push_metadata_options(
-                **metadata_kwargs
+                **metadata_kwargs, opts=opts
             )
 
             results = []

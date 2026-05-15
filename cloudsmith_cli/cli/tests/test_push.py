@@ -758,6 +758,69 @@ class TestPush(unittest.TestCase):
                 metadata_content_type="application/json",
             )
 
+    def test_resolve_push_metadata_options_warn_via_cli_flag(self):
+        """``--on-metadata-failure warn`` (on opts) downgrades content errors."""
+        opts = SimpleNamespace(cli_metadata_failure_mode="warn")
+        with patch.dict(
+            "cloudsmith_cli.cli.commands.push.os.environ", {}, clear=False
+        ) as patched_env:
+            patched_env.pop("CLOUDSMITH_METADATA_FAILURE_MODE", None)
+            metadata, failure = resolve_push_metadata_options(
+                metadata_content="not-json",
+                metadata_content_type="application/json",
+                opts=opts,
+            )
+
+        assert metadata.provided is True
+        assert metadata.content is None
+        assert failure["status"] == "content_invalid"
+
+    def test_resolve_push_metadata_options_warn_via_config_key(self):
+        """``metadata_failure_mode`` config key downgrades when no flag/env set."""
+        opts = SimpleNamespace(metadata_failure_mode="warn")
+        with patch.dict(
+            "cloudsmith_cli.cli.commands.push.os.environ", {}, clear=False
+        ) as patched_env:
+            patched_env.pop("CLOUDSMITH_METADATA_FAILURE_MODE", None)
+            metadata, failure = resolve_push_metadata_options(
+                metadata_content="not-json",
+                metadata_content_type="application/json",
+                opts=opts,
+            )
+
+        assert metadata.provided is True
+        assert failure["status"] == "content_invalid"
+
+    def test_resolve_push_metadata_options_flag_beats_env_error(self):
+        """``--on-metadata-failure error`` overrides ``...=warn`` in the env."""
+        opts = SimpleNamespace(cli_metadata_failure_mode="error")
+        with patch.dict(
+            "cloudsmith_cli.cli.commands.push.os.environ",
+            {"CLOUDSMITH_METADATA_FAILURE_MODE": "warn"},
+        ):
+            with pytest.raises(click.ClickException, match="Invalid JSON"):
+                resolve_push_metadata_options(
+                    metadata_content="not-json",
+                    metadata_content_type="application/json",
+                    opts=opts,
+                )
+
+    def test_resolve_push_metadata_options_env_beats_config_error(self):
+        """``...=warn`` env var overrides ``metadata_failure_mode = error`` config."""
+        opts = SimpleNamespace(metadata_failure_mode="error")
+        with patch.dict(
+            "cloudsmith_cli.cli.commands.push.os.environ",
+            {"CLOUDSMITH_METADATA_FAILURE_MODE": "warn"},
+        ):
+            metadata, failure = resolve_push_metadata_options(
+                metadata_content="not-json",
+                metadata_content_type="application/json",
+                opts=opts,
+            )
+
+        assert metadata.provided is True
+        assert failure["status"] == "content_invalid"
+
     def test_resolve_push_metadata_options_reads_stdin_via_dash(self):
         """``--metadata-content-file -`` reads JSON from stdin once."""
         import io
@@ -1367,3 +1430,37 @@ def test_print_metadata_retry_hint_silent_in_json_mode(capsys):
         cli_source_identity=None,
     )
     assert capsys.readouterr().err == ""
+
+
+def test_options_metadata_failure_mode_accepts_valid_values():
+    """Options setter normalises supported values and stores them."""
+    from cloudsmith_cli.cli.config import Options
+
+    for raw, expected in (
+        ("error", "error"),
+        ("warn", "warn"),
+        ("0", "0"),
+        ("WARN", "warn"),
+        (" warn ", "warn"),
+    ):
+        opts = Options()
+        opts.metadata_failure_mode = raw
+        assert opts.metadata_failure_mode == expected
+
+
+def test_options_metadata_failure_mode_rejects_invalid_value():
+    """Options setter rejects anything outside the supported set."""
+    from cloudsmith_cli.cli.config import Options
+
+    opts = Options()
+    with pytest.raises(click.UsageError, match="Invalid metadata_failure_mode"):
+        opts.metadata_failure_mode = "nope"
+
+
+def test_options_metadata_failure_mode_none_is_noop():
+    """Passing ``None`` leaves the option unset (config absent)."""
+    from cloudsmith_cli.cli.config import Options
+
+    opts = Options()
+    opts.metadata_failure_mode = None
+    assert opts.metadata_failure_mode is None
