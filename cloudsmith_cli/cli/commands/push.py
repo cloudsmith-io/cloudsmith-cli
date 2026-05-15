@@ -274,10 +274,12 @@ def validate_metadata_payload(
 
         click.secho("FAILED", fg="red", err=use_stderr)
 
-        message = (
-            "Metadata content failed validation "
-            f"(HTTP {http_status if http_status is not None else '???'}): {detail}"
-        )
+        if http_status is not None:
+            message = (
+                f"Metadata content failed validation (HTTP {http_status}): {detail}"
+            )
+        else:
+            message = f"Metadata content failed validation: {detail}"
         failure_info = {
             "status": "validation_failed",
             "http_status": http_status,
@@ -359,10 +361,13 @@ def attach_metadata_to_package(
             or str(exc)
             or "unknown error"
         )
-        message = (
-            f"Could not attach metadata to package {slug_perm} "
-            f"(HTTP {http_status if http_status is not None else '???'}): {detail}"
-        )
+        if http_status is not None:
+            message = (
+                f"Could not attach metadata to package {slug_perm} "
+                f"(HTTP {http_status}): {detail}"
+            )
+        else:
+            message = f"Could not attach metadata to package {slug_perm}: {detail}"
         failure_info = {
             "status": "attach_failed",
             "http_status": http_status,
