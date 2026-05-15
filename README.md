@@ -49,6 +49,11 @@ The CLI currently supports the following commands (and sub-commands):
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
 - `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
+- `metadata`:             Manage arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
+  - `add`:                  Attach a new metadata entry to a package.
+  - `list`|`ls`:            List metadata entries for a package, or fetch a single entry by slug.
+  - `update`:               Replace content or source identity on an existing metadata entry.
+  - `remove`|`rm`:          Remove a metadata entry from a package.
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
@@ -298,6 +303,105 @@ For more advanced usage and all available options:
 
 ```
 cloudsmith download --help
+```
+
+
+## Package Metadata
+
+Arbitrary JSON metadata can be attached to any package — SBOMs, JFrog BuildInfo documents, or custom payloads. Metadata is validated against the declared content type and stays with the package for its lifetime.
+
+Metadata can be attached at push time with `cloudsmith push` (see [Attaching Metadata During Push](#attaching-metadata-during-push)) or managed afterwards with the `cloudsmith metadata` command group.
+
+To attach metadata to an existing package:
+
+```
+cloudsmith metadata add your-account/your-repo/your-package \
+  --content-type application/json \
+  --content '{"build_id": "demo-123", "git_sha": "abc123"}'
+```
+
+To attach metadata from a file (use `-` to read from stdin):
+
+```
+cloudsmith metadata add your-account/your-repo/your-package \
+  --content-type application/vnd.jfrog.buildinfo+json \
+  --file buildinfo.json
+```
+
+To list all metadata entries on a package, or fetch a single entry by slug:
+
+```
+cloudsmith metadata list your-account/your-repo/your-package
+cloudsmith metadata list your-account/your-repo/your-package meta-slug-perm
+```
+
+Filter entries by source kind or classification when listing:
+
+```
+cloudsmith metadata list your-account/your-repo/your-package --classification sbom
+cloudsmith metadata list your-account/your-repo/your-package --source-kind third_party
+```
+
+To replace the content or source identity of an existing entry (content type is fixed after creation):
+
+```
+cloudsmith metadata update your-account/your-repo/your-package meta-slug-perm \
+  --content '{"build_id": "demo-124"}'
+```
+
+To remove a metadata entry:
+
+```
+cloudsmith metadata remove your-account/your-repo/your-package meta-slug-perm
+```
+
+For all available options:
+
+```
+cloudsmith metadata --help
+```
+
+
+## Attaching Metadata During Push
+
+Every `cloudsmith push <format>` subcommand accepts a set of `--metadata-*` flags. When provided, metadata is validated locally and against the API before any file upload, then attached to the package immediately after creation. This avoids a separate `cloudsmith metadata add` step and prevents malformed metadata from leaving orphan packages behind.
+
+Available flags on every push subcommand:
+
+- `--metadata-content-file PATH`: Path to a JSON file containing the metadata content. Use `-` for stdin.
+- `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
+- `--metadata-content-type MIME`: MIME type of the metadata payload (e.g. `application/json`, `application/vnd.jfrog.buildinfo+json`). Required when content is provided.
+- `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+
+Push a package with inline metadata:
+
+```
+cloudsmith push raw your-account/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content '{"build_id": "demo-inline", "git_sha": "abc123"}' \
+  --metadata-content-type application/json
+```
+
+Push a package with metadata loaded from a file:
+
+```
+cloudsmith push raw your-account/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content-file buildinfo.json \
+  --metadata-content-type application/vnd.jfrog.buildinfo+json
+```
+
+### Failure Behavior
+
+By default, push aborts when metadata validation or attachment fails. The HTTP status from the failed request is used as the exit code, so CI pipelines surface broken SBOMs or BuildInfo payloads instead of silently uploading a package without metadata.
+
+To downgrade failures to a warning (the package is still uploaded, and a copy-paste `cloudsmith metadata add` retry hint is printed), set the `CLOUDSMITH_METADATA_FAILURE_MODE` environment variable to `warn` or `0`:
+
+```
+CLOUDSMITH_METADATA_FAILURE_MODE=warn cloudsmith push raw your-account/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content-file buildinfo.json \
+  --metadata-content-type application/vnd.jfrog.buildinfo+json
 ```
 
 
