@@ -445,7 +445,14 @@ def _atomic_write_json(path: Path, data) -> None:
     """Write JSON to ``path`` atomically via a tempfile + os.replace.
 
     Preserves the destination's existing file mode when present.
+
+    Follows symlinks before writing so dotfile-managed configs (a symlinked
+    ~/.claude.json, settings.json, etc.) update through to the real file
+    rather than getting the link replaced.
     """
+    if path.is_symlink():
+        path = Path(os.path.realpath(path))
+
     path.parent.mkdir(parents=True, exist_ok=True)
     existing_mode = path.stat().st_mode & 0o777 if path.exists() else None
 

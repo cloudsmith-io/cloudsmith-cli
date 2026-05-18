@@ -487,6 +487,19 @@ class TestSafeWriteHelpers:
         _safe_update_json(target, lambda c: c.setdefault("a", []).append(1))
         assert json.loads(target.read_text()) == {"a": [1]}
 
+    def test_atomic_write_follows_symlinks(self, tmp_path):
+        real = tmp_path / "real" / "config.json"
+        real.parent.mkdir()
+        real.write_text(json.dumps({"existing": True}))
+        link = tmp_path / "config.json"
+        link.symlink_to(real)
+
+        _atomic_write_json(link, {"k": "v"})
+
+        assert link.is_symlink()
+        assert link.readlink() == real
+        assert json.loads(real.read_text()) == {"k": "v"}
+
     def test_safe_update_retries_on_concurrent_write(self, tmp_path):
         target = tmp_path / "config.json"
         target.write_text(json.dumps({"counter": 0}))
