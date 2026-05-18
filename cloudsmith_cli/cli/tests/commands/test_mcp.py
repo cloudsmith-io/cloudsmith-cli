@@ -1,8 +1,21 @@
+import json
+import os
+import stat
+from pathlib import Path
 from unittest.mock import patch
 
 import cloudsmith_api
+import pytest
 
-from ....cli.commands.mcp import list_groups, list_tools
+from ....cli.commands.mcp import (
+    _atomic_write_json,
+    _configure_claude_code,
+    _safe_update_json,
+    configure_client,
+    detect_available_clients,
+    list_groups,
+    list_tools,
+)
 from ....core.mcp.data import OpenAPITool
 from ....core.mcp.server import DynamicMCPServer
 
@@ -355,3 +368,201 @@ class TestMCPServerDynamicToolGeneration:
         assert len(server.tools) == 1
         assert "repos_list" in server.tools
         assert "packages_list" not in server.tools
+
+
+SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
+
+
+class TestMCPConfigureClaudeCode:
+    def test_user_scope_merges_into_existing_claude_json(self, tmp_path):
+        claude_json = tmp_path / ".claude.json"
+        existing = {
+            "numStartups": 42,
+            "mcpServers": {"other": {"command": "other-mcp"}},
+            "projects": {"/some/path": {"lastSessionId": "abc"}},
+        }
+        claude_json.write_text(json.dumps(existing, indent=2))
+
+        with patch("cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path):
+            assert _configure_claude_code("cloudsmith", SERVER_CONFIG, is_global=True)
+
+        result = json.loads(claude_json.read_text())
+        assert result["mcpServers"]["other"] == {"command": "other-mcp"}
+        assert result["mcpServers"]["cloudsmith"] == SERVER_CONFIG
+        assert result["numStartups"] == 42
+        assert result["projects"] == existing["projects"]
+
+    def test_user_scope_errors_when_claude_json_missing(self, tmp_path):
+        with patch("cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path):
+            with pytest.raises(ValueError, match="Launch Claude Code at least once"):
+                _configure_claude_code("cloudsmith", SERVER_CONFIG, is_global=True)
+
+    def test_project_scope_writes_local_mcp_json(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        assert _configure_claude_code("cloudsmith", SERVER_CONFIG, is_global=False)
+
+        local = tmp_path / ".mcp.json"
+        assert local.exists()
+        assert json.loads(local.read_text()) == {
+            "mcpServers": {"cloudsmith": SERVER_CONFIG}
+        }
+
+    def test_project_scope_merges_into_existing_mcp_json(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        existing = {"mcpServers": {"other": {"command": "other-mcp"}}}
+        (tmp_path / ".mcp.json").write_text(json.dumps(existing))
+
+        _configure_claude_code("cloudsmith", SERVER_CONFIG, is_global=False)
+
+        result = json.loads((tmp_path / ".mcp.json").read_text())
+        assert result["mcpServers"]["other"] == {"command": "other-mcp"}
+        assert result["mcpServers"]["cloudsmith"] == SERVER_CONFIG
+
+    def test_configure_client_routes_claude_code_with_profile(self, tmp_path):
+        (tmp_path / ".claude.json").write_text("{}")
+        with patch("cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path):
+            configure_client(
+                "claude-code", SERVER_CONFIG, is_global=True, profile="staging"
+            )
+
+        result = json.loads((tmp_path / ".claude.json").read_text())
+        assert "cloudsmith-staging" in result["mcpServers"]
+
+    def test_detect_available_clients_respects_claude_json_presence(self, tmp_path):
+        # Real get_config_path for claude-code (resolves under the patched
+        # home); None for everything else so this host's real configs don't
+        # leak into the result.
+        import cloudsmith_cli.cli.commands.mcp as mcp_module
+
+        real_get_config_path = mcp_module.get_config_path
+
+        def selective(client, is_global=True):
+            if client == "claude-code":
+                return real_get_config_path(client, is_global=is_global)
+            return None
+
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path
+        ), patch(
+            "cloudsmith_cli.cli.commands.mcp.get_config_path", side_effect=selective
+        ):
+            assert "claude-code" not in detect_available_clients()
+
+            (tmp_path / ".claude.json").write_text("{}")
+            assert "claude-code" in detect_available_clients()
+
+
+class TestSafeWriteHelpers:
+    def test_atomic_write_preserves_existing_file_mode(self, tmp_path):
+        target = tmp_path / "config.json"
+        target.write_text("{}")
+        os.chmod(target, 0o600)
+
+        _atomic_write_json(target, {"k": "v"})
+
+        assert json.loads(target.read_text()) == {"k": "v"}
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+    def test_atomic_write_creates_parent_directory(self, tmp_path):
+        target = tmp_path / "nested" / "deeper" / "config.json"
+        _atomic_write_json(target, {"k": "v"})
+        assert json.loads(target.read_text()) == {"k": "v"}
+
+    def test_atomic_write_cleans_up_tempfile_on_failure(self, tmp_path):
+        target = tmp_path / "config.json"
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.os.replace",
+            side_effect=OSError("boom"),
+        ):
+            with pytest.raises(OSError, match="boom"):
+                _atomic_write_json(target, {"k": "v"})
+
+        leftovers = [
+            p for p in tmp_path.iterdir() if p.name.startswith(".config.json.")
+        ]
+        assert leftovers == []
+
+    def test_safe_update_creates_file_when_missing(self, tmp_path):
+        target = tmp_path / "config.json"
+        _safe_update_json(target, lambda c: c.setdefault("a", []).append(1))
+        assert json.loads(target.read_text()) == {"a": [1]}
+
+    def test_safe_update_retries_on_concurrent_write(self, tmp_path):
+        target = tmp_path / "config.json"
+        target.write_text(json.dumps({"counter": 0}))
+
+        calls = {"n": 0}
+
+        def mutate(config):
+            config["counter"] = config.get("counter", 0) + 1
+            if calls["n"] == 0:
+                # Simulate a concurrent writer landing between our read and
+                # our pre-write mtime check. Bumping mtime explicitly so the
+                # change is visible even on filesystems with coarse mtime.
+                target.write_text(json.dumps({"counter": 99}))
+                before = target.stat()
+                os.utime(
+                    target, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000)
+                )
+            calls["n"] += 1
+
+        _safe_update_json(target, mutate)
+
+        # First attempt reads 0, racing writer lands 99, retry reads 99 and
+        # increments to 100.
+        assert json.loads(target.read_text())["counter"] == 100
+
+    def test_safe_update_raises_after_max_retries(self, tmp_path):
+        target = tmp_path / "config.json"
+        target.write_text("{}")
+
+        original_stat = Path.stat
+
+        def always_racing(self, *args, **kwargs):
+            result = original_stat(self, *args, **kwargs)
+            if str(self) == str(target):
+                # Bump the file on disk every time we observe it, so the
+                # mtime check always fails.
+                os.utime(target, ns=(result.st_atime_ns, result.st_mtime_ns + 1000))
+            return result
+
+        with patch.object(Path, "stat", always_racing):
+            with pytest.raises(ValueError, match="another process keeps modifying"):
+                _safe_update_json(target, lambda c: c, max_retries=2)
+
+    def test_safe_update_raises_on_malformed_json(self, tmp_path):
+        target = tmp_path / "config.json"
+        target.write_text("{not valid json}")
+
+        with pytest.raises(ValueError, match="Cannot parse config file"):
+            _safe_update_json(target, lambda c: c)
+
+
+class TestConfigureClientSafeWrite:
+    """Other clients should now use the atomic safe-update path."""
+
+    def test_writes_atomically_for_claude_desktop(self, tmp_path):
+        config_path = tmp_path / "claude_desktop_config.json"
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.get_config_path",
+            return_value=config_path,
+        ):
+            configure_client("claude", SERVER_CONFIG, is_global=True)
+
+        assert json.loads(config_path.read_text()) == {
+            "mcpServers": {"cloudsmith": SERVER_CONFIG}
+        }
+
+    def test_writes_vscode_key_for_vscode_client(self, tmp_path):
+        config_path = tmp_path / "settings.json"
+        config_path.write_text(json.dumps({"editor.fontSize": 14}))
+
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.get_config_path",
+            return_value=config_path,
+        ):
+            configure_client("vscode", SERVER_CONFIG, is_global=True)
+
+        result = json.loads(config_path.read_text())
+        assert result["editor.fontSize"] == 14
+        assert result["chat.mcp.servers"]["cloudsmith"] == SERVER_CONFIG
