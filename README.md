@@ -247,7 +247,7 @@ Although native uploads, i.e. those supported by the native ecosystem of a packa
 For example, if you wanted to upload a Debian package, you can do it in one-step. Assuming you have a package filename **libxml2-2.9.4-2.x86_64.deb**, representing **libxml 2.9.4**, for the **Ubuntu 16.04** distribution (which has a cloudsmith identifier of **ubuntu/xenial**):
 
 ```
-cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
+cloudsmith push deb your-org/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
 ```
 
 Want to know how to do it with another packaging format? Easy, just ask for help:
@@ -264,39 +264,39 @@ You can download packages from repositories using the `cloudsmith download` comm
 For example, to download a specific package:
 
 ```
-cloudsmith download your-account/your-repo package-name
+cloudsmith download your-org/your-repo package-name
 ```
 
 You can filter by various attributes like version, format, architecture, operating system, and tags:
 
 ```
 # Download a specific version
-cloudsmith download your-account/your-repo package-name --version 1.2.3
+cloudsmith download your-org/your-repo package-name --version 1.2.3
 
 # Filter by format and architecture
-cloudsmith download your-account/your-repo package-name --format deb --arch amd64
+cloudsmith download your-org/your-repo package-name --format deb --arch amd64
 
 # Filter by package tag (e.g., latest, stable, beta)
-cloudsmith download your-account/your-repo package-name --tag latest
+cloudsmith download your-org/your-repo package-name --tag latest
 
 # Combine tag with metadata filters
-cloudsmith download your-account/your-repo package-name --tag stable --format deb --arch arm64
+cloudsmith download your-org/your-repo package-name --tag stable --format deb --arch arm64
 
 # Filter by filename (exact or glob pattern)
-cloudsmith download your-account/your-repo package-name --filename '*.nupkg'
-cloudsmith download your-account/your-repo package-name --filename 'mypackage-1.0.0.snupkg'
+cloudsmith download your-org/your-repo package-name --filename '*.nupkg'
+cloudsmith download your-org/your-repo package-name --filename 'mypackage-1.0.0.snupkg'
 
 # Download all matching packages (when multiple packages share the same name/version)
-cloudsmith download your-account/your-repo package-name --download-all
+cloudsmith download your-org/your-repo package-name --download-all
 
 # Combine --download-all with --filename to download a subset
-cloudsmith download your-account/your-repo package-name --download-all --filename '*.snupkg'
+cloudsmith download your-org/your-repo package-name --download-all --filename '*.snupkg'
 
 # Download all associated files (POM, sources, javadoc, etc.)
-cloudsmith download your-account/your-repo package-name --all-files
+cloudsmith download your-org/your-repo package-name --all-files
 
 # Preview what would be downloaded without actually downloading
-cloudsmith download your-account/your-repo package-name --dry-run
+cloudsmith download your-org/your-repo package-name --dry-run
 ```
 
 For more advanced usage and all available options:
@@ -315,7 +315,7 @@ Metadata can be attached at push time with `cloudsmith push` (see [Attaching Met
 To attach metadata to an existing package:
 
 ```
-cloudsmith metadata add your-account/your-repo/your-package \
+cloudsmith metadata add your-org/your-repo/your-pkg \
   --content-type application/json \
   --content '{"build_id": "demo-123", "git_sha": "abc123"}'
 ```
@@ -323,7 +323,7 @@ cloudsmith metadata add your-account/your-repo/your-package \
 To attach metadata from a file (use `-` to read from stdin):
 
 ```
-cloudsmith metadata add your-account/your-repo/your-package \
+cloudsmith metadata add your-org/your-repo/your-pkg \
   --content-type application/vnd.jfrog.buildinfo+json \
   --file buildinfo.json
 ```
@@ -331,28 +331,28 @@ cloudsmith metadata add your-account/your-repo/your-package \
 To list all metadata entries on a package, or fetch a single entry by slug:
 
 ```
-cloudsmith metadata list your-account/your-repo/your-package
-cloudsmith metadata list your-account/your-repo/your-package meta-slug-perm
+cloudsmith metadata list your-org/your-repo/your-pkg
+cloudsmith metadata list your-org/your-repo/your-pkg meta-slug-perm
 ```
 
 Filter entries by source kind or classification when listing:
 
 ```
-cloudsmith metadata list your-account/your-repo/your-package --classification sbom
-cloudsmith metadata list your-account/your-repo/your-package --source-kind third_party
+cloudsmith metadata list your-org/your-repo/your-pkg --classification sbom
+cloudsmith metadata list your-org/your-repo/your-pkg --source-kind third_party
 ```
 
 To replace the content or source identity of an existing entry (content type is fixed after creation):
 
 ```
-cloudsmith metadata update your-account/your-repo/your-package meta-slug-perm \
+cloudsmith metadata update your-org/your-repo/your-pkg meta-slug-perm \
   --content '{"build_id": "demo-124"}'
 ```
 
 To remove a metadata entry:
 
 ```
-cloudsmith metadata remove your-account/your-repo/your-package meta-slug-perm
+cloudsmith metadata remove your-org/your-repo/your-pkg meta-slug-perm
 ```
 
 For all available options:
@@ -372,11 +372,12 @@ Available flags on every push subcommand:
 - `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
 - `--metadata-content-type MIME`: MIME type of the metadata payload (e.g. `application/json`, `application/vnd.jfrog.buildinfo+json`). Required when content is provided.
 - `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+- `--on-metadata-failure [error|warn]`: How to handle push-time metadata failures for this push only. `error` (default) aborts the push so CI/CD surfaces broken SBOM/BuildInfo payloads; `warn` downgrades to a warning and lets the package upload regardless. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key.
 
 Push a package with inline metadata:
 
 ```
-cloudsmith push raw your-account/your-repo payload.txt \
+cloudsmith push raw your-org/your-repo payload.txt \
   --name demo --version 1.0.0 \
   --metadata-content '{"build_id": "demo-inline", "git_sha": "abc123"}' \
   --metadata-content-type application/json
@@ -385,7 +386,7 @@ cloudsmith push raw your-account/your-repo payload.txt \
 Push a package with metadata loaded from a file:
 
 ```
-cloudsmith push raw your-account/your-repo payload.txt \
+cloudsmith push raw your-org/your-repo payload.txt \
   --name demo --version 1.0.0 \
   --metadata-content-file buildinfo.json \
   --metadata-content-type application/vnd.jfrog.buildinfo+json
@@ -395,14 +396,33 @@ cloudsmith push raw your-account/your-repo payload.txt \
 
 By default, push aborts when metadata validation or attachment fails. The HTTP status from the failed request is used as the exit code, so CI pipelines surface broken SBOMs or BuildInfo payloads instead of silently uploading a package without metadata.
 
-To downgrade failures to a warning (the package is still uploaded, and a copy-paste `cloudsmith metadata add` retry hint is printed), set the `CLOUDSMITH_METADATA_FAILURE_MODE` environment variable to `warn` or `0`:
+To downgrade failures to a warning (the package is still uploaded, and a copy-paste `cloudsmith metadata add` retry hint is printed), use any of the following — listed in order of precedence (highest first):
 
-```
-CLOUDSMITH_METADATA_FAILURE_MODE=warn cloudsmith push raw your-account/your-repo payload.txt \
-  --name demo --version 1.0.0 \
-  --metadata-content-file buildinfo.json \
-  --metadata-content-type application/vnd.jfrog.buildinfo+json
-```
+1. The `--on-metadata-failure warn` CLI flag on `cloudsmith push` (per-push override):
+
+   ```
+   cloudsmith push raw your-org/your-repo payload.txt \
+     --name demo --version 1.0.0 \
+     --metadata-content-file buildinfo.json \
+     --metadata-content-type application/vnd.jfrog.buildinfo+json \
+     --on-metadata-failure warn
+   ```
+
+2. The `CLOUDSMITH_METADATA_FAILURE_MODE` environment variable set to `warn` or `0` (per-shell):
+
+   ```
+   CLOUDSMITH_METADATA_FAILURE_MODE=warn cloudsmith push raw your-org/your-repo payload.txt \
+     --name demo --version 1.0.0 \
+     --metadata-content-file buildinfo.json \
+     --metadata-content-type application/vnd.jfrog.buildinfo+json
+   ```
+
+3. The `metadata_failure_mode` key in `config.ini` set to `error`, `warn`, or `0` (persistent default):
+
+   ```ini
+   [default]
+   metadata_failure_mode = warn
+   ```
 
 
 ## Contributing

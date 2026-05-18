@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.17.0] - 2026-05-12
+## [1.17.0] - 2026-05-18
 
 ### Added
 
@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
   - `--metadata-content-type MIME`: MIME type of the metadata payload. Required when content is provided.
   - `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
-  - Failures abort the push by default with the HTTP status as the exit code. Set `CLOUDSMITH_METADATA_FAILURE_MODE=warn` (or `0`) to downgrade failures to a warning and emit a copy-paste `cloudsmith metadata add` retry hint.
+  - `--on-metadata-failure [error|warn]`: Per-push override for how validation/attach failures are handled. `error` (default) aborts the push; `warn` downgrades to a warning and uploads the package anyway. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key for the current push.
+  - Failures abort the push by default with the HTTP status as the exit code. Downgrade failures to a warning (and emit a copy-paste `cloudsmith metadata add` retry hint) via any of: the `--on-metadata-failure warn` CLI flag, `CLOUDSMITH_METADATA_FAILURE_MODE=warn` (or `0`) env var, or the new `metadata_failure_mode` key in `config.ini`. Precedence: CLI flag → env var → config key → `error` default.
   - Push JSON output now includes a `metadata_attachment` field on success and error envelopes.
 
 ## [1.16.0] - 2026-03-24
