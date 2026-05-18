@@ -425,7 +425,8 @@ def attach_metadata_to_package(
             "Package upload completed without metadata. Pass "
             "``--on-metadata-failure error`` (or set the "
             f"``metadata_failure_mode`` config key / ``${METADATA_FAILURE_MODE_ENV}`` "
-            "env var to ``error``) to fail the push instead.",
+            "env var to ``error``) to fail the push instead. "
+            "Accepted warn-mode values are ``warn`` and ``0``.",
             fg="yellow",
             err=True,
         )
