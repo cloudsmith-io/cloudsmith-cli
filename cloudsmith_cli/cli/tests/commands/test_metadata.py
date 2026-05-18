@@ -41,16 +41,16 @@ class TestMetadataGroupSmoke(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
         self.assertIn(
-            "$ cloudsmith metadata list your-org/awesome-repo/better-pkg\n",
+            "$ cloudsmith metadata list your-org/your-repo/your-pkg\n",
             result.output,
         )
         self.assertIn(
-            "$ cloudsmith metadata list your-org/awesome-repo/better-pkg "
+            "$ cloudsmith metadata list your-org/your-repo/your-pkg "
             "--classification provenance\n",
             result.output,
         )
         self.assertIn(
-            "$ cloudsmith metadata list your-org/awesome-repo/better-pkg meta-slug-perm\n",
+            "$ cloudsmith metadata list your-org/your-repo/your-pkg meta-slug-perm\n",
             result.output,
         )
 
@@ -59,12 +59,12 @@ class TestMetadataGroupSmoke(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
         self.assertIn(
-            "$ cloudsmith metadata add your-org/awesome-repo/better-pkg \\\n",
+            "$ cloudsmith metadata add your-org/your-repo/your-pkg \\\n",
             result.output,
         )
         self.assertIn("--content-type application/json \\\n", result.output)
         self.assertIn('--content \'{"foo": "bar"}\'', result.output)
-        self.assertIn("cat payload.json | cloudsmith metadata add", result.output)
+        self.assertIn("cat metadata.json | cloudsmith metadata add", result.output)
         self.assertIn("--file -", result.output)
         self.assertIn("application/vnd.jfrog.buildinfo+json", result.output)
         self.assertIn("--file buildinfo.json", result.output)
@@ -73,7 +73,7 @@ class TestMetadataGroupSmoke(unittest.TestCase):
         result = self.runner.invoke(metadata_, ["update", "--help"])
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
-        self.assertIn("cat payload.json | cloudsmith metadata update", result.output)
+        self.assertIn("cat metadata.json | cloudsmith metadata update", result.output)
         self.assertIn("--file -", result.output)
 
 
@@ -437,6 +437,29 @@ class TestMetadataAdd(unittest.TestCase):
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_create_metadata")
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")
+    def test_add_rejects_non_object_content(self, mock_resolve, mock_create):
+        mock_resolve.return_value = "pkg-slug-perm"
+
+        for raw in ("null", "[]"):
+            result = self.runner.invoke(
+                metadata_,
+                [
+                    "add",
+                    "myorg/myrepo/mypkg",
+                    "--content-type",
+                    "application/json",
+                    "--content",
+                    raw,
+                ],
+            )
+
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIn("json object", result.output.lower())
+
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.metadata.api_create_metadata")
+    @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")
     def test_add_uses_explicit_source_identity(self, mock_resolve, mock_create):
         mock_resolve.return_value = "pkg-slug-perm"
         mock_create.return_value = {"slug_perm": "new-slug"}
@@ -572,6 +595,26 @@ class TestMetadataUpdate(unittest.TestCase):
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("nothing to update", result.output.lower())
+        mock_update.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.metadata.api_update_metadata")
+    @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")
+    def test_update_rejects_non_object_content(self, mock_resolve, mock_update):
+        mock_resolve.return_value = "pkg-slug-perm"
+
+        result = self.runner.invoke(
+            metadata_,
+            [
+                "update",
+                "myorg/myrepo/mypkg",
+                "meta-slug",
+                "--content",
+                "[]",
+            ],
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("json object", result.output.lower())
         mock_update.assert_not_called()
 
     def test_update_rejects_content_type_flag(self):

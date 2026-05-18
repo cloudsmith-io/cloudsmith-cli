@@ -66,6 +66,7 @@ class ConfigSchema:
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
+        metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -247,7 +248,7 @@ class CredentialsReader(ConfigReader):
         cls._set_api_key(path, api_key)
 
 
-class Options:
+class Options:  # pylint: disable=too-many-public-methods
     """Options object that holds config for the application."""
 
     def __init__(self, *args, **kwargs):
@@ -415,6 +416,24 @@ class Options:
         tool_groups = [group.strip() for group in value.split(",")]
 
         self._set_option("mcp_allowed_tool_groups", tool_groups)
+
+    @property
+    def metadata_failure_mode(self):
+        """Get value for push-time metadata failure mode."""
+        return self._get_option("metadata_failure_mode")
+
+    @metadata_failure_mode.setter
+    def metadata_failure_mode(self, value):
+        """Set value for push-time metadata failure mode."""
+        if value is None:
+            return
+        normalised = str(value).strip().lower()
+        if normalised not in {"error", "warn", "0"}:
+            raise click.UsageError(
+                f"Invalid metadata_failure_mode {value!r}. "
+                "Expected one of: 'error', 'warn', '0'."
+            )
+        self._set_option("metadata_failure_mode", normalised)
 
     @property
     def output(self):

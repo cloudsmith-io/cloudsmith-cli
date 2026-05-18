@@ -45,6 +45,13 @@ def handle_api_exceptions(
             if fields:
                 error_data["fields"] = fields
 
+            # Surface push-time metadata context (validation/attach result)
+            # in the same JSON envelope so a downstream package-create or
+            # sync failure does not lose the earlier metadata signal.
+            metadata_context = getattr(opts, "push_metadata_info", None)
+            if metadata_context is not None:
+                error_data["metadata_attachment"] = metadata_context
+
             # Print to stdout
             import json
 
