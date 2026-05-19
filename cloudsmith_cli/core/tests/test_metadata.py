@@ -11,6 +11,7 @@ from .. import keyring
 from ..api import metadata
 from ..api.exceptions import ApiException
 from ..api.init import initialise_api
+from ..credentials.models import CredentialResult
 
 API_HOST = "https://api.cloudsmith.io"
 PKG = "pkg-slug"
@@ -38,7 +39,14 @@ def _setup_api(monkeypatch):
         lambda self, how: None,
         raising=False,
     )
-    initialise_api(host=API_HOST, key="test-api-key")
+    initialise_api(
+        host=API_HOST,
+        credential=CredentialResult(
+            api_key="test-api-key",
+            source_name="test",
+            auth_type="api_key",
+        ),
+    )
 
 
 def _last_request():
