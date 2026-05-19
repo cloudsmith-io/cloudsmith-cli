@@ -326,7 +326,7 @@ class Options:  # pylint: disable=too-many-public-methods
 
     @api_key_from_flag.setter
     def api_key_from_flag(self, value):
-        self._set_option("api_key_from_flag", value)
+        self._set_option("api_key_from_flag", value, allow_clear=True)
 
     @property
     def api_key_from_env(self):
@@ -335,7 +335,7 @@ class Options:  # pylint: disable=too-many-public-methods
 
     @api_key_from_env.setter
     def api_key_from_env(self, value):
-        self._set_option("api_key_from_env", value)
+        self._set_option("api_key_from_env", value, allow_clear=True)
 
     @property
     def api_key_from_file(self):
@@ -344,7 +344,7 @@ class Options:  # pylint: disable=too-many-public-methods
 
     @api_key_from_file.setter
     def api_key_from_file(self, value):
-        self._set_option("api_key_from_file", value)
+        self._set_option("api_key_from_file", value, allow_clear=True)
 
     @property
     def api_proxy(self):

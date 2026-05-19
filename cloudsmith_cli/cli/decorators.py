@@ -116,8 +116,8 @@ def common_cli_config_options(f):
         ctx.meta["creds_file"] = creds_file
 
         opts.load_config_file(path=config_file, profile=profile)
-        opts.load_creds_file(path=creds_file, profile=profile)
-        opts.api_key_from_file = opts.api_key
+        creds_values = opts.load_creds_file(path=creds_file, profile=profile) or {}
+        opts.api_key_from_file = creds_values.get("api_key")
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
