@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-05-18
+
+### Added
+
+- Added `metadata` command group for managing arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
+  - `metadata add`: Attach a new metadata entry to a package. Accepts inline `--content` or `--file` (with `-` for stdin), a required `--content-type`, and an optional `--source-identity`.
+  - `metadata list`: List metadata entries for a package, or fetch a single entry by slug. Supports filtering by `--source-kind` and `--classification`, with pagination flags.
+  - `metadata update`: Replace content or source identity on an existing entry. Content type is immutable after creation.
+  - `metadata remove`: Remove a metadata entry from a package. Supports `-y` to skip the confirmation prompt.
+  - Supports `--output-format json | pretty_json` for programmatic usage.
+- Added push-time metadata flags to every `cloudsmith push <format>` subcommand. Metadata is validated locally and against the API before any file upload, then attached to the package immediately after creation.
+  - `--metadata-content-file PATH`: Path to a JSON file containing the metadata content. Use `-` for stdin.
+  - `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
+  - `--metadata-content-type MIME`: MIME type of the metadata payload. Required when content is provided.
+  - `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+  - `--on-metadata-failure [error|warn]`: Per-push override for how validation/attach failures are handled. `error` (default) aborts the push; `warn` downgrades to a warning and uploads the package anyway. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key for the current push.
+  - Failures abort the push by default with the HTTP status as the exit code. Downgrade failures to a warning (and emit a copy-paste `cloudsmith metadata add` retry hint) via any of: the `--on-metadata-failure warn` CLI flag, `CLOUDSMITH_METADATA_FAILURE_MODE=warn` (or `0`) env var, or the new `metadata_failure_mode` key in `config.ini`. Precedence: CLI flag → env var → config key → `error` default.
+  - Push JSON output now includes a `metadata_attachment` field on success and error envelopes.
+
 ## [1.16.0] - 2026-03-24
 
 ### Added

@@ -3,7 +3,6 @@
 import fnmatch
 import hashlib
 import os
-from typing import Dict, List, Optional, Tuple
 
 import click
 import cloudsmith_api
@@ -18,8 +17,8 @@ from .rest import create_requests_session
 
 
 def resolve_auth(
-    opts, api_key_opt: Optional[str] = None
-) -> Tuple[requests.Session, Dict[str, str], str]:
+    opts, api_key_opt: str | None = None
+) -> tuple[requests.Session, dict[str, str], str]:
     """
     Resolve authentication method and create session with appropriate headers.
 
@@ -56,7 +55,7 @@ def resolve_auth(
     return session, headers, auth_source
 
 
-def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
+def _matches_tag_filter(pkg: dict, tag_filter: str) -> bool:
     """
     Check if a package matches the tag filter.
 
@@ -84,13 +83,13 @@ def _search_packages(
     repo: str,
     name: str,
     *,
-    version: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    arch_filter: Optional[str] = None,
-    tag_filter: Optional[str] = None,
-    filename_filter: Optional[str] = None,
-) -> List[Dict]:
+    version: str | None = None,
+    format_filter: str | None = None,
+    os_filter: str | None = None,
+    arch_filter: str | None = None,
+    tag_filter: str | None = None,
+    filename_filter: str | None = None,
+) -> list[dict]:
     """
     Search for packages matching criteria, returning all matches.
 
@@ -172,13 +171,13 @@ def resolve_all_packages(
     repo: str,
     name: str,
     *,
-    version: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    arch_filter: Optional[str] = None,
-    tag_filter: Optional[str] = None,
-    filename_filter: Optional[str] = None,
-) -> List[Dict]:
+    version: str | None = None,
+    format_filter: str | None = None,
+    os_filter: str | None = None,
+    arch_filter: str | None = None,
+    tag_filter: str | None = None,
+    filename_filter: str | None = None,
+) -> list[dict]:
     """
     Find all packages matching the criteria.
 
@@ -224,14 +223,14 @@ def resolve_package(
     repo: str,
     name: str,
     *,
-    version: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    arch_filter: Optional[str] = None,
-    tag_filter: Optional[str] = None,
-    filename_filter: Optional[str] = None,
+    version: str | None = None,
+    format_filter: str | None = None,
+    os_filter: str | None = None,
+    arch_filter: str | None = None,
+    tag_filter: str | None = None,
+    filename_filter: str | None = None,
     yes: bool = False,
-) -> Dict:
+) -> dict:
     """
     Find a single package matching the criteria, handling multiple matches.
 
@@ -295,7 +294,7 @@ def resolve_package(
     return best_package
 
 
-def _display_multiple_packages(packages: List[Dict]) -> None:
+def _display_multiple_packages(packages: list[dict]) -> None:
     """Display a table of multiple matching packages."""
     click.echo("Multiple packages found:")
     click.echo()
@@ -319,7 +318,7 @@ def _display_multiple_packages(packages: List[Dict]) -> None:
     click.echo()
 
 
-def get_download_url(package: Dict) -> str:
+def get_download_url(package: dict) -> str:
     """
     Get the download URL for a package.
 
@@ -346,7 +345,7 @@ def get_download_url(package: Dict) -> str:
     return download_url
 
 
-def get_package_files(package: Dict) -> List[Dict]:
+def get_package_files(package: dict) -> list[dict]:
     """
     Get all downloadable files associated with a package.
 
@@ -389,7 +388,7 @@ def get_package_files(package: Dict) -> List[Dict]:
     return downloadable_files
 
 
-def get_package_detail(owner: str, repo: str, identifier: str) -> Dict:
+def get_package_detail(owner: str, repo: str, identifier: str) -> dict:
     """
     Get detailed package information including download URLs.
 
@@ -417,7 +416,7 @@ def stream_download(  # noqa: C901
     outfile: str,
     session: requests.Session,
     *,
-    headers: Optional[Dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
     overwrite: bool = False,
     quiet: bool = False,
 ) -> None:
@@ -522,7 +521,7 @@ def stream_download(  # noqa: C901
             click.secho("⚠ Checksum mismatch", fg="yellow", err=True)
 
 
-def _select_best_package(packages: List[Dict]) -> Dict:
+def _select_best_package(packages: list[dict]) -> dict:
     """Select the best package from multiple matches."""
 
     # Sort by version (desc) then by upload date (desc)
