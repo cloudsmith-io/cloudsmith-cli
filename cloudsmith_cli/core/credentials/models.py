@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import requests
 
@@ -30,4 +31,4 @@ class CredentialResult:
     api_key: str
     source_name: str
     source_detail: str | None = None
-    auth_type: str = "api_key"
+    auth_type: Literal["api_key", "bearer"] = "api_key"

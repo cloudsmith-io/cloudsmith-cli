@@ -18,6 +18,6 @@ class CLIFlagProvider(CredentialProvider):
             return CredentialResult(
                 api_key=api_key.strip(),
                 source_name="cli_flag",
-                source_detail=f"--api-key flag, CLOUDSMITH_API_KEY, or credentials.ini (ends with ...{suffix})",
+                source_detail=f"key resolved via CLI options (ends with ...{suffix})",
             )
         return None

@@ -30,16 +30,21 @@ class KeyringProvider(CredentialProvider):
         try:
             if keyring.should_refresh_access_token(api_host):
                 if not context.session:
-                    return None
-                refresh_token = keyring.get_refresh_token(api_host)
-                new_access_token, new_refresh_token = refresh_access_token(
-                    api_host,
-                    access_token,
-                    refresh_token,
-                    session=context.session,
-                )
-                keyring.store_sso_tokens(api_host, new_access_token, new_refresh_token)
-                access_token = new_access_token
+                    logger.debug(
+                        "Session unavailable; skipping token refresh, using existing token"
+                    )
+                else:
+                    refresh_token = keyring.get_refresh_token(api_host)
+                    new_access_token, new_refresh_token = refresh_access_token(
+                        api_host,
+                        access_token,
+                        refresh_token,
+                        session=context.session,
+                    )
+                    keyring.store_sso_tokens(
+                        api_host, new_access_token, new_refresh_token
+                    )
+                    access_token = new_access_token
         except Exception:  # pylint: disable=broad-exception-caught
             keyring.update_refresh_attempted_at(api_host)
             context.keyring_refresh_failed = True
