@@ -3,6 +3,7 @@
 import functools
 
 import click
+from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
 
@@ -116,6 +117,7 @@ def common_cli_config_options(f):
 
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
+        opts.api_key_from_file = opts.api_key
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -226,8 +228,22 @@ def common_api_auth_options(f):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
         api_key = kwargs.pop("api_key")
+
+        source = ctx.get_parameter_source("api_key")
+        if source == ParameterSource.COMMANDLINE:
+            opts.api_key_from_flag = api_key
+            opts.api_key_from_env = None
+        elif source == ParameterSource.ENVIRONMENT:
+            opts.api_key_from_flag = None
+            opts.api_key_from_env = api_key
+        else:
+            opts.api_key_from_flag = None
+            opts.api_key_from_env = None
+
+        # Keep opts.api_key populated for any code that still reads it directly.
         if api_key:
             opts.api_key = api_key
+
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -302,7 +318,9 @@ def resolve_credentials(f):
 
         context = CredentialContext(
             session=opts.session,
-            api_key=opts.api_key,
+            api_key_from_flag=opts.api_key_from_flag,
+            api_key_from_env=opts.api_key_from_env,
+            api_key_from_file=opts.api_key_from_file,
             api_host=opts.api_host or "https://api.cloudsmith.io",
             creds_file_path=ctx.meta.get("creds_file"),
             profile=ctx.meta.get("profile"),
