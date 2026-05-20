@@ -26,7 +26,7 @@ def _get_api_key_source(opts):
     Uses the credential provider chain result attached by initialise_api.
     """
     credential = getattr(opts, "credential", None)
-    if credential:
+    if credential and credential.auth_type == "api_key":
         return {
             "configured": True,
             "source": credential.source_detail or credential.source_name,
