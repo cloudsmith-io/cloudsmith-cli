@@ -116,8 +116,8 @@ def common_cli_config_options(f):
         ctx.meta["creds_file"] = creds_file
 
         opts.load_config_file(path=config_file, profile=profile)
-        creds_values = opts.load_creds_file(path=creds_file, profile=profile) or {}
-        opts.api_key_from_file = creds_values.get("api_key")
+        opts.load_creds_file(path=creds_file, profile=profile)
+        opts.api_key_from_file = opts.api_key
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -230,10 +230,11 @@ def common_api_auth_options(f):
         api_key = kwargs.pop("api_key")
 
         source = ctx.get_parameter_source("api_key")
-        if source == ParameterSource.COMMANDLINE:
+        api_key_nonempty = api_key and api_key.strip()
+        if source == ParameterSource.COMMANDLINE and api_key_nonempty:
             opts.api_key_from_flag = api_key
             opts.api_key_from_env = None
-        elif source == ParameterSource.ENVIRONMENT:
+        elif source == ParameterSource.ENVIRONMENT and api_key_nonempty:
             opts.api_key_from_flag = None
             opts.api_key_from_env = api_key
         else:
