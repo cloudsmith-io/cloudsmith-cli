@@ -243,7 +243,6 @@ def common_api_auth_options(f):
         # Keep opts.api_key populated for any code that still reads it directly.
         if api_key:
             opts.api_key = api_key
-
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
