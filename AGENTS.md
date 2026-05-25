@@ -9,9 +9,11 @@ The repo uses `direnv` (`.envrc`) to bootstrap a `.venv` via `uv`, install the p
 ```
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
-pip install -r requirements.txt   # dev deps (locked); requirements.in is the source list
+pip install -r requirements.in   # dev deps (matches what .envrc installs)
 pre-commit install
 ```
+
+`requirements.txt` is the locked/pinned form of `requirements.in` and is what CI uses; `requirements.in` is the source list. Install whichever matches your needs (`.envrc` uses `requirements.in`).
 
 Python `>=3.10` is required (CI tests 3.10–3.14).
 
@@ -29,7 +31,7 @@ The CLI is a Click app that wraps the auto-generated `cloudsmith-api` Python SDK
 
 ### Layered layout
 
-- `cloudsmith_cli/cli/` — Click commands, decorators, output formatting, validators, config-file parsing, SAML browser-callback webserver. **No direct API calls live here** — commands call into `core/api/*`.
+- `cloudsmith_cli/cli/` — Click commands, decorators, output formatting, validators, config-file parsing, SAML browser-callback webserver. API **call sites** belong in `core/api/*`; commands invoke those wrappers rather than calling the SDK directly. (A few commands — `login`, `logout`, `check` — do import `cloudsmith_api` for `Configuration` defaults or exception classes; that's fine, but new request code should go through `core/api/*`.)
   - `cli/commands/main.py` defines the top-level `main` Click group (`cls=AliasGroup`). Every other command module imports `main` and registers itself with `@main.command(...)` or `@main.group(...)`. `cli/commands/__init__.py` imports every module so registration happens on import.
   - `cli/command.py` provides `AliasGroup` (DYM + alias support) and JSON-aware Click exception formatting — Click errors are serialized to JSON when `-F json|pretty_json` is in effect (checked from both Click context and `sys.argv`).
   - `cli/decorators.py` is the seam between CLI and API: `@common_cli_config_options`, `@common_cli_output_options`, `@common_api_auth_options`, and `@initialise_api` (which calls `core.api.init.initialise_api` to configure the `cloudsmith_api` SDK with key/host/proxy/SSL/retry/SAML token). `@initialise_mcp` wires up the MCP server.
@@ -66,4 +68,4 @@ Tests live alongside code: `cloudsmith_cli/cli/tests/` and `cloudsmith_cli/core/
 - `flake8` ignores `E203,E501,D107,D102,W503` and uses `max-line-length=100` (but `black` enforces 88). `isort` profile lists known third-party packages explicitly — when adding a new third-party import, add it to `.isort.cfg`'s `known_third_party` if isort puts it in the wrong group.
 - `pyupgrade --py310-plus` runs on every commit, so use modern syntax (`X | Y` unions, `dict[str, ...]` generics, etc.).
 - Adding a new subcommand: create a module under `cli/commands/`, register it in `cli/commands/__init__.py`, and attach it to `main` (or a subgroup) with the `AliasGroup` for alias support.
-- Adding a new API call: put SDK wrapping in `core/api/<resource>.py`, translate exceptions to `ApiException`, and call it from the command layer — don't import `cloudsmith_api` directly from `cli/commands/*`.
+- Adding a new API call: put SDK wrapping in `core/api/<resource>.py`, translate exceptions to `ApiException`, and call it from the command layer. Avoid making fresh `cloudsmith_api` request calls from `cli/commands/*`; importing `cloudsmith_api` for `Configuration` defaults or exception types is OK and matches what `login`/`logout`/`check` already do.
