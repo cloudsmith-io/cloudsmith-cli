@@ -66,6 +66,10 @@ class ConfigSchema:
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
+        oidc_audience = ConfigParam(name="oidc_audience", type=str)
+        oidc_org = ConfigParam(name="oidc_org", type=str)
+        oidc_service_slug = ConfigParam(name="oidc_service_slug", type=str)
+        metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -247,7 +251,7 @@ class CredentialsReader(ConfigReader):
         cls._set_api_key(path, api_key)
 
 
-class Options:
+class Options:  # pylint: disable=too-many-public-methods
     """Options object that holds config for the application."""
 
     def __init__(self, *args, **kwargs):
@@ -317,6 +321,33 @@ class Options:
     def api_key(self, value):
         """Set value for API key."""
         self._set_option("api_key", value)
+
+    @property
+    def api_key_from_flag(self):
+        """Get API key set explicitly via --api-key CLI flag."""
+        return self._get_option("api_key_from_flag")
+
+    @api_key_from_flag.setter
+    def api_key_from_flag(self, value):
+        self._set_option("api_key_from_flag", value, allow_clear=True)
+
+    @property
+    def api_key_from_env(self):
+        """Get API key from CLOUDSMITH_API_KEY environment variable."""
+        return self._get_option("api_key_from_env")
+
+    @api_key_from_env.setter
+    def api_key_from_env(self, value):
+        self._set_option("api_key_from_env", value, allow_clear=True)
+
+    @property
+    def api_key_from_file(self):
+        """Get API key loaded from credentials.ini."""
+        return self._get_option("api_key_from_file")
+
+    @api_key_from_file.setter
+    def api_key_from_file(self, value):
+        self._set_option("api_key_from_file", value, allow_clear=True)
 
     @property
     def api_proxy(self):
@@ -415,6 +446,66 @@ class Options:
         tool_groups = [group.strip() for group in value.split(",")]
 
         self._set_option("mcp_allowed_tool_groups", tool_groups)
+
+    @property
+    def oidc_audience(self):
+        """Get value for OIDC audience."""
+        return self._get_option("oidc_audience")
+
+    @oidc_audience.setter
+    def oidc_audience(self, value):
+        """Set value for OIDC audience."""
+        self._set_option("oidc_audience", value)
+
+    @property
+    def oidc_org(self):
+        """Get value for OIDC organisation slug."""
+        return self._get_option("oidc_org")
+
+    @oidc_org.setter
+    def oidc_org(self, value):
+        """Set value for OIDC organisation slug."""
+        self._set_option("oidc_org", value)
+
+    @property
+    def oidc_service_slug(self):
+        """Get value for OIDC service slug."""
+        return self._get_option("oidc_service_slug")
+
+    @oidc_service_slug.setter
+    def oidc_service_slug(self, value):
+        """Set value for OIDC service slug."""
+        self._set_option("oidc_service_slug", value)
+
+    @property
+    def oidc_discovery_disabled(self):
+        """Get value for OIDC discovery disabled flag."""
+        return self._get_option("oidc_discovery_disabled", default=False)
+
+    @oidc_discovery_disabled.setter
+    def oidc_discovery_disabled(self, value):
+        """Set value for OIDC discovery disabled flag."""
+        self._set_option(
+            "oidc_discovery_disabled", bool(value) if value is not None else False
+        )
+
+    @property
+    def metadata_failure_mode(self):
+        """Get value for push-time metadata failure mode."""
+        return self._get_option("metadata_failure_mode")
+
+    @metadata_failure_mode.setter
+    def metadata_failure_mode(self, value):
+        """Set value for push-time metadata failure mode."""
+        if value is None:
+            return
+        normalised = str(value).strip().lower()
+        if normalised not in {"error", "warn", "0"}:
+            raise click.UsageError(
+                f"Invalid metadata_failure_mode {value!r}. "
+                "Expected one of: 'error', 'warn', '0'."
+            )
+        self._set_option("metadata_failure_mode", normalised)
 
     @property
     def output(self):

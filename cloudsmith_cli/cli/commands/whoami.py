@@ -26,7 +26,7 @@ def _get_api_key_source(opts):
     Uses the credential provider chain result attached by initialise_api.
     """
     credential = getattr(opts, "credential", None)
-    if credential:
+    if credential and credential.auth_type == "api_key":
         return {
             "configured": True,
             "source": credential.source_detail or credential.source_name,
@@ -108,7 +108,12 @@ def _print_verbose_text(data):
                 click.echo(f"  Source: {ak['source']}")
             click.echo("  Note: SSO token is being used instead")
     elif active == "api_key":
-        click.secho("Authentication Method: API Key", fg="cyan", bold=True)
+        if ak.get("source_key") == "oidc":
+            click.secho(
+                "Authentication Method: OIDC Auto-Discovery", fg="cyan", bold=True
+            )
+        else:
+            click.secho("Authentication Method: API Key", fg="cyan", bold=True)
         for label, field in [
             ("Source", "source"),
             ("Token Slug", "slug"),

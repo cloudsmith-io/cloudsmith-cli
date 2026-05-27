@@ -455,7 +455,9 @@ disable=raw-checker-failed,
         used-before-assignment,
         unneeded-not,
         duplicate-code,
-        cyclic-import
+        cyclic-import,
+        too-many-public-methods,
+        too-many-instance-attributes
 
 
 # Enable the message, report, category or checker with the given id(s). You can

@@ -205,7 +205,16 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
 
     prompt = f"{prefix} {prompt}?"
 
-    if click.confirm(prompt, err=err):
+    answered = click.confirm(prompt, err=err)
+
+    # click.confirm reads input via input() which relies on terminal line
+    # discipline to echo typed characters. In non-TTY contexts (CI logs,
+    # piped stdin, captured output) the answer is invisible next to the
+    # prompt, so echo the resolved value explicitly.
+    if not click.get_text_stream("stdin").isatty():
+        click.echo("y" if answered else "N", err=err)
+
+    if answered:
         return True
 
     click.echo(err=err)

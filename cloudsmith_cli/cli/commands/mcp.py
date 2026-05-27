@@ -5,7 +5,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 import click
 import json5
@@ -110,7 +109,7 @@ def list_groups(ctx, opts, mcp_server: server.DynamicMCPServer):
     print_groups(groups)
 
 
-def print_tools(tool_list: Dict[str, OpenAPITool]):
+def print_tools(tool_list: dict[str, OpenAPITool]):
     """Print tools as a table or output in another format."""
 
     headers = [
@@ -138,7 +137,7 @@ def print_tools(tool_list: Dict[str, OpenAPITool]):
     utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
 
 
-def print_groups(group_list: Dict[str, List[str]]):
+def print_groups(group_list: dict[str, list[str]]):
     """Print tool groups as a table or output in another format."""
 
     headers = [

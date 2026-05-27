@@ -72,6 +72,9 @@ class TestCredentialProviderChain:
 
     def test_default_chain_order(self):
         chain = CredentialProviderChain()
-        assert len(chain.providers) == 2
-        assert chain.providers[0].name == "keyring"
-        assert chain.providers[1].name == "cli_flag"
+        assert len(chain.providers) == 5
+        assert chain.providers[0].name == "cli_flag"
+        assert chain.providers[1].name == "env_var"
+        assert chain.providers[2].name == "credentials_file"
+        assert chain.providers[3].name == "keyring"
+        assert chain.providers[4].name == "oidc"
