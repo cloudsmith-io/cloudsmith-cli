@@ -10,6 +10,12 @@ import logging
 
 from .models import CredentialContext, CredentialResult
 from .provider import CredentialProvider
+from .providers import (
+    CLIFlagProvider,
+    CredentialsFileProvider,
+    EnvVarProvider,
+    KeyringProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +24,18 @@ class CredentialProviderChain:
     """Evaluates credential providers in order, returning the first valid result.
 
     If no providers are given, uses the default chain:
-    Keyring → CLIFlag.
+    CLIFlag → EnvVar → CredentialsFile → Keyring.
     """
 
     def __init__(self, providers: list[CredentialProvider] | None = None):
         if providers is not None:
             self.providers = providers
         else:
-            from .providers import CLIFlagProvider, KeyringProvider
-
             self.providers = [
-                KeyringProvider(),
                 CLIFlagProvider(),
+                EnvVarProvider(),
+                CredentialsFileProvider(),
+                KeyringProvider(),
             ]
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:

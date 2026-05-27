@@ -320,6 +320,33 @@ class Options:  # pylint: disable=too-many-public-methods
         self._set_option("api_key", value)
 
     @property
+    def api_key_from_flag(self):
+        """Get API key set explicitly via --api-key CLI flag."""
+        return self._get_option("api_key_from_flag")
+
+    @api_key_from_flag.setter
+    def api_key_from_flag(self, value):
+        self._set_option("api_key_from_flag", value, allow_clear=True)
+
+    @property
+    def api_key_from_env(self):
+        """Get API key from CLOUDSMITH_API_KEY environment variable."""
+        return self._get_option("api_key_from_env")
+
+    @api_key_from_env.setter
+    def api_key_from_env(self, value):
+        self._set_option("api_key_from_env", value, allow_clear=True)
+
+    @property
+    def api_key_from_file(self):
+        """Get API key loaded from credentials.ini."""
+        return self._get_option("api_key_from_file")
+
+    @api_key_from_file.setter
+    def api_key_from_file(self, value):
+        self._set_option("api_key_from_file", value, allow_clear=True)
+
+    @property
     def api_proxy(self):
         """Get value for API proxy."""
         return self._get_option("api_proxy")
