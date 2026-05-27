@@ -10,6 +10,12 @@ import logging
 
 from .models import CredentialContext, CredentialResult
 from .provider import CredentialProvider
+from .providers import (
+    CLIFlagProvider,
+    CredentialsFileProvider,
+    EnvVarProvider,
+    KeyringProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +31,6 @@ class CredentialProviderChain:
         if providers is not None:
             self.providers = providers
         else:
-            from .providers import (
-                CLIFlagProvider,
-                CredentialsFileProvider,
-                EnvVarProvider,
-                KeyringProvider,
-            )
-
             self.providers = [
                 CLIFlagProvider(),
                 EnvVarProvider(),
