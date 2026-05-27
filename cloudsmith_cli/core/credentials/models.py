@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import requests
 
@@ -11,11 +12,15 @@ import requests
 class CredentialContext:
     """Context passed to credential providers during resolution.
 
-    All values are populated directly from Click options / ``opts``.
+    Separate per-source fields allow the chain to evaluate sources in priority
+    order without conflating them. Populated from Click options in
+    ``resolve_credentials``.
     """
 
     session: requests.Session | None = None
-    api_key: str | None = None
+    api_key_from_flag: str | None = None
+    api_key_from_env: str | None = None
+    api_key_from_file: str | None = None
     api_host: str = "https://api.cloudsmith.io"
     creds_file_path: str | None = None
     profile: str | None = None
@@ -34,4 +39,4 @@ class CredentialResult:
     api_key: str
     source_name: str
     source_detail: str | None = None
-    auth_type: str = "api_key"
+    auth_type: Literal["api_key", "bearer"] = "api_key"

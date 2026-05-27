@@ -49,7 +49,7 @@ def get_idp_url(api_host, owner, session):
 
 def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
     exchange_data = {"two_factor_token": two_factor_token, "totp_token": totp_token}
-    exchange_url = "{api_host}/user/two-factor/".format(api_host=api_host)
+    exchange_url = f"{api_host}/user/two-factor/"
 
     headers = {
         "Authorization": "Bearer {two_factor_token}".format(
@@ -82,11 +82,9 @@ def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
 
 def refresh_access_token(api_host, access_token, refresh_token, session):
     data = {"refresh_token": refresh_token}
-    url = "{api_host}/user/refresh-token/".format(api_host=api_host)
+    url = f"{api_host}/user/refresh-token/"
 
-    headers = {
-        "Authorization": "Bearer {access_token}".format(access_token=access_token)
-    }
+    headers = {"Authorization": f"Bearer {access_token}"}
 
     response = session.post(
         url,
