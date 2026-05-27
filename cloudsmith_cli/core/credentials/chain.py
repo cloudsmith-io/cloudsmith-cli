@@ -15,6 +15,7 @@ from .providers import (
     CredentialsFileProvider,
     EnvVarProvider,
     KeyringProvider,
+    OidcProvider,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class CredentialProviderChain:
     """Evaluates credential providers in order, returning the first valid result.
 
     If no providers are given, uses the default chain:
-    CLIFlag → EnvVar → CredentialsFile → Keyring.
+    CLIFlag → EnvVar → CredentialsFile → Keyring → OIDC.
     """
 
     def __init__(self, providers: list[CredentialProvider] | None = None):
@@ -36,6 +37,7 @@ class CredentialProviderChain:
                 EnvVarProvider(),
                 CredentialsFileProvider(),
                 KeyringProvider(),
+                OidcProvider(),
             ]
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:
