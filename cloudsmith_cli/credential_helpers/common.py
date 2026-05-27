@@ -66,7 +66,7 @@ def is_cloudsmith_domain(url, session=None, api_key=None, api_host=None):
         return False
 
     # Standard Cloudsmith domains — no auth needed
-    if hostname.endswith("cloudsmith.io") or hostname == "cloudsmith.io":
+    if hostname == "cloudsmith.io" or hostname.endswith(".cloudsmith.io"):
         return True
 
     # Custom domains require org + auth
