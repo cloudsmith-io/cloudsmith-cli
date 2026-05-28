@@ -69,8 +69,9 @@ def docker(opts):
         if not credentials:
             click.echo(
                 "Error: Unable to retrieve credentials. "
-                "Make sure you have a valid cloudsmith-cli session, "
-                "this can be checked with `cloudsmith whoami`.",
+                "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
+                "credentials.ini, the system keyring, or an OIDC service. "
+                "Verify current authentication with `cloudsmith whoami --verbose`.",
                 err=True,
             )
             sys.exit(1)

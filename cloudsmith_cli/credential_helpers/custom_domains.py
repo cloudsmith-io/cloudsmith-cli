@@ -12,6 +12,9 @@ from pathlib import Path
 
 import requests
 
+from ..cli.config import get_default_config_path
+from ..core.cache_utils import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 # Cache custom domains for 1 hour
@@ -21,13 +24,9 @@ CACHE_TTL_SECONDS = 3600
 def get_cache_dir() -> Path:
     """
     Get the cache directory for custom domains.
-
-    Returns:
-        Path to cache directory (e.g., ~/.cloudsmith/cache/custom_domains/)
     """
-    home = Path.home()
-    cache_dir = home / ".cloudsmith" / "cache" / "custom_domains"
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir = Path(get_default_config_path()) / "custom_domains_cache"
+    cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     return cache_dir
 
 
@@ -97,20 +96,13 @@ def read_cache(cache_path: Path) -> list[str] | None:
 
 
 def write_cache(cache_path: Path, domains: list[str]) -> None:
-    """
-    Write custom domains to cache file.
-
-    Args:
-        cache_path: Path to cache file
-        domains: List of domain strings to cache
-    """
+    """Write custom domains to cache file."""
+    data = {
+        "domains": domains,
+        "cached_at": time.time(),
+    }
     try:
-        data = {
-            "domains": domains,
-            "cached_at": time.time(),
-        }
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        atomic_write_json(cache_path, data)
         logger.debug("Wrote %d domains to cache: %s", len(domains), cache_path)
     except OSError as exc:
         logger.debug("Failed to write cache %s: %s", cache_path, exc)

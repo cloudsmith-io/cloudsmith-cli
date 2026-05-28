@@ -183,13 +183,13 @@ def _store_in_keyring(api_host: str, org: str, service_slug: str, data: dict) ->
 
 def _store_on_disk(api_host: str, org: str, service_slug: str, data: dict) -> None:
     """Store token on disk."""
+    from ...cache_utils import atomic_write_json
+
     cache_dir = _get_cache_dir()
     cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))
 
     try:
-        fd = os.open(cache_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f)
+        atomic_write_json(cache_file, data)
         logger.debug(
             "Stored OIDC token on disk (expires_at=%s)", data.get("expires_at")
         )

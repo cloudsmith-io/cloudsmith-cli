@@ -3,7 +3,8 @@
 Wrapper for docker-credential-cloudsmith.
 
 This is the entry point binary that Docker calls. It delegates to the main
-cloudsmith credential-helper docker command.
+cloudsmith credential-helper docker command for credential lookups and handles
+read-only protocol operations locally.
 
 See: https://github.com/docker/docker-credential-helpers
 
@@ -28,7 +29,7 @@ def main():
     - erase: Erase credentials (not supported)
     - list: List credentials (not supported)
 
-    We only support 'get' and delegate to: cloudsmith credential-helper docker
+    The helper is read-only, so only 'get' returns Cloudsmith credentials.
     """
     if len(sys.argv) < 2:
         print(
@@ -56,13 +57,16 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(1)
-    elif operation in ("store", "erase", "list"):
-        print(
-            f"Error: Operation '{operation}' is not supported. "
-            "Only 'get' is available for Cloudsmith credential helper.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    elif operation in ("store", "erase"):
+        try:
+            if not sys.stdin.isatty():
+                sys.stdin.read()
+        except (OSError, ValueError):
+            pass
+        sys.exit(0)
+    elif operation == "list":
+        print("{}")
+        sys.exit(0)
     else:
         print(
             f"Error: Unknown operation '{operation}'. "

@@ -90,4 +90,4 @@ def is_cloudsmith_domain(
         api_host=api_host,
     )
 
-    return hostname in [d.lower() for d in custom_domains]
+    return hostname in {d.lower() for d in custom_domains if isinstance(d, str)}
