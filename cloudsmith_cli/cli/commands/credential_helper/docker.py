@@ -25,7 +25,9 @@ def docker(opts):
     Reads a Docker registry server URL from stdin and returns credentials in JSON format.
     This command implements the 'get' operation of the Docker credential helper protocol.
 
-    Only provides credentials for Cloudsmith Docker registries (docker.cloudsmith.io).
+    Only provides credentials for Cloudsmith Docker registries: `*.cloudsmith.io`
+    and any custom domains configured for the organization (requires CLOUDSMITH_ORG
+    and a valid API key/token).
 
     Input (stdin):
         Server URL as plain text (e.g., "docker.cloudsmith.io")

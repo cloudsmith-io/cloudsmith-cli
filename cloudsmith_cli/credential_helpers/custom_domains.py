@@ -9,7 +9,6 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import List, Optional
 
 import requests
 
@@ -68,7 +67,7 @@ def is_cache_valid(cache_path: Path) -> bool:
         return False
 
 
-def read_cache(cache_path: Path) -> Optional[List[str]]:
+def read_cache(cache_path: Path) -> list[str] | None:
     """
     Read custom domains from cache file.
 
@@ -97,7 +96,7 @@ def read_cache(cache_path: Path) -> Optional[List[str]]:
     return None
 
 
-def write_cache(cache_path: Path, domains: List[str]) -> None:
+def write_cache(cache_path: Path, domains: list[str]) -> None:
     """
     Write custom domains to cache file.
 
@@ -120,9 +119,10 @@ def write_cache(cache_path: Path, domains: List[str]) -> None:
 def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
     org: str,
     session=None,
-    api_key: str = None,
-    api_host: str = None,
-) -> List[str]:
+    api_key: str | None = None,
+    auth_type: str = "api_key",
+    api_host: str | None = None,
+) -> list[str]:
     """
     Fetch custom domains for a Cloudsmith organization.
 
@@ -132,7 +132,8 @@ def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
         org: Organization slug
         session: Pre-configured requests.Session with proxy/SSL settings.
             If None, a plain requests session is used.
-        api_key: Optional API key for authentication
+        api_key: Optional API key/token for authentication
+        auth_type: "api_key" (uses X-Api-Key header) or "bearer" (uses Authorization: Bearer)
         api_host: Cloudsmith API host URL. Defaults to https://api.cloudsmith.io.
 
     Returns:
@@ -151,13 +152,17 @@ def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
         if session is None:
             session = requests.Session()
 
+        headers = {}
         if api_key:
-            session.headers["Authorization"] = f"Bearer {api_key}"
+            if auth_type == "bearer":
+                headers["Authorization"] = f"Bearer {api_key}"
+            else:
+                headers["X-Api-Key"] = api_key
 
         host = api_host or "https://api.cloudsmith.io"
         url = f"{host}/orgs/{org}/custom-domains/"
 
-        response = session.get(url, timeout=10)
+        response = session.get(url, headers=headers, timeout=10)
 
         if response.status_code in (401, 403):
             logger.debug(
@@ -185,8 +190,10 @@ def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
         domains = []
         if isinstance(data, list):
             for item in data:
-                if isinstance(item, dict) and "host" in item:
-                    domains.append(item["host"])
+                if isinstance(item, dict):
+                    host = item.get("host")
+                    if isinstance(host, str) and host:
+                        domains.append(host)
 
         logger.debug("Fetched %d custom domains for %s", len(domains), org)
 

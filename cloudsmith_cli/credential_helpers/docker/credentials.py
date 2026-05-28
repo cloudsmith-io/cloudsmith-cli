@@ -31,6 +31,7 @@ def get_credentials(server_url, credential=None, session=None, api_host=None):
         server_url,
         session=session,
         api_key=credential.api_key,
+        auth_type=getattr(credential, "auth_type", "api_key"),
         api_host=api_host,
     ):
         return None
