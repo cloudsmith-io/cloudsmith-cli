@@ -3,11 +3,15 @@
 import functools
 
 import click
+from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
 
 from ..core.api.init import initialise_api as _initialise_api
+from ..core.credentials.chain import CredentialProviderChain
+from ..core.credentials.models import CredentialContext
 from ..core.mcp import server
+from ..core.rest import create_requests_session as _create_session
 from . import config, utils
 
 
@@ -18,6 +22,14 @@ def report_retry(seconds, context=None):
             "Request was throttled (429): Retrying after %(seconds)s second(s) ... "
             % {"seconds": click.style(str(seconds), bold=True)}
         )
+
+
+def _pop_boolean_flag(kwargs, name, invert=False):
+    """Pop a boolean flag from kwargs, optionally inverting it."""
+    value = kwargs.pop(name)
+    if value is not None and invert:
+        value = not value
+    return value
 
 
 def common_package_action_options(f):
@@ -105,6 +117,7 @@ def common_cli_config_options(f):
 
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
+        opts.api_key_from_file = opts.api_key
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -214,15 +227,31 @@ def common_api_auth_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
-        opts.api_key = kwargs.pop("api_key")
+        api_key = kwargs.pop("api_key")
+
+        source = ctx.get_parameter_source("api_key")
+        api_key_nonempty = api_key and api_key.strip()
+        if source == ParameterSource.COMMANDLINE and api_key_nonempty:
+            opts.api_key_from_flag = api_key
+            opts.api_key_from_env = None
+        elif source == ParameterSource.ENVIRONMENT and api_key_nonempty:
+            opts.api_key_from_flag = None
+            opts.api_key_from_env = api_key
+        else:
+            opts.api_key_from_flag = None
+            opts.api_key_from_env = None
+
+        # Keep opts.api_key populated for any code that still reads it directly.
+        if api_key:
+            opts.api_key = api_key
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper
 
 
-def initialise_api(f):
-    """Initialise the Cloudsmith API for use."""
+def initialise_session(f):
+    """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
     @click.option(
         "--api-host", envvar="CLOUDSMITH_API_HOST", help="The API host to connect to."
@@ -252,6 +281,120 @@ def initialise_api(f):
         envvar="CLOUDSMITH_API_HEADERS",
         help="A CSV list of extra headers (key=value) to send to the API.",
     )
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
+        opts = config.get_or_create_options(ctx)
+        opts.api_host = kwargs.pop("api_host")
+        opts.api_proxy = kwargs.pop("api_proxy")
+        opts.api_ssl_verify = _pop_boolean_flag(
+            kwargs, "without_api_ssl_verify", invert=True
+        )
+        opts.api_user_agent = kwargs.pop("api_user_agent")
+        opts.api_headers = kwargs.pop("api_headers")
+
+        opts.session = _create_session(
+            proxy=opts.api_proxy,
+            ssl_verify=opts.api_ssl_verify,
+            user_agent=opts.api_user_agent,
+            headers=opts.api_headers,
+        )
+
+        kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
+
+
+def resolve_credentials(f):
+    """Resolve credentials via the provider chain. Depends on initialise_session."""
+
+    @click.option(
+        "--oidc-audience",
+        envvar="CLOUDSMITH_OIDC_AUDIENCE",
+        help="The OIDC audience for token requests.",
+    )
+    @click.option(
+        "--oidc-org",
+        envvar="CLOUDSMITH_ORG",
+        help="The Cloudsmith organisation slug for OIDC token exchange.",
+    )
+    @click.option(
+        "--oidc-service-slug",
+        envvar="CLOUDSMITH_SERVICE_SLUG",
+        help="The Cloudsmith service slug for OIDC token exchange.",
+    )
+    @click.option(
+        "--oidc-discovery-disabled",
+        default=None,
+        is_flag=True,
+        envvar="CLOUDSMITH_OIDC_DISCOVERY_DISABLED",
+        help="Disable OIDC auto-discovery.",
+    )
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        # pylint: disable=missing-docstring
+        opts = config.get_or_create_options(ctx)
+
+        oidc_audience = kwargs.pop("oidc_audience")
+        oidc_org = kwargs.pop("oidc_org")
+        oidc_service_slug = kwargs.pop("oidc_service_slug")
+        oidc_discovery_disabled = _pop_boolean_flag(kwargs, "oidc_discovery_disabled")
+
+        if oidc_audience:
+            opts.oidc_audience = oidc_audience
+        if oidc_org:
+            opts.oidc_org = oidc_org
+        if oidc_service_slug:
+            opts.oidc_service_slug = oidc_service_slug
+        if oidc_discovery_disabled:
+            opts.oidc_discovery_disabled = oidc_discovery_disabled
+
+        context = CredentialContext(
+            session=opts.session,
+            api_key_from_flag=opts.api_key_from_flag,
+            api_key_from_env=opts.api_key_from_env,
+            api_key_from_file=opts.api_key_from_file,
+            api_host=opts.api_host or "https://api.cloudsmith.io",
+            creds_file_path=ctx.meta.get("creds_file"),
+            profile=ctx.meta.get("profile"),
+            debug=opts.debug,
+            oidc_audience=opts.oidc_audience,
+            oidc_org=opts.oidc_org,
+            oidc_service_slug=opts.oidc_service_slug,
+            oidc_discovery_disabled=opts.oidc_discovery_disabled,
+        )
+
+        chain = CredentialProviderChain()
+        credential = chain.resolve(context)
+
+        if context.keyring_refresh_failed:
+            click.secho(
+                "An error occurred when attempting to refresh your SSO access token. "
+                "To refresh this session, run 'cloudsmith auth'",
+                fg="yellow",
+                err=True,
+            )
+            if credential:
+                click.secho(
+                    "Falling back to API key authentication.",
+                    fg="yellow",
+                    err=True,
+                )
+
+        opts.credential = credential
+
+        kwargs["opts"] = opts
+        return ctx.invoke(f, *args, **kwargs)
+
+    return initialise_session(wrapper)
+
+
+def initialise_api(f):
+    """Initialise the Cloudsmith API for use. Depends on resolve_credentials."""
+
     @click.option(
         "-R",
         "--without-rate-limit",
@@ -294,20 +437,8 @@ def initialise_api(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
-        def _set_boolean(name, invert=False):
-            value = kwargs.pop(name)
-            value = value if value is not None else None
-            if value is not None and invert:
-                value = not value
-            return value
-
         opts = config.get_or_create_options(ctx)
-        opts.api_host = kwargs.pop("api_host")
-        opts.api_proxy = kwargs.pop("api_proxy")
-        opts.api_ssl_verify = _set_boolean("without_api_ssl_verify", invert=True)
-        opts.api_user_agent = kwargs.pop("api_user_agent")
-        opts.api_headers = kwargs.pop("api_headers")
-        opts.rate_limit = _set_boolean("without_rate_limit", invert=True)
+        opts.rate_limit = _pop_boolean_flag(kwargs, "without_rate_limit", invert=True)
         opts.rate_limit_warning = kwargs.pop("rate_limit_warning")
         opts.error_retry_max = kwargs.pop("error_retry_max")
         opts.error_retry_backoff = kwargs.pop("error_retry_backoff")
@@ -320,7 +451,7 @@ def initialise_api(f):
         opts.api_config = _initialise_api(
             debug=opts.debug,
             host=opts.api_host,
-            key=opts.api_key,
+            credential=opts.credential,
             proxy=opts.api_proxy,
             ssl_verify=opts.api_ssl_verify,
             user_agent=opts.api_user_agent,
@@ -336,7 +467,7 @@ def initialise_api(f):
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
-    return wrapper
+    return resolve_credentials(wrapper)
 
 
 def initialise_mcp(f):
