@@ -42,7 +42,7 @@ def list_dependencies(ctx, opts, owner_repo_package):
     for the package format yet.
 
     - OWNER/REPO/PACKAGE: Specify the OWNER namespace (i.e. user or org), the
-    REPO name where the package is stored, and the PACKAGE name (identifier) of the
+    REPO name where the package is stored, and the PACKAGE name (identifier/slug) of the
     package itself. All separated by a slash.
 
     Example: 'your-org/awesome-repo/better-pkg'.
@@ -50,7 +50,7 @@ def list_dependencies(ctx, opts, owner_repo_package):
     owner, repo, identifier = owner_repo_package
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Getting direct (non-transitive) dependencies of %(package)s in "

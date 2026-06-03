@@ -3,9 +3,7 @@
 [![Latest Version @ Cloudsmith](https://api-prd.cloudsmith.io/badges/version/cloudsmith/cli/python/cloudsmith-cli/latest/xf=bdist_wheel;xn=cloudsmith-cli;xv=py2.py3/?render=true)](https://cloudsmith.io/~cloudsmith/repos/cli/packages/detail/python/cloudsmith-cli/latest/xf=bdist_wheel;xn=cloudsmith-cli;xv=py2.py3/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
 [![PyPI Version](https://img.shields.io/pypi/v/cloudsmith-cli.svg)](https://pypi.python.org/pypi/cloudsmith-cli)
-[![CircleCI](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli.svg?style=svg)](https://circleci.com/gh/cloudsmith-io/cloudsmith-cli)
-[![Maintainability](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/maintainability)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/c4ce2988b461d7b31cd5/test_coverage)](https://codeclimate.com/github/cloudsmith-io/cloudsmith-cli/test_coverage)
+[![GitHub Actions](https://github.com/cloudsmith-io/cloudsmith-cli/actions/workflows/test.yml/badge.svg)](https://github.com/cloudsmith-io/cloudsmith-cli/actions/workflows/test.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 
@@ -28,12 +26,13 @@ Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/
 
 The CLI currently supports the following commands (and sub-commands):
 
-- `auth`:                 Authenticate the CLI against an organization's SAML configuration.
+- `authenticate`|`auth`:  Authenticate the CLI against an organization's SAML configuration.
 - `check`:                Check rate limits and service status.
 - `copy`|`cp`:            Copy a package to another repository.
 - `delete`|`rm`:          Delete a package from a repository.
 - `dependencies`|`deps`:  List direct (non-transitive) dependencies for a package.
 - `docs`:                 Launch the help website in your browser.
+- `download`:  Download a package from a repository.
 - `entitlements`|`ents`:  Manage the entitlements for a repository.
   - `create`|`new`:         Create a new entitlement in a repository.
   - `delete`|`rm`:          Delete an entitlement from a repository.
@@ -49,10 +48,20 @@ The CLI currently supports the following commands (and sub-commands):
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
+- `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
+- `metadata`:             Manage arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
+  - `add`:                  Attach a new metadata entry to a package.
+  - `list`|`ls`:            List metadata entries for a package, or fetch a single entry by slug.
+  - `update`:               Replace content or source identity on an existing metadata entry.
+  - `remove`|`rm`:          Remove a metadata entry from a package.
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
-- `move`|`mv`:            Move (promote) a package to another repo.
+- `move`|`mv`|`promote`:  Move (promote) a package to another repo.
+- `policy`:               Manage policies for an organization.
+  - `deny`:                 Manage deny policies for an organization.
+  - `license`:              Manage license policies for an organization.
+  - `vulnerability`:        Manage vulnerability policies for an organization.
 - `push`|`upload`:        Push (upload) a new package to a repository.
   - `alpine`:               Push (upload) a new Alpine package upstream.
   - `cargo`:                Push (upload) a new Cargo package upstream.
@@ -85,18 +94,33 @@ The CLI currently supports the following commands (and sub-commands):
   - `get`|`list`|`ls`:      List repositories for a user, in a namespace or get details for a specific repository.
   - `update`:               Update a repository in a namespace.
   - `delete`|`rm`:          Delete a repository from a namespace.
-- `resync`:               Resynchronize a package in a repository.
-- `status`:               Get the synchronization status for a package.
-- `tags`:                 Manage the tags for a package in a repository.
+- `resync`:               Resynchronise a package in a repository.
+- `status`:               Get the synchronisation status for a package.
+- `tags`|`tag`:           Manage the tags for a package in a repository.
   - `add`:                  Add tags to a package in a repository.
   - `clear`:                Clear all existing (non-immutable) tags from a package in a repository.
   - `list`|`ls`:            List tags for a package in a repository.
   - `remove`|`rm`:          Remove tags from a package in a repository.
   - `replace`:              Replace all existing (non-immutable) tags on a package in a repository.
-- `whoami`:               Retrieve your current authentication status.
 - `tokens`:               Manage API tokens.
   - `list`|`ls`:            List API tokens.
   - `refresh`:              Refresh an API token.
+- `upstream`:             Manage upstreams for a repository.
+  - `cran`:                 Manage cran upstreams for a repository.
+  - `dart`:                 Manage dart upstreams for a repository.
+  - `deb`:                  Manage deb upstreams for a repository.
+  - `docker`:               Manage docker upstreams for a repository.
+  - `helm`:                 Manage helm upstreams for a repository.
+  - `hex`:                  Manage hex upstreams for a repository.
+  - `maven`:                Manage maven upstreams for a repository.
+  - `npm`:                  Manage npm upstreams for a repository.
+  - `nuget`:                Manage nuget upstreams for a repository.
+  - `python`:               Manage python upstreams for a repository.
+  - `rpm`:                  Manage rpm upstreams for a repository.
+  - `ruby`:                 Manage ruby upstreams for a repository.
+  - `swift`:                Manage swift upstreams for a repository.
+- `vulnerabilities`:      Retrieve vulnerability results for a package.
+- `whoami`:               Retrieve your current authentication status.
 
 ## Installation
 
@@ -116,6 +140,30 @@ Or you can get the latest pre-release version from Cloudsmith:
 ```
 pip install --upgrade cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
 ```
+
+### Optional Dependencies
+
+The CLI supports optional extras for additional functionality:
+
+#### AWS OIDC Support
+
+For AWS environments (ECS, EKS, EC2), install with `aws` extra to enable automatic credential discovery:
+
+```
+pip install cloudsmith-cli[aws]
+```
+
+This installs `boto3[crt]` for AWS credential chain support, STS token generation, and AWS SSO compatibility.
+
+#### All Optional Features
+
+To install all optional dependencies:
+
+```
+pip install cloudsmith-cli[all]
+```
+
+**Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
 
 ## Configuration
 
@@ -223,7 +271,7 @@ Although native uploads, i.e. those supported by the native ecosystem of a packa
 For example, if you wanted to upload a Debian package, you can do it in one-step. Assuming you have a package filename **libxml2-2.9.4-2.x86_64.deb**, representing **libxml 2.9.4**, for the **Ubuntu 16.04** distribution (which has a cloudsmith identifier of **ubuntu/xenial**):
 
 ```
-cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
+cloudsmith push deb your-org/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
 ```
 
 Want to know how to do it with another packaging format? Easy, just ask for help:
@@ -231,6 +279,174 @@ Want to know how to do it with another packaging format? Easy, just ask for help
 ```
 cloudsmith push rpm --help
 ```
+
+
+## Downloading Packages
+
+You can download packages from repositories using the `cloudsmith download` command. The CLI supports various filtering options to help you find and download the exact package you need.
+
+For example, to download a specific package:
+
+```
+cloudsmith download your-org/your-repo package-name
+```
+
+You can filter by various attributes like version, format, architecture, operating system, and tags:
+
+```
+# Download a specific version
+cloudsmith download your-org/your-repo package-name --version 1.2.3
+
+# Filter by format and architecture
+cloudsmith download your-org/your-repo package-name --format deb --arch amd64
+
+# Filter by package tag (e.g., latest, stable, beta)
+cloudsmith download your-org/your-repo package-name --tag latest
+
+# Combine tag with metadata filters
+cloudsmith download your-org/your-repo package-name --tag stable --format deb --arch arm64
+
+# Filter by filename (exact or glob pattern)
+cloudsmith download your-org/your-repo package-name --filename '*.nupkg'
+cloudsmith download your-org/your-repo package-name --filename 'mypackage-1.0.0.snupkg'
+
+# Download all matching packages (when multiple packages share the same name/version)
+cloudsmith download your-org/your-repo package-name --download-all
+
+# Combine --download-all with --filename to download a subset
+cloudsmith download your-org/your-repo package-name --download-all --filename '*.snupkg'
+
+# Download all associated files (POM, sources, javadoc, etc.)
+cloudsmith download your-org/your-repo package-name --all-files
+
+# Preview what would be downloaded without actually downloading
+cloudsmith download your-org/your-repo package-name --dry-run
+```
+
+For more advanced usage and all available options:
+
+```
+cloudsmith download --help
+```
+
+
+## Package Metadata
+
+Arbitrary JSON metadata can be attached to any package — SBOMs, JFrog BuildInfo documents, or custom payloads. Metadata is validated against the declared content type and stays with the package for its lifetime.
+
+Metadata can be attached at push time with `cloudsmith push` (see [Attaching Metadata During Push](#attaching-metadata-during-push)) or managed afterwards with the `cloudsmith metadata` command group.
+
+To attach metadata to an existing package:
+
+```
+cloudsmith metadata add your-org/your-repo/your-pkg \
+  --content-type application/json \
+  --content '{"build_id": "demo-123", "git_sha": "abc123"}'
+```
+
+To attach metadata from a file (use `-` to read from stdin):
+
+```
+cloudsmith metadata add your-org/your-repo/your-pkg \
+  --content-type application/vnd.jfrog.buildinfo+json \
+  --file buildinfo.json
+```
+
+To list all metadata entries on a package, or fetch a single entry by slug:
+
+```
+cloudsmith metadata list your-org/your-repo/your-pkg
+cloudsmith metadata list your-org/your-repo/your-pkg meta-slug-perm
+```
+
+Filter entries by source kind or classification when listing:
+
+```
+cloudsmith metadata list your-org/your-repo/your-pkg --classification sbom
+cloudsmith metadata list your-org/your-repo/your-pkg --source-kind third_party
+```
+
+To replace the content or source identity of an existing entry (content type is fixed after creation):
+
+```
+cloudsmith metadata update your-org/your-repo/your-pkg meta-slug-perm \
+  --content '{"build_id": "demo-124"}'
+```
+
+To remove a metadata entry:
+
+```
+cloudsmith metadata remove your-org/your-repo/your-pkg meta-slug-perm
+```
+
+For all available options:
+
+```
+cloudsmith metadata --help
+```
+
+
+## Attaching Metadata During Push
+
+Every `cloudsmith push <format>` subcommand accepts a set of `--metadata-*` flags. When provided, metadata is validated locally and against the API before any file upload, then attached to the package immediately after creation. This avoids a separate `cloudsmith metadata add` step and prevents malformed metadata from leaving orphan packages behind.
+
+Available flags on every push subcommand:
+
+- `--metadata-content-file PATH`: Path to a JSON file containing the metadata content. Use `-` for stdin.
+- `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
+- `--metadata-content-type MIME`: MIME type of the metadata payload (e.g. `application/json`, `application/vnd.jfrog.buildinfo+json`). Required when content is provided.
+- `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+- `--on-metadata-failure [error|warn]`: How to handle push-time metadata failures for this push only. `error` (default) aborts the push so CI/CD surfaces broken SBOM/BuildInfo payloads; `warn` downgrades to a warning and lets the package upload regardless. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key.
+
+Push a package with inline metadata:
+
+```
+cloudsmith push raw your-org/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content '{"build_id": "demo-inline", "git_sha": "abc123"}' \
+  --metadata-content-type application/json
+```
+
+Push a package with metadata loaded from a file:
+
+```
+cloudsmith push raw your-org/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content-file buildinfo.json \
+  --metadata-content-type application/vnd.jfrog.buildinfo+json
+```
+
+### Failure Behavior
+
+By default, push aborts when metadata validation or attachment fails. The HTTP status from the failed request is used as the exit code, so CI pipelines surface broken SBOMs or BuildInfo payloads instead of silently uploading a package without metadata.
+
+To downgrade failures to a warning (the package is still uploaded, and a copy-paste `cloudsmith metadata add` retry hint is printed), use any of the following — listed in order of precedence (highest first):
+
+1. The `--on-metadata-failure warn` CLI flag on `cloudsmith push` (per-push override):
+
+   ```
+   cloudsmith push raw your-org/your-repo payload.txt \
+     --name demo --version 1.0.0 \
+     --metadata-content-file buildinfo.json \
+     --metadata-content-type application/vnd.jfrog.buildinfo+json \
+     --on-metadata-failure warn
+   ```
+
+2. The `CLOUDSMITH_METADATA_FAILURE_MODE` environment variable set to `warn` or `0` (per-shell):
+
+   ```
+   CLOUDSMITH_METADATA_FAILURE_MODE=warn cloudsmith push raw your-org/your-repo payload.txt \
+     --name demo --version 1.0.0 \
+     --metadata-content-file buildinfo.json \
+     --metadata-content-type application/vnd.jfrog.buildinfo+json
+   ```
+
+3. The `metadata_failure_mode` key in `config.ini` set to `error`, `warn`, or `0` (persistent default):
+
+   ```ini
+   [default]
+   metadata_failure_mode = warn
+   ```
 
 
 ## Contributing

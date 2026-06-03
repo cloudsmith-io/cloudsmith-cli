@@ -75,7 +75,7 @@ def _print_metrics_table(opts, data):
     type=str,
     required=False,
     help=(
-        "A comma seperated list of entitlement token identifiers (i.e. slug_perm) or "
+        "A comma separated list of entitlement token identifiers (i.e. slug_perm) or "
         "token secrets. If a list is not specified then all entitlement tokens will "
         "be included for a given namespace or repository."
     ),
@@ -109,8 +109,8 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
     If REPO isn't specified, all repositories will be included from the
     OWNER namespace.
     """
-    # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo("Getting usage metrics ... ", nl=False, err=use_stderr)
 
@@ -123,7 +123,9 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
         owner = owner_repo[0]
         repo = None
 
+    data = None
     context_msg = "Failed to get list of metrics!"
+    data = {}
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             if owner and repo:

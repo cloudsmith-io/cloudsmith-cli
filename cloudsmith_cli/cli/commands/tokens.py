@@ -1,10 +1,105 @@
 import click
 
-from ...core.api import user as api
-from .. import command, decorators
+from ...core.api import exceptions, user as api
+from ...core.config import create_config_files, new_config_messaging
+from .. import command, decorators, utils
 from ..exceptions import handle_api_exceptions
-from ..utils import maybe_print_as_json, maybe_spinner
 from .main import main
+
+
+def handle_duplicate_token_error(exc, ctx, opts, save_config, force, json):
+    """
+    Handle the case where user already has a token.
+
+    Returns the token from refresh if user confirms, otherwise exits.
+    """
+    if (
+        exc.status == 400
+        and exc.detail
+        and "User has already created an API key" in exc.detail
+    ):
+        if not force:
+            if not click.confirm(
+                "User already has a token. Would you like to recreate it?",
+                abort=False,
+                err=json,
+            ):
+                return None
+        return refresh_existing_token_interactive(
+            ctx, opts, save_config=save_config, force=force, json=json
+        )
+    raise exc
+
+
+def request_api_key(ctx, opts, save_config=False):
+    """
+    Request an API key non-interactively.
+
+    This function creates a new token or rotates an existing one without any prompts.
+    Used by the --request-api-key flag in the auth command.
+
+    Returns the token object on success.
+    Raises ApiException on failure.
+    """
+    context_msg = "Failed to retrieve API token!"
+
+    try:
+        # Don't use handle_api_exceptions here so we can catch and handle
+        # the "already has token" error ourselves
+        with utils.maybe_spinner(opts):
+            new_token = api.create_user_token_saml()
+
+        if save_config:
+            create, has_errors = create_config_files(
+                ctx, opts, api_key=new_token.key, force=True
+            )
+            new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+
+        return new_token
+
+    except exceptions.ApiException as exc:
+        if exc.status == 401:
+            # Unauthorized - re-raise with handler
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                raise
+
+        if (
+            exc.status == 400
+            and exc.detail
+            and "User has already created an API key" in exc.detail
+        ):
+            # Token exists - rotate it automatically
+            click.echo(
+                "Warning: Rotating existing API token. Your old key will be invalidated.",
+                err=True,
+            )
+
+            # List tokens and select the first one
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                with utils.maybe_spinner(opts):
+                    api_tokens = api.list_user_tokens()
+
+            if not api_tokens:
+                raise click.ClickException("No existing tokens found to rotate.")
+
+            token_slug = api_tokens[0].slug_perm
+
+            # Refresh the token
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                with utils.maybe_spinner(opts):
+                    new_token = api.refresh_user_token(token_slug)
+
+            if save_config:
+                create, has_errors = create_config_files(
+                    ctx, opts, api_key=new_token.key, force=True
+                )
+                new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+
+            return new_token
+
+        # Other errors - use the handler
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            raise exc
 
 
 @main.group(cls=command.AliasGroup, name="tokens")
@@ -23,20 +118,50 @@ def tokens(ctx, opts):
 @click.pass_context
 def list_tokens(ctx, opts):
     """List all user API tokens."""
-    use_stderr = opts.output in ("json", "pretty_json")
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo("Retrieving API tokens... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to retrieve API tokens!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
+        with utils.maybe_spinner(opts):
             tokens = api.list_user_tokens()
     click.secho("OK", fg="green", err=use_stderr)
 
-    if maybe_print_as_json(opts, tokens):
+    if utils.maybe_print_as_json(opts, tokens):
         return
 
     print_tokens(tokens)
+
+
+@tokens.command()
+@click.option(
+    "--save-config",
+    default=False,
+    is_flag=True,
+    help="Save the new API key to your configuration files.",
+)
+@click.option(
+    "-f",
+    "--force",
+    default=False,
+    is_flag=True,
+    help="Force creation of user API token without prompts.",
+)
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
+@click.pass_context
+def create(ctx, opts, save_config, force=False, json=False):
+    """Create a new API token."""
+    new_token = _create(ctx, opts, save_config, force, json)
+
+    if save_config:
+        create, has_errors = create_config_files(
+            ctx, opts, api_key=new_token.key, force=force
+        )
+        new_config_messaging(has_errors, opts, create, api_key=new_token.key)
 
 
 @tokens.command()
@@ -44,35 +169,33 @@ def list_tokens(ctx, opts):
     "token_slug",
     required=False,
 )
+@click.option(
+    "--save-config",
+    default=False,
+    is_flag=True,
+    help="Save the new API key to your configuration files.",
+)
+@click.option(
+    "-f",
+    "--force",
+    default=False,
+    is_flag=True,
+    help="Force refresh of user API token without prompts.",
+)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.common_api_auth_options
 @decorators.initialise_api
 @click.pass_context
-def refresh(ctx, opts, token_slug):
+def refresh(ctx, opts, token_slug, force, save_config):
     """Refresh a specific API token by its slug."""
-    context_msg = "Failed to refresh the token!"
+    new_token = refresh_existing_token_interactive(
+        ctx, opts, token_slug, save_config, force
+    )
 
-    if not token_slug:
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                api_tokens = api.list_user_tokens()
-        click.echo("Current tokens:")
-        print_tokens(api_tokens)
-        token_slug = click.prompt(
-            "Please enter the slug_perm of the token you would like to refresh"
-        )
-
-    click.echo(f"Refreshing token {token_slug}... ", nl=False)
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            new_token = api.refresh_user_token(token_slug)
-    click.secho("OK", fg="green")
-
-    if maybe_print_as_json(opts, new_token):
-        return
-
-    click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+    if new_token:
+        if utils.maybe_print_as_json(opts, new_token):
+            return new_token
 
 
 def print_tokens(tokens):
@@ -82,3 +205,114 @@ def print_tokens(tokens):
             f"Created: {click.style(token.created, fg='green')}, "
             f"slug_perm: {click.style(token.slug_perm, fg='cyan')}"
         )
+
+
+def refresh_existing_token_interactive(
+    ctx, opts, token_slug=None, save_config=False, force=False, json=False
+):
+    """Refresh an existing API token with interactive token selection, or create new if none exist."""
+    json = json or utils.should_use_stderr(opts)
+    use_stderr = json
+    context_msg = "Failed to refresh the token!"
+
+    if not token_slug:
+        try:
+            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+                api_tokens = api.list_user_tokens()
+        except exceptions.ApiException as exc:
+            # If we can't list tokens due to API error, fall back to creating a new one
+            if opts.debug:
+                click.echo(f"Debug: Failed to list tokens with error: {exc}", err=True)
+            click.echo(
+                "Unable to list existing tokens. Creating a new token instead...",
+                err=use_stderr,
+            )
+            return _create(ctx, opts, save_config=save_config, force=force, json=json)
+
+        if not api_tokens:
+            click.echo(
+                "No existing tokens found. Creating a new token instead...",
+                err=use_stderr,
+            )
+            return _create(ctx, opts, save_config=save_config, force=force, json=json)
+
+        if not json:
+            click.echo("Current tokens:")
+            print_tokens(api_tokens)
+
+        if not force:
+            token_slug = click.prompt(
+                "Please enter the slug_perm of the token you would like to refresh",
+                err=use_stderr,
+            )
+        else:
+            # Use the first available slug_perm when force is enabled
+            token_slug = api_tokens[0].slug_perm
+            if not json:
+                click.echo(f"Using token {token_slug} (first available)")
+
+    if not json:
+        click.echo(f"Refreshing token {token_slug}... ", nl=False)
+    else:
+        # In JSON mode, print info to stderr
+        click.echo(f"Refreshing token {token_slug}... ", nl=False, err=json)
+
+    try:
+        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
+            with utils.maybe_spinner(opts):
+                new_token = api.refresh_user_token(token_slug)
+
+        if save_config:
+            create, has_errors = create_config_files(
+                ctx, opts, api_key=new_token.key, force=force
+            )
+            new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+
+        if utils.maybe_print_as_json(opts, new_token):
+            return
+
+        if not json:
+            click.secho("OK", fg="green")
+            click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+
+        return new_token
+    except exceptions.ApiException as exc:
+        # If refresh fails due to API error, offer to create a new token instead
+        if opts.debug:
+            click.echo(f"\nDebug: Refresh failed with error: {exc}", err=True)
+        click.echo("\nRefresh failed. Creating a new token instead...", err=use_stderr)
+        return _create(ctx, opts, save_config=save_config, force=force, json=json)
+
+
+def _create(ctx, opts, save_config=False, force=False, json=False):
+    """Create a new API token."""
+    json = json or utils.should_use_stderr(opts)
+
+    try:
+        new_token = api.create_user_token_saml()
+
+        if new_token:
+            # NOTE: This mutation is necessary during the deprecation period of the --json flag.
+            if json and opts.output not in ("json", "pretty_json"):
+                opts.output = "json"
+
+            if utils.maybe_print_as_json(opts, new_token):
+                return
+
+            click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+            return new_token
+
+        return new_token
+
+    except exceptions.ApiException as exc:
+        if exc.status == 401:
+            click.echo(f"{exc.detail}", err=True)
+            return
+        # NOTE: This mutation is necessary during the deprecation period of the --json flag.
+        if json and opts.output not in ("json", "pretty_json"):
+            opts.output = "json"
+        if exc.status == 400:
+            new_token = handle_duplicate_token_error(
+                exc, ctx, opts, save_config=save_config, force=force, json=json
+            )
+            return new_token

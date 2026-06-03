@@ -5,7 +5,242 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
+
+## [1.17.0] - 2026-05-18
+
+### Added
+
+- Added `metadata` command group for managing arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
+  - `metadata add`: Attach a new metadata entry to a package. Accepts inline `--content` or `--file` (with `-` for stdin), a required `--content-type`, and an optional `--source-identity`.
+  - `metadata list`: List metadata entries for a package, or fetch a single entry by slug. Supports filtering by `--source-kind` and `--classification`, with pagination flags.
+  - `metadata update`: Replace content or source identity on an existing entry. Content type is immutable after creation.
+  - `metadata remove`: Remove a metadata entry from a package. Supports `-y` to skip the confirmation prompt.
+  - Supports `--output-format json | pretty_json` for programmatic usage.
+- Added push-time metadata flags to every `cloudsmith push <format>` subcommand. Metadata is validated locally and against the API before any file upload, then attached to the package immediately after creation.
+  - `--metadata-content-file PATH`: Path to a JSON file containing the metadata content. Use `-` for stdin.
+  - `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
+  - `--metadata-content-type MIME`: MIME type of the metadata payload. Required when content is provided.
+  - `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+  - `--on-metadata-failure [error|warn]`: Per-push override for how validation/attach failures are handled. `error` (default) aborts the push; `warn` downgrades to a warning and uploads the package anyway. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key for the current push.
+  - Failures abort the push by default with the HTTP status as the exit code. Downgrade failures to a warning (and emit a copy-paste `cloudsmith metadata add` retry hint) via any of: the `--on-metadata-failure warn` CLI flag, `CLOUDSMITH_METADATA_FAILURE_MODE=warn` (or `0`) env var, or the new `metadata_failure_mode` key in `config.ini`. Precedence: CLI flag → env var → config key → `error` default.
+  - Push JSON output now includes a `metadata_attachment` field on success and error envelopes.
+
+## [1.16.0] - 2026-03-24
+
+### Added
+
+- Added Alpine Upstream support for managing upstream configurations.
+
+## [1.15.0] - 2026-03-19
+
+### Added
+
+- Added `--tag` option to `download` command for filtering packages by tags
+- Added download command documentation to README with comprehensive usage examples
+- Added `--filename` option to `download` command for filtering by package filename, with support for glob patterns (e.g., `--filename '*.snupkg'`)
+- Added `--download-all` flag to `download` command to download all matching packages instead of erroring on multiple matches
+- Multiple packages table now includes a Filename column for easier disambiguation
+
+## [1.14.0] - 2026-03-11
+
+### Added
+
+- Added `vulnerabilities` command to retrieve security scan results for a package
+  - Summary View (Default): Displays a high-level count of vulnerabilities broken down by severity (Critical, High, Medium, Low, Unknown).
+  - Assessment View `--show-assessment` (`-A`): Provides a detailed breakdown where vulnerabilities are:
+    - Grouped by the specific affected upstream package / dependency.
+    - Sorted by severity (Critical first).
+    - Richly formatted tables.
+  - Filtering Capabilities:
+    - By Severity: `--severity` Show only specific levels (e.g., just Critical and High).
+    - By Status: `--fixable | --non-fixable` Filter to show only "Fixable" vulnerabilities (where a patch exists) or "Non-Fixable" ones.
+  - Supports `--output-format json | pretty_json` for programmatic usage
+
+## [1.14.0] - 2026-03-13
+
+### Added
+
+- Added `vulnerabilities` command to retrieve security scan results for a package
+  - Summary View (Default): Displays a high-level count of vulnerabilities broken down by severity (Critical, High, Medium, Low, Unknown).
+  - Assessment View `--show-assessment` (`-A`): Provides a detailed breakdown where vulnerabilities are:
+    - Grouped by the specific affected upstream package / dependency.
+    - Sorted by severity (Critical first).
+    - Richly formatted tables.
+  - Filtering Capabilities:
+    - By Severity: `--severity` Show only specific levels (e.g., just Critical and High).
+    - By Status: `--fixable | --non-fixable` Filter to show only "Fixable" vulnerabilities (where a patch exists) or "Non-Fixable" ones.
+  - Supports `--output-format json | pretty_json` for programmatic usage
+
+
+## [1.13.0] - 2026-02-16
+
+### Added
+
+- Added `CLOUDSMITH_NO_KEYRING` environment variable to disable keyring usage globally. Set `CLOUDSMITH_NO_KEYRING=1` to skip system keyring operations.
+- Added `--request-api-key` flag to `cloudsmith auth` command for fully automated, non-interactive API token retrieval. Auto-creates a token if none exists, or auto-rotates (with warning) if one already exists. Compatible with `--save-config` and `CLOUDSMITH_NO_KEYRING`.
+- Added `--verbose` (`-v`) flag to `cloudsmith whoami` to show detailed authentication information including active method (API Key or SSO Token), credential source, token metadata, and SSO status. Supports `--output-format json`.
+- Added `cloudsmith logout` command to clear stored authentication credentials and SSO tokens.
+  - Clears credentials from `credentials.ini` and SSO tokens from the system keyring
+  - `--keyring-only` to only clear SSO tokens from the system keyring
+  - `--config-only` to only clear credentials from `credentials.ini`
+  - `--dry-run` to preview what would be removed without making changes
+  - Supports `--output-format json` for programmatic usage
+
+### Deprecation Notices
+
+- The `--token` flag on `cloudsmith auth` is deprecated. Use `--request-api-key` instead.
+- The `--force` flag on `cloudsmith auth` is deprecated. Use `--request-api-key` instead (force behavior is implied).
+- The `--json` flag on `cloudsmith auth` is deprecated. Use `--output-format json` instead.
+
+## [1.12.1] - 2026-02-03
+
+### Added
+
+- Added Model Context Protocol (MCP) server support via `cloudsmith mcp` commands. Only STDIO transport is supported for now.
+- Auto-configure supported clients (Claude Desktop, Cursor, VS Code, Gemini CLI) with `cloudsmith mcp configure`
+- List available tools with `cloudsmith mcp list_tools` and tool groups with `cloudsmith mcp list_groups`
+- Filter tools via `mcp_allowed_tools` and `mcp_allowed_tool_groups` configuration options to control which API operations are exposed
+
+## [1.12.0] - 2026-02-02
+
+### Added
+
+- Added Generic Format support for pushing packages to repositories.
+- Added Upstream support for managing upstream proxy configurations.
+
+## [1.11.2] - 2026-01-22
+
+## Added
+
+- Migrate from CircleCI to GitHub Actions for testing and release workflows.
+- Remove CircleCI workflows.
+- Migrate from using `shiv` for zipapp generation to `pex` in order to support specific platform/arch and improve testing framework.
+- Add zizmor for GitHub Actions code scans, part of workflow and pre-commit.
+- Support output format for `--version` in order to allow JSON parsing.
+
+## [1.10.3] - 2026-01-08
+
+### Deprecation Notice
+
+- The `--json` flag used in `cloudsmith auth` command will be removed in upcoming releases. Please migrate to `--output-format json` instead.
+
+### Fixed
+
+- Fixed JSON output for all commands
+  - Informational messages, warnings, and interactive prompts are now routed to stderr when `--output-format json` is active.
+  - Error messages are now formatted as structured JSON on stdout when JSON output is requested.
+
+### Added
+
+- Set `--show-all` to alias `--page-all`
+- Add the ability to use a shortcut within `--page-size` to use pass `-1` or `*` to retrieve all pages i.e. `--page-size -1` or `--page-size *` (note the wildcard may require escaping in some shell environments)
+- Added support for deny policy management commands (list, create, get, update, delete)
+
+## [1.10.2] - 2026-01-07
+
+### Fixed
+- [Issue #250](https://github.com/cloudsmith-io/cloudsmith-cli/issues/250) - Updated `requests_toolbelt` dependency to `>=1.0.0` to ensure compatibility with `urllib3>=2.5` and avoid `urllib3.contrib.appengine` import errors.
+
+## [1.10.1] - 2025-12-16
+
+### Fixed
+
+- Fixed quarantine block/add command
+
+## [1.10.0] - 2025-12-16
+
+### Fixed
+
+- Upgraded `urllib3` from `v1.26.20` to `v2.5.0`.
+- Added `mock_keyring` fixture to prevent SSO token refresh attempts during individual `test_rest.py` test which runs in pipelines (full suite passes). Caused by [HTTPretty issue 484](https://github.com/gabrielfalcao/HTTPretty/issues/484).
+- Entitlement token list command now fixed
+- Drop click dependency from `v8.2.0` to `v8.1.8` to fix dependency issue for Python 3.9
+
+## [1.9.4] - 2025-11-07
+
+> No code changes in this release. Version bump performed for release process consistency and to address packaging/metadata updates.
+
+## [1.9.3] - 2025-11-07
+
+- [[Issue-170]](https://github.com/cloudsmith-io/cloudsmith-cli/issues/170) - Add flag to get all pages
+
+## [1.9.2] - 2025-11-06
+
+### Fixed
+
+- [Issue-235](https://github.com/cloudsmith-io/cloudsmith-cli/issues/235) - Fix for latest zipapp releases not working on < python@3.14
+
+## [1.9.1] - 2025-11-05
+
+### Fixed
+
+- Click v8.3.0 was a breaking update which impacted conversion of Sentinel.UNSET values which impacted the auth --token workflow. Locking to 8.2.x versions and restricted 8.3.0 explicitly.
+
+## [1.9.0] - 2025-11-05
+
+### Added
+
+- New minor version release includes v1.8.8 changes.
+
+## [1.8.8] - 2025-11-05
+
+### Fixed
+
+- `--json` flag for the auth command now outputs json only.
+
+### Added
+
+- Added Python 3.14 support
+- Added `download` command to download package binaries directly from Cloudsmith repositories
+  - Support for downloading packages with version, format, OS, and architecture filters
+  - Progress bar with download speed and size information
+  - Automatic checksum verification (MD5, SHA256, SHA1)
+  - Dry-run mode to preview downloads without downloading
+  - Auto-selection mode with `--yes` flag for scripting
+  - `--all-files` option to download all associated files (POM, sources, javadoc, SBOM, etc.) for Maven, NuGet, and other multi-file packages
+    - Downloads all files into a folder named `{package-name}-{version}`
+    - Supports custom output directory with `--outfile` option
+    - Shows file type tags (pkg, pom, sources, javadoc, cyclonedx, sbom)
+    - Reports download progress and success/failure summary for each file
+## [1.8.7] - 2025-10-27
+
+### Added
+
+- `Cloudsmith auth -o <org> --token` now creates a new token if none previously existed.
+- Added support for json output for auth via `--json` param.
+- Added new `create` command for tokens. If authenticated and no previous token exists, this allows for new token creation.
+
+## [1.8.6] - 2025-10-16
+
+### Added
+
+- Added `--force` parameter to the Auth command to be used in conjunction with `--token` to refresh tokens without interactive prompts i.e automatic.
+- Added `--force` parameter to the Tokens refresh command to automatically refresh without an interactive prompt.
+
+## [1.8.5] - 2025-10-16
+
+### Added
+
+## [1.8.4] - 2025-10-06
+
+### Added
+
+- Support for Conda, Cargo, Go, and Hugging Face upstreams ([#214](https://github.com/cloudsmith-io/cloudsmith-cli/pull/214))
+
+## [1.8.3] - 2025-06-02
+
+- Added 'swift' and 'hex' as available upstream formats.
+
+## [1.8.2] - 2025-06-02
+
+- Make an sdist available as part of the release.
+
+## [1.8.1] - 2025-05-07
+
+- Fix bug that caused configuration to be dropped in the authenticate command.
+- Fix bug in the default configuration schema.
 
 ## [1.8.0] - 2025-05-02
 

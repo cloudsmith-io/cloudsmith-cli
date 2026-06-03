@@ -5,7 +5,7 @@ import functools
 import click
 
 from ...core.api import packages as api
-from .. import command, decorators, validators
+from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -51,7 +51,7 @@ def quarantine(ctx, opts):  # pylint: disable=unused-argument
     """
 
 
-def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
+def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     """
     Add a package to quarantine.
 
@@ -69,8 +69,7 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
     """
     owner, repo, slug = owner_repo_package
 
-    # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Adding %(repository)s/%(package_slug)s to quarantine... "
@@ -89,6 +88,8 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size):
 
     click.secho("OK", fg="green", err=use_stderr)
 
+    utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"})
+
 
 @quarantine.command(name="add")
 @common_quarantine_options
@@ -98,7 +99,7 @@ def add(*args, **kwargs):  # pylint: disable=missing-docstring
     return add_quarantine(*args, **kwargs)
 
 
-def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
+def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     """
     Remove a package from quarantine.
 
@@ -117,7 +118,7 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
     owner, repo, slug = owner_repo_package
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
         "Removing %(repository)s/%(package_slug)s from quarantine... "
@@ -135,6 +136,8 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size):
             api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
+
+    utils.maybe_print_status_json(opts, {"slug": slug, "status": "OK"})
 
 
 @quarantine.command(name="remove", aliases=["rm", "restore"])

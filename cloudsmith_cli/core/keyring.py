@@ -1,10 +1,19 @@
 import getpass
+import os
 from datetime import datetime, timedelta
 
 import keyring
 from keyring.errors import KeyringError
 
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
+
+
+def should_use_keyring():
+    """Check if keyring should be used based on CLOUDSMITH_NO_KEYRING env var."""
+    env_value = os.environ.get("CLOUDSMITH_NO_KEYRING", "").strip().lower()
+    return env_value not in ("1", "true", "yes")
+
+
 ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY = (
     "cloudsmith_cli-access_token_refresh_attempted_at-{api_host}"
 )
@@ -34,6 +43,8 @@ def store_access_token(api_host, access_token):
 
 
 def get_access_token(api_host):
+    if not should_use_keyring():
+        return None
     key = ACCESS_TOKEN_KEY.format(api_host=api_host)
     return _get_value(key)
 
@@ -62,6 +73,9 @@ def get_refresh_attempted_at(api_host):
 
 
 def should_refresh_access_token(api_host):
+    if not should_use_keyring():
+        return False
+
     token_refreshed_at = get_refresh_attempted_at(api_host)
 
     if token_refreshed_at:
@@ -81,9 +95,77 @@ def get_refresh_token(api_host):
 
 
 def store_sso_tokens(api_host, access_token, refresh_token):
+    """Store SSO tokens in keyring if enabled."""
+    if not should_use_keyring():
+        return False
+
     if access_token:
         store_access_token(api_host=api_host, access_token=access_token)
         update_refresh_attempted_at(api_host=api_host)
 
     if refresh_token:
         store_refresh_token(api_host=api_host, refresh_token=refresh_token)
+
+    return True
+
+
+def _delete_value(key):
+    username = _get_username()
+    try:
+        keyring.delete_password(key, username)
+        return True
+    except KeyringError:
+        return False
+
+
+def _sso_keys(api_host):
+    """Return the keyring service names for all SSO-related entries."""
+    return [
+        ACCESS_TOKEN_KEY.format(api_host=api_host),
+        REFRESH_TOKEN_KEY.format(api_host=api_host),
+        ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY.format(api_host=api_host),
+    ]
+
+
+def has_sso_tokens(api_host):
+    """Check if any SSO tokens exist in the keyring for the given host."""
+    if not should_use_keyring():
+        return False
+    return any(_get_value(key) for key in _sso_keys(api_host))
+
+
+def delete_sso_tokens(api_host):
+    """Delete all SSO tokens from the keyring for the given host."""
+    results = [_delete_value(key) for key in _sso_keys(api_host)]
+    return any(results)
+
+
+OIDC_TOKEN_KEY = "cloudsmith_cli-oidc_token-{api_host}-{org}-{service_slug}"
+
+
+def store_oidc_token(api_host, org, service_slug, token_data):
+    """Store OIDC token in keyring if enabled."""
+    if not should_use_keyring():
+        return False
+
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    try:
+        _set_value(key, token_data)
+        return True
+    except KeyringError:
+        return False
+
+
+def get_oidc_token(api_host, org, service_slug):
+    """Retrieve OIDC token from keyring."""
+    if not should_use_keyring():
+        return None
+
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    return _get_value(key)
+
+
+def delete_oidc_token(api_host, org, service_slug):
+    """Delete OIDC token from keyring."""
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    return _delete_value(key)

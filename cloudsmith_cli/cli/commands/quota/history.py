@@ -104,7 +104,7 @@ def usage(ctx, opts, owner, oss):
     """
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
     click.echo("Getting quota ... ", nl=False, err=use_stderr)
 
     owner = owner[0]

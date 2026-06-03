@@ -7,6 +7,7 @@ import click
 
 from ...core.api.distros import list_distros
 from ...core.api.packages import get_package_format_names_with_distros, list_packages
+from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
@@ -52,16 +53,18 @@ def dependencies_(*args, **kwargs):  # pylint: disable=missing-docstring
 def distros(ctx, opts, package_format):
     """List available distributions."""
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
-    click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
+    if not use_stderr:
+        click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of distributions!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             distros_ = list_distros(package_format=package_format)
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, distros_):
         return
@@ -154,7 +157,7 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     help=("Sort packages by field. Prefix with '-' for descending order."),
 )
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query, sort):
+def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
     """
     List packages for a repository.
 
@@ -207,23 +210,27 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
     owner, repo = owner_repo
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
-    click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
+    if not use_stderr:
+        click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of packages!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            packages_, page_info = list_packages(
-                owner=owner,
-                repo=repo,
+            packages_, page_info = paginate_results(
+                list_packages,
+                page_all=page_all,
                 page=page,
                 page_size=page_size,
+                owner=owner,
+                repo=repo,
                 query=query,
                 sort=sort,
             )
 
-    click.secho("OK", fg="green", err=use_stderr)
+    if not use_stderr:
+        click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, packages_, page_info):
         return
@@ -252,9 +259,12 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
     click.echo()
 
     num_results = len(packages_)
-    list_suffix = "package%s visible" % ("s" if num_results != 1 else "")
+    list_suffix = "package%s" % ("s" if num_results != 1 else "")
     utils.pretty_print_list_info(
-        num_results=num_results, page_info=page_info, suffix=list_suffix
+        num_results=num_results,
+        page_info=None if page_all else page_info,
+        suffix=f"{list_suffix} retrieved" if page_all else f"{list_suffix} visible",
+        page_all=page_all,
     )
 
 
@@ -272,7 +282,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort):
     required=False,
 )
 @click.pass_context
-def repos(ctx, opts, owner_repo, page, page_size):
+def repos(ctx, opts, owner_repo, page, page_size, page_all):
     """
     List repositories for a namespace (owner).
 

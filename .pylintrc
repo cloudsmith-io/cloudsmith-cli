@@ -88,7 +88,7 @@ persistent=yes
 
 # Minimum Python version to use for version dependent checks. Will default to
 # the version used to run pylint.
-py-version=3.9
+py-version=3.10
 
 # Discover python modules and packages in the file system subtree.
 recursive=no
@@ -98,10 +98,6 @@ recursive=no
 # directory used to determine a package namespace for modules located under the
 # source root.
 source-roots=
-
-# When enabled, pylint would attempt to guess common misconfiguration and emit
-# user-friendly hints instead of false-positive error messages.
-suggestion-mode=yes
 
 # Allow loading of arbitrary C extensions. Extensions are imported into the
 # active Python interpreter and may run arbitrary code.
@@ -285,10 +281,10 @@ exclude-too-few-public-methods=
 ignored-parents=
 
 # Maximum number of arguments for function / method.
-max-args=5
+max-args=13
 
 # Maximum number of attributes for a class (see R0902).
-max-attributes=7
+max-attributes=10
 
 # Maximum number of boolean expressions in an if statement (see R0916).
 max-bool-expr=5
@@ -303,7 +299,7 @@ max-locals=15
 max-parents=7
 
 # Maximum number of public methods for a class (see R0904).
-max-public-methods=20
+max-public-methods=22
 
 # Maximum number of return / yield for function / method body.
 max-returns=6
@@ -439,6 +435,7 @@ disable=raw-checker-failed,
         missing-function-docstring,
         missing-module-docstring,
         too-many-arguments,
+        too-many-positional-arguments,
         raise-missing-from,
         fixme,
         useless-object-inheritance,
@@ -458,7 +455,9 @@ disable=raw-checker-failed,
         used-before-assignment,
         unneeded-not,
         duplicate-code,
-        cyclic-import
+        cyclic-import,
+        too-many-public-methods,
+        too-many-instance-attributes
 
 
 # Enable the message, report, category or checker with the given id(s). You can

@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from ...commands.list_ import repos as list_repos
 from ...commands.repos import create, delete, get, update
 from ..utils import random_str
 
@@ -34,13 +35,13 @@ def parse_table(output):
         Results: 1 repository visible
     ```
     """
-    seperator = "|"
+    separator = "|"
     column_headers = []
     row_values = []
 
     for line in output.split("\n"):
-        if seperator in line:
-            raw_values = [raw_value.strip() for raw_value in line.split(seperator)]
+        if separator in line:
+            raw_values = [raw_value.strip() for raw_value in line.split(separator)]
             if not column_headers:
                 # If we don't have keys yet, then this must be the column headers
                 column_headers = raw_values
@@ -119,6 +120,21 @@ def test_repos_commands(runner, organization, tmp_path):
         result.output, organization, repo_config_file_path
     )
 
+    # Demonstrate list repos with --page-size '-1'succeeds (no pagination args).
+    result = runner.invoke(
+        list_repos, [organization, "--page-size", "-1"], catch_exceptions=False
+    )
+    assert result.exit_code == 0
+    assert "Getting list of repositories ... OK" in result.output
+
+    # Show that --page-all with an explicit page conflicts.
+    conflict = runner.invoke(
+        list_repos, [organization, "--page-all", "--page", "2"], catch_exceptions=False
+    )
+    assert conflict.exit_code != 0
+    assert "Invalid value for '--page-all'" in conflict.output
+    assert "Cannot be used with --page (-p) or --page-size (-l)." in conflict.output
+
     # Change the repository description in the repo config file.
     repository_description = random_str()
     repo_config_file_path = create_repo_config_file(
@@ -134,6 +150,14 @@ def test_repos_commands(runner, organization, tmp_path):
         update, [owner_slash_repo, str(repo_config_file_path)], catch_exceptions=False
     )
     assert result.exit_code == 0
+    assert (
+        "Updating "
+        + repository_slug
+        + " repository in the "
+        + organization
+        + " namespace ...OK"
+        in result.output
+    )
     assert "Results: 1 repository visible" in result.output
     assert_output_is_equal_to_repo_config(
         result.output, organization, repo_config_file_path

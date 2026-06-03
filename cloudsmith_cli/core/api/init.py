@@ -1,21 +1,18 @@
 """Cloudsmith API - Initialisation."""
 
 import base64
-from typing import Type, TypeVar
+from typing import TypeVar
 
 import click
 import cloudsmith_api
 
-from ...cli import saml
-from .. import keyring
 from ..rest import RestClient
-from .exceptions import ApiException
 
 
 def initialise_api(
     debug=False,
     host=None,
-    key=None,
+    credential=None,
     proxy=None,
     ssl_verify=True,
     user_agent=None,
@@ -44,59 +41,26 @@ def initialise_api(
     config.verify_ssl = ssl_verify
     config.client_side_validation = False
 
-    access_token = keyring.get_access_token(config.host)
-    if access_token:
-        auth_header = config.headers.get("Authorization")
-
-        # overwrite auth header if empty or is basic auth without username or password
-        if not auth_header or auth_header == config.get_basic_auth_token():
-            refresh_token = keyring.get_refresh_token(config.host)
-
-            try:
-                if keyring.should_refresh_access_token(config.host):
-                    new_access_token, new_refresh_token = saml.refresh_access_token(
-                        config.host,
-                        access_token,
-                        refresh_token,
-                        session=saml.create_configured_session(config),
-                    )
-                    keyring.store_sso_tokens(
-                        config.host, new_access_token, new_refresh_token
-                    )
-            except ApiException:
-                keyring.update_refresh_attempted_at(config.host)
-
-                click.secho(
-                    "An error occurred when attempting to refresh your SSO access token. To refresh this session, run 'cloudsmith auth'",
-                    fg="yellow",
-                )
-
-                # try falling back to API key auth if refresh fails
-                if key:
-                    config.api_key["X-Api-Key"] = key
-
-            config.headers["Authorization"] = "Bearer {access_token}".format(
-                access_token=access_token
-            )
-
+    if credential:
+        if credential.auth_type == "bearer":
+            config.headers["Authorization"] = f"Bearer {credential.api_key}"
             if config.debug:
                 click.echo("SSO access token config value set")
-    elif key:
-        config.api_key["X-Api-Key"] = key
+        else:
+            config.api_key["X-Api-Key"] = credential.api_key
+            if config.debug:
+                click.echo("User API key config value set")
 
-        if config.debug:
-            click.echo("User API key config value set")
+    auth_header = headers and config.headers.get("Authorization")
+    if auth_header and " " in auth_header:
+        auth_type, encoded = auth_header.split(" ", 1)
+        if auth_type == "Basic":
+            decoded = base64.b64decode(encoded)
+            values = decoded.decode("utf-8")
+            config.username, config.password = values.split(":")
 
-    if headers:
-        if "Authorization" in config.headers:
-            auth_type, encoded = config.headers["Authorization"].split(" ")
-            if auth_type == "Basic":
-                decoded = base64.b64decode(encoded)
-                values = decoded.decode("utf-8")
-                config.username, config.password = values.split(":")
-
-                if config.debug:
-                    click.echo("Username and password config values set")
+            if config.debug:
+                click.echo("Username and password config values set")
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
     # present in the cloudsmith_api.Configuration class declaration.
@@ -110,7 +74,7 @@ def initialise_api(
 T = TypeVar("T")
 
 
-def get_api_client(cls: Type[T]) -> T:
+def get_api_client(cls: type[T]) -> T:
     """Get an API client (with configuration)."""
     config = cloudsmith_api.Configuration()
     client = cls()

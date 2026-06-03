@@ -10,7 +10,7 @@ ConfigValues = collections.namedtuple(
 )
 
 
-def create_config_files(ctx, opts, api_key):
+def create_config_files(ctx, opts, api_key, force=False):
     """Create default config files."""
     # pylint: disable=unused-argument
     config_reader = opts.get_config_reader()
@@ -22,9 +22,12 @@ def create_config_files(ctx, opts, api_key):
         create = False
     else:
         click.echo()
-        create = click.confirm(
-            "No default config file(s) found, do you want to create them?"
-        )
+        if not force:
+            create = click.confirm(
+                "No default config file(s) found, do you want to create them?"
+            )
+        else:
+            create = "y"
 
     click.echo()
     if not create:
@@ -77,6 +80,28 @@ def create_config_files(ctx, opts, api_key):
                     "The following error occurred while trying to "
                     "create the file: %(message)s"
                     % {"message": click.style(error_message, fg="red")}
+                )
+            continue
+
+        # Update existing credentials file with new API key if provided
+        if (
+            config.present
+            and config.data.get("api_key")
+            and hasattr(config.reader, "update_api_key")
+        ):
+            try:
+                config.reader.update_api_key(
+                    config.reader.get_default_filepath(),
+                    config.data["api_key"],
+                )
+                click.secho("UPDATED", fg="green")
+            except OSError as exc:
+                has_errors = True
+                click.secho("ERROR", fg="red")
+                click.secho(
+                    "The following error occurred while trying to "
+                    "update the file: %(message)s"
+                    % {"message": click.style(exc.strerror, fg="red")}
                 )
             continue
 

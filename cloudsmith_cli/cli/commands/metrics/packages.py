@@ -74,7 +74,7 @@ def _print_metrics_table(opts, data):
     type=str,
     required=False,
     help=(
-        "A comma seperated list of package identifiers (i.e. slug_perm). "
+        "A comma separated list of package identifiers (i.e. slug_perm). "
         "If a list is not specified then all package will be included for "
         "a given repository."
     ),
@@ -106,7 +106,7 @@ def usage(ctx, opts, owner_repo, packages, start, finish):
     metrics for that namespace/repository combination.
     """
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo("Getting usage metrics ... ", nl=False, err=use_stderr)
 

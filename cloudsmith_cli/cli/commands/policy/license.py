@@ -5,6 +5,7 @@ import json
 import click
 
 from ....core.api import orgs as api
+from ....core.pagination import paginate_results
 from ... import command, decorators, utils, validators
 from ...exceptions import handle_api_exceptions
 from ...utils import (
@@ -19,7 +20,6 @@ from .command import policy
 
 def print_license_policies(policies):
     """Print license policies as a table or output in another format."""
-
     headers = [
         "Name",
         "Description",
@@ -57,10 +57,6 @@ def print_license_policies(policies):
     utils.pretty_print_table(headers, rows)
     click.echo()
 
-    num_results = len(rows)
-    list_suffix = "license polic%s" % ("y" if num_results == 1 else "ies")
-    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
-
 
 @policy.group(cls=command.AliasGroup, name="license", aliases=[])
 @decorators.common_cli_config_options
@@ -86,7 +82,7 @@ def licence(*args, **kwargs):
     "owner", metavar="OWNER", callback=validators.validate_owner, required=True
 )
 @click.pass_context
-def ls(ctx, opts, owner, page, page_size):
+def ls(ctx, opts, owner, page, page_size, page_all):
     """
     List license policies.
 
@@ -104,15 +100,15 @@ def ls(ctx, opts, owner, page, page_size):
     owner = owner[0]
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
-    use_stderr = opts.output != "pretty"
+    use_stderr = utils.should_use_stderr(opts)
 
     click.echo("Getting license policies ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get license policies!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
-            policies, page_info = api.list_license_policies(
-                owner=owner, page=page, page_size=page_size
+            policies, page_info = paginate_results(
+                api.list_license_policies, page_all, page, page_size, owner=owner
             )
 
     click.secho("OK", fg="green", err=use_stderr)
@@ -121,6 +117,17 @@ def ls(ctx, opts, owner, page, page_size):
         return
 
     print_license_policies(policies)
+
+    click.echo()
+
+    num_results = len(policies)
+    list_suffix = "license polic%s" % ("y" if num_results == 1 else "ies")
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if page_all else page_info,
+        suffix=list_suffix,
+        page_all=page_all,
+    )
 
 
 @licence.command(aliases=["new"])
@@ -309,13 +316,15 @@ def delete(ctx, opts, owner, identifier, yes):
         "delete the %(slug_perm)s license policy from the %(namespace)s namespace"
         % delete_args
     )
+    use_stderr = utils.should_use_stderr(opts)
 
-    if not utils.confirm_operation(prompt, assume_yes=yes):
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
         "Deleting %(slug_perm)s from the %(namespace)s namespace ... " % delete_args,
         nl=False,
+        err=use_stderr,
     )
 
     context_msg = "Failed to delete the license policy!"
@@ -323,4 +332,4 @@ def delete(ctx, opts, owner, identifier, yes):
         with maybe_spinner(opts):
             api.delete_license_policy(owner=owner, slug_perm=identifier)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)

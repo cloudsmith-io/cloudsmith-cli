@@ -29,14 +29,18 @@ def check(ctx, opts):  # pylint: disable=unused-argument
 @click.pass_context
 def rates(ctx, opts):
     """Check current API rate limits."""
-    click.echo("Retrieving rate limits ... ", nl=False)
+    use_stderr = utils.should_use_stderr(opts)
+    click.echo("Retrieving rate limits ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to retrieve status!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             resources_limits = get_rate_limits()
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
+
+    if utils.maybe_print_as_json(opts, resources_limits):
+        return
 
     headers = ["Resource", "Throttled", "Remaining", "Interval (Seconds)", "Reset"]
 
@@ -77,16 +81,26 @@ def rates(ctx, opts):
 @click.pass_context
 def service(ctx, opts):
     """Check the status of the Cloudsmith service."""
-    click.echo("Retrieving service status ... ", nl=False)
+    use_stderr = utils.should_use_stderr(opts)
+    click.echo("Retrieving service status ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to retrieve status!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
         with maybe_spinner(opts):
             status, version = get_status(with_version=True)
 
-    click.secho("OK", fg="green")
+    click.secho("OK", fg="green", err=use_stderr)
 
     config = cloudsmith_api.Configuration()
+
+    data = {
+        "endpoint": config.host,
+        "status": status,
+        "version": version,
+    }
+
+    if utils.maybe_print_as_json(opts, data):
+        return
 
     click.echo()
     click.echo(f"The service endpoint is: {click.style(config.host, bold=True)}")

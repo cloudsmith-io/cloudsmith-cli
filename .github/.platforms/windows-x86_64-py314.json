@@ -1,0 +1,29 @@
+{
+  "marker_environment": {
+    "implementation_name": "cpython",
+    "implementation_version": "3.14.0",
+    "os_name": "nt",
+    "platform_machine": "AMD64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "",
+    "platform_system": "Windows",
+    "platform_version": "",
+    "python_full_version": "3.14.0",
+    "python_version": "3.14",
+    "sys_platform": "win32"
+  },
+  "compatible_tags": [
+    "cp314-cp314-win_amd64",
+    "cp314-abi3-win_amd64",
+    "cp314-none-win_amd64",
+    "cp310-abi3-win_amd64",
+    "cp39-abi3-win_amd64",
+    "cp38-abi3-win_amd64",
+    "cp37-abi3-win_amd64",
+    "py314-none-win_amd64",
+    "py3-none-win_amd64",
+    "cp314-none-any",
+    "py314-none-any",
+    "py3-none-any"
+  ]
+}

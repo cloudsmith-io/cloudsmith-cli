@@ -4,12 +4,34 @@ import base64
 from datetime import datetime
 
 import click
+from click.core import ParameterSource
 
 from .types import ExpandPath
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
+
+
+class IntOrWildcard(click.ParamType):
+    """Custom Click type that accepts integers or '*' wildcard (converted to -1)."""
+
+    name = "integer or *"
+
+    def convert(self, value, param, ctx):
+        # Already converted
+        if isinstance(value, int):
+            return value
+
+        # Handle wildcard
+        if value == "*":
+            return -1
+
+        # Try to convert to integer
+        try:
+            return int(value)
+        except ValueError:
+            self.fail(f"{value!r} is not a valid integer or '*'", param, ctx)
 
 
 def transform_api_header_authorization(param, value):
@@ -150,11 +172,60 @@ def validate_page(ctx, param, value):
 
 
 def validate_page_size(ctx, param, value):
-    """Ensure that a valid value for page size is chosen."""
+    """Ensure that a valid value for page size is chosen.
+
+    The IntOrWildcard type already converts '*' to -1 and validates integers.
+    """
     # pylint: disable=unused-argument
     if value == 0:
         raise click.BadParameter("Page size must be non-zero or unset.", param=param)
     return value
+
+
+def enforce_page_all_exclusive(ctx, wildcard_used=False):
+    """Order-independent mutual exclusivity check for pagination options.
+
+    Raises click.BadParameter bound to the --page-all option if it was used
+    together with explicit --page or --page-size. "Explicit" means supplied
+    via command line, environment variable, or prompt (Click ParameterSource).
+
+    Args:
+        ctx: Click context
+        wildcard_used: If True, validates even if --page-all wasn't explicitly passed
+                      (used when --page-size '*' or -1 was used)
+    """
+    page_all = ctx.params.get("page_all")
+    if not page_all and not wildcard_used:
+        return
+
+    explicit_sources = {
+        src
+        for src in (
+            ParameterSource.COMMANDLINE,
+            ParameterSource.ENVIRONMENT,
+            getattr(ParameterSource, "PROMPT", None),
+        )
+        if src is not None
+    }
+
+    page_explicit = ctx.get_parameter_source("page") in explicit_sources
+    # When checking wildcard usage, don't count page_size as conflicting with itself
+    size_source = ctx.get_parameter_source("page_size")
+    size_explicit = size_source in explicit_sources and not (
+        wildcard_used and size_source == ParameterSource.COMMANDLINE
+    )
+
+    if page_explicit or size_explicit:
+        page_all_param = next(
+            (p for p in ctx.command.params if p.name == "page_all"), None
+        )
+        error_msg = "Cannot be used with --page (-p) or --page-size (-l). (--show-all is an alias for --page-all)"
+        if wildcard_used:
+            error_msg = "Wildcard '*' or -1 in --page-size cannot be used with --page (-p). Use --page-all instead."
+        raise click.BadParameter(
+            error_msg,
+            param=page_all_param,
+        )
 
 
 def validate_optional_timestamp(ctx, param, value):

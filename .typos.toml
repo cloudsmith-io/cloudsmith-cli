@@ -1,0 +1,11 @@
+[default.extend-identifiers]
+# Proper names - do not correct
+Mno-hime = "Mno-hime"
+
+[default.extend-words]
+# Proper names - do not correct
+hime = "hime"
+McClory = "McClory"
+mcclory = "mcclory"
+Clory = "Clory"
+repositor = "repositor"

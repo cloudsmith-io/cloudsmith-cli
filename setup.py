@@ -47,19 +47,32 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms=["any"],
-    python_requires=">=3.9.0",
+    python_requires=">=3.10.0",
     install_requires=[
-        "click>=7.0,!=8.0.2",
+        "click>=8.1.8,!=8.3.0",
         "click-configfile>=0.2.3",
         "click-didyoumean>=0.0.3",
         "click-spinner>=0.1.7",
-        "cloudsmith-api>=2.0.18,<3.0",  # Compatible upto (but excluding) 3.0+
+        "json5>=0.9.0",  # For parsing JSONC (JSON with comments) in VS Code settings
+        "cloudsmith-api>=2.0.25,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
+        "mcp==1.9.1",
+        "PyJWT>=2.0.0",
+        "python-toon==0.1.2",
         "requests>=2.18.4",
-        "requests_toolbelt>=0.8.0",
+        "requests_toolbelt>=1.0.0",
+        "rich>=13.0.0",
         "semver>=2.7.9",
-        "urllib3<2.0",
+        "urllib3>=2.5",
     ],
+    extras_require={
+        "aws": [
+            "boto3[crt]>=1.26.0",
+        ],
+        "all": [
+            "boto3[crt]>=1.26.0",
+        ],
+    },
     entry_points={
         "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
     },
@@ -79,11 +92,11 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Internet",
         "Topic :: System :: Systems Administration",
         "Topic :: Utilities",
