@@ -7,6 +7,8 @@ Provides domain checking used by all credential helpers.
 import logging
 import os
 
+from .custom_domains import get_custom_domains_for_org
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +71,11 @@ def is_cloudsmith_domain(
         return False
 
     # Standard Cloudsmith domains — no auth needed
-    if hostname == "cloudsmith.io" or hostname.endswith(".cloudsmith.io"):
+    if (
+        hostname in ("cloudsmith.io", "cloudsmith.com")
+        or hostname.endswith(".cloudsmith.io")
+        or hostname.endswith(".cloudsmith.com")
+    ):
         return True
 
     # Custom domains require org + auth
@@ -79,8 +85,6 @@ def is_cloudsmith_domain(
 
     if not api_key:
         return False
-
-    from .custom_domains import get_custom_domains_for_org
 
     custom_domains = get_custom_domains_for_org(
         org,
