@@ -111,16 +111,16 @@ class TestMetadataList(unittest.TestCase):
                 "list",
                 "myorg/myrepo/mypkg",
                 "--source-kind",
-                "customer",
+                "custom",
                 "--classification",
-                "4",
+                "generic",
             ],
         )
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
         kwargs = mock_list.call_args.kwargs
-        self.assertEqual(kwargs["source_kind"], "customer")
-        self.assertEqual(kwargs["classification"], "4")
+        self.assertEqual(kwargs["source_kind"], "custom")
+        self.assertEqual(kwargs["classification"], "generic")
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_list_metadata")
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")
@@ -132,7 +132,7 @@ class TestMetadataList(unittest.TestCase):
                     "slug_perm": "abc",
                     "content_type": "application/json",
                     "classification": "GENERIC",
-                    "source_kind": "CUSTOMER",
+                    "source_kind": "CUSTOM",
                     "source_identity": "cloudsmith-cli@1.16.0",
                 }
             ],
@@ -150,17 +150,22 @@ class TestMetadataList(unittest.TestCase):
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_list_metadata")
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")
-    def test_list_invalid_filter_value_is_usage_error(self, mock_resolve, mock_list):
+    def test_list_forwards_filter_name_without_client_validation(
+        self, mock_resolve, mock_list
+    ):
+        # Filter values are no longer validated client-side; an unknown name is
+        # forwarded verbatim (the backend is the source of truth and 4xxs it).
         mock_resolve.return_value = "pkg-slug-perm"
+        mock_list.return_value = ([], _empty_page_info())
 
         result = self.runner.invoke(
             metadata_,
             ["list", "myorg/myrepo/mypkg", "--source-kind", "not-a-kind"],
         )
 
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("source_kind", result.output.lower())
-        mock_list.assert_not_called()
+        self.assertEqual(result.exit_code, 0, msg=result.output)
+        mock_list.assert_called_once()
+        self.assertEqual(mock_list.call_args.kwargs["source_kind"], "not-a-kind")
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_list_metadata")
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")

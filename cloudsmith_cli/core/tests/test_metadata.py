@@ -53,52 +53,6 @@ def _last_request():
     return httpretty.last_request()
 
 
-class TestNormalisers:
-    @pytest.mark.parametrize(
-        "value, expected",
-        [
-            (None, None),
-            (3, 3),
-            ("3", 3),
-            ("customer", 3),
-            ("CUSTOMER", 3),
-            ("Third-Party", 4),
-            ("third_party", 4),
-        ],
-    )
-    def test_source_kind(self, value, expected):
-        assert metadata.normalise_source_kind(value) == expected
-
-    @pytest.mark.parametrize(
-        "value, expected",
-        [
-            (None, None),
-            (6, 6),
-            ("generic", 6),
-            ("GENERIC", 6),
-            ("PROVENANCE", 4),
-        ],
-    )
-    def test_classification(self, value, expected):
-        assert metadata.normalise_classification(value) == expected
-
-    def test_invalid_source_kind_name(self):
-        with pytest.raises(ValueError, match="Invalid source_kind"):
-            metadata.normalise_source_kind("not-a-kind")
-
-    def test_invalid_classification_name(self):
-        with pytest.raises(ValueError, match="Invalid classification"):
-            metadata.normalise_classification("nope")
-
-    def test_invalid_type(self):
-        with pytest.raises(ValueError):
-            metadata.normalise_source_kind(3.14)
-
-    def test_bool_rejected(self):
-        with pytest.raises(ValueError):
-            metadata.normalise_source_kind(True)
-
-
 class TestListMetadata:
     @httpretty.activate(allow_net_connect=False)
     def test_success_returns_results_and_page_info(self):
@@ -128,7 +82,7 @@ class TestListMetadata:
         assert sent.headers.get("Accept") == "application/json"
 
     @httpretty.activate(allow_net_connect=False)
-    def test_filters_normalised_to_integers(self):
+    def test_filters_sent_as_lowercased_names(self):
         httpretty.register_uri(
             httpretty.GET,
             LIST_URL,
@@ -138,12 +92,12 @@ class TestListMetadata:
         )
 
         metadata.list_metadata(
-            PKG, source_kind="customer", classification="GENERIC", page=2, page_size=50
+            PKG, source_kind="custom", classification="GENERIC", page=2, page_size=50
         )
 
         qs = _last_request().querystring  # pylint: disable=no-member
-        assert qs["source_kind"] == ["3"]
-        assert qs["classification"] == ["6"]
+        assert qs["source_kind"] == ["custom"]
+        assert qs["classification"] == ["generic"]
         assert qs["page"] == ["2"]
         assert qs["page_size"] == ["50"]
 
@@ -180,10 +134,16 @@ class TestListMetadata:
         assert exc_info.value.detail == "Not found."
 
     @httpretty.activate(allow_net_connect=False)
-    def test_422_raises_with_fields(self):
+    def test_invalid_filter_name_surfaces_backend_error(self):
+        # The CLI no longer validates filter names client-side; an unknown
+        # name is forwarded verbatim and the backend rejects it via EnumFieldV2.
+        message = (
+            "bogus is not valid for source_kind - must be one of "
+            "['UNKNOWN', 'SYSTEM', 'UPSTREAM', 'CUSTOM', 'THIRD_PARTY']"
+        )
         body = {
             "detail": "Invalid query parameters.",
-            "fields": {"source_kind": ["Not a valid choice."]},
+            "fields": {"source_kind": [message]},
         }
         httpretty.register_uri(
             httpretty.GET,
@@ -194,10 +154,12 @@ class TestListMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.list_metadata(PKG, source_kind=3)
+            metadata.list_metadata(PKG, source_kind="bogus")
 
+        qs = _last_request().querystring  # pylint: disable=no-member
+        assert qs["source_kind"] == ["bogus"]
         assert exc_info.value.status == 422
-        assert exc_info.value.fields == {"source_kind": ["Not a valid choice."]}
+        assert exc_info.value.fields == {"source_kind": [message]}
 
 
 class TestGetMetadata:

@@ -10,60 +10,6 @@ from ..pagination import PageInfo
 from ..rest import RestClient
 from .exceptions import catch_raise_api_exception
 
-SOURCE_KIND_VALUES = {
-    "unknown": 0,
-    "system": 1,
-    "ecosystem": 2,
-    "customer": 3,
-    "third_party": 4,
-}
-
-CLASSIFICATION_VALUES = {
-    "unknown": 0,
-    "intrinsic": 1,
-    "upstream": 2,
-    "security": 3,
-    "provenance": 4,
-    "sbom": 5,
-    "generic": 6,
-}
-
-
-def _normalise_enum(value, mapping, name):
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        raise ValueError(f"Invalid {name} value: {value!r}")
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            raise ValueError(f"Invalid {name} value: {value!r}")
-        try:
-            return int(text)
-        except ValueError:
-            pass
-        key = text.lower().replace("-", "_")
-        try:
-            return mapping[key]
-        except KeyError:
-            valid = ", ".join(sorted(mapping))
-            raise ValueError(
-                f"Invalid {name} {value!r}. Expected an integer or one of: {valid}."
-            )
-    raise ValueError(f"Invalid {name} type: {type(value).__name__}")
-
-
-def normalise_source_kind(value):
-    """Coerce a MetadataSourceKind name or integer to its integer value."""
-    return _normalise_enum(value, SOURCE_KIND_VALUES, "source_kind")
-
-
-def normalise_classification(value):
-    """Coerce a MetadataClassification name or integer to its integer value."""
-    return _normalise_enum(value, CLASSIFICATION_VALUES, "classification")
-
 
 class _MetadataApi:
     """Small client for metadata endpoints not yet present in cloudsmith_api."""
@@ -136,29 +82,26 @@ def _response_json(response):
 def list_metadata(
     package_slug_perm: str,
     *,
-    source_kind: int | str | None = None,
-    classification: int | str | None = None,
+    source_kind: str | None = None,
+    classification: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ):
     """List metadata entries attached to a package.
 
-    `source_kind` and `classification` may be supplied as either an integer
-    or the matching enum name (case-insensitive); both are converted to the
-    integer the v2 API expects before the request is issued.
+    `source_kind` and `classification` are sent as the lowercased enum name
+    the v2 API expects; the authoritative backend validates the value and
+    surfaces a 4xx for anything it does not recognise.
 
     Returns a (results, PageInfo) tuple.
     """
     client = get_metadata_api()
     api_kwargs = {}
 
-    source_kind_value = normalise_source_kind(source_kind)
-    if source_kind_value is not None:
-        api_kwargs["source_kind"] = source_kind_value
-
-    classification_value = normalise_classification(classification)
-    if classification_value is not None:
-        api_kwargs["classification"] = classification_value
+    if source_kind:
+        api_kwargs["source_kind"] = str(source_kind).strip().lower()
+    if classification:
+        api_kwargs["classification"] = str(classification).strip().lower()
 
     api_kwargs.update(utils.get_page_kwargs(page=page, page_size=page_size))
 
