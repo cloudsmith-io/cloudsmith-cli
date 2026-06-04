@@ -118,6 +118,24 @@ class TestListMetadata:
         assert "page_size" not in qs
 
     @httpretty.activate(allow_net_connect=False)
+    def test_blank_filters_omitted(self):
+        # A whitespace-only filter normalises to an empty string, which must be
+        # dropped rather than sent as an empty query param (the backend 4xxs it).
+        httpretty.register_uri(
+            httpretty.GET,
+            LIST_URL,
+            body=json.dumps({"results": []}),
+            status=200,
+            content_type="application/json",
+        )
+
+        metadata.list_metadata(PKG, source_kind="   ", classification="")
+
+        qs = _last_request().querystring  # pylint: disable=no-member
+        assert "source_kind" not in qs
+        assert "classification" not in qs
+
+    @httpretty.activate(allow_net_connect=False)
     def test_404_raises_api_exception(self):
         httpretty.register_uri(
             httpretty.GET,
@@ -135,8 +153,9 @@ class TestListMetadata:
 
     @httpretty.activate(allow_net_connect=False)
     def test_invalid_filter_name_surfaces_backend_error(self):
-        # The CLI no longer validates filter names client-side; an unknown
-        # name is forwarded verbatim and the backend rejects it via EnumFieldV2.
+        # The API client lowercases/strips filter values but does not validate
+        # them; an unknown name is forwarded and the backend rejects it via
+        # EnumFieldV2.
         message = (
             "bogus is not valid for source_kind - must be one of "
             "['UNKNOWN', 'SYSTEM', 'UPSTREAM', 'CUSTOM', 'THIRD_PARTY']"

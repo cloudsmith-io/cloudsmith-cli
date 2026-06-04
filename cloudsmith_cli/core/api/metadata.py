@@ -98,10 +98,12 @@ def list_metadata(
     client = get_metadata_api()
     api_kwargs = {}
 
-    if source_kind:
-        api_kwargs["source_kind"] = str(source_kind).strip().lower()
-    if classification:
-        api_kwargs["classification"] = str(classification).strip().lower()
+    source_kind_value = str(source_kind).strip().lower() if source_kind else ""
+    if source_kind_value:
+        api_kwargs["source_kind"] = source_kind_value
+    classification_value = str(classification).strip().lower() if classification else ""
+    if classification_value:
+        api_kwargs["classification"] = classification_value
 
     api_kwargs.update(utils.get_page_kwargs(page=page, page_size=page_size))
 
