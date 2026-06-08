@@ -165,6 +165,10 @@ pip install cloudsmith-cli[all]
 
 **Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
 
+#### Azure DevOps OIDC Support
+
+In Azure DevOps Pipelines, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN`. Make sure `SYSTEM_ACCESSTOKEN` is mapped into the step's environment. The Cloudsmith OIDC provider must expect the audience `api://AzureADTokenExchange`, which Azure DevOps always mints (any requested audience is ignored). See the [Cloudsmith Azure DevOps integration guide](https://docs.cloudsmith.com/integrations/integrating-with-azure-devops).
+
 ## Configuration
 
 There are two configuration files used by the CLI:

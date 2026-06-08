@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added Azure DevOps to OIDC credential auto-discovery. When running in an Azure DevOps pipeline, the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN` and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+
 ## [1.17.0] - 2026-05-18
 
 ### Added
