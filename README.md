@@ -165,6 +165,21 @@ pip install cloudsmith-cli[all]
 
 **Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
 
+#### Bitbucket Pipelines OIDC Support
+
+In Bitbucket Pipelines, OIDC credential discovery works out of the box with no extra dependencies. Set `oidc: true` on the pipeline step and the CLI reads the token from the `BITBUCKET_STEP_OIDC_TOKEN` variable that Bitbucket populates. The Cloudsmith OIDC provider must expect the workspace audience that Bitbucket mints (`ari:cloud:bitbucket::workspace/<workspace-uuid>`):
+
+```yaml
+pipelines:
+  default:
+    - step:
+        oidc: true
+        script:
+          - cloudsmith push ...
+```
+
+See the [Bitbucket Pipelines OIDC documentation](https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/).
+
 #### CircleCI OIDC Support
 
 In CircleCI, OIDC credential discovery works out of the box with no extra dependencies — the CLI reads the token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable that CircleCI injects into every job. The Cloudsmith OIDC provider must expect the audience CircleCI mints, which is your CircleCI organization UUID. See the [Cloudsmith CircleCI integration guide](https://docs.cloudsmith.com/integrations/integrating-with-circleci).
