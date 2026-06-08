@@ -155,6 +155,16 @@ pip install cloudsmith-cli[aws]
 
 This installs `boto3[crt]` for AWS credential chain support, STS token generation, and AWS SSO compatibility.
 
+#### GCP OIDC Support
+
+For Google Cloud environments (GCE, Cloud Run, GKE, Cloud Functions, App Engine, Cloud Build), install with the `gcp` extra to enable automatic credential discovery:
+
+```
+pip install cloudsmith-cli[gcp]
+```
+
+This installs `google-auth` for Application Default Credentials resolution and OIDC ID token generation. It works with the attached service account on Google Cloud workloads, a `GOOGLE_APPLICATION_CREDENTIALS` service-account key, or a local `gcloud auth application-default login` session. See Google's [Authenticate with auth libraries](https://docs.cloud.google.com/iam/docs/authenticate-with-auth-libraries#authenticate-standard) guide for how credentials are resolved.
+
 #### All Optional Features
 
 To install all optional dependencies:
@@ -163,7 +173,7 @@ To install all optional dependencies:
 pip install cloudsmith-cli[all]
 ```
 
-**Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
+**Note:** If you don't install the AWS or GCP extra, the corresponding OIDC detector will gracefully skip itself with no errors.
 
 #### Bitbucket Pipelines OIDC Support
 
@@ -218,7 +228,7 @@ By default the CLI tries each detector in a fixed priority order and uses the fi
 - **Disable a detector** — set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip it entirely. Only the literal value `true` (case-insensitive) disables; anything else leaves the detector enabled. For example, `CLOUDSMITH_OIDC_AWS_DISABLED=true` skips the AWS detector so an explicitly-set `CLOUDSMITH_OIDC_TOKEN` is picked up by the generic detector instead.
 - **Reorder evaluation** — use `--oidc-detector-order` (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) with a comma-separated list of detector ids to control both which detectors are considered and the order they are tried in (first match wins). Ids not listed are skipped; unrecognised ids are ignored. For example, `--oidc-detector-order=generic,aws` tries the generic detector first and considers only those two.
 
-When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
+When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `generic`, `github`, `gitlab`.
 
 ## Configuration
 

@@ -10,6 +10,7 @@ from .azure_devops import AzureDevOpsDetector
 from .base import EnvironmentDetector
 from .bitbucket_pipelines import BitbucketPipelinesDetector
 from .circleci import CircleCIDetector
+from .gcp import GCPDetector
 from .generic import GenericDetector
 from .github_actions import GitHubActionsDetector
 from .gitlab_ci import GitLabCIDetector
@@ -28,6 +29,7 @@ _DETECTORS: list[type[EnvironmentDetector]] = [
     BitbucketPipelinesDetector,
     GitLabCIDetector,
     AWSDetector,
+    GCPDetector,
     GenericDetector,
 ]
 

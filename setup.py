@@ -72,8 +72,12 @@ setup(
         "aws": [
             "boto3[crt]>=1.26.0",
         ],
+        "gcp": [
+            "google-auth>=2.0.0",
+        ],
         "all": [
             "boto3[crt]>=1.26.0",
+            "google-auth>=2.0.0",
         ],
     },
     entry_points={
