@@ -165,6 +165,10 @@ pip install cloudsmith-cli[all]
 
 **Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
 
+#### CircleCI OIDC Support
+
+In CircleCI, OIDC credential discovery works out of the box with no extra dependencies — the CLI reads the token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable that CircleCI injects into every job. The Cloudsmith OIDC provider must expect the audience CircleCI mints, which is your CircleCI organization UUID. See the [Cloudsmith CircleCI integration guide](https://docs.cloudsmith.com/integrations/integrating-with-circleci).
+
 ## Configuration
 
 There are two configuration files used by the CLI:

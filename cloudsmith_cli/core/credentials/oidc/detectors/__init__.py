@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from .aws import AWSDetector
 from .base import EnvironmentDetector
+from .circleci import CircleCIDetector
 
 if TYPE_CHECKING:
     from ... import CredentialContext
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DETECTORS: list[type[EnvironmentDetector]] = [
+    CircleCIDetector,
     AWSDetector,
 ]
 

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added CircleCI to OIDC credential auto-discovery. When running in CircleCI, the CLI reads the OIDC token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+
 ## [1.17.0] - 2026-05-18
 
 ### Added
