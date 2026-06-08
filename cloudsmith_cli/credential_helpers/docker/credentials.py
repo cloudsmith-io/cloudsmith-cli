@@ -8,7 +8,7 @@ using the existing Cloudsmith credential provider chain (OIDC, API keys, config,
 from ..common import is_cloudsmith_domain
 
 
-def get_credentials(server_url, credential=None, session=None, api_host=None):
+def get_credentials(server_url, credential=None, api_host=None):
     """
     Get credentials for a Cloudsmith Docker registry.
 
@@ -18,7 +18,6 @@ def get_credentials(server_url, credential=None, session=None, api_host=None):
     Args:
         server_url: The Docker registry server URL
         credential: Pre-resolved CredentialResult from the provider chain
-        session: Pre-configured requests.Session with proxy/SSL settings
         api_host: Cloudsmith API host URL
 
     Returns:
@@ -29,7 +28,6 @@ def get_credentials(server_url, credential=None, session=None, api_host=None):
 
     if not is_cloudsmith_domain(
         server_url,
-        session=session,
         api_key=credential.api_key,
         auth_type=getattr(credential, "auth_type", "api_key"),
         api_host=api_host,

@@ -62,8 +62,7 @@ def docker(opts):
         credentials = get_credentials(
             server_url,
             credential=opts.credential,
-            session=opts.session,
-            api_host=opts.api_host or "https://api.cloudsmith.io",
+            api_host=opts.api_host,
         )
 
         if not credentials:

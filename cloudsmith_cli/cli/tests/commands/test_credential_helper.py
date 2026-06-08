@@ -4,15 +4,24 @@ import io
 import json
 from unittest.mock import patch
 
+import httpretty
+import httpretty.core
 import pytest
 
 from ....cli.commands.credential_helper.docker import docker
 from ....core.credentials.models import CredentialResult
-from ....credential_helpers.custom_domains import get_cache_path, write_cache
+from ....credential_helpers.custom_domains import (
+    get_cache_path,
+    get_custom_domains_for_org,
+    read_cache,
+    write_cache,
+)
 from ....credential_helpers.docker.credentials import (
     get_credentials as helper_get_credentials,
 )
 from ....credential_helpers.docker.wrapper import main as docker_wrapper_main
+
+API_HOST = "https://api.cloudsmith.io"
 
 
 class TestDockerCredentialHelper:
@@ -86,17 +95,20 @@ class TestDockerCredentialHelper:
 
         credential = CredentialResult(api_key="k_xyz", source_name="test")
 
-        # Sentinel session; the cache hit means no HTTP call should be made.
-        class _BoomSession:
-            def get(self, *_args, **_kwargs):
-                raise AssertionError(
-                    "Network call attempted despite a valid custom-domain cache"
-                )
+        # A cache hit must short-circuit before any SDK call.
+        def _boom(*_args, **_kwargs):
+            raise AssertionError(
+                "API call attempted despite a valid custom-domain cache"
+            )
+
+        monkeypatch.setattr(
+            "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+            _boom,
+        )
 
         result = helper_get_credentials(
             "docker.acme.com",
             credential=credential,
-            session=_BoomSession(),
             api_host="https://api.cloudsmith.io",
         )
 
@@ -129,3 +141,124 @@ class TestDockerCredentialHelper:
         output = capsys.readouterr()
         assert output.out == "{}\n"
         assert output.err == ""
+
+
+class TestGetCustomDomainsForOrg:
+    """Exercise the SDK-backed custom-domains fetch path.
+
+    These tests stub the v1 `GET /orgs/{org}/custom-domains/` endpoint that the
+    `cloudsmith_api` SDK calls. The on-disk cache base is redirected to a temp dir
+    per test.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cache_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+            lambda: str(tmp_path),
+        )
+        # httpretty's fake socket has no shutdown(); urllib3 calls it during
+        # getresponse(). Stub it so requests succeed under httpretty.
+        monkeypatch.setattr(
+            httpretty.core.fakesock.socket,
+            "shutdown",
+            lambda self, how: None,
+            raising=False,
+        )
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_success_extracts_hosts_and_caches(self):
+        """A 200 response yields the `.host` of each model and caches the result."""
+        body = [
+            {"host": "docker.acme.com", "slug_perm": "a"},
+            {"host": "dl.acme.com", "slug_perm": "b"},
+            {"host": "", "slug_perm": "c"},  # blank host is skipped
+        ]
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps(body),
+            status=200,
+            content_type="application/json",
+        )
+
+        domains = get_custom_domains_for_org("acme", api_key="k_abc", api_host=API_HOST)
+
+        assert domains == ["docker.acme.com", "dl.acme.com"]
+        # Auth header proves the SDK auth path is exercised (X-Api-Key, not Bearer).
+        assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
+        # Result is cached.
+        assert read_cache(get_cache_path("acme")) == ["docker.acme.com", "dl.acme.com"]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_bearer_auth_uses_authorization_header(self):
+        """A bearer credential sends an Authorization: Bearer header."""
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps([]),
+            status=200,
+            content_type="application/json",
+        )
+
+        get_custom_domains_for_org(
+            "acme", api_key="tok123", auth_type="bearer", api_host=API_HOST
+        )
+
+        assert httpretty.last_request().headers.get("Authorization") == "Bearer tok123"
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_404_caches_empty(self):
+        """A 404 returns [] and caches the empty result to avoid repeat lookups."""
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps({"detail": "Not found."}),
+            status=404,
+            content_type="application/json",
+        )
+
+        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert read_cache(get_cache_path("acme")) == []
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_402_caches_empty(self):
+        """A 402 (feature not enabled) returns [] and caches the empty result."""
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps({"detail": "Upgrade required."}),
+            status=402,
+            content_type="application/json",
+        )
+
+        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert read_cache(get_cache_path("acme")) == []
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_403_does_not_cache(self):
+        """A 403 returns [] but does NOT cache (may succeed later once authed)."""
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps({"detail": "Forbidden."}),
+            status=403,
+            content_type="application/json",
+        )
+
+        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert read_cache(get_cache_path("acme")) is None
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_server_error_returns_empty_without_raising(self):
+        """A 500 returns [] without raising and without caching."""
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps({"detail": "Boom."}),
+            status=500,
+            content_type="application/json",
+        )
+
+        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert read_cache(get_cache_path("acme")) is None

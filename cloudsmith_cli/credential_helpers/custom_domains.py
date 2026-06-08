@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """
 Helper for discovering Cloudsmith custom domains.
 
@@ -9,11 +10,14 @@ import json
 import logging
 import time
 from pathlib import Path
-
-import requests
+from typing import Literal
 
 from ..cli.config import get_default_config_path
+from ..core.api.exceptions import ApiException
+from ..core.api.init import initialise_api
+from ..core.api.orgs import list_custom_domains
 from ..core.cache_utils import atomic_write_json
+from ..core.credentials.models import CredentialResult
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +114,6 @@ def write_cache(cache_path: Path, domains: list[str]) -> None:
 
 def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
     org: str,
-    session=None,
     api_key: str | None = None,
     auth_type: str = "api_key",
     api_host: str | None = None,
@@ -120,13 +123,16 @@ def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
 
     Results are cached on the filesystem for 1 hour to avoid excessive API calls.
 
+    Fetches the domains through the Cloudsmith SDK
+    (``OrgsApi.orgs_custom_domains_list``) via the ``core.api`` wrapper, so the API
+    host and auth handling stay consistent with the rest of the CLI.
+
     Args:
         org: Organization slug
-        session: Pre-configured requests.Session with proxy/SSL settings.
-            If None, a plain requests session is used.
         api_key: Optional API key/token for authentication
         auth_type: "api_key" (uses X-Api-Key header) or "bearer" (uses Authorization: Bearer)
-        api_host: Cloudsmith API host URL. Defaults to https://api.cloudsmith.io.
+        api_host: Cloudsmith API host URL (including version). Taken from the SDK
+            configuration default when not provided.
 
     Returns:
         List of custom domain strings (e.g., ['docker.customer.com', 'dl.customer.com'])
@@ -140,59 +146,55 @@ def get_custom_domains_for_org(  # pylint: disable=too-many-return-statements
 
     logger.debug("Fetching custom domains from API for %s", org)
 
+    # The docker credential-helper command path only resolves credentials; it does
+    # not initialise the global SDK Configuration. Do so here using the resolved
+    # API key/token and host so the SDK client authenticates and targets the right
+    # host (no hard-coded host literal).
+    normalized_auth_type: Literal["api_key", "bearer"] = (
+        "bearer" if auth_type == "bearer" else "api_key"
+    )
+    credential = (
+        CredentialResult(
+            api_key=api_key,
+            source_name="credential-helper",
+            auth_type=normalized_auth_type,
+        )
+        if api_key
+        else None
+    )
+    initialise_api(host=api_host, credential=credential)
+
     try:
-        if session is None:
-            session = requests.Session()
-
-        headers = {}
-        if api_key:
-            if auth_type == "bearer":
-                headers["Authorization"] = f"Bearer {api_key}"
-            else:
-                headers["X-Api-Key"] = api_key
-
-        host = api_host or "https://api.cloudsmith.io"
-        url = f"{host}/orgs/{org}/custom-domains/"
-
-        response = session.get(url, headers=headers, timeout=10)
-
-        if response.status_code in (401, 403):
+        domains = list_custom_domains(org)
+    except ApiException as exc:
+        if exc.status in (401, 403):
+            # Don't cache auth failures - might work later once authenticated.
             logger.debug(
                 "Custom domains API requires auth - assuming no custom domains for %s",
                 org,
             )
-            return []  # Don't cache 401/403 - might work later with auth
+            return []
 
-        if response.status_code == 404:
+        if exc.status == 404:
+            # Cache empty result to avoid repeated lookups for a missing org.
             logger.debug("Organization %s not found or has no custom domains", org)
-            write_cache(cache_path, [])  # Cache empty result to avoid repeated 404s
+            write_cache(cache_path, [])
             return []
 
-        if response.status_code != 200:
-            logger.debug(
-                "Failed to fetch custom domains for %s: HTTP %d",
-                org,
-                response.status_code,
-            )
+        if exc.status == 402:
+            # Custom domains product feature not enabled - treat as none.
+            logger.debug("Custom domains not enabled for %s", org)
+            write_cache(cache_path, [])
             return []
 
-        data = response.json()
-
-        # Expected format: [{"host": "docker.customer.com", ...}, ...]
-        domains = []
-        if isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict):
-                    host = item.get("host")
-                    if isinstance(host, str) and host:
-                        domains.append(host)
-
-        logger.debug("Fetched %d custom domains for %s", len(domains), org)
-
-        write_cache(cache_path, domains)
-
-        return domains
-
-    except (requests.RequestException, ValueError) as exc:
+        logger.debug("Failed to fetch custom domains for %s: HTTP %s", org, exc.status)
+        return []
+    except Exception as exc:  # pylint: disable=broad-except
+        # Never raise into the credential-helper flow - any failure just means
+        # "not a custom domain".
         logger.debug("Error fetching custom domains: %s", exc)
         return []
+
+    logger.debug("Fetched %d custom domains for %s", len(domains), org)
+    write_cache(cache_path, domains)
+    return domains
