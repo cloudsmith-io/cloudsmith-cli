@@ -321,4 +321,7 @@ class DockerInstaller:
             except (json.JSONDecodeError, OSError):
                 pass
 
-        return {"launcher": launcher_path, "hosts": hosts}
+        return {
+            "launcher": str(launcher_path) if launcher_path is not None else None,
+            "hosts": hosts,
+        }

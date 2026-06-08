@@ -1,4 +1,5 @@
 # Copyright 2026 Cloudsmith Ltd
+# pylint: disable=too-many-lines
 """Tests for credential-helper install/uninstall/list commands and launchers."""
 
 from __future__ import annotations
@@ -486,6 +487,79 @@ class TestDockerInstallerUninstall:
         assert any(
             "nothing to remove" in a for a in actions
         ), f"Expected 'nothing to remove' in actions, got: {actions}"
+
+
+# ---------------------------------------------------------------------------
+# DockerInstaller.status() return-type contract
+# ---------------------------------------------------------------------------
+
+
+class TestDockerInstallerStatusReturnType:
+    """Unit assertions on the type contract of DockerInstaller.status().
+
+    Fix 3: status()["launcher"] must be str or None — never a pathlib.Path —
+    so that `list -F json` can serialise the value without error.
+    """
+
+    def test_launcher_is_none_when_not_installed(self, tmp_path, monkeypatch):
+        """When no launcher file exists, status()["launcher"] is None."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+            return_value=tmp_path / "bin",
+        ):
+            installer = DockerInstaller()
+            result = installer.status()
+
+        assert result["launcher"] is None
+
+    def test_launcher_is_str_when_installed(self, tmp_path, monkeypatch):
+        """When a launcher file exists, status()["launcher"] is a str, not a Path."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+
+        # Write a real launcher so status() finds it
+        installer = DockerInstaller()
+        installer.install(bin_dir=str(bin_dir))
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+            return_value=bin_dir,
+        ):
+            result = installer.status()
+
+        launcher = result["launcher"]
+        assert launcher is not None, "Expected a launcher path after install"
+        assert isinstance(
+            launcher, str
+        ), f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
+        # Sanity-check the path points to the real launcher file
+        assert launcher.endswith("docker-credential-cloudsmith")
+
+    def test_launcher_never_a_path_object(self, tmp_path, monkeypatch):
+        """status()["launcher"] is never a pathlib.Path instance regardless of install state."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+
+        installer = DockerInstaller()
+        # Check before install
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+            return_value=bin_dir,
+        ):
+            before = installer.status()
+        assert not isinstance(before["launcher"], Path)
+
+        # Install, then check again
+        installer.install(bin_dir=str(bin_dir))
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+            return_value=bin_dir,
+        ):
+            after = installer.status()
+        assert not isinstance(after["launcher"], Path)
 
 
 # ---------------------------------------------------------------------------
@@ -994,3 +1068,289 @@ class TestManageCLINewFlags:
 
         assert result.exit_code == 0, result.output
         assert not called, "get_format_domains must not be called with --no-discover"
+
+
+# ---------------------------------------------------------------------------
+# -F / --output-format tests
+# ---------------------------------------------------------------------------
+
+
+class TestOutputFormat:
+    """Tests for -F json / -F pretty_json on install, uninstall, and list."""
+
+    # ------------------------------------------------------------------
+    # install
+    # ------------------------------------------------------------------
+
+    def test_install_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
+        """-F json: install exits 0 and stdout is valid JSON with expected shape."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            [
+                "docker",
+                "--dry-run",
+                "--no-discover",
+                "--bin-dir",
+                str(tmp_path / "bin"),
+                "-F",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        data = parsed["data"]
+        assert data["helper"] == "docker"
+        assert data["dry_run"] is True
+        assert isinstance(data["actions"], list)
+        assert isinstance(data["warnings"], list)
+
+    def test_install_pretty_json_exits_0_and_parses(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """-F pretty_json: install exits 0 and stdout is valid JSON."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            [
+                "docker",
+                "--dry-run",
+                "--no-discover",
+                "--bin-dir",
+                str(tmp_path / "bin"),
+                "-F",
+                "pretty_json",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        assert "data" in parsed
+
+    def test_install_default_pretty_shows_human_text(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """Default (no -F): install exits 0 and human-readable text appears."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            [
+                "docker",
+                "--dry-run",
+                "--no-discover",
+                "--bin-dir",
+                str(tmp_path / "bin"),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "dry run" in result.output.lower() or "would" in result.output.lower()
+
+    def test_install_json_stdout_is_pure_json(self, runner, tmp_path, monkeypatch):
+        """-F json: stdout contains no leading human text before the JSON."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            [
+                "docker",
+                "--dry-run",
+                "--no-discover",
+                "--bin-dir",
+                str(tmp_path / "bin"),
+                "-F",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        # Must parse cleanly from position 0 — no leading prose
+        json.loads(result.output)
+
+    # ------------------------------------------------------------------
+    # uninstall
+    # ------------------------------------------------------------------
+
+    def test_uninstall_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
+        """-F json: uninstall exits 0 and stdout is valid JSON with expected shape."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import uninstall_cmd
+
+        result = runner.invoke(
+            uninstall_cmd,
+            [
+                "docker",
+                "--dry-run",
+                "-F",
+                "json",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        data = parsed["data"]
+        assert data["helper"] == "docker"
+        assert data["dry_run"] is True
+        assert isinstance(data["actions"], list)
+        assert isinstance(data["warnings"], list)
+
+    def test_uninstall_pretty_json_exits_0_and_parses(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """-F pretty_json: uninstall exits 0 and stdout is valid JSON."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import uninstall_cmd
+
+        result = runner.invoke(
+            uninstall_cmd,
+            [
+                "docker",
+                "--dry-run",
+                "-F",
+                "pretty_json",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        assert "data" in parsed
+
+    def test_uninstall_default_pretty_shows_human_text(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """Default (no -F): uninstall exits 0 and human-readable text appears."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import uninstall_cmd
+
+        result = runner.invoke(
+            uninstall_cmd,
+            ["docker", "--dry-run"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        # dry-run with nothing installed produces output like "nothing to remove"
+        assert len(result.output) > 0
+
+    # ------------------------------------------------------------------
+    # list
+    # ------------------------------------------------------------------
+
+    # Deterministic status fixture used by all list tests — includes a launcher
+    # path so that the "launcher present" JSON-serialisation path is exercised.
+    _STUB_STATUS = {
+        "launcher": "/some/bin/docker-credential-cloudsmith",
+        "hosts": ["docker.cloudsmith.io"],
+    }
+
+    # Deterministic status return value used by all list tests — includes a
+    # launcher path so the "launcher present" JSON-serialisation path is covered.
+    _STUB_STATUS = {
+        "launcher": "/some/bin/docker-credential-cloudsmith",
+        "hosts": ["docker.cloudsmith.io"],
+    }
+
+    @staticmethod
+    def _stub_status(_self):
+        return {
+            "launcher": "/some/bin/docker-credential-cloudsmith",
+            "hosts": ["docker.cloudsmith.io"],
+        }
+
+    def test_list_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
+        """-F json: list exits 0 and stdout is valid JSON with expected shape.
+
+        DockerInstaller.status is patched to return a deterministic dict WITH a
+        launcher path present so this test covers the previously-failing
+        serialisation of pathlib.Path values.
+        """
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
+
+        from ....cli.commands.credential_helper.manage import list_cmd
+
+        result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        data = parsed["data"]
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        docker_entry = next(e for e in data if e["helper"] == "docker")
+        assert "launcher" in docker_entry
+        assert docker_entry["launcher"] == "/some/bin/docker-credential-cloudsmith"
+        assert "hosts" in docker_entry
+        assert docker_entry["hosts"] == ["docker.cloudsmith.io"]
+        assert isinstance(docker_entry["hosts"], list)
+
+    def test_list_pretty_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
+        """-F pretty_json: list exits 0 and stdout is valid JSON.
+
+        Launcher present in patched status ensures Path serialisation is covered.
+        """
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
+
+        from ....cli.commands.credential_helper.manage import list_cmd
+
+        result = runner.invoke(list_cmd, ["-F", "pretty_json"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        assert "data" in parsed
+
+    def test_list_default_pretty_shows_docker(self, runner, tmp_path, monkeypatch):
+        """Default (no -F): list exits 0 and docker entry with launcher path appears in output."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
+
+        from ....cli.commands.credential_helper.manage import list_cmd
+
+        result = runner.invoke(list_cmd, [], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert "docker" in result.output
+        assert "/some/bin/docker-credential-cloudsmith" in result.output
+
+    def test_list_json_stdout_is_pure_json(self, runner, tmp_path, monkeypatch):
+        """-F json: stdout starts with '{' — no human text leaks before JSON.
+
+        Regression guard: previously failed with "Failed to convert to JSON:
+        Type <class 'pathlib.PosixPath'> not serializable" when a launcher was
+        present. Patching status with a launcher-present dict reproduces that
+        environment deterministically.
+        """
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
+
+        from ....cli.commands.credential_helper.manage import list_cmd
+
+        result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        # Strip trailing whitespace only; the first non-whitespace char must open JSON
+        assert result.output.strip().startswith("{")
+        data = json.loads(result.output)
+        docker_entry = next(e for e in data["data"] if e["helper"] == "docker")
+        assert docker_entry["launcher"] == "/some/bin/docker-credential-cloudsmith"

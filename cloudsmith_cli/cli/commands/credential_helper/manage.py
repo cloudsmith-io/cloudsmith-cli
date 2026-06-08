@@ -14,7 +14,13 @@ import sys
 import click
 
 from ....credential_helpers.docker.installer import DockerInstaller
-from ...decorators import common_api_auth_options, resolve_credentials
+from ... import utils
+from ...decorators import (
+    common_api_auth_options,
+    common_cli_config_options,
+    common_cli_output_options,
+    resolve_credentials,
+)
 
 # ---------------------------------------------------------------------------
 # Helper registry — extend here when new helpers are added
@@ -93,9 +99,13 @@ def _get_installer(name: str):
     default=None,
     help="Cloudsmith organisation slug for custom-domain discovery.",
 )
+@common_cli_config_options
+@common_cli_output_options
 @common_api_auth_options
 @resolve_credentials
+@click.pass_context
 def install_cmd(
+    ctx,
     opts,
     helper: str,
     bin_dir: str | None,
@@ -152,13 +162,24 @@ def install_cmd(
             f"Failed to install {helper!r} credential helper: {exc}"
         )
 
+    use_stderr = utils.should_use_stderr(opts)
+    warnings = [a for a in actions if a.startswith("WARNING")]
+    normal = [a for a in actions if not a.startswith("WARNING")]
+    data = {
+        "helper": helper,
+        "dry_run": dry_run,
+        "actions": normal,
+        "warnings": warnings,
+    }
+    if utils.maybe_print_as_json(opts, data):
+        return
+
     if dry_run:
-        click.echo("Dry run — no changes will be made:")
-    for action in actions:
-        if action.startswith("WARNING"):
-            click.secho(f"  {action}" if dry_run else action, err=True, fg="yellow")
-        else:
-            click.echo(f"  {action}" if dry_run else action)
+        click.echo("Dry run — no changes will be made:", err=use_stderr)
+    for action in normal:
+        click.echo(f"  {action}" if dry_run else action, err=use_stderr)
+    for warning in warnings:
+        click.secho(f"  {warning}" if dry_run else warning, err=True, fg="yellow")
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +198,10 @@ def install_cmd(
     default=False,
     help="Show what would be done without making any changes.",
 )
-def uninstall_cmd(helper: str, bin_dir: str | None, dry_run: bool) -> None:
+@common_cli_config_options
+@common_cli_output_options
+@click.pass_context
+def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
@@ -200,13 +224,24 @@ def uninstall_cmd(helper: str, bin_dir: str | None, dry_run: bool) -> None:
             f"Failed to uninstall {helper!r} credential helper: {exc}"
         )
 
+    use_stderr = utils.should_use_stderr(opts)
+    warnings = [a for a in actions if a.startswith("WARNING")]
+    normal = [a for a in actions if not a.startswith("WARNING")]
+    data = {
+        "helper": helper,
+        "dry_run": dry_run,
+        "actions": normal,
+        "warnings": warnings,
+    }
+    if utils.maybe_print_as_json(opts, data):
+        return
+
     if dry_run:
-        click.echo("Dry run — no changes will be made:")
-    for action in actions:
-        if action.startswith("WARNING"):
-            click.secho(f"  {action}" if dry_run else action, err=True, fg="yellow")
-        else:
-            click.echo(f"  {action}" if dry_run else action)
+        click.echo("Dry run — no changes will be made:", err=use_stderr)
+    for action in normal:
+        click.echo(f"  {action}" if dry_run else action, err=use_stderr)
+    for warning in warnings:
+        click.secho(f"  {warning}" if dry_run else warning, err=True, fg="yellow")
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +250,10 @@ def uninstall_cmd(helper: str, bin_dir: str | None, dry_run: bool) -> None:
 
 
 @click.command("list")
-def list_cmd() -> None:
+@common_cli_config_options
+@common_cli_output_options
+@click.pass_context
+def list_cmd(ctx, opts) -> None:
     """List available credential helpers and their installation status.
 
     Shows which helpers are available, whether their launcher binary is
@@ -226,18 +264,36 @@ def list_cmd() -> None:
     \b
         $ cloudsmith credential-helper list
     """
+    use_stderr = utils.should_use_stderr(opts)
+
+    data = []
     for name, cls in sorted(_INSTALLERS.items()):
         installer = cls()
         st = installer.status()
-        launcher = st.get("launcher")
-        hosts = st.get("hosts", [])
+        data.append(
+            {
+                "helper": name,
+                "summary": installer.summary,
+                "launcher": st.get("launcher"),
+                "hosts": st.get("hosts", []),
+            }
+        )
 
-        click.echo(f"{name}  ({installer.summary})")
+    if utils.maybe_print_as_json(opts, data):
+        return
+
+    for entry in data:
+        name = entry["helper"]
+        launcher = entry["launcher"]
+        hosts = entry["hosts"]
+        summary = entry["summary"]
+
+        click.echo(f"{name}  ({summary})", err=use_stderr)
         if launcher:
-            click.echo(f"  launcher : {launcher}")
+            click.echo(f"  launcher : {launcher}", err=use_stderr)
         else:
-            click.echo("  launcher : not installed")
+            click.echo("  launcher : not installed", err=use_stderr)
         if hosts:
-            click.echo(f"  hosts    : {', '.join(hosts)}")
+            click.echo(f"  hosts    : {', '.join(hosts)}", err=use_stderr)
         else:
-            click.echo("  hosts    : none configured")
+            click.echo("  hosts    : none configured", err=use_stderr)
