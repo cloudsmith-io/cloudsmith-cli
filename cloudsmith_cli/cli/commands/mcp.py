@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import click
@@ -16,6 +17,7 @@ from .main import main
 
 SUPPORTED_MCP_CLIENTS = {
     "claude": "Claude Desktop",
+    "claude-code": "Claude Code",
     "cursor": "Cursor IDE",
     "vscode": "VS Code",
     "gemini-cli": "Gemini CLI",
@@ -196,12 +198,17 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     This command automatically adds the Cloudsmith MCP server configuration
     to the specified client's configuration file. Supported clients are:
     - Claude Desktop
+    - Claude Code
     - Cursor IDE
     - VS Code (GitHub Copilot)
     - Gemini CLI
 
+    For Claude Code, --global edits ~/.claude.json (user scope) and
+    --local writes ./.mcp.json (project scope, intended to be committed).
+
     Examples:\n
         cloudsmith mcp configure --client claude\n
+        cloudsmith mcp configure --client claude-code\n
         cloudsmith mcp configure --client cursor --local\n
         cloudsmith mcp configure --client gemini-cli\n
         cloudsmith mcp configure  # Auto-detect and configure all
@@ -315,10 +322,16 @@ def _get_server_config(profile=None):
 def detect_available_clients():
     """Detect which MCP clients are available on the system."""
     available = []
+    home = Path.home()
 
     for client in SUPPORTED_MCP_CLIENTS:
         config = get_config_path(client, is_global=True)
-        if config and config.parent.exists():
+        if not config:
+            continue
+        # Parent-dir existence is the usual "app installed" marker, but a
+        # parent of $HOME (Claude Code) tells us nothing; require the file
+        # itself in that case.
+        if config.exists() or (config.parent.exists() and config.parent != home):
             available.append(client)
 
     return available
@@ -343,6 +356,10 @@ def get_config_path(client_name, is_global=True):
                 else None
             ),
             "linux": home / ".config" / "Claude" / "claude_desktop_config.json",
+        },
+        "claude-code": {
+            "global": home / ".claude.json",
+            "local": Path.cwd() / ".mcp.json",
         },
         "cursor": {
             "global": home / ".cursor" / "mcp.json",
@@ -369,8 +386,8 @@ def get_config_path(client_name, is_global=True):
 
     client_config = config_paths.get(client_name, {})
 
-    # For Cursor and Gemini CLI, use global/local scope instead of platform
-    if client_name in ("cursor", "gemini-cli"):
+    # For scope-keyed (not platform-keyed) clients, look up by global/local.
+    if client_name in ("claude-code", "cursor", "gemini-cli"):
         scope = "global" if is_global else "local"
         return client_config.get(scope)
 
@@ -385,47 +402,119 @@ def get_config_path(client_name, is_global=True):
 
 def configure_client(client_name, server_config, is_global=True, profile=None):
     """Configure a specific MCP client with the Cloudsmith server."""
-    config_path = get_config_path(client_name, is_global)
+    server_name = f"cloudsmith-{profile}" if profile else "cloudsmith"
 
+    if client_name == "claude-code":
+        return _configure_claude_code(server_name, server_config, is_global)
+
+    config_path = get_config_path(client_name, is_global)
     if not config_path:
         return False
 
-    # Ensure parent directory exists
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    key = "chat.mcp.servers" if client_name == "vscode" else "mcpServers"
 
-    # Read existing config or create new one
-    config = {}
-    if config_path.exists():
-        with open(config_path) as f:
-            content = f.read()
-        try:
-            # Use json5 first as it handles both standard JSON and JSONC
-            # (comments, trailing commas) which VS Code settings.json may contain
-            config = json5.loads(content)
-        except (json.JSONDecodeError, ValueError) as e:
-            raise ValueError(
-                f"Cannot parse config file '{config_path}': {e}. "
-                f"Please fix the JSON syntax or remove the file to create a new one."
-            ) from e
+    def mutate(config):
+        config.setdefault(key, {})[server_name] = server_config
 
-    # Determine server name based on profile
-    server_name = f"cloudsmith-{profile}" if profile else "cloudsmith"
-
-    # Add Cloudsmith MCP server based on client format
-    if client_name in {"claude", "cursor", "gemini-cli"}:
-        if "mcpServers" not in config:
-            config["mcpServers"] = {}
-        config["mcpServers"][server_name] = server_config
-
-    elif client_name == "vscode":
-        # VS Code uses a different format in settings.json
-        if "chat.mcp.servers" not in config:
-            config["chat.mcp.servers"] = {}
-        config["chat.mcp.servers"][server_name] = server_config
-
-    # Write updated config
-    with open(config_path, "w") as f:
-        # As we are using json5 to read, we write standard JSON back, which removes existing user JSON comments in the files (currently only present in VS Code settings.json).
-        json.dump(config, f, indent=2)
-
+    _safe_update_json(config_path, mutate)
     return True
+
+
+def _configure_claude_code(server_name, server_config, is_global):
+    """Register the Cloudsmith MCP server with Claude Code.
+
+    Why direct edit (not `claude mcp add-json`): avoids requiring the Claude
+    Code CLI on PATH. _safe_update_json handles the race with a running
+    Claude Code session writing to ~/.claude.json.
+    """
+    path = get_config_path("claude-code", is_global=is_global)
+    if is_global and not path.exists():
+        raise ValueError(
+            f"{path} not found. Launch Claude Code at least once, "
+            "then re-run this command."
+        )
+
+    def mutate(config):
+        config.setdefault("mcpServers", {})[server_name] = server_config
+
+    _safe_update_json(path, mutate)
+    return True
+
+
+def _atomic_write_json(path: Path, data) -> None:
+    """Write JSON to ``path`` atomically via a tempfile + os.replace.
+
+    Preserves the destination's existing file mode when present.
+
+    Follows symlinks before writing so dotfile-managed configs (a symlinked
+    ~/.claude.json, settings.json, etc.) update through to the real file
+    rather than getting the link replaced.
+    """
+    if path.is_symlink():
+        path = Path(os.path.realpath(path))
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing_mode = path.stat().st_mode & 0o777 if path.exists() else None
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    )
+    tmp_path = Path(tmp.name)
+    try:
+        with tmp as f:
+            # json5 is used for reading; we write standard JSON, which drops
+            # any user comments (currently only relevant for VS Code's JSONC).
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        if existing_mode is not None:
+            os.chmod(tmp_path, existing_mode)
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _safe_update_json(path: Path, mutate, *, max_retries: int = 3) -> None:
+    """Read JSON at ``path``, apply ``mutate(dict)``, atomic-write back.
+
+    Retries on mtime change between read and replace -- guards against a
+    concurrent writer (e.g. a running Claude Code session updating
+    ~/.claude.json, or VS Code editing settings.json) clobbering deltas.
+    """
+    for _ in range(max_retries):
+        if path.exists():
+            mtime_before = path.stat().st_mtime_ns
+            with open(path) as f:
+                content = f.read()
+            try:
+                config = json5.loads(content)
+            except (json.JSONDecodeError, ValueError) as e:
+                raise ValueError(
+                    f"Cannot parse config file '{path}': {e}. "
+                    "Please fix the JSON syntax or remove the file to "
+                    "create a new one."
+                ) from e
+        else:
+            mtime_before = None
+            config = {}
+
+        mutate(config)
+
+        if mtime_before is not None and path.stat().st_mtime_ns != mtime_before:
+            continue
+
+        _atomic_write_json(path, config)
+        return
+
+    raise ValueError(
+        f"Could not safely update {path}: another process keeps modifying "
+        "it. Close the consuming app and retry."
+    )
