@@ -192,11 +192,6 @@ class TestResolveBinDir:
         assert result_str == expected_str
 
 
-# ---------------------------------------------------------------------------
-# is_on_path
-# ---------------------------------------------------------------------------
-
-
 class TestIsOnPath:
     """Tests for is_on_path."""
 
@@ -349,11 +344,6 @@ class TestDockerInstallerDryRun:
         assert any("docker.cloudsmith.io" in a for a in actions)
 
 
-# ---------------------------------------------------------------------------
-# DockerInstaller.install — idempotency
-# ---------------------------------------------------------------------------
-
-
 class TestDockerInstallerIdempotent:
     """Tests for idempotent second-run behaviour."""
 
@@ -465,6 +455,37 @@ class TestDockerInstallerUninstall:
         assert launcher.exists()
         assert json.loads(cfg_path.read_text()) == data
         assert any("would remove" in a for a in actions)
+
+    def test_custom_bin_dir_launcher_is_removed(self, tmp_path, monkeypatch):
+        """uninstall(bin_dir=<custom>) removes the launcher installed there."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        custom_bin_dir = tmp_path / "custom_bin"
+        installer = DockerInstaller()
+        installer.install(bin_dir=str(custom_bin_dir))
+        launcher = custom_bin_dir / "docker-credential-cloudsmith"
+        assert launcher.exists(), "Precondition: launcher must exist after install"
+        installer.uninstall(bin_dir=str(custom_bin_dir))
+        assert not launcher.exists(), "Launcher must be removed after uninstall"
+
+    def test_uninstall_wrong_bin_dir_leaves_launcher_intact(
+        self, tmp_path, monkeypatch
+    ):
+        """uninstall(bin_dir=<other>) reports nothing-to-remove; launcher in original dir stays."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        custom_bin_dir = tmp_path / "custom_bin"
+        installer = DockerInstaller()
+        installer.install(bin_dir=str(custom_bin_dir))
+        launcher = custom_bin_dir / "docker-credential-cloudsmith"
+        assert launcher.exists(), "Precondition: launcher must exist after install"
+        other_dir = tmp_path / "other_bin"
+        other_dir.mkdir(parents=True)
+        actions = installer.uninstall(bin_dir=str(other_dir))
+        assert launcher.exists(), "Launcher in custom_bin must remain untouched"
+        assert any(
+            "nothing to remove" in a for a in actions
+        ), f"Expected 'nothing to remove' in actions, got: {actions}"
 
 
 # ---------------------------------------------------------------------------

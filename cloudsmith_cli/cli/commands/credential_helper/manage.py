@@ -169,12 +169,15 @@ def install_cmd(
 @click.command("uninstall")
 @click.argument("helper")
 @click.option(
+    "--bin-dir", default=None, help="Directory where the launcher binary was installed."
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
     help="Show what would be done without making any changes.",
 )
-def uninstall_cmd(helper: str, dry_run: bool) -> None:
+def uninstall_cmd(helper: str, bin_dir: str | None, dry_run: bool) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
@@ -191,7 +194,7 @@ def uninstall_cmd(helper: str, dry_run: bool) -> None:
     """
     installer = _get_installer(helper)
     try:
-        actions = installer.uninstall(dry_run=dry_run)
+        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"

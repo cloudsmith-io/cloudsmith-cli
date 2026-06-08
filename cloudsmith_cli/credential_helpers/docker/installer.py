@@ -209,7 +209,9 @@ class DockerInstaller:
 
         return actions
 
-    def uninstall(self, *, dry_run: bool = False) -> list[str]:
+    def uninstall(
+        self, *, bin_dir: str | None = None, dry_run: bool = False
+    ) -> list[str]:
         """Uninstall the Docker credential helper.
 
         Removes the launcher binary and strips Cloudsmith-managed entries from
@@ -217,6 +219,11 @@ class DockerInstaller:
 
         Parameters
         ----------
+        bin_dir:
+            Override for the directory where the launcher was installed.
+            Defaults to :func:`resolve_bin_dir` auto-detection.  Pass the same
+            value that was given to :meth:`install` so the correct launcher file
+            is found and removed.
         dry_run:
             When ``True``, return planned actions without writing any files.
 
@@ -225,7 +232,7 @@ class DockerInstaller:
         list[str]
             Human-readable descriptions of actions taken (or planned).
         """
-        target_dir = resolve_bin_dir()
+        target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
 
         def mutate(config: dict) -> None:
