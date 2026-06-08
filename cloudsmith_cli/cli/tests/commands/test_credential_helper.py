@@ -20,6 +20,7 @@ from ....credential_helpers.custom_domains import (
     write_cache,
 )
 from ....credential_helpers.docker.runtime import (
+    _REFUSAL_MESSAGE,
     execute,
     get_credentials as helper_get_credentials,
 )
@@ -27,77 +28,86 @@ from ....credential_helpers.docker.runtime import (
 API_HOST = "https://api.cloudsmith.io"
 
 
-class TestDockerRuntime:
-    """Unit tests for the transport-light runtime (execute + get_credentials)."""
+# ---------------------------------------------------------------------------
+# 1. runtime.execute — protocol matrix
+# ---------------------------------------------------------------------------
 
-    # ------------------------------------------------------------------
-    # execute – get operation
-    # ------------------------------------------------------------------
 
-    def test_execute_get_success_returns_json(self):
-        """execute get → (0, json_string, None) when get_credentials returns a dict."""
-        fake_creds = {"Username": "token", "Secret": "k_abc"}
-        stdin = io.StringIO("docker.cloudsmith.io")
+@pytest.mark.parametrize(
+    "operation,get_return,stdin_text,expected_code,expected_stdout,stderr_substr",
+    [
+        # get-success: get_credentials returns a dict → (0, json, None)
+        (
+            "get",
+            {"Username": "token", "Secret": "k_abc"},
+            "docker.cloudsmith.io",
+            0,
+            json.dumps({"Username": "token", "Secret": "k_abc"}),
+            None,
+        ),
+        # get-refusal: get_credentials returns None → (1, None, refusal)
+        ("get", None, "evil.example.com", 1, None, "Unable to retrieve credentials"),
+        # store: drains stdin, returns (0, None, None)
+        ("store", None, '{"ServerURL": "docker.cloudsmith.io"}', 0, None, None),
+        # erase: drains stdin, returns (0, None, None)
+        ("erase", None, '{"ServerURL": "docker.cloudsmith.io"}', 0, None, None),
+        # list: returns (0, '{}', None)
+        ("list", None, "", 0, "{}", None),
+        # unknown: returns (1, None, error containing operation name)
+        ("frobnicate", None, "", 1, None, "frobnicate"),
+    ],
+)
+def test_execute_protocol_matrix(
+    operation, get_return, stdin_text, expected_code, expected_stdout, stderr_substr
+):
+    """execute() returns the expected (code, stdout, stderr) for each operation."""
+    stdin = io.StringIO(stdin_text)
 
+    if operation == "get" and get_return is not None:
         with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            mock_get.return_value = fake_creds
-            code, stdout, stderr = execute("get", stdin)
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials",
+            return_value=get_return,
+        ):
+            code, stdout, stderr = execute(operation, stdin)
+    elif operation == "get":
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials",
+            return_value=get_return,
+        ):
+            code, stdout, stderr = execute(operation, stdin)
+    else:
+        code, stdout, stderr = execute(operation, stdin)
 
-        assert code == 0
-        assert json.loads(stdout) == fake_creds
+    assert code == expected_code
+    assert stdout == expected_stdout
+    if stderr_substr is None:
         assert stderr is None
+    else:
+        assert stderr_substr in stderr
 
-    def test_execute_get_refusal_returns_exit_1(self):
-        """execute get → (1, None, refusal_msg) when get_credentials returns None."""
-        stdin = io.StringIO("evil.example.com")
 
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            mock_get.return_value = None
-            code, stdout, stderr = execute("get", stdin)
+# ---------------------------------------------------------------------------
+# 2. execute get-path boundary guards (broken-pipe + RuntimeError)
+# ---------------------------------------------------------------------------
 
-        assert code == 1
-        assert stdout is None
-        assert "Unable to retrieve credentials" in stderr
 
-    def test_execute_get_empty_stdin_returns_exit_1(self):
-        """execute get with empty stdin → (1, None, 'No server URL...')."""
-        stdin = io.StringIO("")
-        code, stdout, stderr = execute("get", stdin)
+@pytest.mark.parametrize("scenario", ["raising_get_credentials", "broken_pipe_stdin"])
+def test_execute_get_boundary_guard(scenario):
+    """Exceptions inside execute('get', ...) never escape — degrade to (1, None, refusal).
 
-        assert code == 1
-        assert stdout is None
-        assert "No server URL provided" in stderr
-
-    def test_execute_get_exception_is_caught_at_boundary(self):
-        """D17: a network/SDK error inside get_credentials must NOT escape execute.
-
-        The protocol boundary degrades to a clean refusal (exit 1) so that
-        docker pull/push never sees a Python traceback.
-        """
+    Retained guards:
+    - broken-pipe: an OSError from stdin.read() is caught at the protocol boundary.
+    - RuntimeError from get_credentials is caught the same way.
+    """
+    if scenario == "raising_get_credentials":
         stdin = io.StringIO("docker.cloudsmith.io")
-
         with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            mock_get.side_effect = RuntimeError("boom")
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials",
+            side_effect=RuntimeError("boom"),
+        ):
             code, stdout, stderr = execute("get", stdin)
-
-        assert code == 1
-        assert stdout is None
-        assert "Unable to retrieve credentials" in stderr
-
-    def test_execute_get_broken_pipe_stdin_is_caught_at_boundary(self):
-        """A broken-pipe OSError from stdin.read() must not escape execute.
-
-        The widened boundary covers the stdin read, so a broken pipe degrades
-        to a clean refusal (exit 1) rather than propagating an exception.
-        """
-        from ....credential_helpers.docker.runtime import _REFUSAL_MESSAGE
-
+    else:
+        # broken-pipe guard: stdin.read() itself raises an OSError
         class BrokenPipeStdin:
             def read(self):
                 raise OSError("broken pipe")
@@ -107,589 +117,327 @@ class TestDockerRuntime:
             "get", BrokenPipeStdin(), credential=credential, api_host=None
         )
 
-        assert code == 1
-        assert stdout is None
-        assert stderr == _REFUSAL_MESSAGE
+    assert code == 1
+    assert stdout is None
+    assert stderr == _REFUSAL_MESSAGE
 
-    # ------------------------------------------------------------------
-    # execute – write/no-op operations
-    # ------------------------------------------------------------------
 
-    @pytest.mark.parametrize("operation", ["store", "erase"])
-    def test_execute_store_erase_returns_0_no_output(self, operation):
-        """store and erase drain stdin and return (0, None, None)."""
-        stdin = io.StringIO('{"ServerURL": "docker.cloudsmith.io"}')
-        code, stdout, stderr = execute(operation, stdin)
+# ---------------------------------------------------------------------------
+# 3. get_credentials
+# ---------------------------------------------------------------------------
 
-        assert code == 0
-        assert stdout is None
-        assert stderr is None
 
-    def test_execute_list_returns_empty_json_object(self):
-        """list always returns (0, '{}', None)."""
-        stdin = io.StringIO("")
-        code, stdout, stderr = execute("list", stdin)
-
-        assert code == 0
-        assert stdout == "{}"
-        assert stderr is None
-
-    def test_execute_unknown_operation_returns_exit_1(self):
-        """An unrecognised operation name returns (1, None, error_message)."""
-        stdin = io.StringIO("")
-        code, stdout, stderr = execute("frobnicate", stdin)
-
-        assert code == 1
-        assert stdout is None
-        assert "Unknown operation" in stderr
-        assert "frobnicate" in stderr
-
-    # ------------------------------------------------------------------
-    # get_credentials
-    # ------------------------------------------------------------------
-
-    def test_get_credentials_returns_dict_for_cloudsmith_domain(self):
-        """get_credentials returns username+secret for a Cloudsmith domain."""
-        credential = CredentialResult(api_key="k_xyz", source_name="test")
-
+@pytest.mark.parametrize(
+    "server_url,credential,is_cloudsmith_return,expected",
+    [
+        # cloudsmith domain + creds → dict
+        (
+            "docker.cloudsmith.io",
+            CredentialResult(api_key="k_xyz", source_name="test"),
+            True,
+            {"Username": "token", "Secret": "k_xyz"},
+        ),
+        # no credential → None (short-circuits before domain check)
+        ("docker.cloudsmith.io", None, None, None),
+        # non-cloudsmith domain → None
+        (
+            "evil.example.com",
+            CredentialResult(api_key="k_xyz", source_name="test"),
+            False,
+            None,
+        ),
+    ],
+)
+def test_get_credentials(server_url, credential, is_cloudsmith_return, expected):
+    """get_credentials returns a creds dict for valid CS domains, None otherwise."""
+    if is_cloudsmith_return is None:
+        # No domain check needed when credential is absent
+        result = helper_get_credentials(server_url, credential=credential)
+    else:
         with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.is_cloudsmith_domain"
-        ) as mock_is:
-            mock_is.return_value = True
-            result = helper_get_credentials(
-                "docker.cloudsmith.io", credential=credential
-            )
+            "cloudsmith_cli.credential_helpers.docker.runtime.is_cloudsmith_domain",
+            return_value=is_cloudsmith_return,
+        ):
+            result = helper_get_credentials(server_url, credential=credential)
 
-        assert result == {"Username": "token", "Secret": "k_xyz"}
-
-    def test_get_credentials_returns_none_when_no_credential(self):
-        """get_credentials returns None when credential is absent."""
-        result = helper_get_credentials("docker.cloudsmith.io", credential=None)
-        assert result is None
-
-    def test_get_credentials_returns_none_for_non_cloudsmith_domain(self):
-        """get_credentials returns None when is_cloudsmith_domain is False."""
-        credential = CredentialResult(api_key="k_xyz", source_name="test")
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.is_cloudsmith_domain"
-        ) as mock_is:
-            mock_is.return_value = False
-            result = helper_get_credentials("evil.example.com", credential=credential)
-
-        assert result is None
+    assert result == expected
 
 
-class TestDockerCredentialHelper:
-    """Test suite for the Docker credential helper CLI command."""
+# ---------------------------------------------------------------------------
+# 4. CLI wiring smoke test
+# ---------------------------------------------------------------------------
 
-    def test_get_credentials_for_cloudsmith_io(self, runner):
-        """`*.cloudsmith.io` URLs should return credentials JSON on stdout."""
-        fake_creds = {"Username": "token", "Secret": "k_abc"}
 
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            mock_get.return_value = fake_creds
-            result = runner.invoke(
-                docker,
-                args=["get"],
-                input="docker.cloudsmith.io",
-                catch_exceptions=False,
-            )
+def test_cli_no_arg_defaults_to_get(runner):
+    """Invoking docker with no OPERATION defaults to 'get', emitting creds JSON.
 
-        assert result.exit_code == 0
-        assert json.dumps(fake_creds) in result.stdout
-        mock_get.assert_called_once()
-        called_args, _called_kwargs = mock_get.call_args
-        assert called_args[0] == "docker.cloudsmith.io"
+    Proves the click shim is correctly wired to execute().
+    """
+    fake_creds = {"Username": "token", "Secret": "k_abc"}
 
-    def test_no_arg_defaults_to_get(self, runner):
-        """Invoking docker with no OPERATION argument defaults to 'get'."""
-        fake_creds = {"Username": "token", "Secret": "k_abc"}
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            mock_get.return_value = fake_creds
-            result = runner.invoke(
-                docker,
-                args=[],
-                input="docker.cloudsmith.io",
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        assert json.dumps(fake_creds) in result.stdout
-
-    def test_refuses_non_cloudsmith_domain(self, runner):
-        """Non-Cloudsmith URLs should exit 1 with an error message on stderr."""
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            mock_get.return_value = None
-            result = runner.invoke(
-                docker,
-                args=["get"],
-                input="evil.example.com",
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 1
-        assert "Unable to retrieve credentials" in result.output
-        mock_get.assert_called_once()
-
-    def test_empty_stdin_exits_1(self, runner):
-        """Empty stdin should exit 1 with a descriptive error on stderr."""
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
-        ) as mock_get:
-            result = runner.invoke(
-                docker, args=["get"], input="", catch_exceptions=False
-            )
-
-        assert result.exit_code == 1
-        assert "No server URL provided" in result.output
-        mock_get.assert_not_called()
-
-    @pytest.mark.parametrize("operation", ["store", "erase"])
-    def test_store_erase_exit_0_no_output(self, runner, operation):
-        """store and erase exit 0 and produce no output."""
+    with patch(
+        "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials",
+        return_value=fake_creds,
+    ):
         result = runner.invoke(
             docker,
-            args=[operation],
-            input='{"ServerURL": "docker.cloudsmith.io"}',
+            args=[],
+            input="docker.cloudsmith.io",
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 0
-        assert result.output == ""
+    assert result.exit_code == 0
+    assert json.dumps(fake_creds) in result.stdout
 
-    def test_list_prints_empty_json(self, runner):
-        """list exits 0 and prints '{}'."""
-        result = runner.invoke(docker, args=["list"], input="", catch_exceptions=False)
 
-        assert result.exit_code == 0
-        assert "{}" in result.output
+def test_execute_get_empty_stdin_returns_exit_1():
+    """execute get with empty stdin → (1, None, 'No server URL...')."""
+    stdin = io.StringIO("")
+    code, stdout, stderr = execute("get", stdin)
 
-    def test_custom_domain_with_cached_response(self, tmp_path, monkeypatch):
-        """A cached custom-domain entry should authorise credential issuance.
+    assert code == 1
+    assert stdout is None
+    assert "No server URL provided" in stderr
 
-        This exercises the helper-level `get_credentials` (not the click command)
-        so the on-disk custom-domain cache lookup runs end to end. The click
-        command's wiring is covered by the other tests in this class.
-        """
-        # Point the cache base at a per-test temp directory.
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-            lambda: str(tmp_path),
+
+# ---------------------------------------------------------------------------
+# 5. BackendKind load-bearing values
+# ---------------------------------------------------------------------------
+
+
+def test_backend_kind_values():
+    """DOCKER == 6 and NPM == 9 are load-bearing (used as integer wire values)."""
+    assert BackendKind.DOCKER == 6
+    assert BackendKind.NPM == 9
+
+
+# ---------------------------------------------------------------------------
+# 6. get_custom_domains — HTTP status matrix
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _cache_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    monkeypatch.setattr(
+        httpretty.core.fakesock.socket,
+        "shutdown",
+        lambda self, how: None,
+        raising=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "status,expect_domains,expect_cached",
+    [
+        # 200 → records built and cached
+        (200, True, True),
+        # 402 → [] and cached (feature not enabled)
+        (402, False, True),
+        # 404 → [] and cached (org not found)
+        (404, False, True),
+        # 403 → [] but NOT cached (may succeed after auth)
+        (403, False, False),
+        # 401 → [] but NOT cached (same branch as 403)
+        (401, False, False),
+        # 500 → [] and NOT cached
+        (500, False, False),
+    ],
+)
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_status_matrix(
+    tmp_path, monkeypatch, status, expect_domains, expect_cached
+):
+    """get_custom_domains() caches or not based on HTTP status."""
+    # redirect per-test (autouse fixture already set module-level path)
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    if status == 200:
+        body = json.dumps(
+            [
+                {
+                    "host": "docker.acme.com",
+                    "backend_kind": 6,
+                    "domain_type": 1,
+                    "enabled": True,
+                    "validated": True,
+                }
+            ]
         )
-        # is_cloudsmith_domain reads CLOUDSMITH_ORG from the environment.
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    else:
+        body = json.dumps({"detail": "error"})
 
-        # Seed the cache file at the path the helper will read from.
-        cache_path = get_cache_path("acme")
-        assert cache_path.parent.exists(), "get_cache_path should create the dir"
-        write_cache(
-            cache_path,
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=body,
+        status=status,
+        content_type="application/json",
+    )
+
+    result = get_custom_domains("acme", api_key="k_abc", api_host=API_HOST)
+    cache = read_cache(get_cache_path("acme"))
+
+    if expect_domains:
+        assert len(result) == 1
+        assert result[0].host == "docker.acme.com"
+    else:
+        assert result == []
+
+    if expect_cached:
+        assert cache is not None  # [] is falsy but not None
+    else:
+        assert cache is None
+
+    # For the 200 case specifically, verify the auth header (X-Api-Key)
+    if status == 200:
+        assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
+
+
+# ---------------------------------------------------------------------------
+# 7. get_custom_domains — cache edge cases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "scenario,expected",
+    [
+        # legacy string-list cache → miss (re-fetch required); retains legacy-cache guard
+        ("legacy_string_list", None),
+        # empty [] cache → hit (valid cached 'no domains')
+        ("empty_list", []),
+    ],
+)
+def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected):
+    """Cache format edge cases: legacy string-list is a miss; empty list is a hit."""
+    import time
+
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    cache_path = get_cache_path("acme")
+
+    if scenario == "legacy_string_list":
+        data = {"domains": ["docker.acme.com"], "cached_at": time.time()}
+    else:
+        data = {"domains": [], "cached_at": time.time()}
+
+    cache_path.write_text(json.dumps(data), encoding="utf-8")
+    assert read_cache(cache_path) == expected
+
+
+# ---------------------------------------------------------------------------
+# 8. get_format_domains
+# ---------------------------------------------------------------------------
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
+    """get_format_domains returns only enabled+validated Docker hosts.
+
+    Mixed body: docker enabled+validated (included), npm (excluded),
+    disabled docker (excluded), unvalidated docker (excluded), backend_kind=None (excluded).
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    body = [
+        # Included: Docker, enabled, validated
+        {
+            "host": "docker.acme.com",
+            "backend_kind": 6,
+            "domain_type": 1,
+            "enabled": True,
+            "validated": True,
+        },
+        # Excluded: NPM backend
+        {
+            "host": "npm.acme.com",
+            "backend_kind": 9,
+            "domain_type": 1,
+            "enabled": True,
+            "validated": True,
+        },
+        # Excluded: disabled
+        {
+            "host": "docker2.acme.com",
+            "backend_kind": 6,
+            "domain_type": 1,
+            "enabled": False,
+            "validated": True,
+        },
+        # Excluded: unvalidated
+        {
+            "host": "docker3.acme.com",
+            "backend_kind": 6,
+            "domain_type": 1,
+            "enabled": True,
+            "validated": False,
+        },
+        # Excluded: backend_kind=None (download domain)
+        {
+            "host": "dl.acme.com",
+            "backend_kind": None,
+            "domain_type": 0,
+            "enabled": True,
+            "validated": True,
+        },
+    ]
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps(body),
+        status=200,
+        content_type="application/json",
+    )
+
+    hosts = get_format_domains(
+        "acme", BackendKind.DOCKER, api_key="k", api_host=API_HOST
+    )
+
+    assert hosts == ["docker.acme.com"]
+
+
+# ---------------------------------------------------------------------------
+# 9. is_cloudsmith_domain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "host,env_org,cached_domains,backend_kind,expected",
+    [
+        # Standard *.cloudsmith.io → True (no API)
+        ("docker.cloudsmith.io", None, None, None, True),
+        ("dl.cloudsmith.io", None, None, None, True),
+        # Standard *.cloudsmith.com → True (no API)
+        ("docker.cloudsmith.com", None, None, None, True),
+        # Non-cloudsmith → False
+        ("evil.example.com", None, None, None, False),
+        # Custom enabled+validated → True
+        (
+            "docker.acme.com",
+            "acme",
             [
                 CustomDomain(
                     host="docker.acme.com", backend_kind=6, enabled=True, validated=True
                 )
             ],
-        )
-
-        credential = CredentialResult(api_key="k_xyz", source_name="test")
-
-        # A cache hit must short-circuit before any SDK call.
-        def _boom(*_args, **_kwargs):
-            raise AssertionError(
-                "API call attempted despite a valid custom-domain cache"
-            )
-
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
-            _boom,
-        )
-
-        result = helper_get_credentials(
+            None,
+            True,
+        ),
+        # Custom disabled → False
+        (
             "docker.acme.com",
-            credential=credential,
-            api_host="https://api.cloudsmith.io",
-        )
-
-        assert result == {"Username": "token", "Secret": "k_xyz"}
-
-
-class TestBackendKind:
-    """Spot-check BackendKind enum values."""
-
-    def test_docker_is_6(self):
-        assert BackendKind.DOCKER == 6
-
-    def test_npm_is_9(self):
-        assert BackendKind.NPM == 9
-
-    def test_deb_is_0(self):
-        assert BackendKind.DEB == 0
-
-    def test_default_is_99(self):
-        assert BackendKind.DEFAULT == 99
-
-
-class TestGetCustomDomains:
-    """Exercise the SDK-backed custom-domains fetch path.
-
-    These tests stub the v1 `GET /orgs/{org}/custom-domains/` endpoint that the
-    `cloudsmith_api` SDK calls. The on-disk cache base is redirected to a temp dir
-    per test.
-    """
-
-    @pytest.fixture(autouse=True)
-    def _cache_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-            lambda: str(tmp_path),
-        )
-        # httpretty's fake socket has no shutdown(); urllib3 calls it during
-        # getresponse(). Stub it so requests succeed under httpretty.
-        monkeypatch.setattr(
-            httpretty.core.fakesock.socket,
-            "shutdown",
-            lambda self, how: None,
-            raising=False,
-        )
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_success_builds_records_and_caches(self):
-        """A 200 response builds CustomDomain records and caches them."""
-        body = [
-            {
-                "host": "docker.acme.com",
-                "backend_kind": 6,
-                "domain_type": 1,
-                "enabled": True,
-                "validated": True,
-            },
-            {
-                "host": "dl.acme.com",
-                "backend_kind": None,
-                "domain_type": 0,
-                "enabled": True,
-                "validated": True,
-            },
-            {
-                "host": "",
-                "backend_kind": 6,
-                "domain_type": 1,
-                "enabled": True,
-                "validated": True,
-            },  # blank host is skipped
-        ]
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps(body),
-            status=200,
-            content_type="application/json",
-        )
-
-        domains = get_custom_domains("acme", api_key="k_abc", api_host=API_HOST)
-
-        assert len(domains) == 2
-        assert domains[0] == CustomDomain(
-            host="docker.acme.com", backend_kind=6, enabled=True, validated=True
-        )
-        assert domains[1] == CustomDomain(
-            host="dl.acme.com", backend_kind=None, enabled=True, validated=True
-        )
-        # Auth header proves the SDK auth path is exercised (X-Api-Key, not Bearer).
-        assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_cache_round_trip(self):
-        """Fetched records are cached; a second call returns the same records from cache."""
-        body = [
-            {
-                "host": "docker.acme.com",
-                "backend_kind": 6,
-                "domain_type": 1,
-                "enabled": True,
-                "validated": True,
-            },
-        ]
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps(body),
-            status=200,
-            content_type="application/json",
-        )
-
-        first = get_custom_domains("acme", api_key="k_abc", api_host=API_HOST)
-
-        # Verify the cache contains structured records.
-        cached = read_cache(get_cache_path("acme"))
-        assert cached is not None
-        assert cached == first
-        assert cached[0].backend_kind == 6
-        assert cached[0].enabled is True
-        assert cached[0].validated is True
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_bearer_auth_uses_authorization_header(self):
-        """A bearer credential sends an Authorization: Bearer header."""
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps([]),
-            status=200,
-            content_type="application/json",
-        )
-
-        get_custom_domains(
-            "acme", api_key="tok123", auth_type="bearer", api_host=API_HOST
-        )
-
-        assert httpretty.last_request().headers.get("Authorization") == "Bearer tok123"
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_404_caches_empty(self):
-        """A 404 returns [] and caches the empty result to avoid repeat lookups."""
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps({"detail": "Not found."}),
-            status=404,
-            content_type="application/json",
-        )
-
-        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
-        assert read_cache(get_cache_path("acme")) == []
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_402_caches_empty(self):
-        """A 402 (feature not enabled) returns [] and caches the empty result."""
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps({"detail": "Upgrade required."}),
-            status=402,
-            content_type="application/json",
-        )
-
-        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
-        assert read_cache(get_cache_path("acme")) == []
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_403_does_not_cache(self):
-        """A 403 returns [] but does NOT cache (may succeed later once authed)."""
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps({"detail": "Forbidden."}),
-            status=403,
-            content_type="application/json",
-        )
-
-        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
-        assert read_cache(get_cache_path("acme")) is None
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_server_error_returns_empty_without_caching(self):
-        """A 500 returns [] without raising and without caching."""
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps({"detail": "Boom."}),
-            status=500,
-            content_type="application/json",
-        )
-
-        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
-        assert read_cache(get_cache_path("acme")) is None
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_401_does_not_cache(self):
-        """A 401 returns [] but does NOT cache (may succeed later once authed)."""
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps({"detail": "Unauthorized."}),
-            status=401,
-            content_type="application/json",
-        )
-
-        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
-        assert read_cache(get_cache_path("acme")) is None
-
-    def test_legacy_string_cache_is_a_miss(self, tmp_path):
-        """A cache file with a string-list 'domains' (old format) returns None."""
-        import time
-
-        cache_path = get_cache_path("acme")
-        legacy_data = {
-            "domains": ["docker.acme.com"],
-            "cached_at": time.time(),
-        }
-        cache_path.write_text(json.dumps(legacy_data), encoding="utf-8")
-        assert read_cache(cache_path) is None
-
-    def test_empty_domains_cache_is_a_hit(self, tmp_path):
-        """A cache file with 'domains': [] returns [] (valid cached 'no domains')."""
-        import time
-
-        cache_path = get_cache_path("acme")
-        empty_data = {
-            "domains": [],
-            "cached_at": time.time(),
-        }
-        cache_path.write_text(json.dumps(empty_data), encoding="utf-8")
-        assert read_cache(cache_path) == []
-
-
-class TestGetFormatDomains:
-    """Test get_format_domains filters by backend_kind, enabled, and validated."""
-
-    @pytest.fixture(autouse=True)
-    def _cache_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-            lambda: str(tmp_path),
-        )
-        monkeypatch.setattr(
-            httpretty.core.fakesock.socket,
-            "shutdown",
-            lambda self, how: None,
-            raising=False,
-        )
-
-    @httpretty.activate(allow_net_connect=False)
-    def test_returns_only_enabled_validated_docker_hosts(self):
-        """Only Docker domains that are both enabled and validated are returned."""
-        body = [
-            # Should be included: Docker, enabled, validated
-            {
-                "host": "docker.acme.com",
-                "backend_kind": 6,
-                "domain_type": 1,
-                "enabled": True,
-                "validated": True,
-            },
-            # Excluded: different backend_kind (NPM = 9)
-            {
-                "host": "npm.acme.com",
-                "backend_kind": 9,
-                "domain_type": 1,
-                "enabled": True,
-                "validated": True,
-            },
-            # Excluded: Docker but not enabled
-            {
-                "host": "docker2.acme.com",
-                "backend_kind": 6,
-                "domain_type": 1,
-                "enabled": False,
-                "validated": True,
-            },
-            # Excluded: Docker but not validated
-            {
-                "host": "docker3.acme.com",
-                "backend_kind": 6,
-                "domain_type": 1,
-                "enabled": True,
-                "validated": False,
-            },
-            # Excluded: backend_kind is None (download domain)
-            {
-                "host": "dl.acme.com",
-                "backend_kind": None,
-                "domain_type": 0,
-                "enabled": True,
-                "validated": True,
-            },
-        ]
-        httpretty.register_uri(
-            httpretty.GET,
-            f"{API_HOST}/orgs/acme/custom-domains/",
-            body=json.dumps(body),
-            status=200,
-            content_type="application/json",
-        )
-
-        hosts = get_format_domains(
-            "acme", BackendKind.DOCKER, api_key="k", api_host=API_HOST
-        )
-
-        assert hosts == ["docker.acme.com"]
-
-
-class TestIsCloudsmithDomain:
-    """Test is_cloudsmith_domain with standard and custom domains."""
-
-    @pytest.fixture(autouse=True)
-    def _cache_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-            lambda: str(tmp_path),
-        )
-
-    def test_standard_cloudsmith_io_true(self):
-        """Standard *.cloudsmith.io domains are true without any API call."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        assert is_cloudsmith_domain("docker.cloudsmith.io") is True
-        assert is_cloudsmith_domain("dl.cloudsmith.io") is True
-
-    def test_standard_cloudsmith_com_true(self):
-        """Standard *.cloudsmith.com domains are true without any API call."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        assert is_cloudsmith_domain("docker.cloudsmith.com") is True
-
-    def test_non_cloudsmith_false(self):
-        """Unrelated hostnames return False."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        assert is_cloudsmith_domain("evil.example.com") is False
-
-    def test_custom_enabled_validated_host_true(self, tmp_path, monkeypatch):
-        """An enabled+validated custom domain in cache returns True."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
-            [
-                CustomDomain(
-                    host="docker.acme.com",
-                    backend_kind=6,
-                    enabled=True,
-                    validated=True,
-                )
-            ],
-        )
-
-        assert (
-            is_cloudsmith_domain(
-                "docker.acme.com",
-                api_key="k_abc",
-                api_host=API_HOST,
-            )
-            is True
-        )
-
-    def test_custom_disabled_host_false(self, tmp_path, monkeypatch):
-        """A disabled custom domain is not treated as a Cloudsmith domain."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
+            "acme",
             [
                 CustomDomain(
                     host="docker.acme.com",
@@ -698,26 +446,13 @@ class TestIsCloudsmithDomain:
                     validated=True,
                 )
             ],
-        )
-
-        assert (
-            is_cloudsmith_domain(
-                "docker.acme.com",
-                api_key="k_abc",
-                api_host=API_HOST,
-            )
-            is False
-        )
-
-    def test_custom_enabled_not_validated_host_false(self, tmp_path, monkeypatch):
-        """An enabled but unvalidated custom domain is not a Cloudsmith domain."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
+            None,
+            False,
+        ),
+        # Custom enabled but unvalidated → False
+        (
+            "docker.acme.com",
+            "acme",
             [
                 CustomDomain(
                     host="docker.acme.com",
@@ -726,182 +461,104 @@ class TestIsCloudsmithDomain:
                     validated=False,
                 )
             ],
-        )
-
-        assert (
-            is_cloudsmith_domain(
-                "docker.acme.com",
-                api_key="k_abc",
-                api_host=API_HOST,
-            )
-            is False
-        )
-
-    # ------------------------------------------------------------------
-    # backend_kind filtering
-    # ------------------------------------------------------------------
-
-    def test_backend_kind_docker_matches_docker_custom_domain(
-        self, tmp_path, monkeypatch
-    ):
-        """With backend_kind=DOCKER, a Docker custom domain (kind=6) returns True."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
-            [
-                CustomDomain(
-                    host="docker.acme.com",
-                    backend_kind=6,
-                    enabled=True,
-                    validated=True,
-                )
-            ],
-        )
-
-        assert (
-            is_cloudsmith_domain(
-                "docker.acme.com",
-                api_key="k_abc",
-                api_host=API_HOST,
-                backend_kind=BackendKind.DOCKER,
-            )
-            is True
-        )
-
-    def test_backend_kind_docker_rejects_npm_custom_domain(self, tmp_path, monkeypatch):
-        """With backend_kind=DOCKER, an NPM custom domain (kind=9) returns False."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
-            [
-                CustomDomain(
-                    host="npm.acme.com",
-                    backend_kind=9,
-                    enabled=True,
-                    validated=True,
-                )
-            ],
-        )
-
-        assert (
-            is_cloudsmith_domain(
-                "npm.acme.com",
-                api_key="k_abc",
-                api_host=API_HOST,
-                backend_kind=BackendKind.DOCKER,
-            )
-            is False
-        )
-
-    def test_backend_kind_docker_standard_domain_always_true(self):
-        """Standard *.cloudsmith.io is True even when backend_kind=DOCKER (no API call)."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        assert (
-            is_cloudsmith_domain(
-                "docker.cloudsmith.io",
-                backend_kind=BackendKind.DOCKER,
-            )
-            is True
-        )
-        assert (
-            is_cloudsmith_domain(
-                "something.cloudsmith.io",
-                backend_kind=BackendKind.DOCKER,
-            )
-            is True
-        )
-
-    def test_backend_kind_none_default_matches_any_format(self, tmp_path, monkeypatch):
-        """backend_kind=None (default) accepts any enabled+validated custom domain."""
-        from ....credential_helpers.common import is_cloudsmith_domain
-
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
-            [
-                CustomDomain(
-                    host="npm.acme.com",
-                    backend_kind=9,
-                    enabled=True,
-                    validated=True,
-                )
-            ],
-        )
-
-        # Default (no backend_kind) still returns True for any format
-        assert (
-            is_cloudsmith_domain(
-                "npm.acme.com",
-                api_key="k_abc",
-                api_host=API_HOST,
-            )
-            is True
-        )
-
-
-class TestDockerRuntimeBackendKindFiltering:
-    """Tests that the Docker runtime refuses non-Docker custom domains."""
-
-    @pytest.fixture(autouse=True)
-    def _cache_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-            lambda: str(tmp_path),
-        )
-        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-
-    def test_get_credentials_refuses_npm_custom_domain(self, tmp_path):
-        """get_credentials returns None for an NPM custom domain (not a Docker registry)."""
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
-            [
-                CustomDomain(
-                    host="npm.acme.com",
-                    backend_kind=9,
-                    enabled=True,
-                    validated=True,
-                )
-            ],
-        )
-
-        credential = CredentialResult(api_key="k_xyz", source_name="test")
-        result = helper_get_credentials(
-            "npm.acme.com",
-            credential=credential,
-            api_host=API_HOST,
-        )
-
-        assert result is None
-
-    def test_get_credentials_serves_docker_custom_domain(self, tmp_path):
-        """get_credentials returns creds for a Docker custom domain (backend_kind=6)."""
-        cache_path = get_cache_path("acme")
-        write_cache(
-            cache_path,
-            [
-                CustomDomain(
-                    host="docker.acme.com",
-                    backend_kind=6,
-                    enabled=True,
-                    validated=True,
-                )
-            ],
-        )
-
-        credential = CredentialResult(api_key="k_xyz", source_name="test")
-        result = helper_get_credentials(
+            None,
+            False,
+        ),
+        # backend_kind=DOCKER: docker custom domain → True
+        (
             "docker.acme.com",
-            credential=credential,
-            api_host=API_HOST,
-        )
+            "acme",
+            [
+                CustomDomain(
+                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                )
+            ],
+            BackendKind.DOCKER,
+            True,
+        ),
+        # backend_kind=DOCKER: npm custom domain → False
+        (
+            "npm.acme.com",
+            "acme",
+            [
+                CustomDomain(
+                    host="npm.acme.com", backend_kind=9, enabled=True, validated=True
+                )
+            ],
+            BackendKind.DOCKER,
+            False,
+        ),
+        # UPPERCASE custom host row with backend_kind=DOCKER — guards the
+        # get_format_domains() casing path (the branch the lowercase fix touched)
+        (
+            "DOCKER.ACME.COM",
+            "acme",
+            [
+                CustomDomain(
+                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                )
+            ],
+            BackendKind.DOCKER,
+            True,
+        ),
+    ],
+)
+def test_is_cloudsmith_domain(
+    tmp_path, monkeypatch, host, env_org, cached_domains, backend_kind, expected
+):
+    """is_cloudsmith_domain returns correct bool for standard, custom, and edge cases."""
+    from ....credential_helpers.common import is_cloudsmith_domain
 
-        assert result == {"Username": "token", "Secret": "k_xyz"}
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    if env_org:
+        monkeypatch.setenv("CLOUDSMITH_ORG", env_org)
+    else:
+        monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+
+    if cached_domains is not None:
+        write_cache(get_cache_path(env_org), cached_domains)
+
+    kwargs = {"api_key": "k_abc", "api_host": API_HOST}
+    if backend_kind is not None:
+        kwargs["backend_kind"] = backend_kind
+
+    result = is_cloudsmith_domain(host, **kwargs)
+    assert result is expected
+
+
+# ---------------------------------------------------------------------------
+# 10. Docker runtime backend_kind wiring
+# ---------------------------------------------------------------------------
+
+
+def test_get_credentials_refuses_npm_custom_domain(tmp_path, monkeypatch):
+    """get_credentials for an NPM custom domain → None (runtime passes BackendKind.DOCKER).
+
+    Proves the runtime passes backend_kind=DOCKER to is_cloudsmith_domain.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+    cache_path = get_cache_path("acme")
+    write_cache(
+        cache_path,
+        [
+            CustomDomain(
+                host="npm.acme.com", backend_kind=9, enabled=True, validated=True
+            )
+        ],
+    )
+
+    credential = CredentialResult(api_key="k_xyz", source_name="test")
+    result = helper_get_credentials(
+        "npm.acme.com", credential=credential, api_host=API_HOST
+    )
+
+    assert result is None

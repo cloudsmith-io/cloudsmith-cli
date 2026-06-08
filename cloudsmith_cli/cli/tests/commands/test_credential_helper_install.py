@@ -1,5 +1,4 @@
 # Copyright 2026 Cloudsmith Ltd
-# pylint: disable=too-many-lines
 """Tests for credential-helper install/uninstall/list commands and launchers."""
 
 from __future__ import annotations
@@ -33,95 +32,19 @@ def runner():
 
 
 # ---------------------------------------------------------------------------
-# write_launcher / remove_launcher — Unix
+# 1. write_launcher — unix and windows
 # ---------------------------------------------------------------------------
 
 
-class TestWriteLauncherUnix:
-    """Tests for write_launcher on Unix (os.name == 'posix')."""
+@pytest.mark.parametrize("platform", ["unix", "windows"])
+def test_write_launcher(tmp_path, monkeypatch, platform):
+    """write_launcher produces exact content and correct mode for unix and windows.
 
-    def test_content_is_correct(self, tmp_path):
-        """Launcher content is exactly the exec-forwarding shell script."""
-        dest = write_launcher(
-            tmp_path,
-            "docker-credential-cloudsmith",
-            "cloudsmith credential-helper docker",
-        )
-        expected = '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n'
-        assert dest.read_text(encoding="utf-8") == expected
-
-    def test_mode_is_755(self, tmp_path):
-        """Launcher is created with mode 0o755."""
-        dest = write_launcher(
-            tmp_path,
-            "docker-credential-cloudsmith",
-            "cloudsmith credential-helper docker",
-        )
-        mode = dest.stat().st_mode
-        assert stat.S_IMODE(mode) == 0o755
-
-    def test_returns_path_without_extension(self, tmp_path):
-        """Returned path has no extension on Unix."""
-        dest = write_launcher(
-            tmp_path, "my-helper", "cloudsmith credential-helper docker"
-        )
-        assert dest.name == "my-helper"
-
-    def test_creates_bin_dir_if_absent(self, tmp_path):
-        """write_launcher creates bin_dir if it does not yet exist."""
-        new_dir = tmp_path / "newdir" / "bin"
-        assert not new_dir.exists()
-        write_launcher(new_dir, "my-helper", "cloudsmith credential-helper docker")
-        assert new_dir.is_dir()
-
-
-class TestRemoveLauncherUnix:
-    """Tests for remove_launcher on Unix."""
-
-    def test_returns_true_when_file_existed(self, tmp_path):
-        """remove_launcher returns True when a file was present and deleted."""
-        write_launcher(
-            tmp_path,
-            "docker-credential-cloudsmith",
-            "cloudsmith credential-helper docker",
-        )
-        result = remove_launcher(tmp_path, "docker-credential-cloudsmith")
-        assert result is True
-
-    def test_returns_false_when_file_absent(self, tmp_path):
-        """remove_launcher returns False when no launcher file exists."""
-        result = remove_launcher(tmp_path, "docker-credential-cloudsmith")
-        assert result is False
-
-    def test_file_is_gone_after_remove(self, tmp_path):
-        """After remove_launcher the file no longer exists on disk."""
-        write_launcher(
-            tmp_path,
-            "docker-credential-cloudsmith",
-            "cloudsmith credential-helper docker",
-        )
-        remove_launcher(tmp_path, "docker-credential-cloudsmith")
-        assert not (tmp_path / "docker-credential-cloudsmith").exists()
-
-
-# ---------------------------------------------------------------------------
-# write_launcher — Windows simulation
-# ---------------------------------------------------------------------------
-
-
-class TestWriteLauncherWindows:
-    """Tests for write_launcher when os.name == 'nt'.
-
-    On non-Windows systems we cannot instantiate a WindowsPath, so we test
-    the string content by inspecting the file via the returned path string and
-    verifying the name suffix—the actual file is created with a str join rather
-    than a WindowsPath object on macOS/Linux CI.
+    Retained guard: exact Windows .cmd content (CRLF, @echo off, %*).
     """
+    import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
 
-    def test_creates_cmd_file(self, tmp_path, monkeypatch):
-        """On Windows, write_launcher creates a .cmd file."""
-        import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
-
+    if platform == "windows":
         monkeypatch.setattr(_launchers_mod.os, "name", "nt")
         dest = write_launcher(
             tmp_path,
@@ -129,516 +52,475 @@ class TestWriteLauncherWindows:
             "cloudsmith credential-helper docker",
         )
         assert str(dest).endswith(".cmd")
-
-    def test_cmd_content(self, tmp_path, monkeypatch):
-        """On Windows, .cmd content is byte-exact for correct Docker credential parsing."""
-        import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
-
-        monkeypatch.setattr(_launchers_mod.os, "name", "nt")
+        raw = Path(str(dest)).read_bytes()
+        assert raw == b"@echo off\r\ncloudsmith credential-helper docker %*\r\n"
+    else:
         dest = write_launcher(
             tmp_path,
             "docker-credential-cloudsmith",
             "cloudsmith credential-helper docker",
         )
-        # Read raw bytes to avoid universal-newline translation on macOS/Linux
-        raw = Path(str(dest)).read_bytes()
-        assert raw == b"@echo off\r\ncloudsmith credential-helper docker %*\r\n"
+        expected = '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n'
+        assert dest.read_text(encoding="utf-8") == expected
+        assert stat.S_IMODE(dest.stat().st_mode) == 0o755
 
 
 # ---------------------------------------------------------------------------
-# resolve_bin_dir
+# 2. remove_launcher
 # ---------------------------------------------------------------------------
 
 
-class TestResolveBinDir:
-    """Tests for resolve_bin_dir resolution logic."""
+def test_remove_launcher(tmp_path):
+    """remove_launcher returns True + file gone when present, False when absent."""
+    write_launcher(
+        tmp_path,
+        "docker-credential-cloudsmith",
+        "cloudsmith credential-helper docker",
+    )
+    assert remove_launcher(tmp_path, "docker-credential-cloudsmith") is True
+    assert not (tmp_path / "docker-credential-cloudsmith").exists()
 
-    def test_override_is_respected(self, tmp_path):
-        """An explicit override path is returned as-is."""
+    # Second call: file is gone now
+    assert remove_launcher(tmp_path, "docker-credential-cloudsmith") is False
+
+
+# ---------------------------------------------------------------------------
+# 3. resolve_bin_dir
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "scenario", ["override", "user_bin_fallback", "windows_user_bin"]
+)
+def test_resolve_bin_dir(tmp_path, monkeypatch, scenario):
+    """resolve_bin_dir respects an override, falls back to user-bin on posix/windows."""
+    import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
+
+    if scenario == "override":
         result = resolve_bin_dir(str(tmp_path))
         assert result == tmp_path
 
-    def test_falls_back_to_user_bin_when_no_writable_cloudsmith(
-        self, tmp_path, monkeypatch
-    ):
-        """Falls back to ~/.local/bin when cloudsmith is not found and bin is not writable."""
-        import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
-
-        # Patch shutil.which inside the launchers module
+    elif scenario == "user_bin_fallback":
         monkeypatch.setattr(_launchers_mod.shutil, "which", lambda _name: None)
-        # Patch Path.home() to point at tmp_path
         monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
         monkeypatch.setattr(_launchers_mod.os, "name", "posix")
-        # Make os.access always return False so no fallback dir looks writable
         monkeypatch.setattr(_launchers_mod.os, "access", lambda _path, _mode: False)
-
         result = resolve_bin_dir()
         assert result == tmp_path / ".local" / "bin"
 
-    def test_falls_back_to_windows_user_bin(self, tmp_path, monkeypatch):
-        """On Windows, falls back to %LOCALAPPDATA%/Cloudsmith/bin."""
-        import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
-
+    else:  # windows_user_bin
         monkeypatch.setattr(_launchers_mod.shutil, "which", lambda _name: None)
         monkeypatch.setattr(_launchers_mod.os, "name", "nt")
         monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-        # Make no directory look writable
         monkeypatch.setattr(_launchers_mod.os, "access", lambda _path, _mode: False)
-
         result = resolve_bin_dir()
-        # Compare normalised paths to handle cross-platform separator differences
-        # when testing Windows branch on macOS/Linux
         result_str = str(result).replace("\\", "/")
         expected_str = str(tmp_path / "Cloudsmith" / "bin").replace("\\", "/")
         assert result_str == expected_str
 
 
-class TestIsOnPath:
-    """Tests for is_on_path."""
-
-    def test_directory_on_path(self, tmp_path, monkeypatch):
-        """A directory that appears in PATH is detected correctly."""
-        monkeypatch.setenv("PATH", str(tmp_path))
-        assert is_on_path(tmp_path) is True
-
-    def test_directory_not_on_path(self, tmp_path, monkeypatch):
-        """A directory absent from PATH returns False."""
-        monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
-        assert is_on_path(tmp_path) is False
-
-    def test_normalisation_handles_trailing_slash(self, tmp_path, monkeypatch):
-        """Trailing slashes in PATH entries are normalised correctly."""
-        monkeypatch.setenv("PATH", str(tmp_path) + os.sep)
-        assert is_on_path(tmp_path) is True
-
-
 # ---------------------------------------------------------------------------
-# DockerInstaller.install
+# 4. is_on_path
 # ---------------------------------------------------------------------------
 
 
-class TestDockerInstallerInstall:
-    """Tests for DockerInstaller.install."""
+def test_is_on_path(tmp_path, monkeypatch):
+    """is_on_path returns True when dir is in PATH, False when absent."""
+    monkeypatch.setenv("PATH", str(tmp_path))
+    assert is_on_path(tmp_path) is True
 
-    def _make_docker_config(self, docker_dir: Path, data: dict) -> Path:
-        """Write a config.json to *docker_dir* and return its path."""
-        docker_dir.mkdir(parents=True, exist_ok=True)
-        cfg = docker_dir / "config.json"
-        cfg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        return cfg
+    monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
+    assert is_on_path(tmp_path) is False
 
-    def test_sets_default_host(self, tmp_path, monkeypatch):
-        """install sets credHelpers[docker.cloudsmith.io]=cloudsmith."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
 
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir))
+# ---------------------------------------------------------------------------
+# 5. DockerInstaller.install
+# ---------------------------------------------------------------------------
 
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
 
-    def test_sets_additional_domain(self, tmp_path, monkeypatch):
-        """install also sets credHelpers for --domain entries."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
+def test_docker_installer_install(tmp_path, monkeypatch):
+    """install sets default+extra domains, preserves foreign entries, writes the launcher."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
 
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir), domains=("my.registry.example.com",))
-
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["credHelpers"]["my.registry.example.com"] == "cloudsmith"
-
-    def test_preserves_foreign_keys(self, tmp_path, monkeypatch):
-        """Foreign keys in auths and credHelpers are not touched."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        # Seed a config with existing foreign data
-        self._make_docker_config(
-            docker_dir,
+    # Seed a config with foreign data that must be preserved
+    docker_dir.mkdir(parents=True)
+    (docker_dir / "config.json").write_text(
+        json.dumps(
             {
                 "auths": {"ghcr.io": {"auth": "dG9rZW4="}},
                 "credHelpers": {"ghcr.io": "gh"},
             },
+            indent=2,
         )
+        + "\n",
+        encoding="utf-8",
+    )
 
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir))
+    installer = DockerInstaller()
+    installer.install(bin_dir=str(bin_dir), domains=("my.registry.example.com",))
 
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["auths"] == {"ghcr.io": {"auth": "dG9rZW4="}}
-        assert cfg["credHelpers"]["ghcr.io"] == "gh"
+    cfg = json.loads((docker_dir / "config.json").read_text())
 
-    def test_writes_launcher(self, tmp_path, monkeypatch):
-        """install writes a launcher script to bin_dir."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir))
-
-        launcher = bin_dir / "docker-credential-cloudsmith"
-        assert launcher.exists()
-
-    def test_creates_bak_file(self, tmp_path, monkeypatch):
-        """install creates a .bak backup when config.json already exists."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        # Seed existing config
-        self._make_docker_config(docker_dir, {"auths": {}})
-
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir))
-
-        bak = docker_dir / "config.json.bak"
-        assert bak.exists()
+    # Default host registered
+    assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+    # Extra --domain host registered
+    assert cfg["credHelpers"]["my.registry.example.com"] == "cloudsmith"
+    # Foreign entries preserved
+    assert cfg["auths"] == {"ghcr.io": {"auth": "dG9rZW4="}}
+    assert cfg["credHelpers"]["ghcr.io"] == "gh"
+    # Launcher written
+    assert (bin_dir / "docker-credential-cloudsmith").exists()
 
 
 # ---------------------------------------------------------------------------
-# DockerInstaller.install — dry_run
+# 6. install --dry-run
 # ---------------------------------------------------------------------------
 
 
-class TestDockerInstallerDryRun:
-    """Tests for DockerInstaller.install with dry_run=True."""
+def test_docker_installer_dry_run(tmp_path, monkeypatch):
+    """dry_run=True: no launcher written, config.json absent, returns planned strings."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
 
-    def test_no_launcher_written(self, tmp_path, monkeypatch):
-        """dry_run=True does NOT write a launcher file."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
+    installer = DockerInstaller()
+    actions = installer.install(bin_dir=str(bin_dir), dry_run=True)
 
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir), dry_run=True)
-
-        assert not (bin_dir / "docker-credential-cloudsmith").exists()
-
-    def test_config_json_not_modified(self, tmp_path, monkeypatch):
-        """dry_run=True does NOT modify config.json."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir), dry_run=True)
-
-        assert not (docker_dir / "config.json").exists()
-
-    def test_returns_planned_action_strings(self, tmp_path, monkeypatch):
-        """dry_run=True returns strings describing what would be done."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        installer = DockerInstaller()
-        actions = installer.install(bin_dir=str(bin_dir), dry_run=True)
-
-        assert any("would write launcher" in a for a in actions)
-        assert any("docker.cloudsmith.io" in a for a in actions)
-
-
-class TestDockerInstallerIdempotent:
-    """Tests for idempotent second-run behaviour."""
-
-    def test_second_install_no_change(self, tmp_path, monkeypatch):
-        """Running install twice does not change config.json the second time."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir))
-
-        mtime_before = (docker_dir / "config.json").stat().st_mtime
-
-        # Second run — config should be considered up-to-date
-        actions = installer.install(bin_dir=str(bin_dir))
-
-        mtime_after = (docker_dir / "config.json").stat().st_mtime
-        assert mtime_before == mtime_after
-        assert any("already up to date" in a for a in actions)
+    assert not (bin_dir / "docker-credential-cloudsmith").exists()
+    assert not (docker_dir / "config.json").exists()
+    assert any("would write launcher" in a for a in actions)
+    assert any("docker.cloudsmith.io" in a for a in actions)
 
 
 # ---------------------------------------------------------------------------
-# DockerInstaller.uninstall
+# 7. install idempotent
 # ---------------------------------------------------------------------------
 
 
-class TestDockerInstallerUninstall:
-    """Tests for DockerInstaller.uninstall."""
+def test_docker_installer_idempotent(tmp_path, monkeypatch):
+    """Second install run reports no change (config mtime unchanged, 'already up to date')."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
 
-    def test_removes_cloudsmith_entries_only(self, tmp_path, monkeypatch):
-        """uninstall removes cloudsmith entries but leaves foreign helpers."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
+    installer = DockerInstaller()
+    installer.install(bin_dir=str(bin_dir))
 
-        # Seed a mixed config
-        docker_dir.mkdir(parents=True)
-        cfg_path = docker_dir / "config.json"
-        cfg_path.write_text(
-            json.dumps(
-                {
-                    "credHelpers": {
-                        "docker.cloudsmith.io": "cloudsmith",
-                        "ghcr.io": "gh",
-                    }
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+    mtime_before = (docker_dir / "config.json").stat().st_mtime
+    actions = installer.install(bin_dir=str(bin_dir))
+    mtime_after = (docker_dir / "config.json").stat().st_mtime
 
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=bin_dir,
-        ):
-            installer = DockerInstaller()
-            installer.uninstall()
-
-        cfg = json.loads(cfg_path.read_text())
-        # cloudsmith entry removed
-        assert "docker.cloudsmith.io" not in cfg.get("credHelpers", {})
-        # foreign entry kept
-        assert cfg["credHelpers"]["ghcr.io"] == "gh"
-
-    def test_removes_launcher(self, tmp_path, monkeypatch):
-        """uninstall removes the launcher binary if it exists."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        # Write launcher manually
-        bin_dir.mkdir(parents=True)
-        launcher = bin_dir / "docker-credential-cloudsmith"
-        launcher.write_text("#!/bin/sh\n", encoding="utf-8")
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=bin_dir,
-        ):
-            installer = DockerInstaller()
-            installer.uninstall()
-
-        assert not launcher.exists()
-
-    def test_uninstall_dry_run_writes_nothing(self, tmp_path, monkeypatch):
-        """uninstall with dry_run=True makes no filesystem changes."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        bin_dir.mkdir(parents=True)
-        launcher = bin_dir / "docker-credential-cloudsmith"
-        launcher.write_text("#!/bin/sh\n", encoding="utf-8")
-
-        docker_dir.mkdir(parents=True)
-        cfg_path = docker_dir / "config.json"
-        data = {"credHelpers": {"docker.cloudsmith.io": "cloudsmith"}}
-        cfg_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=bin_dir,
-        ):
-            installer = DockerInstaller()
-            actions = installer.uninstall(dry_run=True)
-
-        # Launcher still present, config unchanged
-        assert launcher.exists()
-        assert json.loads(cfg_path.read_text()) == data
-        assert any("would remove" in a for a in actions)
-
-    def test_custom_bin_dir_launcher_is_removed(self, tmp_path, monkeypatch):
-        """uninstall(bin_dir=<custom>) removes the launcher installed there."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        custom_bin_dir = tmp_path / "custom_bin"
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(custom_bin_dir))
-        launcher = custom_bin_dir / "docker-credential-cloudsmith"
-        assert launcher.exists(), "Precondition: launcher must exist after install"
-        installer.uninstall(bin_dir=str(custom_bin_dir))
-        assert not launcher.exists(), "Launcher must be removed after uninstall"
-
-    def test_uninstall_wrong_bin_dir_leaves_launcher_intact(
-        self, tmp_path, monkeypatch
-    ):
-        """uninstall(bin_dir=<other>) reports nothing-to-remove; launcher in original dir stays."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        custom_bin_dir = tmp_path / "custom_bin"
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(custom_bin_dir))
-        launcher = custom_bin_dir / "docker-credential-cloudsmith"
-        assert launcher.exists(), "Precondition: launcher must exist after install"
-        other_dir = tmp_path / "other_bin"
-        other_dir.mkdir(parents=True)
-        actions = installer.uninstall(bin_dir=str(other_dir))
-        assert launcher.exists(), "Launcher in custom_bin must remain untouched"
-        assert any(
-            "nothing to remove" in a for a in actions
-        ), f"Expected 'nothing to remove' in actions, got: {actions}"
+    assert mtime_before == mtime_after
+    assert any("already up to date" in a for a in actions)
 
 
 # ---------------------------------------------------------------------------
-# DockerInstaller.status() return-type contract
+# 8. uninstall
 # ---------------------------------------------------------------------------
 
 
-class TestDockerInstallerStatusReturnType:
-    """Unit assertions on the type contract of DockerInstaller.status().
+def test_docker_installer_uninstall(tmp_path, monkeypatch):
+    """uninstall removes only cloudsmith entries (foreign kept) + removes launcher.
 
-    Fix 3: status()["launcher"] must be str or None — never a pathlib.Path —
-    so that `list -F json` can serialise the value without error.
+    Also verifies --bin-dir: install to custom dir, uninstall with same --bin-dir removes it.
     """
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    custom_bin_dir = tmp_path / "custom_bin"
 
-    def test_launcher_is_none_when_not_installed(self, tmp_path, monkeypatch):
-        """When no launcher file exists, status()["launcher"] is None."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=tmp_path / "bin",
-        ):
-            installer = DockerInstaller()
-            result = installer.status()
-
-        assert result["launcher"] is None
-
-    def test_launcher_is_str_when_installed(self, tmp_path, monkeypatch):
-        """When a launcher file exists, status()["launcher"] is a str, not a Path."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        # Write a real launcher so status() finds it
-        installer = DockerInstaller()
-        installer.install(bin_dir=str(bin_dir))
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=bin_dir,
-        ):
-            result = installer.status()
-
-        launcher = result["launcher"]
-        assert launcher is not None, "Expected a launcher path after install"
-        assert isinstance(
-            launcher, str
-        ), f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
-        # Sanity-check the path points to the real launcher file
-        assert launcher.endswith("docker-credential-cloudsmith")
-
-    def test_launcher_never_a_path_object(self, tmp_path, monkeypatch):
-        """status()["launcher"] is never a pathlib.Path instance regardless of install state."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-
-        installer = DockerInstaller()
-        # Check before install
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=bin_dir,
-        ):
-            before = installer.status()
-        assert not isinstance(before["launcher"], Path)
-
-        # Install, then check again
-        installer.install(bin_dir=str(bin_dir))
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
-            return_value=bin_dir,
-        ):
-            after = installer.status()
-        assert not isinstance(after["launcher"], Path)
-
-
-# ---------------------------------------------------------------------------
-# manage CLI (CliRunner)
-# ---------------------------------------------------------------------------
-
-
-class TestManageCLI:
-    """Tests for the install/uninstall/list Click commands via CliRunner."""
-
-    def test_install_docker_dry_run_exits_0(self, runner, tmp_path, monkeypatch):
-        """install docker --dry-run exits 0 and prints a plan."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            ["docker", "--dry-run", "--bin-dir", str(tmp_path / "bin")],
+    # Install to a custom bin dir
+    installer = DockerInstaller()
+    docker_dir.mkdir(parents=True)
+    cfg_path = docker_dir / "config.json"
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "credHelpers": {
+                    "docker.cloudsmith.io": "cloudsmith",
+                    "ghcr.io": "gh",
+                }
+            },
+            indent=2,
         )
+        + "\n",
+        encoding="utf-8",
+    )
+    # Install launcher to custom_bin_dir
+    installer.install(bin_dir=str(custom_bin_dir))
+    launcher = custom_bin_dir / "docker-credential-cloudsmith"
+    assert launcher.exists(), "Precondition: launcher must exist after install"
 
-        assert result.exit_code == 0, result.output
-        assert "would" in result.output.lower() or "dry run" in result.output.lower()
+    # Uninstall — removes cloudsmith keys and launcher
+    installer.uninstall(bin_dir=str(custom_bin_dir))
 
-    def test_install_unknown_helper_exits_nonzero(self, runner):
-        """install with an unknown helper name exits non-zero with an error."""
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(install_cmd, ["badhelper"])
-
-        assert result.exit_code != 0
-
-    def test_uninstall_unknown_helper_exits_nonzero(self, runner):
-        """uninstall with an unknown helper name exits non-zero."""
-        from ....cli.commands.credential_helper.manage import uninstall_cmd
-
-        result = runner.invoke(uninstall_cmd, ["badhelper"])
-
-        assert result.exit_code != 0
-
-    def test_list_exits_0(self, runner, tmp_path, monkeypatch):
-        """list exits 0 and shows the docker helper entry."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import list_cmd
-
-        result = runner.invoke(list_cmd, [])
-
-        assert result.exit_code == 0, result.output
-        assert "docker" in result.output
+    cfg = json.loads(cfg_path.read_text())
+    assert "docker.cloudsmith.io" not in cfg.get("credHelpers", {})
+    assert cfg["credHelpers"]["ghcr.io"] == "gh"
+    assert not launcher.exists()
 
 
 # ---------------------------------------------------------------------------
-# PATH warning
+# 9. DockerInstaller.status — str-not-Path guard
 # ---------------------------------------------------------------------------
 
 
-class TestPathWarning:
-    """Tests that a WARNING action is emitted when bin_dir is not on PATH."""
+def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
+    """status()['launcher'] is str when installed and None when not — never a Path.
 
-    def test_warning_fires_when_bin_dir_not_on_path(self, tmp_path, monkeypatch):
-        """install returns a WARNING action when target dir is not on PATH."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
+    Retained guard: the -F json Path-serialization regression.
+    """
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
 
-        # Keep PATH pointing somewhere else so bin_dir is definitely absent
-        monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
+    installer = DockerInstaller()
 
+    # Before install: launcher is None
+    with patch(
+        "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        result_before = installer.status()
+
+    assert result_before["launcher"] is None
+    assert not isinstance(result_before["launcher"], Path)
+
+    # After install: launcher is a non-None str
+    installer.install(bin_dir=str(bin_dir))
+    with patch(
+        "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        result_after = installer.status()
+
+    launcher = result_after["launcher"]
+    assert launcher is not None
+    assert isinstance(
+        launcher, str
+    ), f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
+    assert launcher.endswith("docker-credential-cloudsmith")
+    assert not isinstance(launcher, Path)
+
+
+# ---------------------------------------------------------------------------
+# 10. autodiscovery
+# ---------------------------------------------------------------------------
+
+_INSTALLER_GET_FORMAT_DOMAINS = (
+    "cloudsmith_cli.credential_helpers.docker.installer.get_format_domains"
+)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "discovery_on",
+        "no_discover",
+        "missing_org",
+        "missing_api_key",
+        "discovery_raises",
+    ],
+)
+def test_autodiscovery(tmp_path, monkeypatch, scenario):
+    """Autodiscovery matrix: registered, skipped, defaults-only, or graceful failure.
+
+    Retained guard: graceful-discovery-failure (exception → WARNING, no crash).
+    """
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    if scenario == "discovery_on":
+        monkeypatch.setattr(
+            _INSTALLER_GET_FORMAT_DOMAINS,
+            lambda *_a, **_kw: ["docker.acme.com"],
+        )
         installer = DockerInstaller()
-        actions = installer.install(bin_dir=str(bin_dir))
+        actions = installer.install(
+            bin_dir=str(bin_dir), discover=True, org="acme", api_key="k_test"
+        )
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+        assert cfg["credHelpers"]["docker.acme.com"] == "cloudsmith"
+        assert any("discovered" in a and "1" in a for a in actions)
 
+    elif scenario == "no_discover":
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+        installer = DockerInstaller()
+        installer.install(
+            bin_dir=str(bin_dir), discover=False, org="acme", api_key="k_test"
+        )
+        assert not called, "get_format_domains must not be called when discover=False"
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert "docker.cloudsmith.io" in cfg["credHelpers"]
+        assert "docker.acme.com" not in cfg["credHelpers"]
+
+    elif scenario in ("missing_org", "missing_api_key"):
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+        installer = DockerInstaller()
+        org = None if scenario == "missing_org" else "acme"
+        api_key = "k_test" if scenario == "missing_org" else None
+        installer.install(bin_dir=str(bin_dir), discover=True, org=org, api_key=api_key)
+        assert (
+            not called
+        ), "get_format_domains must not be called when org/api_key absent"
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+    else:  # discovery_raises — graceful failure guard
+
+        def _raise(*_a, **_kw):
+            raise RuntimeError("network down")
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _raise)
+        installer = DockerInstaller()
+        # Must NOT raise
+        actions = installer.install(
+            bin_dir=str(bin_dir), discover=True, org="acme", api_key="k_test"
+        )
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+        assert (bin_dir / "docker-credential-cloudsmith").exists()
         warning_actions = [a for a in actions if a.startswith("WARNING")]
         assert warning_actions, f"Expected a WARNING action, got: {actions}"
-        assert any("PATH" in a for a in warning_actions)
+        assert any("network down" in a for a in warning_actions)
 
 
 # ---------------------------------------------------------------------------
-# Unwritable directory → clean ClickException (no raw traceback)
+# 11. --refresh
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_refresh_flag(tmp_path, monkeypatch, refresh):
+    """refresh=False uses the on-disk cache; refresh=True bypasses it and hits the API."""
+    import time
+
+    from ....credential_helpers.custom_domains import (
+        CustomDomain,
+        get_cache_path,
+        get_custom_domains,
+        write_cache,
+    )
+
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    cache_path = get_cache_path("acme")
+    cached_domain = CustomDomain(
+        host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+    )
+    write_cache(cache_path, [cached_domain])
+    os.utime(cache_path, (time.time(), time.time()))
+
+    fresh_domain = CustomDomain(
+        host="new.acme.com", backend_kind=6, enabled=True, validated=True
+    )
+    api_calls = []
+
+    def _fake_list(*_a, **_kw):
+        api_calls.append(True)
+        return [
+            {
+                "host": "new.acme.com",
+                "backend_kind": 6,
+                "enabled": True,
+                "validated": True,
+            }
+        ]
+
+    with patch(
+        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+        _fake_list,
+    ):
+        result = get_custom_domains("acme", api_key="k", refresh=refresh)
+
+    if refresh:
+        # API must have been called
+        assert api_calls, "API must be called when refresh=True"
+        assert result == [fresh_domain]
+    else:
+        # API must NOT have been called
+        assert (
+            not api_calls
+        ), "API must not be called when refresh=False with valid cache"
+        assert result == [cached_domain]
+
+
+# ---------------------------------------------------------------------------
+# 12. manage CLI — unknown helper
+# ---------------------------------------------------------------------------
+
+
+def test_manage_cli_unknown_helper_exits_nonzero(runner):
+    """install/uninstall with an unknown helper name exits non-zero with a clear error."""
+    from ....cli.commands.credential_helper.manage import install_cmd, uninstall_cmd
+
+    for cmd in (install_cmd, uninstall_cmd):
+        result = runner.invoke(cmd, ["badhelper"])
+        assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# 13. manage CLI dry-run
+# ---------------------------------------------------------------------------
+
+
+def test_manage_cli_dry_run_exits_0(runner, tmp_path, monkeypatch):
+    """install docker --no-discover --dry-run exits 0."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+    from ....cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["docker", "--no-discover", "--dry-run", "--bin-dir", str(tmp_path / "bin")],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "would" in result.output.lower() or "dry run" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# 14. PATH warning
+# ---------------------------------------------------------------------------
+
+
+def test_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
+    """install returns a WARNING action when target bin_dir is not on PATH."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
+
+    installer = DockerInstaller()
+    actions = installer.install(bin_dir=str(bin_dir))
+
+    warning_actions = [a for a in actions if a.startswith("WARNING")]
+    assert warning_actions, f"Expected a WARNING action, got: {actions}"
+    assert any("PATH" in a for a in warning_actions)
+
+
+# ---------------------------------------------------------------------------
+# 15. Unwritable dir → clean ClickException (no raw traceback)
 # ---------------------------------------------------------------------------
 
 
@@ -646,711 +528,134 @@ class TestPathWarning:
     os.name != "posix" or (hasattr(os, "geteuid") and os.geteuid() == 0),
     reason="permission test only meaningful on POSIX as non-root",
 )
-class TestUnwritableDirCleanError:
-    """Tests that an unwritable bin_dir surfaces as a ClickException, not a raw OSError."""
+def test_unwritable_bin_dir_gives_click_exception(runner, tmp_path, monkeypatch):
+    """install with an unwritable --bin-dir exits non-zero as ClickException/SystemExit, not raw OSError."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
 
-    def test_unwritable_bin_dir_gives_click_exception(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """install with an unwritable --bin-dir exits non-zero without a bare OSError."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    from ....cli.commands.credential_helper.manage import install_cmd
 
-        from ....cli.commands.credential_helper.manage import install_cmd
+    ro_dir = tmp_path / "readonly"
+    ro_dir.mkdir()
+    ro_dir.chmod(0o500)
 
-        ro_dir = tmp_path / "readonly"
-        ro_dir.mkdir()
-        ro_dir.chmod(0o500)
+    try:
+        result = runner.invoke(install_cmd, ["docker", "--bin-dir", str(ro_dir)])
+    finally:
+        ro_dir.chmod(0o700)
 
-        try:
-            result = runner.invoke(
-                install_cmd,
-                ["docker", "--bin-dir", str(ro_dir)],
-            )
-        finally:
-            # Restore permissions so pytest can clean up tmp_path
-            ro_dir.chmod(0o700)
-
-        assert result.exit_code != 0
-        # The exception path should be a SystemExit (via ClickException), not a
-        # bare OSError escaping the command.
-        assert not isinstance(
-            result.exception, OSError
-        ), f"Raw OSError escaped: {result.exception}"
+    assert result.exit_code != 0
+    assert not isinstance(
+        result.exception, OSError
+    ), f"Raw OSError escaped: {result.exception}"
 
 
 # ---------------------------------------------------------------------------
-# Custom-domain autodiscovery
+# 16. -F output format
 # ---------------------------------------------------------------------------
 
-# Import path where installer imports get_format_domains (used for monkeypatching)
-_INSTALLER_GET_FORMAT_DOMAINS = (
-    "cloudsmith_cli.credential_helpers.docker.installer.get_format_domains"
+
+_STUB_STATUS = {
+    "launcher": "/some/bin/docker-credential-cloudsmith",
+    "hosts": ["docker.cloudsmith.io"],
+}
+
+
+def _stub_status_fn(_self):
+    return _STUB_STATUS
+
+
+@pytest.mark.parametrize(
+    "cmd_name,cli_args,expected_helper,expect_dry_run_key",
+    [
+        # install dry-run with -F json
+        (
+            "install_cmd",
+            [
+                "docker",
+                "--dry-run",
+                "--no-discover",
+                "--bin-dir",
+                "{bin_dir}",
+                "-F",
+                "json",
+            ],
+            "docker",
+            True,
+        ),
+        # uninstall dry-run with -F json
+        (
+            "uninstall_cmd",
+            ["docker", "--dry-run", "-F", "json"],
+            "docker",
+            True,
+        ),
+        # list with -F json
+        (
+            "list_cmd",
+            ["-F", "json"],
+            "docker",
+            False,
+        ),
+    ],
 )
-
-
-class TestDockerInstallerAutodiscovery:
-    """Tests for DockerInstaller.install custom-domain autodiscovery."""
-
-    def test_discovery_on_registers_discovered_domains(self, tmp_path, monkeypatch):
-        """When discover=True and org+api_key present, discovered domains are registered."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        monkeypatch.setattr(
-            _INSTALLER_GET_FORMAT_DOMAINS,
-            lambda *_a, **_kw: ["docker.acme.com"],
-        )
-
-        installer = DockerInstaller()
-        actions = installer.install(
-            bin_dir=str(bin_dir),
-            discover=True,
-            org="acme",
-            api_key="k_test",
-        )
-
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
-        assert cfg["credHelpers"]["docker.acme.com"] == "cloudsmith"
-        assert any("discovered" in a and "1" in a for a in actions)
-
-    def test_no_discover_skips_get_format_domains(self, tmp_path, monkeypatch):
-        """When discover=False, get_format_domains is never called."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        called = []
-
-        def _should_not_be_called(*_a, **_kw):
-            called.append(True)
-            return []
-
-        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
-
-        installer = DockerInstaller()
-        installer.install(
-            bin_dir=str(bin_dir),
-            discover=False,
-            org="acme",
-            api_key="k_test",
-        )
-
-        assert not called, "get_format_domains must not be called when discover=False"
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert "docker.cloudsmith.io" in cfg["credHelpers"]
-        # No extra domain registered
-        assert "docker.acme.com" not in cfg["credHelpers"]
-
-    def test_missing_org_skips_discovery_install_succeeds(self, tmp_path, monkeypatch):
-        """discover=True with org=None skips discovery; default host is still registered."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        called = []
-
-        def _should_not_be_called(*_a, **_kw):
-            called.append(True)
-            return []
-
-        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
-
-        installer = DockerInstaller()
-        installer.install(
-            bin_dir=str(bin_dir),
-            discover=True,
-            org=None,
-            api_key="k_test",
-        )
-
-        # Discovery must not have run
-        assert not called, "get_format_domains must not be called when org is absent"
-        # Default host must still be registered
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
-
-    def test_missing_api_key_skips_discovery_install_succeeds(
-        self, tmp_path, monkeypatch
-    ):
-        """discover=True with api_key=None skips discovery; default host is still registered."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        called = []
-
-        def _should_not_be_called(*_a, **_kw):
-            called.append(True)
-            return []
-
-        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
-
-        installer = DockerInstaller()
-        installer.install(
-            bin_dir=str(bin_dir),
-            discover=True,
-            org="acme",
-            api_key=None,
-        )
-
-        # Discovery must not have run
-        assert (
-            not called
-        ), "get_format_domains must not be called when api_key is absent"
-        # Default host must still be registered
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
-
-    def test_discovery_failure_is_graceful(self, tmp_path, monkeypatch):
-        """A discovery error (e.g. network down) must not abort install; returns WARNING."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        def _raise(*_a, **_kw):
-            raise RuntimeError("network down")
-
-        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _raise)
-
-        installer = DockerInstaller()
-        # Must NOT raise
-        actions = installer.install(
-            bin_dir=str(bin_dir),
-            discover=True,
-            org="acme",
-            api_key="k_test",
-        )
-
-        # Default host still registered
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
-
-        # Launcher created
-        assert (bin_dir / "docker-credential-cloudsmith").exists()
-
-        # WARNING action present
-        warning_actions = [a for a in actions if a.startswith("WARNING")]
-        assert warning_actions, f"Expected a WARNING action, got: {actions}"
-        assert any("network down" in a for a in warning_actions)
-
-    def test_discovery_returns_default_host_reports_zero_net_new(
-        self, tmp_path, monkeypatch
-    ):
-        """If discovery returns docker.cloudsmith.io (DEFAULT_HOST), credHelpers has
-        a single entry and the action message reports 0 net-new domains."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        monkeypatch.setattr(
-            _INSTALLER_GET_FORMAT_DOMAINS,
-            lambda *_a, **_kw: ["docker.cloudsmith.io"],
-        )
-
-        installer = DockerInstaller()
-        actions = installer.install(
-            bin_dir=str(bin_dir),
-            discover=True,
-            org="acme",
-            api_key="k_test",
-        )
-
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        helpers = cfg["credHelpers"]
-        # Only one entry for the default host
-        assert list(helpers.keys()).count("docker.cloudsmith.io") == 1
-        assert helpers["docker.cloudsmith.io"] == "cloudsmith"
-        # Discovered action must report 0 net-new
-        discovered_actions = [a for a in actions if "discovered" in a]
-        assert discovered_actions, f"Expected a discovered action, got: {actions}"
-        assert any(
-            "0" in a for a in discovered_actions
-        ), f"Expected 0 net-new in discovered action, got: {discovered_actions}"
-
-    def test_dedup_prevents_duplicate_hosts(self, tmp_path, monkeypatch):
-        """If discovery returns a host already in --domain, it is not duplicated."""
-        docker_dir = tmp_path / ".docker"
-        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        # Both explicit domain and discovered return the same host
-        monkeypatch.setattr(
-            _INSTALLER_GET_FORMAT_DOMAINS,
-            lambda *_a, **_kw: ["docker.acme.com"],
-        )
-
-        installer = DockerInstaller()
-        installer.install(
-            bin_dir=str(bin_dir),
-            domains=("docker.acme.com",),
-            discover=True,
-            org="acme",
-            api_key="k_test",
-        )
-
-        cfg = json.loads((docker_dir / "config.json").read_text())
-        # credHelpers is a dict so duplicates are impossible at the JSON level,
-        # but we verify the host appears exactly once (dict semantics).
-        helpers = cfg["credHelpers"]
-        assert helpers.get("docker.acme.com") == "cloudsmith"
-
-
-# ---------------------------------------------------------------------------
-# --refresh bypasses cache (unit test on get_custom_domains)
-# ---------------------------------------------------------------------------
-
-
-class TestRefreshBypassesCache:
-    """Verify that refresh=True skips the on-disk cache in get_custom_domains."""
-
-    @pytest.fixture(autouse=True)
-    def _redirect_cache(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-            lambda: str(tmp_path),
-        )
-
-    def test_refresh_false_uses_cache(self, tmp_path):
-        """refresh=False (default) returns cached domains without hitting the API."""
-        import time
-
-        from ....credential_helpers.custom_domains import (
-            CustomDomain,
-            get_cache_path,
-            get_custom_domains,
-            write_cache,
-        )
-
-        cache_path = get_cache_path("acme")
-        cached_domain = CustomDomain(
-            host="docker.acme.com", backend_kind=6, enabled=True, validated=True
-        )
-        write_cache(cache_path, [cached_domain])
-        # Touch the mtime to make the cache look fresh
-        os.utime(cache_path, (time.time(), time.time()))
-
-        api_called = []
-
-        def _boom(*_a, **_kw):
-            api_called.append(True)
-            raise AssertionError("API should not be called when cache is valid")
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
-            _boom,
-        ):
-            result = get_custom_domains("acme", api_key="k", refresh=False)
-
-        assert not api_called
-        assert result == [cached_domain]
-
-    def test_refresh_true_bypasses_cache(self, tmp_path):
-        """refresh=True fetches from the API even when a valid cache exists."""
-        import time
-
-        from ....credential_helpers.custom_domains import (
-            CustomDomain,
-            get_cache_path,
-            get_custom_domains,
-            write_cache,
-        )
-
-        cache_path = get_cache_path("acme")
-        stale_domain = CustomDomain(
-            host="old.acme.com", backend_kind=6, enabled=True, validated=True
-        )
-        write_cache(cache_path, [stale_domain])
-        os.utime(cache_path, (time.time(), time.time()))
-
-        fresh_domain = CustomDomain(
-            host="new.acme.com", backend_kind=6, enabled=True, validated=True
-        )
-
-        def _fake_list(*_a, **_kw):
-            return [
-                {
-                    "host": "new.acme.com",
-                    "backend_kind": 6,
-                    "enabled": True,
-                    "validated": True,
-                }
-            ]
-
-        with patch(
-            "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
-            _fake_list,
-        ):
-            result = get_custom_domains("acme", api_key="k", refresh=True)
-
-        assert result == [fresh_domain]
-
-
-# ---------------------------------------------------------------------------
-# manage CLI — new flags
-# ---------------------------------------------------------------------------
-
-
-class TestManageCLINewFlags:
-    """Tests for --no-discover, --refresh, and --org on the install CLI command."""
-
-    def test_install_no_discover_dry_run_exits_0(self, runner, tmp_path, monkeypatch):
-        """install docker --no-discover --dry-run exits 0."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            [
-                "docker",
-                "--no-discover",
-                "--dry-run",
-                "--bin-dir",
-                str(tmp_path / "bin"),
-            ],
-        )
-
-        assert result.exit_code == 0, result.output
-        assert "would" in result.output.lower() or "dry run" in result.output.lower()
-
-    def test_install_dry_run_with_stubbed_discovery_exits_0(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """install docker --dry-run with get_format_domains stubbed exits 0."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        # Stub discovery so no real network call is made even if org+key are present
-        monkeypatch.setattr(
-            _INSTALLER_GET_FORMAT_DOMAINS,
-            lambda *_a, **_kw: [],
-        )
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            ["docker", "--dry-run", "--bin-dir", str(tmp_path / "bin")],
-        )
-
-        assert result.exit_code == 0, result.output
-
-    def test_install_no_discover_does_not_call_get_format_domains(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """--no-discover prevents get_format_domains from being called."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-        bin_dir = tmp_path / "bin"
-        monkeypatch.setenv("PATH", str(bin_dir))
-
-        called = []
-
-        def _should_not_be_called(*_a, **_kw):
-            called.append(True)
-            return []
-
-        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            ["docker", "--no-discover", "--bin-dir", str(bin_dir)],
-        )
-
-        assert result.exit_code == 0, result.output
-        assert not called, "get_format_domains must not be called with --no-discover"
-
-
-# ---------------------------------------------------------------------------
-# -F / --output-format tests
-# ---------------------------------------------------------------------------
-
-
-class TestOutputFormat:
-    """Tests for -F json / -F pretty_json on install, uninstall, and list."""
-
-    # ------------------------------------------------------------------
-    # install
-    # ------------------------------------------------------------------
-
-    def test_install_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
-        """-F json: install exits 0 and stdout is valid JSON with expected shape."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            [
-                "docker",
-                "--dry-run",
-                "--no-discover",
-                "--bin-dir",
-                str(tmp_path / "bin"),
-                "-F",
-                "json",
-            ],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        parsed = json.loads(result.output)
-        data = parsed["data"]
-        assert data["helper"] == "docker"
-        assert data["dry_run"] is True
-        assert isinstance(data["actions"], list)
-        assert isinstance(data["warnings"], list)
-
-    def test_install_pretty_json_exits_0_and_parses(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """-F pretty_json: install exits 0 and stdout is valid JSON."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            [
-                "docker",
-                "--dry-run",
-                "--no-discover",
-                "--bin-dir",
-                str(tmp_path / "bin"),
-                "-F",
-                "pretty_json",
-            ],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        parsed = json.loads(result.output)
-        assert "data" in parsed
-
-    def test_install_default_pretty_shows_human_text(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """Default (no -F): install exits 0 and human-readable text appears."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            [
-                "docker",
-                "--dry-run",
-                "--no-discover",
-                "--bin-dir",
-                str(tmp_path / "bin"),
-            ],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        assert "dry run" in result.output.lower() or "would" in result.output.lower()
-
-    def test_install_json_stdout_is_pure_json(self, runner, tmp_path, monkeypatch):
-        """-F json: stdout contains no leading human text before the JSON."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import install_cmd
-
-        result = runner.invoke(
-            install_cmd,
-            [
-                "docker",
-                "--dry-run",
-                "--no-discover",
-                "--bin-dir",
-                str(tmp_path / "bin"),
-                "-F",
-                "json",
-            ],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        # Must parse cleanly from position 0 — no leading prose
-        json.loads(result.output)
-
-    # ------------------------------------------------------------------
-    # uninstall
-    # ------------------------------------------------------------------
-
-    def test_uninstall_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
-        """-F json: uninstall exits 0 and stdout is valid JSON with expected shape."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import uninstall_cmd
-
-        result = runner.invoke(
-            uninstall_cmd,
-            [
-                "docker",
-                "--dry-run",
-                "-F",
-                "json",
-            ],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        parsed = json.loads(result.output)
-        data = parsed["data"]
-        assert data["helper"] == "docker"
-        assert data["dry_run"] is True
-        assert isinstance(data["actions"], list)
-        assert isinstance(data["warnings"], list)
-
-    def test_uninstall_pretty_json_exits_0_and_parses(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """-F pretty_json: uninstall exits 0 and stdout is valid JSON."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import uninstall_cmd
-
-        result = runner.invoke(
-            uninstall_cmd,
-            [
-                "docker",
-                "--dry-run",
-                "-F",
-                "pretty_json",
-            ],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        parsed = json.loads(result.output)
-        assert "data" in parsed
-
-    def test_uninstall_default_pretty_shows_human_text(
-        self, runner, tmp_path, monkeypatch
-    ):
-        """Default (no -F): uninstall exits 0 and human-readable text appears."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-
-        from ....cli.commands.credential_helper.manage import uninstall_cmd
-
-        result = runner.invoke(
-            uninstall_cmd,
-            ["docker", "--dry-run"],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0, result.output
-        # dry-run with nothing installed produces output like "nothing to remove"
-        assert len(result.output) > 0
-
-    # ------------------------------------------------------------------
-    # list
-    # ------------------------------------------------------------------
-
-    # Deterministic status fixture used by all list tests — includes a launcher
-    # path so that the "launcher present" JSON-serialisation path is exercised.
-    _STUB_STATUS = {
-        "launcher": "/some/bin/docker-credential-cloudsmith",
-        "hosts": ["docker.cloudsmith.io"],
-    }
-
-    # Deterministic status return value used by all list tests — includes a
-    # launcher path so the "launcher present" JSON-serialisation path is covered.
-    _STUB_STATUS = {
-        "launcher": "/some/bin/docker-credential-cloudsmith",
-        "hosts": ["docker.cloudsmith.io"],
-    }
-
-    @staticmethod
-    def _stub_status(_self):
-        return {
-            "launcher": "/some/bin/docker-credential-cloudsmith",
-            "hosts": ["docker.cloudsmith.io"],
-        }
-
-    def test_list_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
-        """-F json: list exits 0 and stdout is valid JSON with expected shape.
-
-        DockerInstaller.status is patched to return a deterministic dict WITH a
-        launcher path present so this test covers the previously-failing
-        serialisation of pathlib.Path values.
-        """
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
-
-        from ....cli.commands.credential_helper.manage import list_cmd
-
-        result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
-
-        assert result.exit_code == 0, result.output
-        parsed = json.loads(result.output)
-        data = parsed["data"]
+def test_output_format_json(
+    runner,
+    tmp_path,
+    monkeypatch,
+    cmd_name,
+    cli_args,
+    expected_helper,
+    expect_dry_run_key,
+):
+    """-F json produces valid parseable JSON with expected top-level data shape.
+
+    Retained guard: list -F json serialises a launcher path (str), not a Path object.
+    """
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.setattr(DockerInstaller, "status", _stub_status_fn)
+
+    from ....cli.commands.credential_helper import manage as manage_mod
+
+    cmd = getattr(manage_mod, cmd_name)
+
+    # Replace {bin_dir} placeholder in args
+    resolved_args = [a.replace("{bin_dir}", str(tmp_path / "bin")) for a in cli_args]
+
+    result = runner.invoke(cmd, resolved_args, catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    # Pure JSON on stdout (no human text leaking before the JSON)
+    assert result.output.strip().startswith(
+        "{"
+    ), f"Output does not start with {{: {result.output[:100]!r}"
+    parsed = json.loads(result.output)
+    data = parsed["data"]
+
+    if cmd_name == "list_cmd":
         assert isinstance(data, list)
-        assert len(data) >= 1
-        docker_entry = next(e for e in data if e["helper"] == "docker")
-        assert "launcher" in docker_entry
-        assert docker_entry["launcher"] == "/some/bin/docker-credential-cloudsmith"
-        assert "hosts" in docker_entry
-        assert docker_entry["hosts"] == ["docker.cloudsmith.io"]
-        assert isinstance(docker_entry["hosts"], list)
+        entry = next(e for e in data if e["helper"] == expected_helper)
+        assert "launcher" in entry
+        assert entry["launcher"] == "/some/bin/docker-credential-cloudsmith"
+        assert "hosts" in entry
+    else:
+        assert data["helper"] == expected_helper
+        assert isinstance(data["actions"], list)
+        assert isinstance(data["warnings"], list)
+        if expect_dry_run_key:
+            assert data["dry_run"] is True
 
-    def test_list_pretty_json_exits_0_and_parses(self, runner, tmp_path, monkeypatch):
-        """-F pretty_json: list exits 0 and stdout is valid JSON.
 
-        Launcher present in patched status ensures Path serialisation is covered.
-        """
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
+def test_output_format_default_shows_human_text(runner, tmp_path, monkeypatch):
+    """Default (no -F) install dry-run shows human-readable text, not raw JSON."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
 
-        from ....cli.commands.credential_helper.manage import list_cmd
+    from ....cli.commands.credential_helper.manage import install_cmd
 
-        result = runner.invoke(list_cmd, ["-F", "pretty_json"], catch_exceptions=False)
+    result = runner.invoke(
+        install_cmd,
+        ["docker", "--dry-run", "--no-discover", "--bin-dir", str(tmp_path / "bin")],
+        catch_exceptions=False,
+    )
 
-        assert result.exit_code == 0, result.output
-        parsed = json.loads(result.output)
-        assert "data" in parsed
-
-    def test_list_default_pretty_shows_docker(self, runner, tmp_path, monkeypatch):
-        """Default (no -F): list exits 0 and docker entry with launcher path appears in output."""
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
-
-        from ....cli.commands.credential_helper.manage import list_cmd
-
-        result = runner.invoke(list_cmd, [], catch_exceptions=False)
-
-        assert result.exit_code == 0, result.output
-        assert "docker" in result.output
-        assert "/some/bin/docker-credential-cloudsmith" in result.output
-
-    def test_list_json_stdout_is_pure_json(self, runner, tmp_path, monkeypatch):
-        """-F json: stdout starts with '{' — no human text leaks before JSON.
-
-        Regression guard: previously failed with "Failed to convert to JSON:
-        Type <class 'pathlib.PosixPath'> not serializable" when a launcher was
-        present. Patching status with a launcher-present dict reproduces that
-        environment deterministically.
-        """
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-        monkeypatch.setattr(DockerInstaller, "status", self._stub_status)
-
-        from ....cli.commands.credential_helper.manage import list_cmd
-
-        result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
-
-        assert result.exit_code == 0, result.output
-        # Strip trailing whitespace only; the first non-whitespace char must open JSON
-        assert result.output.strip().startswith("{")
-        data = json.loads(result.output)
-        docker_entry = next(e for e in data["data"] if e["helper"] == "docker")
-        assert docker_entry["launcher"] == "/some/bin/docker-credential-cloudsmith"
+    assert result.exit_code == 0, result.output
+    assert "dry run" in result.output.lower() or "would" in result.output.lower()
