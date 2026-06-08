@@ -44,7 +44,7 @@ def docker(opts, operation):
         # Manual testing
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker
 
-        # Called by Docker via wrapper
+        # Called by Docker via launcher
         $ echo "docker.cloudsmith.io" | docker-credential-cloudsmith get
 
     Environment variables:

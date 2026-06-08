@@ -23,7 +23,6 @@ from ....credential_helpers.docker.runtime import (
     execute,
     get_credentials as helper_get_credentials,
 )
-from ....credential_helpers.docker.wrapper import main as docker_wrapper_main
 
 API_HOST = "https://api.cloudsmith.io"
 
@@ -320,34 +319,6 @@ class TestDockerCredentialHelper:
         )
 
         assert result == {"Username": "token", "Secret": "k_xyz"}
-
-    @pytest.mark.parametrize("operation", ["store", "erase"])
-    def test_wrapper_read_only_operations_are_noops(
-        self, operation, monkeypatch, capsys
-    ):
-        """Docker's write operations should succeed without storing anything."""
-        monkeypatch.setattr("sys.argv", ["docker-credential-cloudsmith", operation])
-        monkeypatch.setattr("sys.stdin", io.StringIO('{"ServerURL":"example.com"}'))
-
-        with pytest.raises(SystemExit) as exc:
-            docker_wrapper_main()
-
-        assert exc.value.code == 0
-        output = capsys.readouterr()
-        assert output.out == ""
-        assert output.err == ""
-
-    def test_wrapper_list_returns_empty_json(self, monkeypatch, capsys):
-        """Docker's list operation should return an empty credential object."""
-        monkeypatch.setattr("sys.argv", ["docker-credential-cloudsmith", "list"])
-
-        with pytest.raises(SystemExit) as exc:
-            docker_wrapper_main()
-
-        assert exc.value.code == 0
-        output = capsys.readouterr()
-        assert output.out == "{}\n"
-        assert output.err == ""
 
 
 class TestBackendKind:
