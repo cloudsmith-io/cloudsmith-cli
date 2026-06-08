@@ -14,18 +14,20 @@ def get_orgs_api():
 
 
 def list_custom_domains(owner):
-    """List custom domain hostnames for an organization.
-
-    Returns the list of configured custom-domain hostnames (the ``host``
-    field of each :class:`cloudsmith_api.OrganizationCustomDomains` model).
-    """
+    """List custom domains for an organization (raw SDK model dicts)."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        domains, _, headers = client.orgs_custom_domains_list_with_http_info(org=owner)
+        (
+            domains,
+            _,
+            headers,
+        ) = client.orgs_custom_domains_list_with_http_info(  # pylint: disable=no-member
+            org=owner
+        )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return [domain.host for domain in domains if getattr(domain, "host", None)]
+    return [domain.to_dict() for domain in domains]
 
 
 def list_vulnerability_policies(owner, page, page_size):

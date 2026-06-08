@@ -10,9 +10,12 @@ import pytest
 
 from ....cli.commands.credential_helper.docker import docker
 from ....core.credentials.models import CredentialResult
+from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.custom_domains import (
+    CustomDomain,
     get_cache_path,
-    get_custom_domains_for_org,
+    get_custom_domains,
+    get_format_domains,
     read_cache,
     write_cache,
 )
@@ -91,7 +94,14 @@ class TestDockerCredentialHelper:
         # Seed the cache file at the path the helper will read from.
         cache_path = get_cache_path("acme")
         assert cache_path.parent.exists(), "get_cache_path should create the dir"
-        write_cache(cache_path, ["docker.acme.com"])
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                )
+            ],
+        )
 
         credential = CredentialResult(api_key="k_xyz", source_name="test")
 
@@ -143,7 +153,23 @@ class TestDockerCredentialHelper:
         assert output.err == ""
 
 
-class TestGetCustomDomainsForOrg:
+class TestBackendKind:
+    """Spot-check BackendKind enum values."""
+
+    def test_docker_is_6(self):
+        assert BackendKind.DOCKER == 6
+
+    def test_npm_is_9(self):
+        assert BackendKind.NPM == 9
+
+    def test_deb_is_0(self):
+        assert BackendKind.DEB == 0
+
+    def test_default_is_99(self):
+        assert BackendKind.DEFAULT == 99
+
+
+class TestGetCustomDomains:
     """Exercise the SDK-backed custom-domains fetch path.
 
     These tests stub the v1 `GET /orgs/{org}/custom-domains/` endpoint that the
@@ -167,12 +193,30 @@ class TestGetCustomDomainsForOrg:
         )
 
     @httpretty.activate(allow_net_connect=False)
-    def test_success_extracts_hosts_and_caches(self):
-        """A 200 response yields the `.host` of each model and caches the result."""
+    def test_success_builds_records_and_caches(self):
+        """A 200 response builds CustomDomain records and caches them."""
         body = [
-            {"host": "docker.acme.com", "slug_perm": "a"},
-            {"host": "dl.acme.com", "slug_perm": "b"},
-            {"host": "", "slug_perm": "c"},  # blank host is skipped
+            {
+                "host": "docker.acme.com",
+                "backend_kind": 6,
+                "domain_type": 1,
+                "enabled": True,
+                "validated": True,
+            },
+            {
+                "host": "dl.acme.com",
+                "backend_kind": None,
+                "domain_type": 0,
+                "enabled": True,
+                "validated": True,
+            },
+            {
+                "host": "",
+                "backend_kind": 6,
+                "domain_type": 1,
+                "enabled": True,
+                "validated": True,
+            },  # blank host is skipped
         ]
         httpretty.register_uri(
             httpretty.GET,
@@ -182,13 +226,47 @@ class TestGetCustomDomainsForOrg:
             content_type="application/json",
         )
 
-        domains = get_custom_domains_for_org("acme", api_key="k_abc", api_host=API_HOST)
+        domains = get_custom_domains("acme", api_key="k_abc", api_host=API_HOST)
 
-        assert domains == ["docker.acme.com", "dl.acme.com"]
+        assert len(domains) == 2
+        assert domains[0] == CustomDomain(
+            host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+        )
+        assert domains[1] == CustomDomain(
+            host="dl.acme.com", backend_kind=None, enabled=True, validated=True
+        )
         # Auth header proves the SDK auth path is exercised (X-Api-Key, not Bearer).
         assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
-        # Result is cached.
-        assert read_cache(get_cache_path("acme")) == ["docker.acme.com", "dl.acme.com"]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_cache_round_trip(self):
+        """Fetched records are cached; a second call returns the same records from cache."""
+        body = [
+            {
+                "host": "docker.acme.com",
+                "backend_kind": 6,
+                "domain_type": 1,
+                "enabled": True,
+                "validated": True,
+            },
+        ]
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps(body),
+            status=200,
+            content_type="application/json",
+        )
+
+        first = get_custom_domains("acme", api_key="k_abc", api_host=API_HOST)
+
+        # Verify the cache contains structured records.
+        cached = read_cache(get_cache_path("acme"))
+        assert cached is not None
+        assert cached == first
+        assert cached[0].backend_kind == 6
+        assert cached[0].enabled is True
+        assert cached[0].validated is True
 
     @httpretty.activate(allow_net_connect=False)
     def test_bearer_auth_uses_authorization_header(self):
@@ -201,7 +279,7 @@ class TestGetCustomDomainsForOrg:
             content_type="application/json",
         )
 
-        get_custom_domains_for_org(
+        get_custom_domains(
             "acme", api_key="tok123", auth_type="bearer", api_host=API_HOST
         )
 
@@ -218,7 +296,7 @@ class TestGetCustomDomainsForOrg:
             content_type="application/json",
         )
 
-        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
         assert read_cache(get_cache_path("acme")) == []
 
     @httpretty.activate(allow_net_connect=False)
@@ -232,7 +310,7 @@ class TestGetCustomDomainsForOrg:
             content_type="application/json",
         )
 
-        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
         assert read_cache(get_cache_path("acme")) == []
 
     @httpretty.activate(allow_net_connect=False)
@@ -246,11 +324,11 @@ class TestGetCustomDomainsForOrg:
             content_type="application/json",
         )
 
-        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
         assert read_cache(get_cache_path("acme")) is None
 
     @httpretty.activate(allow_net_connect=False)
-    def test_server_error_returns_empty_without_raising(self):
+    def test_server_error_returns_empty_without_caching(self):
         """A 500 returns [] without raising and without caching."""
         httpretty.register_uri(
             httpretty.GET,
@@ -260,5 +338,233 @@ class TestGetCustomDomainsForOrg:
             content_type="application/json",
         )
 
-        assert get_custom_domains_for_org("acme", api_key="k", api_host=API_HOST) == []
+        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
         assert read_cache(get_cache_path("acme")) is None
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_401_does_not_cache(self):
+        """A 401 returns [] but does NOT cache (may succeed later once authed)."""
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps({"detail": "Unauthorized."}),
+            status=401,
+            content_type="application/json",
+        )
+
+        assert get_custom_domains("acme", api_key="k", api_host=API_HOST) == []
+        assert read_cache(get_cache_path("acme")) is None
+
+    def test_legacy_string_cache_is_a_miss(self, tmp_path):
+        """A cache file with a string-list 'domains' (old format) returns None."""
+        import time
+
+        cache_path = get_cache_path("acme")
+        legacy_data = {
+            "domains": ["docker.acme.com"],
+            "cached_at": time.time(),
+        }
+        cache_path.write_text(json.dumps(legacy_data), encoding="utf-8")
+        assert read_cache(cache_path) is None
+
+    def test_empty_domains_cache_is_a_hit(self, tmp_path):
+        """A cache file with 'domains': [] returns [] (valid cached 'no domains')."""
+        import time
+
+        cache_path = get_cache_path("acme")
+        empty_data = {
+            "domains": [],
+            "cached_at": time.time(),
+        }
+        cache_path.write_text(json.dumps(empty_data), encoding="utf-8")
+        assert read_cache(cache_path) == []
+
+
+class TestGetFormatDomains:
+    """Test get_format_domains filters by backend_kind, enabled, and validated."""
+
+    @pytest.fixture(autouse=True)
+    def _cache_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+            lambda: str(tmp_path),
+        )
+        monkeypatch.setattr(
+            httpretty.core.fakesock.socket,
+            "shutdown",
+            lambda self, how: None,
+            raising=False,
+        )
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_returns_only_enabled_validated_docker_hosts(self):
+        """Only Docker domains that are both enabled and validated are returned."""
+        body = [
+            # Should be included: Docker, enabled, validated
+            {
+                "host": "docker.acme.com",
+                "backend_kind": 6,
+                "domain_type": 1,
+                "enabled": True,
+                "validated": True,
+            },
+            # Excluded: different backend_kind (NPM = 9)
+            {
+                "host": "npm.acme.com",
+                "backend_kind": 9,
+                "domain_type": 1,
+                "enabled": True,
+                "validated": True,
+            },
+            # Excluded: Docker but not enabled
+            {
+                "host": "docker2.acme.com",
+                "backend_kind": 6,
+                "domain_type": 1,
+                "enabled": False,
+                "validated": True,
+            },
+            # Excluded: Docker but not validated
+            {
+                "host": "docker3.acme.com",
+                "backend_kind": 6,
+                "domain_type": 1,
+                "enabled": True,
+                "validated": False,
+            },
+            # Excluded: backend_kind is None (download domain)
+            {
+                "host": "dl.acme.com",
+                "backend_kind": None,
+                "domain_type": 0,
+                "enabled": True,
+                "validated": True,
+            },
+        ]
+        httpretty.register_uri(
+            httpretty.GET,
+            f"{API_HOST}/orgs/acme/custom-domains/",
+            body=json.dumps(body),
+            status=200,
+            content_type="application/json",
+        )
+
+        hosts = get_format_domains(
+            "acme", BackendKind.DOCKER, api_key="k", api_host=API_HOST
+        )
+
+        assert hosts == ["docker.acme.com"]
+
+
+class TestIsCloudsmithDomain:
+    """Test is_cloudsmith_domain with standard and custom domains."""
+
+    @pytest.fixture(autouse=True)
+    def _cache_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+            lambda: str(tmp_path),
+        )
+
+    def test_standard_cloudsmith_io_true(self):
+        """Standard *.cloudsmith.io domains are true without any API call."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        assert is_cloudsmith_domain("docker.cloudsmith.io") is True
+        assert is_cloudsmith_domain("dl.cloudsmith.io") is True
+
+    def test_standard_cloudsmith_com_true(self):
+        """Standard *.cloudsmith.com domains are true without any API call."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        assert is_cloudsmith_domain("docker.cloudsmith.com") is True
+
+    def test_non_cloudsmith_false(self):
+        """Unrelated hostnames return False."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        assert is_cloudsmith_domain("evil.example.com") is False
+
+    def test_custom_enabled_validated_host_true(self, tmp_path, monkeypatch):
+        """An enabled+validated custom domain in cache returns True."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=True,
+                )
+            ],
+        )
+
+        assert (
+            is_cloudsmith_domain(
+                "docker.acme.com",
+                api_key="k_abc",
+                api_host=API_HOST,
+            )
+            is True
+        )
+
+    def test_custom_disabled_host_false(self, tmp_path, monkeypatch):
+        """A disabled custom domain is not treated as a Cloudsmith domain."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=False,
+                    validated=True,
+                )
+            ],
+        )
+
+        assert (
+            is_cloudsmith_domain(
+                "docker.acme.com",
+                api_key="k_abc",
+                api_host=API_HOST,
+            )
+            is False
+        )
+
+    def test_custom_enabled_not_validated_host_false(self, tmp_path, monkeypatch):
+        """An enabled but unvalidated custom domain is not a Cloudsmith domain."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=False,
+                )
+            ],
+        )
+
+        assert (
+            is_cloudsmith_domain(
+                "docker.acme.com",
+                api_key="k_abc",
+                api_host=API_HOST,
+            )
+            is False
+        )
