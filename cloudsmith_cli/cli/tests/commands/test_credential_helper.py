@@ -736,3 +736,172 @@ class TestIsCloudsmithDomain:
             )
             is False
         )
+
+    # ------------------------------------------------------------------
+    # backend_kind filtering
+    # ------------------------------------------------------------------
+
+    def test_backend_kind_docker_matches_docker_custom_domain(
+        self, tmp_path, monkeypatch
+    ):
+        """With backend_kind=DOCKER, a Docker custom domain (kind=6) returns True."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=True,
+                )
+            ],
+        )
+
+        assert (
+            is_cloudsmith_domain(
+                "docker.acme.com",
+                api_key="k_abc",
+                api_host=API_HOST,
+                backend_kind=BackendKind.DOCKER,
+            )
+            is True
+        )
+
+    def test_backend_kind_docker_rejects_npm_custom_domain(self, tmp_path, monkeypatch):
+        """With backend_kind=DOCKER, an NPM custom domain (kind=9) returns False."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="npm.acme.com",
+                    backend_kind=9,
+                    enabled=True,
+                    validated=True,
+                )
+            ],
+        )
+
+        assert (
+            is_cloudsmith_domain(
+                "npm.acme.com",
+                api_key="k_abc",
+                api_host=API_HOST,
+                backend_kind=BackendKind.DOCKER,
+            )
+            is False
+        )
+
+    def test_backend_kind_docker_standard_domain_always_true(self):
+        """Standard *.cloudsmith.io is True even when backend_kind=DOCKER (no API call)."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        assert (
+            is_cloudsmith_domain(
+                "docker.cloudsmith.io",
+                backend_kind=BackendKind.DOCKER,
+            )
+            is True
+        )
+        assert (
+            is_cloudsmith_domain(
+                "something.cloudsmith.io",
+                backend_kind=BackendKind.DOCKER,
+            )
+            is True
+        )
+
+    def test_backend_kind_none_default_matches_any_format(self, tmp_path, monkeypatch):
+        """backend_kind=None (default) accepts any enabled+validated custom domain."""
+        from ....credential_helpers.common import is_cloudsmith_domain
+
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="npm.acme.com",
+                    backend_kind=9,
+                    enabled=True,
+                    validated=True,
+                )
+            ],
+        )
+
+        # Default (no backend_kind) still returns True for any format
+        assert (
+            is_cloudsmith_domain(
+                "npm.acme.com",
+                api_key="k_abc",
+                api_host=API_HOST,
+            )
+            is True
+        )
+
+
+class TestDockerRuntimeBackendKindFiltering:
+    """Tests that the Docker runtime refuses non-Docker custom domains."""
+
+    @pytest.fixture(autouse=True)
+    def _cache_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+            lambda: str(tmp_path),
+        )
+        monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+    def test_get_credentials_refuses_npm_custom_domain(self, tmp_path):
+        """get_credentials returns None for an NPM custom domain (not a Docker registry)."""
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="npm.acme.com",
+                    backend_kind=9,
+                    enabled=True,
+                    validated=True,
+                )
+            ],
+        )
+
+        credential = CredentialResult(api_key="k_xyz", source_name="test")
+        result = helper_get_credentials(
+            "npm.acme.com",
+            credential=credential,
+            api_host=API_HOST,
+        )
+
+        assert result is None
+
+    def test_get_credentials_serves_docker_custom_domain(self, tmp_path):
+        """get_credentials returns creds for a Docker custom domain (backend_kind=6)."""
+        cache_path = get_cache_path("acme")
+        write_cache(
+            cache_path,
+            [
+                CustomDomain(
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=True,
+                )
+            ],
+        )
+
+        credential = CredentialResult(api_key="k_xyz", source_name="test")
+        result = helper_get_credentials(
+            "docker.acme.com",
+            credential=credential,
+            api_host=API_HOST,
+        )
+
+        assert result == {"Username": "token", "Secret": "k_xyz"}

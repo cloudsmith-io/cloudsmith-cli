@@ -7,7 +7,7 @@ Provides domain checking used by all credential helpers.
 import logging
 import os
 
-from .custom_domains import get_custom_domains
+from .custom_domains import get_custom_domains, get_format_domains
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,9 @@ def extract_hostname(url):
     return hostname
 
 
-def is_cloudsmith_domain(url, api_key=None, auth_type="api_key", api_host=None):
+def is_cloudsmith_domain(
+    url, api_key=None, auth_type="api_key", api_host=None, backend_kind=None
+):
     """
     Check if a URL points to a Cloudsmith service.
 
@@ -59,6 +61,9 @@ def is_cloudsmith_domain(url, api_key=None, auth_type="api_key", api_host=None):
         api_key: API key/token for authenticating custom domain lookups
         auth_type: "api_key" (X-Api-Key header) or "bearer" (Authorization: Bearer)
         api_host: Cloudsmith API host URL
+        backend_kind: If given, custom domains only match when their backend_kind
+            equals it (standard *.cloudsmith.io domains always match regardless).
+            When None (default), any enabled+validated custom domain matches.
 
     Returns:
         bool: True if this is a Cloudsmith domain
@@ -67,7 +72,7 @@ def is_cloudsmith_domain(url, api_key=None, auth_type="api_key", api_host=None):
     if not hostname:
         return False
 
-    # Standard Cloudsmith domains — no auth needed
+    # Standard Cloudsmith domains — no auth needed, always match regardless of backend_kind
     if (
         hostname in ("cloudsmith.io", "cloudsmith.com")
         or hostname.endswith(".cloudsmith.io")
@@ -83,11 +88,23 @@ def is_cloudsmith_domain(url, api_key=None, auth_type="api_key", api_host=None):
     if not api_key:
         return False
 
-    hosts = {
-        d.host.lower()
-        for d in get_custom_domains(
-            org, api_key=api_key, auth_type=auth_type, api_host=api_host
-        )
-        if d.enabled and d.validated
-    }
+    if backend_kind is not None:
+        hosts = {
+            host.lower()
+            for host in get_format_domains(
+                org,
+                backend_kind,
+                api_key=api_key,
+                auth_type=auth_type,
+                api_host=api_host,
+            )
+        }
+    else:
+        hosts = {
+            d.host.lower()
+            for d in get_custom_domains(
+                org, api_key=api_key, auth_type=auth_type, api_host=api_host
+            )
+            if d.enabled and d.validated
+        }
     return hostname in hosts

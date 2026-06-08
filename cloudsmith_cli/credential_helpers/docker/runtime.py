@@ -12,6 +12,7 @@ See: https://github.com/docker/docker-credential-helpers
 import json
 import logging
 
+from ..backends import BackendKind
 from ..common import is_cloudsmith_domain
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def get_credentials(server_url, credential=None, api_host=None):
         api_key=credential.api_key,
         auth_type=getattr(credential, "auth_type", "api_key"),
         api_host=api_host,
+        backend_kind=BackendKind.DOCKER,
     ):
         return None
 
