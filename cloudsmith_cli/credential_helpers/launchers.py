@@ -4,6 +4,11 @@
 Creates a thin shell script (Unix) or .cmd batch file (Windows) named
 ``docker-credential-cloudsmith`` (or similar) that forwards every call to the
 single ``cloudsmith`` binary already installed on the user's PATH.
+
+The platform-specific bits (file name, script body, user bin directory) live in
+small pure helpers parameterised on ``windows`` so they can be unit-tested
+without monkeypatching ``os.name`` — faking ``os.name`` on a posix host makes
+``pathlib.Path`` raise ``NotImplementedError`` on Python < 3.12.
 """
 
 from __future__ import annotations
@@ -12,6 +17,41 @@ import os
 import shutil
 import sys
 from pathlib import Path
+
+
+def _is_windows() -> bool:
+    """Return True when running on Windows."""
+    return os.name == "nt"
+
+
+def _launcher_filename(name: str, *, windows: bool) -> str:
+    """Return the launcher file name for the platform (``.cmd`` on Windows)."""
+    return f"{name}.cmd" if windows else name
+
+
+def _launcher_content(target_cmd: str, *, windows: bool) -> str:
+    """Return the launcher script body for the platform.
+
+    Windows uses a ``.cmd`` batch file (``@echo off`` keeps stdout clean for
+    Docker's credential JSON); Unix uses a ``#!/bin/sh`` script that ``exec``s
+    the target so signals and the exit code pass straight through.
+    """
+    if windows:
+        return f"@echo off\r\n{target_cmd} %*\r\n"
+    return f'#!/bin/sh\nexec {target_cmd} "$@"\n'
+
+
+def _user_bin_dir(windows: bool) -> Path:
+    """Return the user-local bin directory for the platform.
+
+    Unix → ``~/.local/bin``; Windows → ``%LOCALAPPDATA%\\Cloudsmith\\bin``
+    (falling back to the home directory when ``LOCALAPPDATA`` is unset).
+    """
+    if windows:
+        localappdata = os.environ.get("LOCALAPPDATA")
+        base = Path(localappdata) if localappdata else Path.home()
+        return base / "Cloudsmith" / "bin"
+    return Path.home() / ".local" / "bin"
 
 
 def write_launcher(bin_dir: Path, name: str, target_cmd: str) -> Path:
@@ -32,15 +72,13 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str) -> Path:
     Path
         The path of the written file.
     """
+    windows = _is_windows()
     bin_dir = Path(bin_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
 
-    if os.name == "nt":
-        dest = Path(os.path.join(str(bin_dir), f"{name}.cmd"))
-        dest.write_text(f"@echo off\r\n{target_cmd} %*\r\n", encoding="utf-8")
-    else:
-        dest = Path(os.path.join(str(bin_dir), name))
-        dest.write_text(f'#!/bin/sh\nexec {target_cmd} "$@"\n', encoding="utf-8")
+    dest = bin_dir / _launcher_filename(name, windows=windows)
+    dest.write_text(_launcher_content(target_cmd, windows=windows), encoding="utf-8")
+    if not windows:
         dest.chmod(0o755)
 
     return dest
@@ -61,12 +99,7 @@ def remove_launcher(bin_dir: Path, name: str) -> bool:
     bool
         ``True`` if a file was removed, ``False`` if no file was found.
     """
-    bin_dir = Path(bin_dir)
-
-    if os.name == "nt":
-        target = Path(os.path.join(str(bin_dir), f"{name}.cmd"))
-    else:
-        target = Path(os.path.join(str(bin_dir), name))
+    target = Path(bin_dir) / _launcher_filename(name, windows=_is_windows())
 
     if target.exists():
         target.unlink()
@@ -82,9 +115,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
     1. *override* → ``Path(override)``.
     2. The directory of the running ``cloudsmith`` executable — if that
        directory is writable.
-    3. The user-local bin directory:
-       - Unix: ``~/.local/bin``
-       - Windows: ``%LOCALAPPDATA%\\Cloudsmith\\bin``
+    3. The user-local bin directory (see :func:`_user_bin_dir`).
 
     The chosen directory is **not** created here; that happens when the
     launcher is written via :func:`write_launcher`.
@@ -113,12 +144,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
         return candidate
 
     # Option 3: user-local bin
-    if os.name == "nt":
-        localappdata = os.environ.get("LOCALAPPDATA")
-        base = Path(localappdata) if localappdata else Path.home()
-        return Path(os.path.join(str(base), "Cloudsmith", "bin"))
-
-    return Path(os.path.join(str(Path.home()), ".local", "bin"))
+    return _user_bin_dir(_is_windows())
 
 
 def is_on_path(directory: Path) -> bool:

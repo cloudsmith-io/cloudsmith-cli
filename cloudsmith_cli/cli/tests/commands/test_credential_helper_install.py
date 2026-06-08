@@ -14,6 +14,9 @@ import pytest
 
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
+    _launcher_content,
+    _launcher_filename,
+    _user_bin_dir,
     is_on_path,
     remove_launcher,
     resolve_bin_dir,
@@ -32,42 +35,57 @@ def runner():
 
 
 # ---------------------------------------------------------------------------
-# 1. write_launcher — unix and windows
+# 1. launcher filename + content (pure, platform-parameterised)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("platform", ["unix", "windows"])
-def test_write_launcher(tmp_path, monkeypatch, platform):
-    """write_launcher produces exact content and correct mode for unix and windows.
+@pytest.mark.parametrize(
+    "windows,expected_name,expected_content",
+    [
+        (
+            False,
+            "docker-credential-cloudsmith",
+            '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n',
+        ),
+        (
+            True,
+            "docker-credential-cloudsmith.cmd",
+            "@echo off\r\ncloudsmith credential-helper docker %*\r\n",
+        ),
+    ],
+)
+def test_launcher_filename_and_content(windows, expected_name, expected_content):
+    """Per-platform launcher name + body — guards the exact Windows .cmd bytes.
 
-    Retained guard: exact Windows .cmd content (CRLF, @echo off, %*).
+    Parameterised on ``windows`` rather than patching ``os.name`` so no
+    ``pathlib.Path`` is built under a faked platform (which raises
+    ``NotImplementedError`` on Python < 3.12).
     """
-    import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
-
-    if platform == "windows":
-        monkeypatch.setattr(_launchers_mod.os, "name", "nt")
-        dest = write_launcher(
-            tmp_path,
-            "docker-credential-cloudsmith",
-            "cloudsmith credential-helper docker",
-        )
-        assert str(dest).endswith(".cmd")
-        raw = Path(str(dest)).read_bytes()
-        assert raw == b"@echo off\r\ncloudsmith credential-helper docker %*\r\n"
-    else:
-        dest = write_launcher(
-            tmp_path,
-            "docker-credential-cloudsmith",
-            "cloudsmith credential-helper docker",
-        )
-        expected = '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n'
-        assert dest.read_text(encoding="utf-8") == expected
-        assert stat.S_IMODE(dest.stat().st_mode) == 0o755
+    assert (
+        _launcher_filename("docker-credential-cloudsmith", windows=windows)
+        == expected_name
+    )
+    assert (
+        _launcher_content("cloudsmith credential-helper docker", windows=windows)
+        == expected_content
+    )
 
 
 # ---------------------------------------------------------------------------
-# 2. remove_launcher
+# 2. write_launcher / remove_launcher — end-to-end on the host platform
 # ---------------------------------------------------------------------------
+
+
+def test_write_launcher_writes_executable_script(tmp_path):
+    """write_launcher writes the shim with content + 0o755 on the host platform."""
+    dest = write_launcher(
+        tmp_path,
+        "docker-credential-cloudsmith",
+        "cloudsmith credential-helper docker",
+    )
+    expected = '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n'
+    assert dest.read_text(encoding="utf-8") == expected
+    assert stat.S_IMODE(dest.stat().st_mode) == 0o755
 
 
 def test_remove_launcher(tmp_path):
@@ -85,38 +103,32 @@ def test_remove_launcher(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 3. resolve_bin_dir
+# 3. resolve_bin_dir + user-bin (no os.name faking)
 # ---------------------------------------------------------------------------
 
 
+def test_resolve_bin_dir_override(tmp_path):
+    """An explicit override is returned verbatim."""
+    assert resolve_bin_dir(str(tmp_path)) == tmp_path
+
+
 @pytest.mark.parametrize(
-    "scenario", ["override", "user_bin_fallback", "windows_user_bin"]
+    "windows,expected_suffix",
+    [
+        (False, (".local", "bin")),
+        (True, ("Cloudsmith", "bin")),
+    ],
 )
-def test_resolve_bin_dir(tmp_path, monkeypatch, scenario):
-    """resolve_bin_dir respects an override, falls back to user-bin on posix/windows."""
-    import cloudsmith_cli.credential_helpers.launchers as _launchers_mod
+def test_user_bin_dir(tmp_path, monkeypatch, windows, expected_suffix):
+    """_user_bin_dir returns the per-platform user bin location.
 
-    if scenario == "override":
-        result = resolve_bin_dir(str(tmp_path))
-        assert result == tmp_path
-
-    elif scenario == "user_bin_fallback":
-        monkeypatch.setattr(_launchers_mod.shutil, "which", lambda _name: None)
-        monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-        monkeypatch.setattr(_launchers_mod.os, "name", "posix")
-        monkeypatch.setattr(_launchers_mod.os, "access", lambda _path, _mode: False)
-        result = resolve_bin_dir()
-        assert result == tmp_path / ".local" / "bin"
-
-    else:  # windows_user_bin
-        monkeypatch.setattr(_launchers_mod.shutil, "which", lambda _name: None)
-        monkeypatch.setattr(_launchers_mod.os, "name", "nt")
-        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-        monkeypatch.setattr(_launchers_mod.os, "access", lambda _path, _mode: False)
-        result = resolve_bin_dir()
-        result_str = str(result).replace("\\", "/")
-        expected_str = str(tmp_path / "Cloudsmith" / "bin").replace("\\", "/")
-        assert result_str == expected_str
+    Parameterised on ``windows`` (not ``os.name``) to avoid building a
+    ``WindowsPath`` on a posix host.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    result = _user_bin_dir(windows)
+    assert result.parts[-2:] == expected_suffix
 
 
 # ---------------------------------------------------------------------------
