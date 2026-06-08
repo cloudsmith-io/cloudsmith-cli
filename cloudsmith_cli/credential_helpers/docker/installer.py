@@ -162,9 +162,11 @@ class DockerInstaller:
         hosts = deduped
 
         def mutate(config: dict) -> None:
-            config.setdefault("credHelpers", {})
+            helpers = config.get("credHelpers")
+            if not isinstance(helpers, dict):
+                helpers = config["credHelpers"] = {}
             for host in hosts:
-                config["credHelpers"][host] = self.HELPER_VALUE
+                helpers[host] = self.HELPER_VALUE
 
         if dry_run:
             if os.name == "nt":
@@ -236,11 +238,13 @@ class DockerInstaller:
         config_path = _docker_config_path()
 
         def mutate(config: dict) -> None:
-            helpers = config.get("credHelpers", {})
+            helpers = config.get("credHelpers")
+            if not isinstance(helpers, dict):
+                return
             removed = [k for k, v in helpers.items() if v == self.HELPER_VALUE]
             for key in removed:
                 del helpers[key]
-            if removed and not config["credHelpers"]:
+            if removed and not helpers:
                 del config["credHelpers"]
 
         actions: list[str] = []

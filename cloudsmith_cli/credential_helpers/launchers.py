@@ -77,7 +77,9 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str) -> Path:
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     dest = bin_dir / _launcher_filename(name, windows=windows)
-    dest.write_text(_launcher_content(target_cmd, windows=windows), encoding="utf-8")
+    dest.write_text(
+        _launcher_content(target_cmd, windows=windows), encoding="utf-8", newline=""
+    )
     if not windows:
         dest.chmod(0o755)
 
@@ -140,7 +142,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
     else:
         candidate = Path(os.path.dirname(os.path.realpath(sys.argv[0])))
 
-    if os.access(candidate, os.W_OK):
+    if os.access(candidate, os.W_OK | os.X_OK):
         return candidate
 
     # Option 3: user-local bin

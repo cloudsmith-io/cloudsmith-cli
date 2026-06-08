@@ -671,3 +671,48 @@ def test_output_format_default_shows_human_text(runner, tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert "dry run" in result.output.lower() or "would" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# 17. Malformed credHelpers robustness
+# ---------------------------------------------------------------------------
+
+
+def test_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
+    """install coerces a non-dict credHelpers (list) rather than raising TypeError."""
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir(parents=True)
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (list instead of dict)
+    (docker_dir / "config.json").write_text(
+        json.dumps({"credHelpers": ["not", "a", "dict"]}),
+        encoding="utf-8",
+    )
+
+    installer = DockerInstaller()
+    # Must not raise
+    installer.install(bin_dir=str(bin_dir), discover=False)
+
+    cfg = json.loads((docker_dir / "config.json").read_text(encoding="utf-8"))
+    assert isinstance(cfg["credHelpers"], dict)
+    assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+
+def test_uninstall_tolerates_malformed_cred_helpers(tmp_path, monkeypatch):
+    """uninstall treats a non-dict credHelpers (string) as a no-op rather than raising."""
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir(parents=True)
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (string instead of dict)
+    (docker_dir / "config.json").write_text(
+        json.dumps({"credHelpers": "garbage"}),
+        encoding="utf-8",
+    )
+
+    installer = DockerInstaller()
+    # Must not raise
+    installer.uninstall(bin_dir=str(bin_dir))
