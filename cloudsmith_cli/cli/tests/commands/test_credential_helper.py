@@ -19,12 +19,166 @@ from ....credential_helpers.custom_domains import (
     read_cache,
     write_cache,
 )
-from ....credential_helpers.docker.credentials import (
+from ....credential_helpers.docker.runtime import (
+    execute,
     get_credentials as helper_get_credentials,
 )
 from ....credential_helpers.docker.wrapper import main as docker_wrapper_main
 
 API_HOST = "https://api.cloudsmith.io"
+
+
+class TestDockerRuntime:
+    """Unit tests for the transport-light runtime (execute + get_credentials)."""
+
+    # ------------------------------------------------------------------
+    # execute – get operation
+    # ------------------------------------------------------------------
+
+    def test_execute_get_success_returns_json(self):
+        """execute get → (0, json_string, None) when get_credentials returns a dict."""
+        fake_creds = {"Username": "token", "Secret": "k_abc"}
+        stdin = io.StringIO("docker.cloudsmith.io")
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
+        ) as mock_get:
+            mock_get.return_value = fake_creds
+            code, stdout, stderr = execute("get", stdin)
+
+        assert code == 0
+        assert json.loads(stdout) == fake_creds
+        assert stderr is None
+
+    def test_execute_get_refusal_returns_exit_1(self):
+        """execute get → (1, None, refusal_msg) when get_credentials returns None."""
+        stdin = io.StringIO("evil.example.com")
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
+        ) as mock_get:
+            mock_get.return_value = None
+            code, stdout, stderr = execute("get", stdin)
+
+        assert code == 1
+        assert stdout is None
+        assert "Unable to retrieve credentials" in stderr
+
+    def test_execute_get_empty_stdin_returns_exit_1(self):
+        """execute get with empty stdin → (1, None, 'No server URL...')."""
+        stdin = io.StringIO("")
+        code, stdout, stderr = execute("get", stdin)
+
+        assert code == 1
+        assert stdout is None
+        assert "No server URL provided" in stderr
+
+    def test_execute_get_exception_is_caught_at_boundary(self):
+        """D17: a network/SDK error inside get_credentials must NOT escape execute.
+
+        The protocol boundary degrades to a clean refusal (exit 1) so that
+        docker pull/push never sees a Python traceback.
+        """
+        stdin = io.StringIO("docker.cloudsmith.io")
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
+        ) as mock_get:
+            mock_get.side_effect = RuntimeError("boom")
+            code, stdout, stderr = execute("get", stdin)
+
+        assert code == 1
+        assert stdout is None
+        assert "Unable to retrieve credentials" in stderr
+
+    def test_execute_get_broken_pipe_stdin_is_caught_at_boundary(self):
+        """A broken-pipe OSError from stdin.read() must not escape execute.
+
+        The widened boundary covers the stdin read, so a broken pipe degrades
+        to a clean refusal (exit 1) rather than propagating an exception.
+        """
+        from ....credential_helpers.docker.runtime import _REFUSAL_MESSAGE
+
+        class BrokenPipeStdin:
+            def read(self):
+                raise OSError("broken pipe")
+
+        credential = CredentialResult(api_key="k_abc", source_name="test")
+        code, stdout, stderr = execute(
+            "get", BrokenPipeStdin(), credential=credential, api_host=None
+        )
+
+        assert code == 1
+        assert stdout is None
+        assert stderr == _REFUSAL_MESSAGE
+
+    # ------------------------------------------------------------------
+    # execute – write/no-op operations
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("operation", ["store", "erase"])
+    def test_execute_store_erase_returns_0_no_output(self, operation):
+        """store and erase drain stdin and return (0, None, None)."""
+        stdin = io.StringIO('{"ServerURL": "docker.cloudsmith.io"}')
+        code, stdout, stderr = execute(operation, stdin)
+
+        assert code == 0
+        assert stdout is None
+        assert stderr is None
+
+    def test_execute_list_returns_empty_json_object(self):
+        """list always returns (0, '{}', None)."""
+        stdin = io.StringIO("")
+        code, stdout, stderr = execute("list", stdin)
+
+        assert code == 0
+        assert stdout == "{}"
+        assert stderr is None
+
+    def test_execute_unknown_operation_returns_exit_1(self):
+        """An unrecognised operation name returns (1, None, error_message)."""
+        stdin = io.StringIO("")
+        code, stdout, stderr = execute("frobnicate", stdin)
+
+        assert code == 1
+        assert stdout is None
+        assert "Unknown operation" in stderr
+        assert "frobnicate" in stderr
+
+    # ------------------------------------------------------------------
+    # get_credentials
+    # ------------------------------------------------------------------
+
+    def test_get_credentials_returns_dict_for_cloudsmith_domain(self):
+        """get_credentials returns username+secret for a Cloudsmith domain."""
+        credential = CredentialResult(api_key="k_xyz", source_name="test")
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.is_cloudsmith_domain"
+        ) as mock_is:
+            mock_is.return_value = True
+            result = helper_get_credentials(
+                "docker.cloudsmith.io", credential=credential
+            )
+
+        assert result == {"Username": "token", "Secret": "k_xyz"}
+
+    def test_get_credentials_returns_none_when_no_credential(self):
+        """get_credentials returns None when credential is absent."""
+        result = helper_get_credentials("docker.cloudsmith.io", credential=None)
+        assert result is None
+
+    def test_get_credentials_returns_none_for_non_cloudsmith_domain(self):
+        """get_credentials returns None when is_cloudsmith_domain is False."""
+        credential = CredentialResult(api_key="k_xyz", source_name="test")
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.is_cloudsmith_domain"
+        ) as mock_is:
+            mock_is.return_value = False
+            result = helper_get_credentials("evil.example.com", credential=credential)
+
+        assert result is None
 
 
 class TestDockerCredentialHelper:
@@ -35,29 +189,51 @@ class TestDockerCredentialHelper:
         fake_creds = {"Username": "token", "Secret": "k_abc"}
 
         with patch(
-            "cloudsmith_cli.cli.commands.credential_helper.docker.get_credentials"
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
         ) as mock_get:
             mock_get.return_value = fake_creds
             result = runner.invoke(
-                docker, input="docker.cloudsmith.io", catch_exceptions=False
+                docker,
+                args=["get"],
+                input="docker.cloudsmith.io",
+                catch_exceptions=False,
             )
 
         assert result.exit_code == 0
-        # stdout should contain the serialized JSON exactly as produced by the command.
         assert json.dumps(fake_creds) in result.stdout
         mock_get.assert_called_once()
-        # The first positional argument to get_credentials is the server URL.
         called_args, _called_kwargs = mock_get.call_args
         assert called_args[0] == "docker.cloudsmith.io"
+
+    def test_no_arg_defaults_to_get(self, runner):
+        """Invoking docker with no OPERATION argument defaults to 'get'."""
+        fake_creds = {"Username": "token", "Secret": "k_abc"}
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
+        ) as mock_get:
+            mock_get.return_value = fake_creds
+            result = runner.invoke(
+                docker,
+                args=[],
+                input="docker.cloudsmith.io",
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0
+        assert json.dumps(fake_creds) in result.stdout
 
     def test_refuses_non_cloudsmith_domain(self, runner):
         """Non-Cloudsmith URLs should exit 1 with an error message on stderr."""
         with patch(
-            "cloudsmith_cli.cli.commands.credential_helper.docker.get_credentials"
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
         ) as mock_get:
             mock_get.return_value = None
             result = runner.invoke(
-                docker, input="evil.example.com", catch_exceptions=False
+                docker,
+                args=["get"],
+                input="evil.example.com",
+                catch_exceptions=False,
             )
 
         assert result.exit_code == 1
@@ -67,14 +243,35 @@ class TestDockerCredentialHelper:
     def test_empty_stdin_exits_1(self, runner):
         """Empty stdin should exit 1 with a descriptive error on stderr."""
         with patch(
-            "cloudsmith_cli.cli.commands.credential_helper.docker.get_credentials"
+            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials"
         ) as mock_get:
-            result = runner.invoke(docker, input="", catch_exceptions=False)
+            result = runner.invoke(
+                docker, args=["get"], input="", catch_exceptions=False
+            )
 
         assert result.exit_code == 1
         assert "No server URL provided" in result.output
-        # get_credentials should never be called when there is no URL.
         mock_get.assert_not_called()
+
+    @pytest.mark.parametrize("operation", ["store", "erase"])
+    def test_store_erase_exit_0_no_output(self, runner, operation):
+        """store and erase exit 0 and produce no output."""
+        result = runner.invoke(
+            docker,
+            args=[operation],
+            input='{"ServerURL": "docker.cloudsmith.io"}',
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert result.output == ""
+
+    def test_list_prints_empty_json(self, runner):
+        """list exits 0 and prints '{}'."""
+        result = runner.invoke(docker, args=["list"], input="", catch_exceptions=False)
+
+        assert result.exit_code == 0
+        assert "{}" in result.output
 
     def test_custom_domain_with_cached_response(self, tmp_path, monkeypatch):
         """A cached custom-domain entry should authorise credential issuance.

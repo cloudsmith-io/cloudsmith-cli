@@ -6,31 +6,32 @@ Implements the Docker credential helper protocol for Cloudsmith registries.
 See: https://github.com/docker/docker-credential-helpers
 """
 
-import json
 import sys
 
 import click
 
-from ....credential_helpers.docker import get_credentials
+from ....credential_helpers.docker import execute
 from ...decorators import common_api_auth_options, resolve_credentials
 
 
 @click.command()
+@click.argument("operation", required=False, default="get")
 @common_api_auth_options
 @resolve_credentials
-def docker(opts):
+def docker(opts, operation):
     """
     Docker credential helper for Cloudsmith registries.
 
-    Reads a Docker registry server URL from stdin and returns credentials in JSON format.
-    This command implements the 'get' operation of the Docker credential helper protocol.
+    Reads a Docker registry server URL from stdin and returns credentials in
+    JSON format.  Implements the full Docker credential helper protocol
+    (get/store/erase/list).
 
-    Only provides credentials for Cloudsmith Docker registries: `*.cloudsmith.io`
-    and any custom domains configured for the organization (requires CLOUDSMITH_ORG
-    and a valid API key/token).
+    Provides credentials for all Cloudsmith Docker registries: ``*.cloudsmith.io``,
+    ``*.cloudsmith.com``, and any custom domains configured for the organisation
+    (requires CLOUDSMITH_ORG and a valid API key/token).
 
     Input (stdin):
-        Server URL as plain text (e.g., "docker.cloudsmith.io")
+        Server URL as plain text (e.g. "docker.cloudsmith.io")
 
     Output (stdout):
         JSON: {"Username": "token", "Secret": "<cloudsmith-token>"}
@@ -42,41 +43,23 @@ def docker(opts):
     Examples:
         # Manual testing
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker
-        {"Username":"token","Secret":"eyJ0eXAiOiJKV1Qi..."}
 
         # Called by Docker via wrapper
         $ echo "docker.cloudsmith.io" | docker-credential-cloudsmith get
-        {"Username":"token","Secret":"eyJ0eXAiOiJKV1Qi..."}
 
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_ORG: Organization slug (required for custom domain support)
+        CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
     """
-    try:
-        server_url = sys.stdin.read().strip()
+    exit_code, stdout, stderr = execute(
+        operation,
+        sys.stdin,
+        credential=opts.credential,
+        api_host=opts.api_host,
+    )
 
-        if not server_url:
-            click.echo("Error: No server URL provided on stdin", err=True)
-            sys.exit(1)
-
-        credentials = get_credentials(
-            server_url,
-            credential=opts.credential,
-            api_host=opts.api_host,
-        )
-
-        if not credentials:
-            click.echo(
-                "Error: Unable to retrieve credentials. "
-                "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
-                "credentials.ini, the system keyring, or an OIDC service. "
-                "Verify current authentication with `cloudsmith whoami --verbose`.",
-                err=True,
-            )
-            sys.exit(1)
-
-        click.echo(json.dumps(credentials))
-
-    except OSError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    if stdout is not None:
+        click.echo(stdout)
+    if stderr is not None:
+        click.echo(stderr, err=True)
+    sys.exit(exit_code)

@@ -1,3 +1,3 @@
-from .credentials import get_credentials
+from .runtime import execute, get_credentials
 
-__all__ = ["get_credentials"]
+__all__ = ["execute", "get_credentials"]
