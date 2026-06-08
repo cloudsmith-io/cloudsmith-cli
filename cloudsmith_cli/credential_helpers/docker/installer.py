@@ -9,11 +9,16 @@ registry hosts.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
 from ...core.cache_utils import merge_json_file
+from ..backends import BackendKind
+from ..custom_domains import get_format_domains
 from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+
+logger = logging.getLogger(__name__)
 
 
 def _docker_config_path() -> Path:
@@ -56,6 +61,12 @@ class DockerInstaller:
         *,
         bin_dir: str | None = None,
         domains: tuple[str, ...] = (),
+        discover: bool = True,
+        refresh: bool = False,
+        org: str | None = None,
+        api_key: str | None = None,
+        auth_type: str = "api_key",
+        api_host: str | None = None,
         dry_run: bool = False,
     ) -> list[str]:
         """Install the Docker credential helper.
@@ -71,6 +82,21 @@ class DockerInstaller:
         domains:
             Additional registry hostnames to configure (in addition to the
             default ``docker.cloudsmith.io``).
+        discover:
+            When ``True`` (default), attempt to auto-discover Docker custom
+            domains via the Cloudsmith API.  Discovery is best-effort and never
+            prevents the defaults from being registered.
+        refresh:
+            When ``True``, bypass the domain cache and fetch fresh data from
+            the API.  Only meaningful when *discover* is also ``True``.
+        org:
+            Cloudsmith organisation slug used for custom-domain discovery.
+        api_key:
+            API key used for custom-domain discovery.
+        auth_type:
+            Credential type: ``"api_key"`` (default) or ``"bearer"``.
+        api_host:
+            Cloudsmith API host URL override.
         dry_run:
             When ``True``, compute and return planned actions without writing
             any files.
@@ -84,20 +110,61 @@ class DockerInstaller:
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
 
+        actions: list[str] = []
+
+        # Start with the default host plus any explicitly requested domains.
+        hosts: list[str] = [self.DEFAULT_HOST, *domains]
+
+        # --- Custom-domain auto-discovery (best-effort) ---
+        if discover:
+            if org and api_key:
+                # Discovery boundary: network/SDK errors must never abort the
+                # default install.  ApiException is already handled inside
+                # get_format_domains; this broad catch is the deliberate outer
+                # boundary (consistent with "boundary catches, library stays clean").
+                # Note: BaseException subclasses (KeyboardInterrupt/SystemExit)
+                # intentionally propagate — they are not caught by `except Exception`.
+                try:
+                    discovered = get_format_domains(
+                        org,
+                        BackendKind.DOCKER,
+                        api_key=api_key,
+                        auth_type=auth_type,
+                        api_host=api_host,
+                        refresh=refresh,
+                    )
+                except Exception as exc:  # pylint: disable=broad-except
+                    # Discovery is best-effort: never let it abort the install of
+                    # the defaults.  (Network/SDK errors degrade to a warning;
+                    # ApiException is already handled inside.)
+                    actions.append(
+                        f"WARNING: custom-domain auto-discovery failed: {exc}"
+                    )
+                    discovered = []
+                new_hosts = [h for h in discovered if h not in hosts]
+                hosts.extend(discovered)
+                actions.append(
+                    f"discovered {len(new_hosts)} new Docker custom domain(s)"
+                )
+            else:
+                logger.debug(
+                    "skipped auto-discovery"
+                    " (no organization/credentials; pass --no-discover to silence)"
+                )
+
         # De-duplicate while preserving order
         seen: set[str] = set()
-        hosts: list[str] = []
-        for h in [self.DEFAULT_HOST, *domains]:
+        deduped: list[str] = []
+        for h in hosts:
             if h not in seen:
                 seen.add(h)
-                hosts.append(h)
+                deduped.append(h)
+        hosts = deduped
 
         def mutate(config: dict) -> None:
             config.setdefault("credHelpers", {})
             for host in hosts:
                 config["credHelpers"][host] = self.HELPER_VALUE
-
-        actions: list[str] = []
 
         if dry_run:
             if os.name == "nt":

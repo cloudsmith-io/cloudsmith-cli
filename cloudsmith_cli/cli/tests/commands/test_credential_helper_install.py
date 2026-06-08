@@ -581,3 +581,395 @@ class TestUnwritableDirCleanError:
         assert not isinstance(
             result.exception, OSError
         ), f"Raw OSError escaped: {result.exception}"
+
+
+# ---------------------------------------------------------------------------
+# Custom-domain autodiscovery
+# ---------------------------------------------------------------------------
+
+# Import path where installer imports get_format_domains (used for monkeypatching)
+_INSTALLER_GET_FORMAT_DOMAINS = (
+    "cloudsmith_cli.credential_helpers.docker.installer.get_format_domains"
+)
+
+
+class TestDockerInstallerAutodiscovery:
+    """Tests for DockerInstaller.install custom-domain autodiscovery."""
+
+    def test_discovery_on_registers_discovered_domains(self, tmp_path, monkeypatch):
+        """When discover=True and org+api_key present, discovered domains are registered."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        monkeypatch.setattr(
+            _INSTALLER_GET_FORMAT_DOMAINS,
+            lambda *_a, **_kw: ["docker.acme.com"],
+        )
+
+        installer = DockerInstaller()
+        actions = installer.install(
+            bin_dir=str(bin_dir),
+            discover=True,
+            org="acme",
+            api_key="k_test",
+        )
+
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+        assert cfg["credHelpers"]["docker.acme.com"] == "cloudsmith"
+        assert any("discovered" in a and "1" in a for a in actions)
+
+    def test_no_discover_skips_get_format_domains(self, tmp_path, monkeypatch):
+        """When discover=False, get_format_domains is never called."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+
+        installer = DockerInstaller()
+        installer.install(
+            bin_dir=str(bin_dir),
+            discover=False,
+            org="acme",
+            api_key="k_test",
+        )
+
+        assert not called, "get_format_domains must not be called when discover=False"
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert "docker.cloudsmith.io" in cfg["credHelpers"]
+        # No extra domain registered
+        assert "docker.acme.com" not in cfg["credHelpers"]
+
+    def test_missing_org_skips_discovery_install_succeeds(self, tmp_path, monkeypatch):
+        """discover=True with org=None skips discovery; default host is still registered."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+
+        installer = DockerInstaller()
+        installer.install(
+            bin_dir=str(bin_dir),
+            discover=True,
+            org=None,
+            api_key="k_test",
+        )
+
+        # Discovery must not have run
+        assert not called, "get_format_domains must not be called when org is absent"
+        # Default host must still be registered
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+    def test_missing_api_key_skips_discovery_install_succeeds(
+        self, tmp_path, monkeypatch
+    ):
+        """discover=True with api_key=None skips discovery; default host is still registered."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+
+        installer = DockerInstaller()
+        installer.install(
+            bin_dir=str(bin_dir),
+            discover=True,
+            org="acme",
+            api_key=None,
+        )
+
+        # Discovery must not have run
+        assert (
+            not called
+        ), "get_format_domains must not be called when api_key is absent"
+        # Default host must still be registered
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+    def test_discovery_failure_is_graceful(self, tmp_path, monkeypatch):
+        """A discovery error (e.g. network down) must not abort install; returns WARNING."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        def _raise(*_a, **_kw):
+            raise RuntimeError("network down")
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _raise)
+
+        installer = DockerInstaller()
+        # Must NOT raise
+        actions = installer.install(
+            bin_dir=str(bin_dir),
+            discover=True,
+            org="acme",
+            api_key="k_test",
+        )
+
+        # Default host still registered
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+        # Launcher created
+        assert (bin_dir / "docker-credential-cloudsmith").exists()
+
+        # WARNING action present
+        warning_actions = [a for a in actions if a.startswith("WARNING")]
+        assert warning_actions, f"Expected a WARNING action, got: {actions}"
+        assert any("network down" in a for a in warning_actions)
+
+    def test_discovery_returns_default_host_reports_zero_net_new(
+        self, tmp_path, monkeypatch
+    ):
+        """If discovery returns docker.cloudsmith.io (DEFAULT_HOST), credHelpers has
+        a single entry and the action message reports 0 net-new domains."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        monkeypatch.setattr(
+            _INSTALLER_GET_FORMAT_DOMAINS,
+            lambda *_a, **_kw: ["docker.cloudsmith.io"],
+        )
+
+        installer = DockerInstaller()
+        actions = installer.install(
+            bin_dir=str(bin_dir),
+            discover=True,
+            org="acme",
+            api_key="k_test",
+        )
+
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        helpers = cfg["credHelpers"]
+        # Only one entry for the default host
+        assert list(helpers.keys()).count("docker.cloudsmith.io") == 1
+        assert helpers["docker.cloudsmith.io"] == "cloudsmith"
+        # Discovered action must report 0 net-new
+        discovered_actions = [a for a in actions if "discovered" in a]
+        assert discovered_actions, f"Expected a discovered action, got: {actions}"
+        assert any(
+            "0" in a for a in discovered_actions
+        ), f"Expected 0 net-new in discovered action, got: {discovered_actions}"
+
+    def test_dedup_prevents_duplicate_hosts(self, tmp_path, monkeypatch):
+        """If discovery returns a host already in --domain, it is not duplicated."""
+        docker_dir = tmp_path / ".docker"
+        monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        # Both explicit domain and discovered return the same host
+        monkeypatch.setattr(
+            _INSTALLER_GET_FORMAT_DOMAINS,
+            lambda *_a, **_kw: ["docker.acme.com"],
+        )
+
+        installer = DockerInstaller()
+        installer.install(
+            bin_dir=str(bin_dir),
+            domains=("docker.acme.com",),
+            discover=True,
+            org="acme",
+            api_key="k_test",
+        )
+
+        cfg = json.loads((docker_dir / "config.json").read_text())
+        # credHelpers is a dict so duplicates are impossible at the JSON level,
+        # but we verify the host appears exactly once (dict semantics).
+        helpers = cfg["credHelpers"]
+        assert helpers.get("docker.acme.com") == "cloudsmith"
+
+
+# ---------------------------------------------------------------------------
+# --refresh bypasses cache (unit test on get_custom_domains)
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshBypassesCache:
+    """Verify that refresh=True skips the on-disk cache in get_custom_domains."""
+
+    @pytest.fixture(autouse=True)
+    def _redirect_cache(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+            lambda: str(tmp_path),
+        )
+
+    def test_refresh_false_uses_cache(self, tmp_path):
+        """refresh=False (default) returns cached domains without hitting the API."""
+        import time
+
+        from ....credential_helpers.custom_domains import (
+            CustomDomain,
+            get_cache_path,
+            get_custom_domains,
+            write_cache,
+        )
+
+        cache_path = get_cache_path("acme")
+        cached_domain = CustomDomain(
+            host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+        )
+        write_cache(cache_path, [cached_domain])
+        # Touch the mtime to make the cache look fresh
+        os.utime(cache_path, (time.time(), time.time()))
+
+        api_called = []
+
+        def _boom(*_a, **_kw):
+            api_called.append(True)
+            raise AssertionError("API should not be called when cache is valid")
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+            _boom,
+        ):
+            result = get_custom_domains("acme", api_key="k", refresh=False)
+
+        assert not api_called
+        assert result == [cached_domain]
+
+    def test_refresh_true_bypasses_cache(self, tmp_path):
+        """refresh=True fetches from the API even when a valid cache exists."""
+        import time
+
+        from ....credential_helpers.custom_domains import (
+            CustomDomain,
+            get_cache_path,
+            get_custom_domains,
+            write_cache,
+        )
+
+        cache_path = get_cache_path("acme")
+        stale_domain = CustomDomain(
+            host="old.acme.com", backend_kind=6, enabled=True, validated=True
+        )
+        write_cache(cache_path, [stale_domain])
+        os.utime(cache_path, (time.time(), time.time()))
+
+        fresh_domain = CustomDomain(
+            host="new.acme.com", backend_kind=6, enabled=True, validated=True
+        )
+
+        def _fake_list(*_a, **_kw):
+            return [
+                {
+                    "host": "new.acme.com",
+                    "backend_kind": 6,
+                    "enabled": True,
+                    "validated": True,
+                }
+            ]
+
+        with patch(
+            "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+            _fake_list,
+        ):
+            result = get_custom_domains("acme", api_key="k", refresh=True)
+
+        assert result == [fresh_domain]
+
+
+# ---------------------------------------------------------------------------
+# manage CLI — new flags
+# ---------------------------------------------------------------------------
+
+
+class TestManageCLINewFlags:
+    """Tests for --no-discover, --refresh, and --org on the install CLI command."""
+
+    def test_install_no_discover_dry_run_exits_0(self, runner, tmp_path, monkeypatch):
+        """install docker --no-discover --dry-run exits 0."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            [
+                "docker",
+                "--no-discover",
+                "--dry-run",
+                "--bin-dir",
+                str(tmp_path / "bin"),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "would" in result.output.lower() or "dry run" in result.output.lower()
+
+    def test_install_dry_run_with_stubbed_discovery_exits_0(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """install docker --dry-run with get_format_domains stubbed exits 0."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+        # Stub discovery so no real network call is made even if org+key are present
+        monkeypatch.setattr(
+            _INSTALLER_GET_FORMAT_DOMAINS,
+            lambda *_a, **_kw: [],
+        )
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            ["docker", "--dry-run", "--bin-dir", str(tmp_path / "bin")],
+        )
+
+        assert result.exit_code == 0, result.output
+
+    def test_install_no_discover_does_not_call_get_format_domains(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """--no-discover prevents get_format_domains from being called."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+        bin_dir = tmp_path / "bin"
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+
+        from ....cli.commands.credential_helper.manage import install_cmd
+
+        result = runner.invoke(
+            install_cmd,
+            ["docker", "--no-discover", "--bin-dir", str(bin_dir)],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert not called, "get_format_domains must not be called with --no-discover"

@@ -8,11 +8,13 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 
 from __future__ import annotations
 
+import os
 import sys
 
 import click
 
 from ....credential_helpers.docker.installer import DockerInstaller
+from ...decorators import common_api_auth_options, resolve_credentials
 
 # ---------------------------------------------------------------------------
 # Helper registry — extend here when new helpers are added
@@ -74,8 +76,34 @@ def _get_installer(name: str):
     default=False,
     help="Show what would be done without making any changes.",
 )
+@click.option(
+    "--no-discover",
+    is_flag=True,
+    default=False,
+    help="Disable automatic discovery of custom Docker domains.",
+)
+@click.option(
+    "--refresh",
+    is_flag=True,
+    default=False,
+    help="Bypass the custom-domain cache and fetch fresh data from the API.",
+)
+@click.option(
+    "--org",
+    default=None,
+    help="Cloudsmith organisation slug for custom-domain discovery.",
+)
+@common_api_auth_options
+@resolve_credentials
 def install_cmd(
-    helper: str, bin_dir: str | None, domains: tuple[str, ...], dry_run: bool
+    opts,
+    helper: str,
+    bin_dir: str | None,
+    domains: tuple[str, ...],
+    dry_run: bool,
+    no_discover: bool,
+    refresh: bool,
+    org: str | None,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
@@ -94,10 +122,31 @@ def install_cmd(
     \b
         # Preview without making changes
         $ cloudsmith credential-helper install docker --dry-run
+
+    \b
+        # Disable automatic custom-domain discovery
+        $ cloudsmith credential-helper install docker --no-discover
     """
     installer = _get_installer(helper)
+    org = org or os.environ.get("CLOUDSMITH_ORG", "").strip() or None
+    api_key = opts.credential.api_key if opts.credential else None
+    auth_type = (
+        getattr(opts.credential, "auth_type", "api_key")
+        if opts.credential
+        else "api_key"
+    )
     try:
-        actions = installer.install(bin_dir=bin_dir, domains=domains, dry_run=dry_run)
+        actions = installer.install(
+            bin_dir=bin_dir,
+            domains=domains,
+            dry_run=dry_run,
+            discover=not no_discover,
+            refresh=refresh,
+            org=org,
+            api_key=api_key,
+            auth_type=auth_type,
+            api_host=opts.api_host,
+        )
     except OSError as exc:
         raise click.ClickException(
             f"Failed to install {helper!r} credential helper: {exc}"

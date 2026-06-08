@@ -157,6 +157,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
     api_key: str | None = None,
     auth_type: str = "api_key",
     api_host: str | None = None,
+    refresh: bool = False,
 ) -> list[CustomDomain]:
     """
     Fetch custom domains for a Cloudsmith organization.
@@ -169,6 +170,8 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
         auth_type: "api_key" (uses X-Api-Key header) or "bearer" (uses Authorization: Bearer)
         api_host: Cloudsmith API host URL (including version). Taken from the SDK
             configuration default when not provided.
+        refresh: When ``True``, skip the cache read and always fetch from the API.
+            The fresh result is still written to the cache.
 
     Returns:
         List of CustomDomain records.
@@ -182,7 +185,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
         so the library stays free of bare ``except Exception`` (reviewer feedback).
     """
     cache_path = get_cache_path(org)
-    cached = read_cache(cache_path)
+    cached = None if refresh else read_cache(cache_path)
     if cached is not None:
         logger.debug("Using cached custom domains for %s", org)
         return cached
@@ -252,6 +255,7 @@ def get_format_domains(
     api_key: str | None = None,
     auth_type: str = "api_key",
     api_host: str | None = None,
+    refresh: bool = False,
 ) -> list[str]:
     """
     Return enabled and validated custom domain hostnames for a specific backend format.
@@ -262,12 +266,13 @@ def get_format_domains(
         api_key: Optional API key/token for authentication
         auth_type: "api_key" or "bearer"
         api_host: Cloudsmith API host URL
+        refresh: When ``True``, bypass the cache and fetch fresh data from the API.
 
     Returns:
         List of hostnames that are enabled, validated, and match the given backend_kind.
     """
     domains = get_custom_domains(
-        org, api_key=api_key, auth_type=auth_type, api_host=api_host
+        org, api_key=api_key, auth_type=auth_type, api_host=api_host, refresh=refresh
     )
     return [
         d.host
