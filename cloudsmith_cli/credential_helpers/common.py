@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """
 Shared utilities for credential helpers.
 
