@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `metadata list` filters (`--source-kind`, `--classification`) now send the enum name the v2 API expects instead of an integer, fixing an HTTP 400 on every filtered list. Valid source kinds: `unknown, system, upstream, custom, third_party`; classifications: `unknown, intrinsic, security, provenance, sbom, generic`.
+
+
 ## [1.17.0] - 2026-05-18
 
 ### Added
