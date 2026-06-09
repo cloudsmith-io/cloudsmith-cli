@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-06-09
+
+### Added
+
+- OIDC credential auto-discovery for CI/CD. When `CLOUDSMITH_ORG` and `CLOUDSMITH_SERVICE_SLUG` are set, the CLI auto-detects a supported cloud environment, obtains a vendor OIDC token, and exchanges it for a short-lived Cloudsmith API token — no static API key required. Initial support is for AWS (install the extra with `pip install cloudsmith-cli[aws]`). Tunable via `--oidc-org`, `--oidc-service-slug`, `--oidc-audience`, and `--oidc-discovery-disabled` (and matching `CLOUDSMITH_OIDC_*` env vars). The detector skips itself silently when its dependencies are not installed.
+- `cloudsmith mcp configure` now supports Claude Code as a client (`--client claude-code`), registering the Cloudsmith MCP server in `~/.claude.json`.
+
+### Changed
+
+- Authentication now resolves credentials through an explicit, predictable provider chain: CLI flag → environment variable → credentials file → keyring → OIDC. This separates the previously combined credential sources and makes precedence deterministic.
+
 ### Fixed
 
 - `metadata list` filters (`--source-kind`, `--classification`) now send the enum name the v2 API expects instead of an integer, fixing an HTTP 400 on every filtered list. Valid source kinds: `unknown, system, upstream, custom, third_party`; classifications: `unknown, intrinsic, security, provenance, sbom, generic`.
