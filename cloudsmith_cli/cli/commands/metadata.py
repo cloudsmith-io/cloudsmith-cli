@@ -9,8 +9,6 @@ from ...core.api.metadata import (
     delete_metadata as api_delete_metadata,
     get_metadata as api_get_metadata,
     list_metadata as api_list_metadata,
-    normalise_classification,
-    normalise_source_kind,
     update_metadata as api_update_metadata,
 )
 from ...core.api.packages import get_package_slug_perm as api_get_package_slug_perm
@@ -121,9 +119,8 @@ def metadata_(ctx, opts):  # pylint: disable=unused-argument
     "source_kind",
     default=None,
     help=(
-        "Filter by source kind. Accepts an integer or name "
-        "(for example, 'customer' or 'third_party'). Ignored when "
-        "METADATA_SLUG_PERM is given."
+        "Filter by source kind name (one of: unknown, system, upstream, "
+        "custom, third_party). Ignored when METADATA_SLUG_PERM is given."
     ),
 )
 @click.option(
@@ -131,9 +128,8 @@ def metadata_(ctx, opts):  # pylint: disable=unused-argument
     "classification",
     default=None,
     help=(
-        "Filter by classification. Accepts an integer or name "
-        "(for example, 'provenance' or 'sbom'). Ignored when "
-        "METADATA_SLUG_PERM is given."
+        "Filter by classification name (one of: unknown, intrinsic, security, "
+        "provenance, sbom, generic). Ignored when METADATA_SLUG_PERM is given."
     ),
 )
 @click.pass_context
@@ -186,14 +182,6 @@ def list_metadata(
         click.secho("OK", fg="green", err=use_stderr)
         _print_metadata_entry(opts, entry)
         return
-
-    # Validate filter values up-front for a friendlier error than what the
-    # API would return (the normalisers raise ValueError on invalid values).
-    try:
-        normalise_source_kind(source_kind)
-        normalise_classification(classification)
-    except ValueError as exc:
-        raise click.UsageError(str(exc)) from exc
 
     _echo_action(
         "Listing metadata for %(package)s ... "
