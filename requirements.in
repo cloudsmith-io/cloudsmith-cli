@@ -8,4 +8,4 @@ pre-commit
 pylint
 pytest-cov
 python-toon
-mcp==1.9.1
+mcp==1.27.2
