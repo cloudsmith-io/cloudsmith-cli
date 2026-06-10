@@ -1,6 +1,7 @@
 # Copyright 2026 Cloudsmith Ltd
 """Tests for OIDC detector selection controls (disable set + order)."""
 
+import logging
 from unittest import mock
 
 import pytest
@@ -115,6 +116,21 @@ class TestDetectorOrder:
     def test_empty_order_falls_back_to_default(self, fake_detectors):
         detector = detect_environment(_context(oidc_detector_order="   "))
         assert isinstance(detector, AlphaDetector)
+
+    def test_duplicate_ids_run_each_detector_once(self, fake_detectors):
+        with mock.patch.object(
+            AlphaDetector, "detect", return_value=False
+        ) as alpha_detect:
+            detector = detect_environment(
+                _context(oidc_detector_order="alpha,alpha,bravo")
+            )
+        assert isinstance(detector, BravoDetector)
+        assert alpha_detect.call_count == 1
+
+    def test_order_with_no_usable_ids_disables_detection(self, fake_detectors, caplog):
+        with caplog.at_level(logging.DEBUG):
+            assert detect_environment(_context(oidc_detector_order="nope,!")) is None
+        assert "No OIDC detectors enabled" in caplog.text
 
 
 class TestOrderAndDisableCompose:

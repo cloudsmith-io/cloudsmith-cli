@@ -61,24 +61,25 @@ def _ordered_detectors(order: str | None) -> list[type[EnvironmentDetector]]:
 
     When ``order`` is unset/empty the default registration order is used.
     Otherwise only the listed ids are considered, in the listed order;
-    unknown ids are logged and skipped.
+    unknown ids are logged and skipped, and duplicate ids keep their first
+    position so each detector is evaluated at most once.
     """
     raw_order = (order or "").strip()
     if not raw_order:
         return list(_DETECTORS)
 
     detectors_by_id = {detector_cls.id: detector_cls for detector_cls in _DETECTORS}
-    ordered: list[type[EnvironmentDetector]] = []
+    ordered: dict[str, type[EnvironmentDetector]] = {}
     for token in raw_order.split(","):
         identifier = token.strip().lower()
-        if not identifier:
+        if not identifier or identifier in ordered:
             continue
         detector_cls = detectors_by_id.get(identifier)
         if detector_cls is None:
             logger.debug("Ignoring unknown OIDC detector id: %s", identifier)
             continue
-        ordered.append(detector_cls)
-    return ordered
+        ordered[identifier] = detector_cls
+    return list(ordered.values())
 
 
 def _enabled_detectors(
@@ -99,6 +100,8 @@ def detect_environment(
     enabled = _enabled_detectors(
         context.oidc_detector_order, context.oidc_disabled_detectors
     )
+    if not enabled:
+        logger.debug("No OIDC detectors enabled after applying order/disable controls")
     for detector_cls in enabled:
         detector = detector_cls(context=context)
         try:
