@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from .aws import AWSDetector
 from .azure_devops import AzureDevOpsDetector
 from .base import EnvironmentDetector
+from .generic import GenericDetector
 from .github_actions import GitHubActionsDetector
 
 if TYPE_CHECKING:
@@ -19,6 +20,7 @@ _DETECTORS: list[type[EnvironmentDetector]] = [
     AzureDevOpsDetector,
     GitHubActionsDetector,
     AWSDetector,
+    GenericDetector,
 ]
 
 
