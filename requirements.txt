@@ -14,8 +14,10 @@ anyio==4.12.1
     #   starlette
 astroid==4.0.3
     # via pylint
-backports-tarfile==1.2.0
-    # via jaraco-context
+attrs==26.1.0
+    # via
+    #   jsonschema
+    #   referencing
 build==1.4.0
     # via pip-tools
 bump2version==1.0.1
@@ -24,33 +26,20 @@ bumpversion==0.6.0
     # via -r requirements.in
 certifi==2026.1.4
     # via
-    #   cloudsmith-api
     #   httpcore
     #   httpx
-    #   requests
+cffi==2.0.0
+    # via cryptography
 cfgv==3.5.0
     # via pre-commit
-charset-normalizer==3.4.4
-    # via requests
 click==8.3.1
     # via
-    #   click-configfile
-    #   click-didyoumean
-    #   cloudsmith-cli (setup.py)
     #   pip-tools
     #   uvicorn
-click-configfile==0.2.3
-    # via cloudsmith-cli (setup.py)
-click-didyoumean==0.3.1
-    # via cloudsmith-cli (setup.py)
-click-spinner==0.1.10
-    # via cloudsmith-cli (setup.py)
-cloudsmith-api==2.0.27
-    # via cloudsmith-cli (setup.py)
-configparser==7.2.0
-    # via click-configfile
 coverage[toml]==7.13.1
     # via pytest-cov
+cryptography==48.0.1
+    # via pyjwt
 dill==0.4.1
     # via pylint
 distlib==0.4.0
@@ -77,41 +66,22 @@ httpx-sse==0.4.3
     # via mcp
 identify==2.6.16
     # via pre-commit
-idna==3.11
+idna==3.15
     # via
     #   anyio
     #   httpx
-    #   requests
-importlib-metadata==8.7.1
-    # via keyring
 iniconfig==2.3.0
     # via pytest
 isort==7.0.0
     # via pylint
-jaraco-classes==3.4.0
-    # via keyring
-jaraco-context==6.1.0
-    # via keyring
-jaraco-functools==4.4.0
-    # via keyring
-json5==0.13.0
-    # via cloudsmith-cli (setup.py)
-keyring==25.7.0
-    # via cloudsmith-cli (setup.py)
-markdown-it-py==4.0.0
-    # via rich
+jsonschema==4.26.0
+    # via mcp
+jsonschema-specifications==2025.9.1
+    # via jsonschema
 mccabe==0.7.0
     # via pylint
-mcp==1.9.1
-    # via
-    #   -r requirements.in
-    #   cloudsmith-cli (setup.py)
-mdurl==0.1.2
-    # via markdown-it-py
-more-itertools==10.8.0
-    # via
-    #   jaraco-classes
-    #   jaraco-functools
+mcp==1.23.0
+    # via -r requirements.in
 nodeenv==1.10.0
     # via pre-commit
 packaging==26.0
@@ -131,6 +101,8 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.5.1
     # via -r requirements.in
+pycparser==3.0
+    # via cffi
 pydantic==2.12.5
     # via
     #   mcp
@@ -140,53 +112,42 @@ pydantic-core==2.41.5
 pydantic-settings==2.12.0
     # via mcp
 pygments==2.19.2
-    # via
-    #   pytest
-    #   rich
-pyjwt==2.12.1
-    # via cloudsmith-cli (setup.py)
+    # via pytest
+pyjwt[crypto]==2.13.0
+    # via mcp
 pylint==4.0.4
     # via -r requirements.in
 pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
-pytest==9.0.2
+pytest==9.0.3
     # via pytest-cov
 pytest-cov==7.0.0
     # via -r requirements.in
 python-dateutil==2.9.0.post0
-    # via
-    #   cloudsmith-api
-    #   freezegun
-python-dotenv==1.2.1
+    # via freezegun
+python-dotenv==1.2.2
     # via pydantic-settings
-python-multipart==0.0.21
+python-multipart==0.0.27
     # via mcp
 python-toon==0.1.2
-    # via
-    #   -r requirements.in
-    #   cloudsmith-cli (setup.py)
+    # via -r requirements.in
 pyyaml==6.0.3
     # via pre-commit
-requests==2.32.5
+referencing==0.37.0
     # via
-    #   cloudsmith-cli (setup.py)
-    #   requests-toolbelt
-requests-toolbelt==1.0.0
-    # via cloudsmith-cli (setup.py)
-rich==14.3.3
-    # via cloudsmith-cli (setup.py)
-semver==3.0.4
-    # via cloudsmith-cli (setup.py)
+    #   jsonschema
+    #   jsonschema-specifications
+rpds-py==0.30.0
+    # via
+    #   jsonschema
+    #   referencing
 six==1.17.0
-    # via
-    #   click-configfile
-    #   cloudsmith-api
-    #   python-dateutil
+    # via python-dateutil
 sse-starlette==3.2.0
     # via mcp
-starlette==0.52.1
+starlette==1.0.1
     # via
     #   mcp
     #   sse-starlette
@@ -203,31 +164,28 @@ typing-extensions==4.15.0
     # via
     #   anyio
     #   astroid
+    #   cryptography
     #   exceptiongroup
+    #   mcp
     #   pydantic
     #   pydantic-core
     #   pyjwt
+    #   referencing
     #   starlette
     #   typing-inspection
     #   uvicorn
     #   virtualenv
 typing-inspection==0.4.2
     # via
+    #   mcp
     #   pydantic
     #   pydantic-settings
-urllib3==2.6.3
-    # via
-    #   cloudsmith-api
-    #   cloudsmith-cli (setup.py)
-    #   requests
 uvicorn==0.40.0
     # via mcp
 virtualenv==20.36.1
     # via pre-commit
 wheel==0.46.3
     # via pip-tools
-zipp==3.23.0
-    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
