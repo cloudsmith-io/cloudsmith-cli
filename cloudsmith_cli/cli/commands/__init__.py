@@ -4,6 +4,7 @@ from . import (
     auth,
     check,
     copy,
+    credential_helper,
     delete,
     dependencies,
     docs,
