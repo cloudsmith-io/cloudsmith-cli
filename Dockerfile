@@ -16,5 +16,9 @@ RUN mkdir -p /opt/cloudsmith \
  && curl -1sLf -o /opt/cloudsmith/cloudsmith "https://dl.cloudsmith.io/public/${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}/raw/names/cloudsmith-cli/versions/${CLOUDSMITH_CLI_VERSION}/cloudsmith.pyz" \
  && chmod +x /opt/cloudsmith/cloudsmith
 
+# Run as a non-root user
+RUN adduser -D -u 1000 cloudsmith
+USER cloudsmith
+
 # Default command
 ENTRYPOINT [ "cloudsmith" ]
