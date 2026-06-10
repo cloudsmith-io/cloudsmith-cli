@@ -583,7 +583,7 @@ def _verify_checksum(filepath: str, expected: str) -> bool:
 
         # Try SHA1
         if len(expected) == 40:
-            sha1_hash = hashlib.sha1()
+            sha1_hash = hashlib.sha1(usedforsecurity=False)
             with open(filepath, "rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
                     sha1_hash.update(chunk)

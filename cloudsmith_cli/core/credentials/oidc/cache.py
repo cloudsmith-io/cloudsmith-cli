@@ -41,15 +41,16 @@ def _cache_key(api_host: str, org: str, service_slug: str) -> str:
 
 
 def _decode_jwt_exp(token: str) -> float | None:
-    """Decode the exp claim from a JWT without verification."""
+    """Read the exp claim from a JWT payload.
+
+    The token is only inspected to determine a cache TTL; it is never used to
+    make an authorization decision, so the signature is deliberately not
+    verified (the API rejects tampered tokens regardless).
+    """
     try:
         import jwt
 
-        payload = jwt.decode(
-            token,
-            options={"verify_signature": False},
-            algorithms=["RS256", "ES256", "HS256"],
-        )
+        payload = jwt.decode(token, options={"verify_signature": False})
         exp = payload.get("exp")
         if exp is not None:
             return float(exp)
