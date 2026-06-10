@@ -165,6 +165,10 @@ pip install cloudsmith-cli[all]
 
 **Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
 
+#### CircleCI OIDC Support
+
+In CircleCI, OIDC credential discovery works out of the box with no extra dependencies — the CLI reads the token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable that CircleCI injects into every job. The Cloudsmith OIDC provider must expect the audience CircleCI mints, which is your CircleCI organization UUID. See the [Cloudsmith CircleCI integration guide](https://docs.cloudsmith.com/integrations/integrating-with-circleci).
+
 #### Azure DevOps OIDC Support
 
 In Azure DevOps Pipelines, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN`. Make sure `SYSTEM_ACCESSTOKEN` is mapped into the step's environment. The Cloudsmith OIDC provider must expect the audience `api://AzureADTokenExchange`, which Azure DevOps always mints (any requested audience is ignored). See the [Cloudsmith Azure DevOps integration guide](https://docs.cloudsmith.com/integrations/integrating-with-azure-devops).

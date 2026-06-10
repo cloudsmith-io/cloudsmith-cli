@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added CircleCI to OIDC credential auto-discovery. When running in CircleCI, the CLI reads the OIDC token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
 - Added Azure DevOps to OIDC credential auto-discovery. When running in an Azure DevOps pipeline, the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN` and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
 - Added GitHub Actions to OIDC credential auto-discovery. When running in GitHub Actions (with `id-token: write` permission), the CLI fetches an OIDC token from the Actions runtime endpoint and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
 - Added a generic fallback to OIDC credential auto-discovery. When no dedicated environment is detected, the CLI reads an OIDC token from the `CLOUDSMITH_OIDC_TOKEN` environment variable (useful for Jenkins or any custom CI/CD) and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
