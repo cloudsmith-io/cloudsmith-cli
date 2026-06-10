@@ -490,6 +490,16 @@ class Options:  # pylint: disable=too-many-public-methods
         )
 
     @property
+    def oidc_detector_order(self):
+        """Get value for the OIDC detector evaluation order."""
+        return self._get_option("oidc_detector_order")
+
+    @oidc_detector_order.setter
+    def oidc_detector_order(self, value):
+        """Set value for the OIDC detector evaluation order."""
+        self._set_option("oidc_detector_order", value)
+
+    @property
     def metadata_failure_mode(self):
         """Get value for push-time metadata failure mode."""
         return self._get_option("metadata_failure_mode")

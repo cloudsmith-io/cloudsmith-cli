@@ -20,6 +20,7 @@ class BitbucketPipelinesDetector(EnvironmentDetector):
     """Detects Bitbucket Pipelines and reads its OIDC token from environment."""
 
     name = "Bitbucket Pipelines"
+    id = "bitbucket"
 
     def detect(self) -> bool:
         return bool(os.environ.get("BITBUCKET_STEP_OIDC_TOKEN"))

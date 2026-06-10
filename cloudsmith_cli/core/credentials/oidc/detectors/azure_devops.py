@@ -30,6 +30,7 @@ class AzureDevOpsDetector(EnvironmentDetector):
     """Detects Azure DevOps and fetches an OIDC token via HTTP POST."""
 
     name = "Azure DevOps"
+    id = "azure_devops"
 
     def detect(self) -> bool:
         return bool(os.environ.get("SYSTEM_OIDCREQUESTURI")) and bool(

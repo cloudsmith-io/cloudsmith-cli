@@ -24,6 +24,7 @@ class AWSDetector(EnvironmentDetector):
     """Detects AWS environments and obtains a JWT via STS GetWebIdentityToken."""
 
     name = "AWS"
+    id = "aws"
 
     def __init__(self, context):
         super().__init__(context)

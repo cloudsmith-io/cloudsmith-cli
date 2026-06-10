@@ -27,6 +27,7 @@ class GenericDetector(EnvironmentDetector):
     """
 
     name = "Generic"
+    id = "generic"
 
     def detect(self) -> bool:
         return bool((os.environ.get(TOKEN_ENV_VAR) or "").strip())

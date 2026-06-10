@@ -1,6 +1,7 @@
 """CLI - Decorators."""
 
 import functools
+import os
 
 import click
 from click.core import ParameterSource
@@ -10,6 +11,7 @@ from cloudsmith_cli.cli import validators
 from ..core.api.init import initialise_api as _initialise_api
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
+from ..core.credentials.oidc.detectors import disabled_detectors_from_env
 from ..core.mcp import server
 from ..core.rest import create_requests_session as _create_session
 from . import config, utils
@@ -332,6 +334,12 @@ def resolve_credentials(f):
         envvar="CLOUDSMITH_OIDC_DISCOVERY_DISABLED",
         help="Disable OIDC auto-discovery.",
     )
+    @click.option(
+        "--oidc-detector-order",
+        envvar="CLOUDSMITH_OIDC_DETECTOR_ORDER",
+        help="Comma-separated OIDC detector ids to control which detectors "
+        "are considered and the order they are tried in.",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -342,6 +350,7 @@ def resolve_credentials(f):
         oidc_org = kwargs.pop("oidc_org")
         oidc_service_slug = kwargs.pop("oidc_service_slug")
         oidc_discovery_disabled = _pop_boolean_flag(kwargs, "oidc_discovery_disabled")
+        oidc_detector_order = kwargs.pop("oidc_detector_order")
 
         if oidc_audience:
             opts.oidc_audience = oidc_audience
@@ -351,6 +360,8 @@ def resolve_credentials(f):
             opts.oidc_service_slug = oidc_service_slug
         if oidc_discovery_disabled:
             opts.oidc_discovery_disabled = oidc_discovery_disabled
+        if oidc_detector_order:
+            opts.oidc_detector_order = oidc_detector_order
 
         context = CredentialContext(
             session=opts.session,
@@ -365,6 +376,8 @@ def resolve_credentials(f):
             oidc_org=opts.oidc_org,
             oidc_service_slug=opts.oidc_service_slug,
             oidc_discovery_disabled=opts.oidc_discovery_disabled,
+            oidc_detector_order=opts.oidc_detector_order,
+            oidc_disabled_detectors=disabled_detectors_from_env(os.environ),
         )
 
         chain = CredentialProviderChain()

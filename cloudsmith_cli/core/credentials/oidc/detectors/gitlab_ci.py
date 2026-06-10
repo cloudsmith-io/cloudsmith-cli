@@ -29,6 +29,7 @@ class GitLabCIDetector(EnvironmentDetector):
     """
 
     name = "GitLab CI"
+    id = "gitlab"
 
     TOKEN_ENV_VAR = "CLOUDSMITH_OIDC_TOKEN"
 

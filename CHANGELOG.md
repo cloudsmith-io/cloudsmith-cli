@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added GitHub Actions to OIDC credential auto-discovery. When running in GitHub Actions (with `id-token: write` permission), the CLI fetches an OIDC token from the Actions runtime endpoint and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
 - Added a generic fallback to OIDC credential auto-discovery. When no dedicated environment is detected, the CLI reads an OIDC token from the `CLOUDSMITH_OIDC_TOKEN` environment variable (useful for Jenkins or any custom CI/CD) and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
 - Added GitLab CI to OIDC credential auto-discovery. When running in GitLab CI/CD, the CLI reads the OIDC token from the `CLOUDSMITH_OIDC_TOKEN` environment variable (configured via `id_tokens` in `.gitlab-ci.yml`) and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added controls for OIDC detector selection. Set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip a specific detector (only the literal `true` disables), or use `--oidc-detector-order` (env var `CLOUDSMITH_OIDC_DETECTOR_ORDER`) with a comma-separated list of detector ids to override which detectors are considered and the order they are tried in. When both are set, disable flags take precedence over the order list. Detector ids: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
 
 ## [1.18.0] - 2026-06-09
 

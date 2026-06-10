@@ -20,6 +20,7 @@ class CircleCIDetector(EnvironmentDetector):
     """Detects CircleCI and reads OIDC token from environment variable."""
 
     name = "CircleCI"
+    id = "circleci"
 
     def detect(self) -> bool:
         return os.environ.get("CIRCLECI") == "true" and bool(
