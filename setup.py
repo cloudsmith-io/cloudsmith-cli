@@ -57,10 +57,10 @@ setup(
         "cloudsmith-api>=2.0.25,<3.0",  # Compatible upto (but excluding) 3.0+
         "keyring>=25.4.1",
         "mcp==1.27.2",
-        # The crypto extra must be declared here: mcp requires pyjwt[crypto],
-        # and a bare PyJWT requirement makes the PEX zipapp resolver drop the
-        # extra (and with it the cryptography wheels).
-        "PyJWT[crypto]>=2.0.0",
+        # PyJWT is intentionally not declared here. It is only consumed via
+        # mcp's pyjwt[crypto] requirement, and re-declaring it bare at the
+        # top level makes the PEX zipapp resolver drop the crypto extra
+        # (and with it the cryptography wheels).
         "python-toon==0.1.2",
         "requests>=2.18.4",
         "requests_toolbelt>=1.0.0",

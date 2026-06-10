@@ -158,10 +158,7 @@ pygments==2.20.0
     #   pytest
     #   rich
 pyjwt[crypto]==2.12.1
-    # via
-    #   cloudsmith-cli (setup.py)
-    #   mcp
-    #   pyjwt
+    # via mcp
 pylint==4.0.4
     # via -r requirements.in
 pyproject-hooks==1.2.0
