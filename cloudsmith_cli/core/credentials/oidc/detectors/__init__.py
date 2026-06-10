@@ -6,8 +6,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from .aws import AWSDetector
+from .azure_devops import AzureDevOpsDetector
 from .base import EnvironmentDetector
 from .circleci import CircleCIDetector
+from .github_actions import GitHubActionsDetector
 
 if TYPE_CHECKING:
     from ... import CredentialContext
@@ -16,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 _DETECTORS: list[type[EnvironmentDetector]] = [
     CircleCIDetector,
+    AzureDevOpsDetector,
+    GitHubActionsDetector,
     AWSDetector,
 ]
 

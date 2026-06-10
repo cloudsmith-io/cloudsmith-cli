@@ -74,7 +74,9 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["cloudsmith=cloudsmith_cli.cli.commands.main:main"]
+        "console_scripts": [
+            "cloudsmith=cloudsmith_cli.cli.commands.main:main",
+        ]
     },
     keywords=["cloudsmith", "cli", "devops"],
     classifiers=[

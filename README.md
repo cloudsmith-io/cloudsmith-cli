@@ -169,6 +169,14 @@ pip install cloudsmith-cli[all]
 
 In CircleCI, OIDC credential discovery works out of the box with no extra dependencies — the CLI reads the token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable that CircleCI injects into every job. The Cloudsmith OIDC provider must expect the audience CircleCI mints, which is your CircleCI organization UUID. See the [Cloudsmith CircleCI integration guide](https://docs.cloudsmith.com/integrations/integrating-with-circleci).
 
+#### Azure DevOps OIDC Support
+
+In Azure DevOps Pipelines, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN`. Make sure `SYSTEM_ACCESSTOKEN` is mapped into the step's environment. The Cloudsmith OIDC provider must expect the audience `api://AzureADTokenExchange`, which Azure DevOps always mints (any requested audience is ignored). See the [Cloudsmith Azure DevOps integration guide](https://docs.cloudsmith.com/integrations/integrating-with-azure-devops).
+
+#### GitHub Actions OIDC Support
+
+In GitHub Actions, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the Actions runtime when the workflow requests `id-token: write` permission. See the [Cloudsmith GitHub Actions OIDC guide](https://docs.cloudsmith.com/authentication/setup-cloudsmith-to-authenticate-with-oidc-in-github-actions).
+
 ## Configuration
 
 There are two configuration files used by the CLI:
