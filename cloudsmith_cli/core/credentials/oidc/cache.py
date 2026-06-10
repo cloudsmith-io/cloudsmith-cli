@@ -48,8 +48,11 @@ def _decode_jwt_exp(token: str) -> float | None:
     make an authorization decision, so the signature is deliberately not
     verified (the API rejects tampered tokens regardless).
     """
+    parts = token.split(".", 2)
+    if len(parts) != 3:
+        return None
     try:
-        payload_segment = token.split(".")[1]
+        payload_segment = parts[1]
         padded = payload_segment + "=" * (-len(payload_segment) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))
         exp = payload.get("exp")
