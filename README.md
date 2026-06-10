@@ -165,6 +165,10 @@ pip install cloudsmith-cli[all]
 
 **Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
 
+#### GitHub Actions OIDC Support
+
+In GitHub Actions, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the Actions runtime when the workflow requests `id-token: write` permission. See the [Cloudsmith GitHub Actions OIDC guide](https://docs.cloudsmith.com/authentication/setup-cloudsmith-to-authenticate-with-oidc-in-github-actions).
+
 ## Configuration
 
 There are two configuration files used by the CLI:
