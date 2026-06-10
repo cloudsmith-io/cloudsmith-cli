@@ -12,6 +12,7 @@ from .bitbucket_pipelines import BitbucketPipelinesDetector
 from .circleci import CircleCIDetector
 from .generic import GenericDetector
 from .github_actions import GitHubActionsDetector
+from .gitlab_ci import GitLabCIDetector
 
 if TYPE_CHECKING:
     from ... import CredentialContext
@@ -23,6 +24,7 @@ _DETECTORS: list[type[EnvironmentDetector]] = [
     AzureDevOpsDetector,
     GitHubActionsDetector,
     BitbucketPipelinesDetector,
+    GitLabCIDetector,
     AWSDetector,
     GenericDetector,
 ]

@@ -192,6 +192,21 @@ In Azure DevOps Pipelines, OIDC credential discovery works out of the box with n
 
 In GitHub Actions, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the Actions runtime when the workflow requests `id-token: write` permission. See the [Cloudsmith GitHub Actions OIDC guide](https://docs.cloudsmith.com/authentication/setup-cloudsmith-to-authenticate-with-oidc-in-github-actions).
 
+#### GitLab CI OIDC Support
+
+In GitLab CI/CD, OIDC credential discovery works out of the box with no extra dependencies. Configure an [`id_tokens`](https://docs.gitlab.com/ci/cloud_services/) entry in your `.gitlab-ci.yml` with an `aud` of `https://api.cloudsmith.io/openid/<your-org>` and expose it as `CLOUDSMITH_OIDC_TOKEN`, and the CLI will pick it up automatically:
+
+```yaml
+job:
+  id_tokens:
+    CLOUDSMITH_OIDC_TOKEN:
+      aud: https://api.cloudsmith.io/openid/<your-org>
+  script:
+    - cloudsmith push ...
+```
+
+See the [Cloudsmith GitLab CI/CD integration guide](https://docs.cloudsmith.com/integrations/integrating-with-gitlab-cicd).
+
 #### Generic OIDC Support (Jenkins, custom CI/CD)
 
 As a fallback for environments without a dedicated detector (for example Jenkins with the [credentials binding plugin](https://plugins.jenkins.io/credentials-binding/), or any custom CI/CD system), set the `CLOUDSMITH_OIDC_TOKEN` environment variable to an OIDC JWT and the CLI will exchange it for a Cloudsmith access token. This detector runs last, so a dedicated environment is always preferred when present. See the [Cloudsmith Jenkins OIDC guide](https://docs.cloudsmith.com/authentication/setup-jenkins-to-authenticate-to-cloudsmith-using-oidc).
