@@ -35,7 +35,7 @@ def read_file(*path):
 
 def calculate_file_md5(filepath, blocksize=2**20):
     """Calculate an MD5 hash for a file."""
-    checksum = hashlib.md5()
+    checksum = hashlib.md5(usedforsecurity=False)
 
     with click.open_file(filepath, "rb") as f:
 
