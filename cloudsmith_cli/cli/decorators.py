@@ -11,7 +11,10 @@ from cloudsmith_cli.cli import validators
 from ..core.api.init import initialise_api as _initialise_api
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
-from ..core.credentials.oidc.detectors import disabled_detectors_from_env
+from ..core.credentials.oidc.detectors import (
+    disabled_detectors_from_env,
+    registered_detectors,
+)
 from ..core.mcp import server
 from ..core.rest import create_requests_session as _create_session
 from . import config, utils
@@ -309,6 +312,50 @@ def initialise_session(f):
     return wrapper
 
 
+def _parse_detector_ids(value):
+    """Split a comma-separated detector id string into stripped, lowercased ids."""
+    return [
+        token.strip().lower() for token in (value or "").split(",") if token.strip()
+    ]
+
+
+def _config_disabled_detectors(value):
+    """Detector ids disabled via the config-file ``oidc_disabled_detectors`` key."""
+    return frozenset(_parse_detector_ids(value))
+
+
+def _warn_on_oidc_detector_controls(order, disabled):
+    """Warn when the OIDC detector order/disable controls look misconfigured.
+
+    Advisory only — detection itself is resolved in the core detectors module;
+    these warnings surface user-facing mistakes (a typo'd id, or controls that
+    leave nothing enabled) without aborting the credential fallback chain.
+    """
+    valid_ids = [detector_cls.id for detector_cls in registered_detectors()]
+    order_ids = _parse_detector_ids(order)
+
+    unknown_ids = [
+        identifier for identifier in order_ids if identifier not in valid_ids
+    ]
+    if unknown_ids:
+        click.secho(
+            "OIDC: ignoring unknown detector id(s) in --oidc-detector-order: "
+            f"{', '.join(unknown_ids)}. Valid ids: {', '.join(valid_ids)}.",
+            fg="yellow",
+            err=True,
+        )
+
+    candidate_ids = [i for i in order_ids if i in valid_ids] if order_ids else valid_ids
+    enabled_ids = [i for i in candidate_ids if i not in disabled]
+    if (order_ids or disabled) and not enabled_ids:
+        click.secho(
+            "OIDC: no detectors are enabled after applying the detector "
+            "order/disable controls; OIDC auto-discovery will be skipped.",
+            fg="yellow",
+            err=True,
+        )
+
+
 def resolve_credentials(f):
     """Resolve credentials via the provider chain. Depends on initialise_session."""
 
@@ -363,6 +410,13 @@ def resolve_credentials(f):
         if oidc_detector_order:
             opts.oidc_detector_order = oidc_detector_order
 
+        oidc_disabled_detectors = disabled_detectors_from_env(
+            os.environ
+        ) | _config_disabled_detectors(opts.oidc_disabled_detectors)
+        _warn_on_oidc_detector_controls(
+            opts.oidc_detector_order, oidc_disabled_detectors
+        )
+
         context = CredentialContext(
             session=opts.session,
             api_key_from_flag=opts.api_key_from_flag,
@@ -377,7 +431,7 @@ def resolve_credentials(f):
             oidc_service_slug=opts.oidc_service_slug,
             oidc_discovery_disabled=opts.oidc_discovery_disabled,
             oidc_detector_order=opts.oidc_detector_order,
-            oidc_disabled_detectors=disabled_detectors_from_env(os.environ),
+            oidc_disabled_detectors=oidc_disabled_detectors,
         )
 
         chain = CredentialProviderChain()
