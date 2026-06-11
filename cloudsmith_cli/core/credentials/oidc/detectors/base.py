@@ -12,6 +12,7 @@ class EnvironmentDetector:
     """Base class for OIDC environment detectors."""
 
     name: str = "base"
+    id: str = "base"
 
     def __init__(self, context: CredentialContext):
         self.context = context

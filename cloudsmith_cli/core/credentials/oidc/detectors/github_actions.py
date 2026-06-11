@@ -25,6 +25,7 @@ class GitHubActionsDetector(EnvironmentDetector):
     """Detects GitHub Actions and fetches an OIDC token via HTTP request."""
 
     name = "GitHub Actions"
+    id = "github"
 
     def detect(self) -> bool:
         return (

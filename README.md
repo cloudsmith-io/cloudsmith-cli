@@ -211,6 +211,25 @@ See the [Cloudsmith GitLab CI/CD integration guide](https://docs.cloudsmith.com/
 
 As a fallback for environments without a dedicated detector (for example Jenkins with the [credentials binding plugin](https://plugins.jenkins.io/credentials-binding/), or any custom CI/CD system), set the `CLOUDSMITH_OIDC_TOKEN` environment variable to an OIDC JWT and the CLI will exchange it for a Cloudsmith access token. This detector runs last, so a dedicated environment is always preferred when present. See the [Cloudsmith Jenkins OIDC guide](https://docs.cloudsmith.com/authentication/setup-jenkins-to-authenticate-to-cloudsmith-using-oidc).
 
+#### Controlling OIDC Detector Selection
+
+By default the CLI tries each detector in a fixed priority order and uses the first that matches. Two controls let you override this when a detector matches an environment you don't want it to (for example, the AWS detector matching ambient instance credentials):
+
+- **Disable a detector** — set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip it entirely. Only the literal value `true` (case-insensitive) disables; anything else leaves the detector enabled. For example, `CLOUDSMITH_OIDC_AWS_DISABLED=true` skips the AWS detector so an explicitly-set `CLOUDSMITH_OIDC_TOKEN` is picked up by the generic detector instead.
+- **Reorder evaluation** — use `--oidc-detector-order` (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) with a comma-separated list of detector ids to control both which detectors are considered and the order they are tried in (first match wins). Ids not listed are skipped; unrecognised ids are ignored with a warning. For example, `--oidc-detector-order=generic,aws` tries the generic detector first and considers only those two.
+
+When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
+
+Both controls can also be set in `config.ini`, under `[default]` or a profile section:
+
+```ini
+[default]
+oidc_detector_order = github, aws
+oidc_disabled_detectors = aws, gitlab
+```
+
+The `--oidc-detector-order` flag (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) overrides the `oidc_detector_order` config value. The `oidc_disabled_detectors` config key is additive with the per-detector `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED` environment variables — a detector disabled by either is skipped.
+
 ## Configuration
 
 There are two configuration files used by the CLI:

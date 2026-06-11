@@ -30,6 +30,8 @@ class CredentialContext:
     oidc_org: str | None = None
     oidc_service_slug: str | None = None
     oidc_discovery_disabled: bool = False
+    oidc_detector_order: str | None = None
+    oidc_disabled_detectors: frozenset[str] = frozenset()
 
 
 @dataclass

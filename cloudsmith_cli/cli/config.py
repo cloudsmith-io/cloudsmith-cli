@@ -69,6 +69,8 @@ class ConfigSchema:
         oidc_audience = ConfigParam(name="oidc_audience", type=str)
         oidc_org = ConfigParam(name="oidc_org", type=str)
         oidc_service_slug = ConfigParam(name="oidc_service_slug", type=str)
+        oidc_detector_order = ConfigParam(name="oidc_detector_order", type=str)
+        oidc_disabled_detectors = ConfigParam(name="oidc_disabled_detectors", type=str)
         metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
 
     @matches_section("profile:*")
@@ -488,6 +490,26 @@ class Options:  # pylint: disable=too-many-public-methods
         self._set_option(
             "oidc_discovery_disabled", bool(value) if value is not None else False
         )
+
+    @property
+    def oidc_detector_order(self):
+        """Get value for the OIDC detector evaluation order."""
+        return self._get_option("oidc_detector_order")
+
+    @oidc_detector_order.setter
+    def oidc_detector_order(self, value):
+        """Set value for the OIDC detector evaluation order."""
+        self._set_option("oidc_detector_order", value)
+
+    @property
+    def oidc_disabled_detectors(self):
+        """Get the comma-separated OIDC detector ids disabled via config."""
+        return self._get_option("oidc_disabled_detectors")
+
+    @oidc_disabled_detectors.setter
+    def oidc_disabled_detectors(self, value):
+        """Set the comma-separated OIDC detector ids disabled via config."""
+        self._set_option("oidc_disabled_detectors", value)
 
     @property
     def metadata_failure_mode(self):
