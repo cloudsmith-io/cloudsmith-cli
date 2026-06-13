@@ -8,12 +8,13 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 
 from __future__ import annotations
 
-import os
 import sys
 
 import click
 
 from ....credential_helpers.docker.installer import DockerInstaller
+from ....credential_helpers.maven.installer import MavenInstaller
+from ....credential_helpers.shellplugin.config import DEFAULT_REGISTRY_ID
 from ... import utils
 from ...decorators import (
     common_api_auth_options,
@@ -28,6 +29,7 @@ from ...decorators import (
 
 _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
+    "maven": MavenInstaller,
 }
 
 
@@ -86,7 +88,7 @@ def _get_installer(name: str):
     "--no-discover",
     is_flag=True,
     default=False,
-    help="Disable automatic discovery of custom Docker domains.",
+    help="Disable automatic discovery of custom domains.",
 )
 @click.option(
     "--refresh",
@@ -97,7 +99,21 @@ def _get_installer(name: str):
 @click.option(
     "--org",
     default=None,
-    help="Cloudsmith organisation slug for custom-domain discovery.",
+    envvar="CLOUDSMITH_ORG",
+    help="Cloudsmith organisation slug.",
+)
+@click.option(
+    "--repo",
+    default=None,
+    envvar="CLOUDSMITH_REPO",
+    help="Cloudsmith repository slug.",
+)
+@click.option(
+    "--registry-id",
+    default=DEFAULT_REGISTRY_ID,
+    show_default=True,
+    help="Id the credentials are registered under in your project config "
+    "(e.g. the Maven settings.xml/pom.xml <server> id).",
 )
 @common_cli_config_options
 @common_cli_output_options
@@ -114,6 +130,8 @@ def install_cmd(
     no_discover: bool,
     refresh: bool,
     org: str | None,
+    repo: str | None,
+    registry_id: str,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
@@ -138,16 +156,29 @@ def install_cmd(
         $ cloudsmith credential-helper install docker --no-discover
     """
     installer = _get_installer(helper)
-    org = org or os.environ.get("CLOUDSMITH_ORG", "").strip() or None
     api_key = opts.credential.api_key if opts.credential else None
     auth_type = (
         getattr(opts.credential, "auth_type", "api_key")
         if opts.credential
         else "api_key"
     )
+
+    per_repo = getattr(installer, "requires_repo", False)
+    if per_repo and not repo:
+        click.echo(
+            f"Error: helper {helper!r} requires --repo (and --org).",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Shell plugins (per-repo) keep their shims in a fixed dir; --bin-dir only
+    # applies to launcher-based helpers like Docker.
+    if per_repo:
+        extra: dict = {"repo": repo, "registry_id": registry_id}
+    else:
+        extra = {"bin_dir": bin_dir}
     try:
         actions = installer.install(
-            bin_dir=bin_dir,
             domains=domains,
             dry_run=dry_run,
             discover=not no_discover,
@@ -156,6 +187,7 @@ def install_cmd(
             api_key=api_key,
             auth_type=auth_type,
             api_host=opts.api_host,
+            **extra,
         )
     except OSError as exc:
         raise click.ClickException(
@@ -217,8 +249,9 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
         $ cloudsmith credential-helper uninstall docker --dry-run
     """
     installer = _get_installer(helper)
+    extra = {} if getattr(installer, "requires_repo", False) else {"bin_dir": bin_dir}
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(dry_run=dry_run, **extra)
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"

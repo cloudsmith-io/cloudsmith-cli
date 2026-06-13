@@ -48,6 +48,32 @@ def extract_hostname(url):
     return hostname
 
 
+def is_standard_cloudsmith_host(url):
+    """Return True if *url*'s host is a standard Cloudsmith host.
+
+    Standard hosts are ``cloudsmith.io``/``cloudsmith.com`` and their
+    subdomains.  Anything else is treated as a custom domain.
+    """
+    hostname = extract_hostname(url)
+    return (
+        hostname in ("cloudsmith.io", "cloudsmith.com")
+        or hostname.endswith(".cloudsmith.io")
+        or hostname.endswith(".cloudsmith.com")
+    )
+
+
+def repo_path_segment(owner, repo, host):
+    """Return the org-qualified path segment for a Cloudsmith URL.
+
+    Standard hosts include the org (``<owner>/<repo>``); a custom domain is
+    bound to a single org, so the org is omitted (``<repo>``).  This rule is
+    Cloudsmith-wide, not format-specific.
+    """
+    if is_standard_cloudsmith_host(host):
+        return f"{owner}/{repo}"
+    return repo
+
+
 def is_cloudsmith_domain(
     url, api_key=None, auth_type="api_key", api_host=None, backend_kind=None
 ):
@@ -74,11 +100,7 @@ def is_cloudsmith_domain(
         return False
 
     # Standard Cloudsmith domains — no auth needed, always match regardless of backend_kind
-    if (
-        hostname in ("cloudsmith.io", "cloudsmith.com")
-        or hostname.endswith(".cloudsmith.io")
-        or hostname.endswith(".cloudsmith.com")
-    ):
+    if is_standard_cloudsmith_host(hostname):
         return True
 
     # Custom domains require org + auth
