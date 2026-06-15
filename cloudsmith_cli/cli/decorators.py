@@ -255,6 +255,40 @@ def common_api_auth_options(f):
     return wrapper
 
 
+def _parse_suffixes(value):
+    """Split a CSV of trusted host suffixes into a normalised tuple."""
+    return tuple(
+        token.strip().lstrip(".") for token in (value or "").split(",") if token.strip()
+    )
+
+
+def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
+    """Reject api_host/api_proxy redirections from directory-relative config.
+
+    Enforcement applies only when the effective value originated from an
+    untrusted (relative) config file and was not supplied via a CLI flag or
+    environment variable. Both must match their allow-listed host suffixes;
+    api_proxy has no public default suffixes, so it is rejected unless one is
+    supplied via the environment.
+    """
+    trusted_sources = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
+    profile = ctx.meta.get("profile")
+
+    if ctx.get_parameter_source("api_host") not in trusted_sources:
+        relative_host = config.ConfigReader.read_relative_config_value(
+            "api_host", profile=profile
+        )
+        if relative_host and opts.api_host == relative_host:
+            validators.validate_untrusted_api_host(opts.api_host, host_suffixes)
+
+    if ctx.get_parameter_source("api_proxy") not in trusted_sources:
+        relative_proxy = config.ConfigReader.read_relative_config_value(
+            "api_proxy", profile=profile
+        )
+        if relative_proxy and opts.api_proxy == relative_proxy:
+            validators.validate_untrusted_api_proxy(opts.api_proxy, proxy_suffixes)
+
+
 def initialise_session(f):
     """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
@@ -286,11 +320,25 @@ def initialise_session(f):
         envvar="CLOUDSMITH_API_HEADERS",
         help="A CSV list of extra headers (key=value) to send to the API.",
     )
+    @click.option(
+        "--allowed-api-host-suffixes",
+        envvar="CLOUDSMITH_ALLOWED_API_HOST_SUFFIXES",
+        hidden=True,
+        help="Comma-separated extra trusted api_host suffixes (internal use).",
+    )
+    @click.option(
+        "--allowed-api-proxy-suffixes",
+        envvar="CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
+        hidden=True,
+        help="Comma-separated trusted api_proxy host suffixes (internal use).",
+    )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+        host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
+        proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_api_proxy_suffixes"))
         opts.api_host = kwargs.pop("api_host")
         opts.api_proxy = kwargs.pop("api_proxy")
         opts.api_ssl_verify = _pop_boolean_flag(
@@ -298,6 +346,8 @@ def initialise_session(f):
         )
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
+
+        _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes)
 
         opts.session = _create_session(
             proxy=opts.api_proxy,
