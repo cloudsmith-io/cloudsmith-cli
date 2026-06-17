@@ -102,8 +102,6 @@ jobs:
       include: ${{ steps.gen.outputs.include }}
     steps:
       - id: gen
-        env:
-          EVENT: ${{ github.event_name }}
         run: |
           MATRIX=$(jq -c . <<'JSON'
           {"include":[
@@ -117,9 +115,6 @@ jobs:
           ]}
           JSON
           )
-          if [ "${EVENT}" = "pull_request" ]; then
-            MATRIX=$(printf '%s' "${MATRIX}" | jq -c '{include: [.include[] | select(.name == "linux-x86_64-gnu")]}')
-          fi
           echo "include=${MATRIX}" >> "$GITHUB_OUTPUT"
 
   build:
