@@ -52,7 +52,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     # via click
 configparser==7.2.0
     # via click-configfile
-cryptography==48.0.0
+cryptography==49.0.0
     # via
     #   pyjwt
     #   secretstorage
@@ -131,7 +131,7 @@ pygments==2.20.0
 pyinstaller==6.20.0
 pyinstaller-hooks-contrib==2026.5
     # via pyinstaller
-pyjwt==2.12.1
+pyjwt==2.13.0
     # via
     #   cloudsmith-cli
     #   mcp
@@ -184,7 +184,7 @@ six==1.17.0
     #   python-dateutil
 sse-starlette==3.4.4
     # via mcp
-starlette==1.2.1
+starlette==1.3.1
     # via
     #   mcp
     #   sse-starlette
