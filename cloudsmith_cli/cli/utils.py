@@ -194,6 +194,25 @@ def maybe_truncate_list(data, max_len=5):
     return data
 
 
+def maybe_unstyle_prompt(prompt, err=False):
+    """Strip ANSI styling from a prompt when the target stream is not a TTY.
+
+    As of click 8.2+, ``click.prompt``/``click.confirm`` pass the prompt text
+    straight to the (readline-backed) prompt function instead of routing it
+    through ``echo()``. This means click's ``should_strip_ansi`` logic no
+    longer fires for prompt text, so any ANSI codes baked into the prompt via
+    ``click.style(..., bold=True)`` leak raw into non-TTY output (piped
+    output, CI logs, captured streams). Restore the click 8.1 behaviour by
+    unstyling the prompt ourselves when the destination stream isn't a TTY.
+
+    Applying ``click.unstyle`` to plain text is a harmless no-op.
+    """
+    stream = click.get_text_stream("stderr" if err else "stdout")
+    if not stream.isatty():
+        prompt = click.unstyle(prompt)
+    return prompt
+
+
 def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     """Prompt the user for confirmation for dangerous actions."""
     if assume_yes:
@@ -203,7 +222,7 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
         "Are you %s certain you want to" % (click.style("absolutely", bold=True))
     )
 
-    prompt = f"{prefix} {prompt}?"
+    prompt = maybe_unstyle_prompt(f"{prefix} {prompt}?", err=err)
 
     answered = click.confirm(prompt, err=err)
 
