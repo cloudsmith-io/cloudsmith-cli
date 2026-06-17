@@ -4,6 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 
+import click
 from click.testing import CliRunner
 
 from cloudsmith_cli.cli.commands.metadata import metadata_
@@ -663,7 +664,9 @@ class TestMetadataRemove(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
-        self.assertIn("Are you absolutely certain", result.output)
+        # unstyle: click >=8.4 keeps ANSI styling in CliRunner output, which
+        # would split the substring across escape codes.
+        self.assertIn("Are you absolutely certain", click.unstyle(result.output))
         mock_resolve.assert_not_called()
         mock_delete.assert_not_called()
 

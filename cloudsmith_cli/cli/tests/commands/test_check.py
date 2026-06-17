@@ -22,11 +22,12 @@ class TestCheckServiceCommand:
         """Unit test the command output given different combinations of service/binding version."""
         service_status = random_str()
 
-        with patch(
-            "cloudsmith_cli.cli.commands.check.get_status"
-        ) as get_status_mock, patch(
-            "cloudsmith_cli.cli.commands.check.get_api_version_info"
-        ) as get_version_mock:
+        with (
+            patch("cloudsmith_cli.cli.commands.check.get_status") as get_status_mock,
+            patch(
+                "cloudsmith_cli.cli.commands.check.get_api_version_info"
+            ) as get_version_mock,
+        ):
             get_status_mock.return_value = (service_status, service_version)
             get_version_mock.return_value = api_binding_version
             result = runner.invoke(check, args="service", catch_exceptions=False)

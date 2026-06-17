@@ -14,11 +14,9 @@ The basic requirements are:
 - Any [current version](https://endoflife.date/python) of Python.
 - The ability to install PyPI packages (preferably in a virtual environment).
 
-Production requirements are declared in [setup.py](./setup.py).
+All dependencies are declared in [pyproject.toml](./pyproject.toml): production deps under `[project.dependencies]`, with development, binary-build, and release tooling in dependency groups. Exact versions are locked in [uv.lock](./uv.lock).
 
-Development requirements are declared in [requirements.in](./requirements.in).
-
-For most purposes, you probably just want `pip install -r requirements.txt`.
+For most purposes you just want [uv](https://docs.astral.sh/uv/): `uv sync --locked --group dev` creates a virtual environment with the project (editable) and all dev dependencies installed.
 
 Our [direnv config](./.envrc) file codifies the development environment setup which we use internally.
 

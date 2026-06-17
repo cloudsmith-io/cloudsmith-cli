@@ -4,23 +4,21 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Development setup
 
-The repo uses `direnv` (`.envrc`) to bootstrap a `.venv` via `uv`, install the project editable, install dev deps from `requirements.in`, and `pre-commit install`. If you don't use direnv, the equivalent is:
+The repo uses `direnv` (`.envrc`) to bootstrap a `.venv` via `uv`, install the project plus dev deps from the lockfile, and `pre-commit install`. If you don't use direnv, the equivalent is:
 
 ```
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-pip install -r requirements.in   # dev deps (matches what .envrc installs)
+uv sync --group dev
 pre-commit install
 ```
 
-`requirements.txt` is the locked/pinned form of `requirements.in` and is what CI uses; `requirements.in` is the source list. Install whichever matches your needs (`.envrc` uses `requirements.in`).
+All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps. The binary build's `packaging/constraints.txt` is generated from the lock (`uv export --locked --no-dev --group binary --extra all --no-emit-project --no-hashes --no-header`) — don't hand-edit it.
 
 Python `>=3.10` is required (CI tests 3.10–3.14).
 
 ## Common commands
 
 - Run the CLI locally: `cloudsmith ...` (console_script) or `python -m cloudsmith_cli ...`.
-- Run tests: `pytest` (configured via `setup.cfg` — adds `--cov=cloudsmith_cli`).
+- Run tests: `pytest` (configured via `pyproject.toml` `[tool.pytest.ini_options]` — adds `--cov=cloudsmith_cli`).
 - Run a single test: `pytest cloudsmith_cli/cli/tests/test_push.py::TestClass::test_name` or by node id / `-k <expr>`.
 - Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `black .`, `isort .`, `flake8 --config=.flake8`, `pylint --rcfile=.pylintrc <path>`, `pyupgrade --py310-plus <files>`.
 - Release: `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.

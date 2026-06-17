@@ -54,8 +54,9 @@ class TestDefaultBehaviour:
         assert isinstance(detector, AlphaDetector)
 
     def test_returns_none_when_nothing_detects(self, fake_detectors):
-        with mock.patch.object(AlphaDetector, "detects", False), mock.patch.object(
-            BravoDetector, "detects", False
+        with (
+            mock.patch.object(AlphaDetector, "detects", False),
+            mock.patch.object(BravoDetector, "detects", False),
         ):
             assert detect_environment(_context()) is None
 
