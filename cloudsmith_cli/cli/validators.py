@@ -2,6 +2,7 @@
 
 import base64
 from datetime import datetime
+from urllib.parse import urlsplit
 
 import click
 from click.core import ParameterSource
@@ -11,6 +12,7 @@ from .types import ExpandPath
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
+PUBLIC_API_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
 
 
 class IntOrWildcard(click.ParamType):
@@ -82,6 +84,48 @@ def validate_api_headers(param, value):
         headers[k] = v
 
     return headers
+
+
+def host_matches_suffixes(url, suffixes):
+    """True if url's hostname equals or is a subdomain of one of the suffixes.
+
+    Parsing the hostname (rather than substring-matching the URL) ensures
+    userinfo, port, and path components cannot smuggle a host past the check.
+    """
+    hostname = (urlsplit(url).hostname or "").lower()
+    return bool(hostname) and any(
+        hostname == suffix or hostname.endswith(f".{suffix}") for suffix in suffixes
+    )
+
+
+def is_trusted_api_host(host, extra_suffixes=()):
+    """True if host is an allowed Cloudsmith host (or matches an extra suffix)."""
+    return host_matches_suffixes(host, PUBLIC_API_HOST_SUFFIXES + tuple(extra_suffixes))
+
+
+def validate_untrusted_api_host(host, extra_suffixes=()):
+    """Raise if an api_host from an untrusted config is not an allowed host."""
+    if is_trusted_api_host(host, extra_suffixes):
+        return
+    raise click.UsageError(
+        f'api_host "{host}" is set by a config file in the current directory '
+        "and is not an allowed Cloudsmith host. Allowed hosts must be under "
+        "*.cloudsmith.io or *.cloudsmith.com. To use a custom host, set it via "
+        "--api-host, the CLOUDSMITH_API_HOST environment variable, an explicit "
+        "--config-file, or your user-level config."
+    )
+
+
+def validate_untrusted_api_proxy(proxy, allowed_suffixes=()):
+    """Raise if an api_proxy from an untrusted config is not an allowed proxy."""
+    if host_matches_suffixes(proxy, allowed_suffixes):
+        return
+    raise click.UsageError(
+        f'api_proxy "{proxy}" is set by a config file in the current directory '
+        "and is not an allowed proxy. To use a proxy, set it via --api-proxy, "
+        "the CLOUDSMITH_API_PROXY environment variable, an explicit "
+        "--config-file, or your user-level config."
+    )
 
 
 def validate_slashes(

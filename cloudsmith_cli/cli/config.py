@@ -156,6 +156,30 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
+    def read_relative_config_value(cls, key, profile=None):
+        """Read `key` as loaded from directory-relative (untrusted) configs only.
+
+        Loads via the normal machinery but through a reader narrowed to the
+        relative search paths/files (e.g. the current working directory);
+        absolute/user-level paths and any explicit ``--config-file`` are
+        excluded. The value is parsed and quote-stripped exactly as a real run
+        would. Returns None when the key is absent or empty.
+        """
+        relative_searchpath = [p for p in cls.config_searchpath if not os.path.isabs(p)]
+        relative_files = [f for f in cls.config_files if not os.path.isabs(f)]
+        if not relative_searchpath or not relative_files:
+            return None
+
+        relative_reader = type(
+            "RelativeConfigReader",
+            (cls,),
+            {"config_searchpath": relative_searchpath, "config_files": relative_files},
+        )
+        probe = Options()
+        relative_reader.load_config(probe, profile=profile)
+        return probe.opts.get(key)
+
+    @classmethod
     def load_config(cls, opts, path=None, profile=None):
         """Load a configuration file into an options object."""
         if path and os.path.exists(path):
