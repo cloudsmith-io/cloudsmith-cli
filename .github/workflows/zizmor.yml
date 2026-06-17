@@ -14,6 +14,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   zizmor:
     name: Scan GitHub Actions workflows
