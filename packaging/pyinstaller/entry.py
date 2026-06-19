@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 import importlib
 import os
 import pkgutil

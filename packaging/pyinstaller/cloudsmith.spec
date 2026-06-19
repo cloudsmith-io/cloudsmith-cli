@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+# Copyright 2026 Cloudsmith Ltd
 # PyInstaller onedir spec for the Cloudsmith CLI. Built natively per target.
 # onedir (not onefile): onefile re-extracts the whole bundle on every
 # invocation (~6s/run); onedir starts in ~0.4s. Distributed as tar.gz/zip.
