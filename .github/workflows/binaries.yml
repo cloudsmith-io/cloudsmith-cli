@@ -105,9 +105,9 @@ jobs:
         run: |
           MATRIX=$(jq -c . <<'JSON'
           {"include":[
-            {"name":"linux-x86_64-gnu","build_runner":"ubuntu-24.04","mode":"glibc","build_image":"almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","test_runner":"ubuntu-24.04","test_kind":"docker","test_images":"debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","archive":".tar.gz"},
+            {"name":"linux-x86_64-gnu","build_runner":"ubuntu-24.04","mode":"glibc","build_image":"almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","test_runner":"ubuntu-24.04","test_kind":"docker","test_images":"debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05","archive":".tar.gz"},
             {"name":"linux-x86_64-musl","build_runner":"ubuntu-24.04","mode":"alpine","build_image":"python:3.12-alpine@sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd","test_runner":"ubuntu-24.04","test_kind":"docker","test_images":"alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc","archive":".tar.gz"},
-            {"name":"linux-aarch64-gnu","build_runner":"ubuntu-24.04-arm","mode":"glibc","build_image":"almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","test_runner":"ubuntu-24.04-arm","test_kind":"docker","test_images":"debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","archive":".tar.gz"},
+            {"name":"linux-aarch64-gnu","build_runner":"ubuntu-24.04-arm","mode":"glibc","build_image":"almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","test_runner":"ubuntu-24.04-arm","test_kind":"docker","test_images":"debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05","archive":".tar.gz"},
             {"name":"linux-aarch64-musl","build_runner":"ubuntu-24.04-arm","mode":"alpine","build_image":"python:3.12-alpine@sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd","test_runner":"ubuntu-24.04-arm","test_kind":"docker","test_images":"alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc","archive":".tar.gz"},
             {"name":"macos-arm64","build_runner":"macos-14","mode":"native","build_image":"","test_runner":"macos-14","test_kind":"macos","test_images":"","archive":".tar.gz"},
             {"name":"macos-x86_64","build_runner":"macos-15-intel","mode":"native","build_image":"","test_runner":"macos-15-intel","test_kind":"macos","test_images":"","archive":".tar.gz"},
@@ -186,15 +186,23 @@ jobs:
               tar -czf "out/${ART}" -C dist cloudsmith
             '
 
+      # Cache pip's download cache only (not site-packages); resolution still runs.
+      - if: matrix.mode == 'glibc'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ github.workspace }}/.pip-cache
+          key: pip-glibc-${{ matrix.name }}-${{ hashFiles('packaging/constraints.txt', 'uv.lock') }}
+
       - if: matrix.mode == 'glibc'
         env:
           ART: ${{ steps.art.outputs.name }}
           BUILD_IMAGE: ${{ matrix.build_image }}
         run: |
           set -euo pipefail
-          mkdir -p out
+          mkdir -p out .pip-cache
           docker run --rm \
             -e ART="${ART}" \
+            -e PIP_CACHE_DIR=/src/.pip-cache \
             -e PYINSTALLER_CONFIG_DIR=/tmp/pyinstaller \
             -v "${PWD}:/src" -w /src \
             "${BUILD_IMAGE}" bash -c '
@@ -315,7 +323,6 @@ jobs:
         env:
           ART: ${{ steps.art.outputs.name }}
           TEST_IMAGES: ${{ matrix.test_images }}
-          EXPECTED_VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           EXPECTED_VERSION=$(cat cloudsmith_cli/data/VERSION)
