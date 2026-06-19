@@ -23,6 +23,10 @@ runs:
         set -euo pipefail
         ARCHIVE="binaries/cloudsmith-${VERSION}-linux-x86_64-gnu.tar.gz"
         test -f "${ARCHIVE}"
+        # Verify the accompanying checksum before extracting onto PATH so a
+        # corrupted or unexpected artifact never gets executed.
+        test -f "${ARCHIVE}.sha256"
+        ( cd binaries && sha256sum -c "$(basename "${ARCHIVE}").sha256" )
         DEST="${RUNNER_TEMP}/cloudsmith-cli"
         mkdir -p "${DEST}"
         tar -xzf "${ARCHIVE}" -C "${DEST}"
