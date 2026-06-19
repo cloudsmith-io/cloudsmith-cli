@@ -38,6 +38,10 @@ jobs:
     name: Binaries
     needs: validate
     uses: ./.github/workflows/binaries.yml
+    # Publishing authenticates via OIDC (no API key). The online smoketest is a
+    # separate read-only check that does still need CLOUDSMITH_API_KEY: with
+    # online_smoketest: true the reusable workflow fails fast if it is missing.
+    # The OIDC online path is covered separately by the binaries `oidc` job.
     with:
       online_smoketest: true
     permissions:
