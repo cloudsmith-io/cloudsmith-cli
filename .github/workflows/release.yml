@@ -1,163 +1,532 @@
-name: Create Zipapp and Release
+name: Release
 
 on:
-    push:
-        tags:
-            - "v*"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Single source of truth for binary targets (also update the binaries.yml matrix).
+  BINARY_TARGETS: "linux-x86_64-gnu linux-x86_64-musl linux-aarch64-gnu linux-aarch64-musl macos-arm64 macos-x86_64 windows-x86_64"
 
 jobs:
-    # Build and publish to GitHub, Cloudsmith (zipapp + Docker)
-    build:
-        name: Build and publish artifacts
-        runs-on: ubuntu-latest
-        permissions:
-            id-token: write
-            contents: write
+  validate:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - id: version
+        name: Validate tag and package version
+        run: |
+          set -euo pipefail
+          VERSION=$(cat cloudsmith_cli/data/VERSION)
+          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  binaries:
+    name: Binaries
+    needs: validate
+    uses: ./.github/workflows/binaries.yml
+    # Publishing authenticates via OIDC (no API key). The online smoketest is a
+    # separate read-only check that does still need CLOUDSMITH_API_KEY: with
+    # online_smoketest: true the reusable workflow fails fast if it is missing.
+    # The OIDC online path is covered separately by the binaries `oidc` job.
+    with:
+      online_smoketest: true
+    permissions:
+      contents: read
+      id-token: write
+    secrets:
+      CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+
+  python-distributions:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0 # zizmor: ignore[cache-poisoning]
+        with:
+          enable-cache: true
+
+      - name: Build and validate once
         env:
-            CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
-            CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
-            CLOUDSMITH_SVC_SLUG: ${{ vars.CLOUDSMITH_SVC_SLUG }}
-            DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-        steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-              with:
-                  persist-credentials: false
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          uv sync --locked --group release
+          uv build --clear
+          SDIST="dist/cloudsmith_cli-${VERSION}.tar.gz"
+          WHEEL="dist/cloudsmith_cli-${VERSION}-py3-none-any.whl"
+          test -f "${SDIST}"
+          test -f "${WHEEL}"
+          uv run --group release twine check "${SDIST}" "${WHEEL}"
+          uv run --group release check-wheel-contents "${WHEEL}"
+          python - <<'PY'
+          import os
+          import zipfile
 
-            - name: Set up Python 3.10
-              uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-              with:
-                  python-version: '3.10'
+          wheel = f"dist/cloudsmith_cli-{os.environ['VERSION']}-py3-none-any.whl"
+          with zipfile.ZipFile(wheel) as archive:
+              names = archive.namelist()
+          forbidden = [
+              name
+              for name in names
+              if name.startswith("packaging/")
+              or "/tests/" in name
+              or name.startswith("tests/")
+          ]
+          if forbidden:
+              raise SystemExit(f"wheel contains non-runtime files: {forbidden}")
+          PY
+          python -m venv /tmp/cloudsmith-release-install
+          /tmp/cloudsmith-release-install/bin/python -m pip install "${WHEEL}"
+          OUTPUT=$(/tmp/cloudsmith-release-install/bin/cloudsmith --version)
+          printf '%s\n' "${OUTPUT}"
+          printf '%s\n' "${OUTPUT}" | grep -Fq "CLI Package Version: ${VERSION}"
 
-            - name: Install build dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install pex setuptools wheel
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-distributions
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error
 
-            - name: Get version
-              id: get_version
-              run: echo "VERSION=$(cat cloudsmith_cli/data/VERSION)" >> $GITHUB_ENV
+  sign-linux:
+    needs: [validate, binaries]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-linux-*
+          merge-multiple: true
+          path: binaries
 
-            - name: Create multi-platform Zipapp with PEX
-              run: |
-                pex . \
-                  --output-file "cloudsmith.pyz" \
-                  --console-script cloudsmith \
-                  --python-shebang "/usr/bin/env python3" \
-                  --venv \
-                  --complete-platform .github/.platforms/linux-x86_64-py310.json \
-                  --complete-platform .github/.platforms/linux-aarch64-py310.json \
-                  --complete-platform .github/.platforms/linux-x86_64-musl-py310.json \
-                  --complete-platform .github/.platforms/linux-aarch64-musl-py310.json \
-                  --complete-platform .github/.platforms/macos-arm64-py310.json \
-                  --complete-platform .github/.platforms/windows-x86_64-py310.json \
-                  --complete-platform .github/.platforms/linux-x86_64-py311.json \
-                  --complete-platform .github/.platforms/linux-aarch64-py311.json \
-                  --complete-platform .github/.platforms/linux-x86_64-musl-py311.json \
-                  --complete-platform .github/.platforms/linux-aarch64-musl-py311.json \
-                  --complete-platform .github/.platforms/macos-arm64-py311.json \
-                  --complete-platform .github/.platforms/windows-x86_64-py311.json \
-                  --complete-platform .github/.platforms/linux-x86_64-py312.json \
-                  --complete-platform .github/.platforms/linux-aarch64-py312.json \
-                  --complete-platform .github/.platforms/linux-x86_64-musl-py312.json \
-                  --complete-platform .github/.platforms/linux-aarch64-musl-py312.json \
-                  --complete-platform .github/.platforms/macos-arm64-py312.json \
-                  --complete-platform .github/.platforms/windows-x86_64-py312.json \
-                  --complete-platform .github/.platforms/linux-x86_64-py313.json \
-                  --complete-platform .github/.platforms/linux-aarch64-py313.json \
-                  --complete-platform .github/.platforms/linux-x86_64-musl-py313.json \
-                  --complete-platform .github/.platforms/linux-aarch64-musl-py313.json \
-                  --complete-platform .github/.platforms/macos-arm64-py313.json \
-                  --complete-platform .github/.platforms/windows-x86_64-py313.json \
-                  --complete-platform .github/.platforms/linux-x86_64-py314.json \
-                  --complete-platform .github/.platforms/linux-aarch64-py314.json \
-                  --complete-platform .github/.platforms/linux-x86_64-musl-py314.json \
-                  --complete-platform .github/.platforms/linux-aarch64-musl-py314.json \
-                  --complete-platform .github/.platforms/macos-arm64-py314.json \
-                  --complete-platform .github/.platforms/windows-x86_64-py314.json
+      - name: Import signing key and create detached signatures
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+          printf 'allow-loopback-pinentry\n' > "$GNUPGHOME/gpg-agent.conf"
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          for TARGET in ${BINARY_TARGETS}; do
+            case "${TARGET}" in
+              linux-*) ;;
+              *) continue ;;
+            esac
+            ARCHIVE="binaries/cloudsmith-${VERSION}-${TARGET}.tar.gz"
+            test -f "${ARCHIVE}"
+            printf '%s' "${GPG_PASSPHRASE}" \
+              | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+                --detach-sign --output "${ARCHIVE}.sig" "${ARCHIVE}"
+            gpg --verify "${ARCHIVE}.sig" "${ARCHIVE}"
+          done
+          gpgconf --kill gpg-agent || true
 
-            - name: Create Release and Upload Asset
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: gh release create "${GITHUB_REF_NAME}" ./cloudsmith.pyz --title "Release v${VERSION}" --notes ""
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-signatures
+          path: binaries/*.sig
+          if-no-files-found: error
+          retention-days: 14
 
-            - name: Install and authenticate Cloudsmith CLI
-              uses: cloudsmith-io/cloudsmith-cli-action@159f1619275d5d3147f059c3cc110938ec221d16 # v2.0.3
-              with:
-                  oidc-namespace: ${{ vars.CLOUDSMITH_NAMESPACE }}
-                  oidc-service-slug: ${{ vars.CLOUDSMITH_SVC_SLUG }}
+  stage-github:
+    needs: [validate, binaries, python-distributions, sign-linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-*
+          merge-multiple: true
+          path: binaries
 
-            - name: Push Zipapp to Cloudsmith
-              id: push_zipapp
-              run: cloudsmith push raw "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" "./cloudsmith.pyz" --name cloudsmith-cli --version "${VERSION}"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-distributions
+          path: python
 
-            - name: Build Python packages
-              run: python setup.py sdist bdist_wheel
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-signatures
+          path: binaries
 
-            - name: Push source distribution to Cloudsmith
-              run: cloudsmith push python "${CLOUDSMITH_NAMESPACE}/cli" "dist/cloudsmith_cli-${VERSION}.tar.gz"
+      - name: Stage verified assets on a draft release
+        run: |
+          set -euo pipefail
+          ASSETS=()
+          SUM_ARCHIVES=()
+          for TARGET in ${BINARY_TARGETS}; do
+            EXT=.tar.gz
+            if [ "${TARGET}" = windows-x86_64 ]; then
+              EXT=.zip
+            fi
+            ARCHIVE="binaries/cloudsmith-${VERSION}-${TARGET}${EXT}"
+            CHECKSUM="${ARCHIVE}.sha256"
+            test -f "${ARCHIVE}"
+            test -f "${CHECKSUM}"
+            ASSETS+=("${ARCHIVE}" "${CHECKSUM}")
+            SUM_ARCHIVES+=("cloudsmith-${VERSION}-${TARGET}${EXT}")
+            SIGNATURE="${ARCHIVE}.sig"
+            if [ -f "${SIGNATURE}" ]; then
+              ASSETS+=("${SIGNATURE}")
+            fi
+          done
+          SDIST="python/cloudsmith_cli-${VERSION}.tar.gz"
+          WHEEL="python/cloudsmith_cli-${VERSION}-py3-none-any.whl"
+          test -f "${SDIST}"
+          test -f "${WHEEL}"
+          ASSETS+=("${SDIST}" "${WHEEL}")
+          (
+            cd binaries
+            sha256sum "${SUM_ARCHIVES[@]}" > SHA256SUMS
+          )
+          ASSETS+=("binaries/SHA256SUMS")
 
-            - name: Push wheel to Cloudsmith
-              run: cloudsmith push python "${CLOUDSMITH_NAMESPACE}/cli" "dist/cloudsmith_cli-${VERSION}-py2.py3-none-any.whl"
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            test "$(gh release view "${GITHUB_REF_NAME}" --json isDraft -q .isDraft)" = true
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --draft \
+              --verify-tag \
+              --title "Release ${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
+          gh release upload "${GITHUB_REF_NAME}" --clobber "${ASSETS[@]}"
 
-            - name: Set up QEMU for multi-arch
-              uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+  publish-cloudsmith:
+    needs: [validate, stage-github, python-distributions, sign-linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
+      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
 
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-*
+          merge-multiple: true
+          path: binaries
 
-            - name: Push Dockerised CLI to Cloudsmith (multi-arch)
-              id: push_dockerised_cli_cloudsmith
-              run: |
-                echo "${CLOUDSMITH_API_KEY}" | docker login docker.cloudsmith.io -u "${CLOUDSMITH_SVC_SLUG}" --password-stdin
-                docker buildx build \
-                  --platform linux/amd64,linux/arm64 \
-                  --build-arg "CLOUDSMITH_CLI_VERSION=${VERSION}" \
-                  --build-arg "CLOUDSMITH_NAMESPACE=${CLOUDSMITH_NAMESPACE}" \
-                  --build-arg "CLOUDSMITH_REPO=${CLOUDSMITH_REPO}" \
-                  -t "docker.cloudsmith.io/${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}/cloudsmith-cli:${VERSION}" \
-                  --push .
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-distributions
+          path: python
 
-            - name: Push Dockerised CLI to DockerHub (multi-arch)
-              id: push_dockerised_cli_dockerhub
-              env:
-                  DOCKERHUB_PAT: ${{ secrets.DOCKERHUB_PAT }}
-              run: |
-                echo "${DOCKERHUB_PAT}" | docker login -u "${DOCKERHUB_USER}" --password-stdin
-                docker buildx build \
-                  --platform linux/amd64,linux/arm64 \
-                  --build-arg "CLOUDSMITH_CLI_VERSION=${VERSION}" \
-                  --build-arg "CLOUDSMITH_NAMESPACE=${CLOUDSMITH_NAMESPACE}" \
-                  --build-arg "CLOUDSMITH_REPO=${CLOUDSMITH_REPO}" \
-                  -t "cloudsmith/cloudsmith-cli:${VERSION}" \
-                  --push .
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-signatures
+          path: binaries
 
-    # Publish Python packages to PyPI
-    publish-pypi:
-        name: Publish to PyPI
-        runs-on: ubuntu-latest
-        environment: release
-        permissions:
-            id-token: write
-            contents: read
-        steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-              with:
-                  persist-credentials: false
+      - name: Set up the built cloudsmith binary on the runner
+        uses: ./.github/actions/setup-cloudsmith-binary
+        with:
+          version: ${{ needs.validate.outputs.version }}
 
-            - name: Set up Python 3.10
-              uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-              with:
-                  python-version: '3.10'
+      - name: Pre-authenticate with OIDC
+        run: |
+          set -euo pipefail
+          cloudsmith whoami
 
-            - name: Install build dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install setuptools wheel
+      - name: Publish binaries and Python distributions
+        run: |
+          set -euo pipefail
 
-            - name: Build packages
-              run: python setup.py sdist bdist_wheel
+          # Immutable repo: skip already-published files (no overwrite). Existence
+          # via the OIDC-authed CLI, anchored filename query, counting results.
+          package_count() {
+            # Args: <namespace/repo> <basename>. filename:^...$ is exact here
+            # (Cloudsmith search isn't PCRE; escaping dots breaks it).
+            cloudsmith ls packages "$1" -q "filename:^$2\$" -F json \
+              | python3 -c 'import sys, json; print(len(json.load(sys.stdin).get("data", [])))'
+          }
 
-            - name: Publish to PyPI
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
-              with:
-                  packages-dir: dist/
+          push_raw_if_absent() {
+            # Args: <namespace/repo> <file> <package-name> <comma-separated-tags>
+            local repo="$1" file="$2" name="$3" tags="$4"
+            local base
+            base="$(basename "${file}")"
+            if [ "$(package_count "${repo}" "${base}")" != "0" ]; then
+              echo "skip (already published): ${file}"
+              return 0
+            fi
+            cloudsmith push raw \
+              "${repo}" \
+              "${file}" \
+              --name "${name}" \
+              --version "${VERSION}" \
+              --tags "${tags}"
+          }
+
+          push_python_if_absent() {
+            # Args: <namespace/repo> <file>
+            local repo="$1" file="$2"
+            local base
+            base="$(basename "${file}")"
+            if [ "$(package_count "${repo}" "${base}")" != "0" ]; then
+              echo "skip (already published): ${file}"
+              return 0
+            fi
+            cloudsmith push python \
+              "${repo}" \
+              "${file}"
+          }
+
+          for TARGET in ${BINARY_TARGETS}; do
+            EXT=.tar.gz
+            if [ "${TARGET}" = windows-x86_64 ]; then
+              EXT=.zip
+            fi
+            ARCHIVE="binaries/cloudsmith-${VERSION}-${TARGET}${EXT}"
+            test -f "${ARCHIVE}"
+
+            # Queryable tags for CI artifact selection (e.g. version:X AND tag:linux
+            # AND tag:x86_64 AND tag:musl): type, os, arch, libc (linux), full-target.
+            OS="${TARGET%%-*}"
+            REST="${TARGET#*-}"
+            case "${OS}" in
+              linux)
+                ARCH="${REST%-*}"
+                LIBC="${REST##*-}"
+                COMMON="${OS},${ARCH},${LIBC},${TARGET}"
+                ;;
+              *)
+                ARCH="${REST}"
+                COMMON="${OS},${ARCH},${TARGET}"
+                ;;
+            esac
+
+            push_raw_if_absent \
+              "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
+              "${ARCHIVE}" \
+              "cloudsmith-cli-${TARGET}" \
+              "standalone-binary,${COMMON}"
+            case "${TARGET}" in
+              linux-*)
+                test -f "${ARCHIVE}.sig"
+                push_raw_if_absent \
+                  "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
+                  "${ARCHIVE}.sig" \
+                  "cloudsmith-cli-${TARGET}-sig" \
+                  "signature,${COMMON}"
+                ;;
+            esac
+          done
+          push_python_if_absent \
+            "${CLOUDSMITH_NAMESPACE}/cli" \
+            "python/cloudsmith_cli-${VERSION}.tar.gz"
+          push_python_if_absent \
+            "${CLOUDSMITH_NAMESPACE}/cli" \
+            "python/cloudsmith_cli-${VERSION}-py3-none-any.whl"
+
+  publish-pypi:
+    needs: [validate, stage-github, python-distributions]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-distributions
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: dist/
+          skip-existing: true
+
+  publish-containers:
+    needs: [validate, stage-github]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
+      CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
+      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-linux-*-musl
+          merge-multiple: true
+          path: binaries
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-linux-x86_64-gnu
+          merge-multiple: true
+          path: binaries
+
+      - name: Set up the built cloudsmith binary on the runner
+        uses: ./.github/actions/setup-cloudsmith-binary
+        with:
+          version: ${{ needs.validate.outputs.version }}
+          add-local-bin: "true"
+
+      - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Authenticate to docker.cloudsmith.io via OIDC credential helper
+        run: |
+          set -euo pipefail
+          cloudsmith whoami
+          cloudsmith credential-helper install docker
+
+      - name: Authenticate to Docker Hub
+        if: env.HAS_DOCKERHUB == 'true'
+        env:
+          DOCKERHUB_PAT: ${{ secrets.DOCKERHUB_PAT }}
+        run: |
+          set -euo pipefail
+          echo "${DOCKERHUB_PAT}" \
+            | docker login \
+              -u "${DOCKERHUB_USER}" \
+              --password-stdin
+
+      - name: Build once and push the same image to both registries
+        run: |
+          set -euo pipefail
+          AMD64="binaries/cloudsmith-${VERSION}-linux-x86_64-musl.tar.gz"
+          ARM64="binaries/cloudsmith-${VERSION}-linux-aarch64-musl.tar.gz"
+          test -f "${AMD64}"
+          test -f "${AMD64}.sha256"
+          test -f "${ARM64}"
+          test -f "${ARM64}.sha256"
+
+          # Immutable Cloudsmith repo: push the tag only if absent (inspect runs
+          # post-auth, so non-zero = not present). Docker Hub is mutable.
+          CLOUDSMITH_IMAGE="docker.cloudsmith.io/${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}/cloudsmith-cli:${VERSION}"
+          TAGS=()
+          if docker buildx imagetools inspect "${CLOUDSMITH_IMAGE}" >/dev/null 2>&1; then
+            echo "skip (already published): ${CLOUDSMITH_IMAGE}"
+          else
+            TAGS+=(-t "${CLOUDSMITH_IMAGE}")
+          fi
+          # Docker Hub (mutable): pinned + floating tags (latest/major/major.minor).
+          # Cloudsmith (immutable) keeps only the pinned :${VERSION} tag.
+          if [ "${HAS_DOCKERHUB}" = "true" ]; then
+            HUB="cloudsmith/cloudsmith-cli"
+            MAJOR="${VERSION%%.*}"
+            MINOR="${VERSION#*.}"; MINOR="${MINOR%%.*}"
+            TAGS+=(-t "${HUB}:${VERSION}")
+            TAGS+=(-t "${HUB}:${MAJOR}" -t "${HUB}:${MAJOR}.${MINOR}" -t "${HUB}:latest")
+          fi
+
+          if [ "${#TAGS[@]}" -eq 0 ]; then
+            echo "image ${VERSION} already published; skipping"
+            exit 0
+          fi
+
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg "CLOUDSMITH_CLI_VERSION=${VERSION}" \
+            --build-arg "VCS_REF=${GITHUB_SHA}" \
+            "${TAGS[@]}" \
+            --push .
+
+  publish-github:
+    needs:
+      - validate
+      - stage-github
+      - publish-cloudsmith
+      - publish-pypi
+      - publish-containers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - name: Assert every expected asset is present
+        run: |
+          set -euo pipefail
+          PRESENT=$(gh release view "${GITHUB_REF_NAME}" --json assets -q '.assets[].name')
+          EXPECTED=()
+          for TARGET in ${BINARY_TARGETS}; do
+            EXT=.tar.gz
+            if [ "${TARGET}" = windows-x86_64 ]; then
+              EXT=.zip
+            fi
+            EXPECTED+=("cloudsmith-${VERSION}-${TARGET}${EXT}")
+            EXPECTED+=("cloudsmith-${VERSION}-${TARGET}${EXT}.sha256")
+            case "${TARGET}" in
+              linux-*) EXPECTED+=("cloudsmith-${VERSION}-${TARGET}${EXT}.sig") ;;
+            esac
+          done
+          EXPECTED+=("SHA256SUMS")
+          EXPECTED+=("cloudsmith_cli-${VERSION}.tar.gz")
+          EXPECTED+=("cloudsmith_cli-${VERSION}-py3-none-any.whl")
+          MISSING=()
+          for ASSET in "${EXPECTED[@]}"; do
+            if ! printf '%s\n' "${PRESENT}" | grep -Fxq "${ASSET}"; then
+              MISSING+=("${ASSET}")
+            fi
+          done
+          if [ "${#MISSING[@]}" -ne 0 ]; then
+            echo "FAIL: release is missing expected assets:"
+            printf '  %s\n' "${MISSING[@]}"
+            exit 1
+          fi
+          echo "All ${#EXPECTED[@]} expected assets present."
+
+      - name: Publish the fully replicated draft release
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
