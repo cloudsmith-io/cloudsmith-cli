@@ -169,13 +169,11 @@ class TestRequestApiKeyFunction:
         duplicate_error.status = 400
         duplicate_error.detail = "User has already created an API key"
 
-        with patch(
-            "cloudsmith_cli.core.api.user.create_user_token_saml"
-        ) as mock_create, patch(
-            "cloudsmith_cli.core.api.user.list_user_tokens"
-        ) as mock_list, patch(
-            "cloudsmith_cli.core.api.user.refresh_user_token"
-        ) as mock_refresh:
+        with (
+            patch("cloudsmith_cli.core.api.user.create_user_token_saml") as mock_create,
+            patch("cloudsmith_cli.core.api.user.list_user_tokens") as mock_list,
+            patch("cloudsmith_cli.core.api.user.refresh_user_token") as mock_refresh,
+        ):
             mock_create.side_effect = duplicate_error
             mock_list.return_value = [existing_token]
             mock_refresh.return_value = new_token

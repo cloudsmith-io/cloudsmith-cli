@@ -441,10 +441,11 @@ class TestMCPConfigureClaudeCode:
                 return real_get_config_path(client, is_global=is_global)
             return None
 
-        with patch(
-            "cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path
-        ), patch(
-            "cloudsmith_cli.cli.commands.mcp.get_config_path", side_effect=selective
+        with (
+            patch("cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path),
+            patch(
+                "cloudsmith_cli.cli.commands.mcp.get_config_path", side_effect=selective
+            ),
         ):
             assert "claude-code" not in detect_available_clients()
 

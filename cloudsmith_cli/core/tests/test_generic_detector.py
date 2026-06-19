@@ -68,5 +68,7 @@ class TestGetToken:
 
 class TestIntegration:
     def test_detect_environment_selects_generic(self, generic_env):
-        detector = detect_environment(CredentialContext())
+        detector = detect_environment(
+            CredentialContext(oidc_disabled_detectors=frozenset({"aws"}))
+        )
         assert isinstance(detector, GenericDetector)
