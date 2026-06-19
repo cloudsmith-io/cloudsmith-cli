@@ -29,6 +29,8 @@ no_dep_error() {
 
 # Run a read-only online command; a 429 is the shared org throttling, not a
 # binary failure, so warn and pass.
+# Asserts success without printing the raw response (PII / repo names). The
+# dep-error detector still sees the full output; SMOKETEST_DEBUG=1 prints it.
 online_call() {
   _label="$1"; shift
   _out=$("$BIN" "$@" 2>&1) || {
@@ -36,10 +38,15 @@ online_call() {
       echo "WARN: rate-limited (429) on ${_label}; shared org throttling, not a binary failure" >&2
       return 0
     fi
-    printf '%s\n' "$_out"; fail "online ${_label} failed"
+    [ "${SMOKETEST_DEBUG:-0}" = "1" ] && printf '%s\n' "$_out" >&2
+    fail "online ${_label} failed (set SMOKETEST_DEBUG=1 for output)"
   }
   no_dep_error "$_out" "$_label"
-  printf '%s\n' "$_out" | head -15
+  if [ "${SMOKETEST_DEBUG:-0}" = "1" ]; then
+    printf '%s\n' "$_out" | head -15
+  else
+    echo "${_label}: OK"
+  fi
 }
 
 echo "== binary: $BIN (mode=$MODE) =="

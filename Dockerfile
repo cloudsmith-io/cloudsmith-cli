@@ -1,24 +1,45 @@
-FROM python:3.12-alpine
+ARG ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
-LABEL maintainer="support@cloudsmith.io"
-LABEL description="Official Cloudsmith CLI, now served in a handy container"
+FROM ${ALPINE_IMAGE} AS unpack
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PATH="/opt/cloudsmith:${PATH}"
-
-RUN apk add --no-cache curl bash ca-certificates
+ARG TARGETARCH
 ARG CLOUDSMITH_CLI_VERSION
-ARG CLOUDSMITH_NAMESPACE
-ARG CLOUDSMITH_REPO
 
-RUN mkdir -p /opt/cloudsmith \
- && curl -1sLf -o /opt/cloudsmith/cloudsmith "https://dl.cloudsmith.io/public/${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}/raw/names/cloudsmith-cli/versions/${CLOUDSMITH_CLI_VERSION}/cloudsmith.pyz" \
- && chmod +x /opt/cloudsmith/cloudsmith
+COPY binaries/ /tmp/binaries/
 
-# Run as a non-root user
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) CS_ARCH="x86_64" ;; \
+      arm64) CS_ARCH="aarch64" ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    ARCHIVE="cloudsmith-${CLOUDSMITH_CLI_VERSION}-linux-${CS_ARCH}-musl.tar.gz"; \
+    cd /tmp/binaries; \
+    sha256sum -c "${ARCHIVE}.sha256"; \
+    mkdir -p /opt; \
+    tar -xzf "${ARCHIVE}" -C /opt
+
+FROM ${ALPINE_IMAGE}
+
+ARG CLOUDSMITH_CLI_VERSION
+ARG VCS_REF
+
+LABEL maintainer="support@cloudsmith.io" \
+      org.opencontainers.image.title="Cloudsmith CLI" \
+      org.opencontainers.image.description="Official Cloudsmith CLI" \
+      org.opencontainers.image.vendor="Cloudsmith" \
+      org.opencontainers.image.url="https://cloudsmith.com" \
+      org.opencontainers.image.source="https://github.com/cloudsmith-io/cloudsmith-cli" \
+      org.opencontainers.image.documentation="https://docs.cloudsmith.com/developer-tools/cli" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.version="${CLOUDSMITH_CLI_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}"
+
+ENV PATH="/opt/cloudsmith:${PATH}"
+
+COPY --from=unpack /opt/cloudsmith /opt/cloudsmith
+
 RUN adduser -D -u 1000 cloudsmith
 USER cloudsmith
 
-# Default command
-ENTRYPOINT [ "cloudsmith" ]
+ENTRYPOINT ["cloudsmith"]

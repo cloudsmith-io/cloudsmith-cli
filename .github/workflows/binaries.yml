@@ -276,7 +276,6 @@ jobs:
         env:
           ART: ${{ steps.art.outputs.name }}
           TEST_IMAGES: ${{ matrix.test_images }}
-          EXPECTED_VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           EXPECTED_VERSION=$(cat cloudsmith_cli/data/VERSION)
