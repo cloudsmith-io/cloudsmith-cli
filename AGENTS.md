@@ -11,7 +11,7 @@ uv sync --group dev
 pre-commit install
 ```
 
-All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps. The binary build's `packaging/constraints.txt` is generated from the lock (`uv export --locked --no-dev --group binary --extra all --no-emit-project --no-hashes --no-header`) — don't hand-edit it.
+All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps.
 
 Python `>=3.10` is required (CI tests 3.10–3.14).
 
