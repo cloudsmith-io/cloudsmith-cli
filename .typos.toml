@@ -5,6 +5,8 @@ Mno-hime = "Mno-hime"
 [default.extend-words]
 # Proper names - do not correct
 hime = "hime"
+# PyInstaller spec API: Analysis(datas=...) — not a typo of "data"
+datas = "datas"
 McClory = "McClory"
 mcclory = "mcclory"
 Clory = "Clory"

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 
 from ...core.cache_utils import merge_json_file
@@ -55,6 +56,21 @@ class DockerInstaller:
 
     name = "docker"
     summary = "Docker credential helper for Cloudsmith registries"
+
+    @classmethod
+    def _resolve_target_cmd(cls) -> str:
+        """Return the command the launcher forwards to.
+
+        A pip/source install resolves the bare ``cloudsmith`` command via
+        ``PATH``.  A frozen standalone binary (PyInstaller) is not guaranteed
+        to be on ``PATH`` under that name, so point the launcher at the
+        absolute executable instead — mirroring the frozen handling in
+        :func:`cloudsmith_cli.cli.commands.mcp._get_server_config`.  The path
+        is quoted so a directory containing spaces still execs correctly.
+        """
+        if getattr(sys, "frozen", False):
+            return f'"{sys.executable}" credential-helper docker'
+        return cls.TARGET_CMD
 
     def install(
         self,
@@ -190,7 +206,9 @@ class DockerInstaller:
             return actions
 
         # Real install
-        launcher_path = write_launcher(target_dir, self.LAUNCHER_NAME, self.TARGET_CMD)
+        launcher_path = write_launcher(
+            target_dir, self.LAUNCHER_NAME, self._resolve_target_cmd()
+        )
         actions.append(f"wrote launcher {launcher_path}")
 
         changed = merge_json_file(config_path, mutate)

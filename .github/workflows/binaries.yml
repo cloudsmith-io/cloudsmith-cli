@@ -1,0 +1,420 @@
+name: binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      online_smoketest:
+        description: Run read-only online smoketests
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      online_smoketest:
+        description: Run read-only online and OIDC smoketests
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      CLOUDSMITH_API_KEY:
+        description: Read-only API key for the online smoketests
+        required: false
+  pull_request:
+    paths:
+      - cloudsmith_cli/**
+      - packaging/**
+      - Dockerfile
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/binaries.yml
+      - .github/workflows/release.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binaries-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inputs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Verify lockfile and binary constraints
+        run: |
+          set -euo pipefail
+          uv lock --check
+          uv export \
+            --locked \
+            --no-dev \
+            --group binary \
+            --extra all \
+            --no-emit-project \
+            --no-hashes \
+            --no-header \
+            -o /tmp/constraints.txt
+          cmp /tmp/constraints.txt packaging/constraints.txt
+
+      - name: Validate Python distributions
+        run: |
+          set -euo pipefail
+          uv sync --locked --group release
+          uv build --clear
+          uv run --group release twine check dist/*
+          uv run --group release check-wheel-contents dist/*.whl
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/*.whl")
+          if len(wheel) != 1:
+              raise SystemExit(f"expected one wheel, found: {wheel}")
+          with zipfile.ZipFile(wheel[0]) as archive:
+              names = archive.namelist()
+          forbidden = [
+              name
+              for name in names
+              if name.startswith("packaging/")
+              or "/tests/" in name
+              or name.startswith("tests/")
+          ]
+          if forbidden:
+              raise SystemExit(f"wheel contains non-runtime files: {forbidden}")
+          PY
+
+  matrix:
+    needs: inputs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      include: ${{ steps.gen.outputs.include }}
+    steps:
+      - id: gen
+        run: |
+          MATRIX=$(jq -c . <<'JSON'
+          {"include":[
+            {"name":"linux-x86_64-gnu","build_runner":"ubuntu-24.04","mode":"glibc","build_image":"almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","test_runner":"ubuntu-24.04","test_kind":"docker","test_images":"debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","archive":".tar.gz"},
+            {"name":"linux-x86_64-musl","build_runner":"ubuntu-24.04","mode":"alpine","build_image":"python:3.12-alpine@sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd","test_runner":"ubuntu-24.04","test_kind":"docker","test_images":"alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc","archive":".tar.gz"},
+            {"name":"linux-aarch64-gnu","build_runner":"ubuntu-24.04-arm","mode":"glibc","build_image":"almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","test_runner":"ubuntu-24.04-arm","test_kind":"docker","test_images":"debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb","archive":".tar.gz"},
+            {"name":"linux-aarch64-musl","build_runner":"ubuntu-24.04-arm","mode":"alpine","build_image":"python:3.12-alpine@sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd","test_runner":"ubuntu-24.04-arm","test_kind":"docker","test_images":"alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc","archive":".tar.gz"},
+            {"name":"macos-arm64","build_runner":"macos-14","mode":"native","build_image":"","test_runner":"macos-14","test_kind":"macos","test_images":"","archive":".tar.gz"},
+            {"name":"macos-x86_64","build_runner":"macos-15-intel","mode":"native","build_image":"","test_runner":"macos-15-intel","test_kind":"macos","test_images":"","archive":".tar.gz"},
+            {"name":"windows-x86_64","build_runner":"windows-2025","mode":"native","build_image":"","test_runner":"windows-2025","test_kind":"windows","test_images":"","archive":".zip"}
+          ]}
+          JSON
+          )
+          echo "include=${MATRIX}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.include) }}
+    runs-on: ${{ matrix.build_runner }}
+    timeout-minutes: 45
+    env:
+      PYTHON_VERSION: "3.12"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - if: matrix.mode == 'native'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - id: art
+        shell: bash
+        env:
+          TARGET: ${{ matrix.name }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: echo "name=cloudsmith-$(cat cloudsmith_cli/data/VERSION)-${TARGET}${ARCHIVE}" >> "$GITHUB_OUTPUT"
+
+      - if: matrix.mode == 'native'
+        shell: bash
+        env:
+          ART: ${{ steps.art.outputs.name }}
+          PYINSTALLER_CONFIG_DIR: ${{ runner.temp }}/pyinstaller
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            -c packaging/constraints.txt \
+            ".[all]" \
+            pyinstaller \
+            pyinstaller-hooks-contrib
+          python -m PyInstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+          mkdir -p out
+          case "${ART}" in
+            *.zip) (cd dist && 7z a -bso0 "../out/${ART}" cloudsmith) ;;
+            *)     tar -czf "out/${ART}" -C dist cloudsmith ;;
+          esac
+
+      - if: matrix.mode == 'alpine'
+        env:
+          ART: ${{ steps.art.outputs.name }}
+          BUILD_IMAGE: ${{ matrix.build_image }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          docker run --rm \
+            -e ART="${ART}" \
+            -e PYINSTALLER_CONFIG_DIR=/tmp/pyinstaller \
+            -v "${PWD}:/src" -w /src \
+            "${BUILD_IMAGE}" sh -c '
+              set -eu
+              apk add --no-cache build-base zlib-dev libffi-dev >/dev/null
+              python -m pip install \
+                --root-user-action=ignore \
+                -c packaging/constraints.txt \
+                ".[all]" \
+                pyinstaller \
+                pyinstaller-hooks-contrib >/dev/null
+              python -m PyInstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+              tar -czf "out/${ART}" -C dist cloudsmith
+            '
+
+      - if: matrix.mode == 'glibc'
+        env:
+          ART: ${{ steps.art.outputs.name }}
+          BUILD_IMAGE: ${{ matrix.build_image }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          docker run --rm \
+            -e ART="${ART}" \
+            -e PYINSTALLER_CONFIG_DIR=/tmp/pyinstaller \
+            -v "${PWD}:/src" -w /src \
+            "${BUILD_IMAGE}" bash -c '
+              set -euo pipefail
+              dnf install -y python3.12 python3.12-pip python3.12-devel gcc binutils file >/dev/null
+              python3.12 -m pip install \
+                -c packaging/constraints.txt \
+                ".[all]" \
+                pyinstaller \
+                pyinstaller-hooks-contrib >/dev/null
+              python3.12 -m PyInstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+              MAXV="$(
+                while IFS= read -r -d "" candidate; do
+                  if file "${candidate}" | grep -q ELF; then
+                    objdump -T "${candidate}" 2>/dev/null \
+                      | grep -oE "GLIBC_[0-9.]+" || true
+                  fi
+                done < <(find dist/cloudsmith -type f -print0) \
+                  | sed "s/GLIBC_//" | sort -V | tail -1
+              )"
+              test -n "${MAXV}"
+              echo "glibc floor: ${MAXV}"
+              if [ "$(printf "2.28\n%s\n" "${MAXV}" | sort -V | tail -1)" != "2.28" ]; then
+                echo "FAIL: glibc floor ${MAXV} exceeds 2.28"
+                exit 1
+              fi
+              tar -czf "out/${ART}" -C dist cloudsmith
+            '
+
+      - shell: bash
+        env:
+          ART: ${{ steps.art.outputs.name }}
+        run: |
+          set -euo pipefail
+          cd out
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${ART}" | tee "${ART}.sha256"
+          else
+            shasum -a 256 "${ART}" | tee "${ART}.sha256"
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloudsmith-${{ matrix.name }}
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
+
+  test:
+    needs: [matrix, build]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.include) }}
+    runs-on: ${{ matrix.test_runner }}
+    timeout-minutes: 25
+    env:
+      ONLINE: ${{ inputs.online_smoketest && '1' || '' }}
+      CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+      CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - id: art
+        shell: bash
+        env:
+          TARGET: ${{ matrix.name }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: echo "name=cloudsmith-$(cat cloudsmith_cli/data/VERSION)-${TARGET}${ARCHIVE}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloudsmith-${{ matrix.name }}
+          path: ./dl
+
+      - name: Verify archive and checksum
+        shell: bash
+        env:
+          ART: ${{ steps.art.outputs.name }}
+        run: |
+          set -euo pipefail
+          test -f "dl/${ART}"
+          test -f "dl/${ART}.sha256"
+          cd dl
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c "${ART}.sha256"
+          else
+            shasum -a 256 -c "${ART}.sha256"
+          fi
+          case "${ART}" in
+            *.zip)
+              7z l -slt "${ART}" \
+                | sed -n 's/^Path = //p' \
+                | sed 's#\\#/#g' \
+                | tail -n +2 \
+                > entries.txt
+              ;;
+            *) tar -tzf "${ART}" > entries.txt ;;
+          esac
+          test -s entries.txt
+          if grep -Eq '(^|/)\.\.(/|$)|^/' entries.txt; then
+            echo "archive contains an unsafe path"
+            exit 1
+          fi
+          if grep -Ev '^cloudsmith(/|$)' entries.txt; then
+            echo "archive contains files outside cloudsmith/"
+            exit 1
+          fi
+          grep -Eq '^cloudsmith/cloudsmith(\.exe)?$' entries.txt
+
+      - name: Require credentials for requested online smoketests
+        if: inputs.online_smoketest
+        shell: bash
+        run: test -n "${CLOUDSMITH_API_KEY:-}"
+
+      - if: matrix.test_kind == 'docker'
+        env:
+          ART: ${{ steps.art.outputs.name }}
+          TEST_IMAGES: ${{ matrix.test_images }}
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          EXPECTED_VERSION=$(cat cloudsmith_cli/data/VERSION)
+          export EXPECTED_VERSION
+          tar -xzf "dl/${ART}" -C .
+          ASSERT_NO_PYTHON=1
+          for IMAGE in ${TEST_IMAGES}; do
+            docker run --rm \
+              -e ASSERT_NO_PYTHON="${ASSERT_NO_PYTHON}" \
+              -e EXPECTED_VERSION \
+              -v "${PWD}:/w" -w /w \
+              "${IMAGE}" sh -c '
+                if [ "${ASSERT_NO_PYTHON}" = 1 ]; then
+                  for candidate in python python3 python3.10 python3.11 python3.12 python3.13 python3.14 pypy3; do
+                    if command -v "${candidate}" >/dev/null 2>&1; then
+                      echo "${candidate} present in clean-room image"
+                      exit 1
+                    fi
+                  done
+                fi
+                sh packaging/smoketest.sh cloudsmith/cloudsmith offline
+              '
+            ASSERT_NO_PYTHON=0
+          done
+          if [ -n "${ONLINE}" ] && [ -n "${CLOUDSMITH_API_KEY:-}" ]; then
+            IMAGE=${TEST_IMAGES%% *}
+            docker run --rm \
+              -e CLOUDSMITH_API_KEY \
+              -e CLOUDSMITH_NAMESPACE \
+              -v "${PWD}:/w" -w /w \
+              "${IMAGE}" sh -c '
+                sh packaging/smoketest.sh cloudsmith/cloudsmith online
+              '
+          fi
+
+      - if: matrix.test_kind == 'macos'
+        env:
+          ART: ${{ steps.art.outputs.name }}
+        run: |
+          set -euo pipefail
+          export EXPECTED_VERSION
+          EXPECTED_VERSION=$(cat cloudsmith_cli/data/VERSION)
+          tar -xzf "dl/${ART}" -C .
+          env -i HOME="${HOME}" TMPDIR="${TMPDIR:-/tmp}" \
+            "${PWD}/cloudsmith/cloudsmith" --version
+          sh packaging/smoketest.sh cloudsmith/cloudsmith offline
+          if [ -n "${ONLINE}" ] && [ -n "${CLOUDSMITH_API_KEY:-}" ]; then
+            sh packaging/smoketest.sh cloudsmith/cloudsmith online
+          fi
+
+      - if: matrix.test_kind == 'windows'
+        shell: bash
+        env:
+          ART: ${{ steps.art.outputs.name }}
+        run: |
+          set -euo pipefail
+          export EXPECTED_VERSION
+          EXPECTED_VERSION=$(cat cloudsmith_cli/data/VERSION)
+          7z x -bso0 "dl/${ART}" -o.
+          sh packaging/smoketest.sh cloudsmith/cloudsmith.exe offline
+          if [ -n "${ONLINE}" ] && [ -n "${CLOUDSMITH_API_KEY:-}" ]; then
+            sh packaging/smoketest.sh cloudsmith/cloudsmith.exe online
+          fi
+
+  oidc:
+    needs: [matrix, build]
+    if: ${{ inputs.online_smoketest }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cloudsmith-linux-x86_64-gnu
+          path: ./dl
+
+      - name: Authenticate through GitHub OIDC
+        run: |
+          set -euo pipefail
+          VERSION=$(cat cloudsmith_cli/data/VERSION)
+          ART="cloudsmith-${VERSION}-linux-x86_64-gnu.tar.gz"
+          test -f "dl/${ART}"
+          tar -xzf "dl/${ART}" -C .
+          unset CLOUDSMITH_API_KEY
+          OUT=$(cloudsmith/cloudsmith whoami 2>&1) || {
+            printf '%s\n' "$OUT"
+            exit 1
+          }
+          printf '%s\n' "$OUT"
+          if printf '%s' "$OUT" | grep -qiE 'anonymous|Nobody'; then
+            echo "FAIL: OIDC auth did not occur"
+            exit 1
+          fi
