@@ -53,20 +53,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Verify lockfile and binary constraints
-        run: |
-          set -euo pipefail
-          uv lock --check
-          uv export \
-            --locked \
-            --no-dev \
-            --group binary \
-            --extra all \
-            --no-emit-project \
-            --no-hashes \
-            --no-header \
-            -o /tmp/constraints.txt
-          cmp /tmp/constraints.txt packaging/constraints.txt
+      - name: Verify lockfile
+        run: uv lock --check
 
       - name: Validate Python distributions
         run: |
@@ -100,6 +88,7 @@ jobs:
     timeout-minutes: 45
     env:
       PYTHON_VERSION: "3.12"
+      UV_VERSION: "0.11.26"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -109,6 +98,11 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - if: matrix.mode == 'native'
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
 
       - id: art
         shell: bash
@@ -124,12 +118,8 @@ jobs:
           PYINSTALLER_CONFIG_DIR: ${{ runner.temp }}/pyinstaller
         run: |
           set -euo pipefail
-          python -m pip install \
-            -c packaging/constraints.txt \
-            ".[all]" \
-            pyinstaller \
-            pyinstaller-hooks-contrib
-          python -m PyInstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+          uv sync --locked --no-dev --no-editable --group binary --extra all --python "${PYTHON_VERSION}"
+          uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
           mkdir -p out
           case "${ART}" in
             *.zip) (cd dist && 7z a -bso0 "../out/${ART}" cloudsmith) ;;
@@ -145,18 +135,16 @@ jobs:
           mkdir -p out
           docker run --rm \
             -e ART="${ART}" \
+            -e UV_VERSION \
+            -e UV_PYTHON_DOWNLOADS=never \
             -e PYINSTALLER_CONFIG_DIR=/tmp/pyinstaller \
             -v "${PWD}:/src" -w /src \
             "${BUILD_IMAGE}" sh -c '
               set -eu
               apk add --no-cache build-base zlib-dev libffi-dev >/dev/null
-              python -m pip install \
-                --root-user-action=ignore \
-                -c packaging/constraints.txt \
-                ".[all]" \
-                pyinstaller \
-                pyinstaller-hooks-contrib >/dev/null
-              python -m PyInstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+              python -m pip install --root-user-action=ignore "uv==${UV_VERSION}" >/dev/null
+              uv sync --locked --no-dev --no-editable --group binary --extra all
+              uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
               tar -czf "out/${ART}" -C dist cloudsmith
             '
 
@@ -169,17 +157,16 @@ jobs:
           mkdir -p out
           docker run --rm \
             -e ART="${ART}" \
+            -e UV_VERSION \
+            -e UV_PYTHON_DOWNLOADS=never \
             -e PYINSTALLER_CONFIG_DIR=/tmp/pyinstaller \
             -v "${PWD}:/src" -w /src \
             "${BUILD_IMAGE}" bash -c '
               set -euo pipefail
               dnf install -y python3.12 python3.12-pip python3.12-devel gcc binutils file >/dev/null
-              python3.12 -m pip install \
-                -c packaging/constraints.txt \
-                ".[all]" \
-                pyinstaller \
-                pyinstaller-hooks-contrib >/dev/null
-              python3.12 -m PyInstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+              python3.12 -m pip install "uv==${UV_VERSION}" >/dev/null
+              uv sync --locked --no-dev --no-editable --group binary --extra all --python python3.12
+              uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
               MAXV="$(
                 while IFS= read -r -d "" candidate; do
                   if file "${candidate}" | grep -q ELF; then

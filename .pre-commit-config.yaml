@@ -83,15 +83,6 @@ repos:
           "-sn", # Don't display the score
           "--rcfile=.pylintrc", # Link to your config file
         ]
-    - id: binary-constraints
-      name: regenerate binary constraints
-      # Keep packaging/constraints.txt in sync with uv.lock for the PyInstaller
-      # build. Mirrors the CI "Verify lockfile and binary constraints" gate so
-      # drift is caught locally. Auto-regenerates (like black); re-stage on fail.
-      language: system
-      entry: uv export --locked --no-dev --group binary --extra all --no-emit-project --no-hashes --no-header -o packaging/constraints.txt
-      pass_filenames: false
-      files: ^(uv\.lock|pyproject\.toml|packaging/constraints\.txt)$
 
 - repo: https://github.com/crate-ci/typos
   rev: v1.42.1
