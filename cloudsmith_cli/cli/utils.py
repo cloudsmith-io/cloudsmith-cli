@@ -197,12 +197,12 @@ def maybe_truncate_list(data, max_len=5):
 def maybe_unstyle_prompt(prompt, err=False):
     """Strip ANSI styling from a prompt when the target stream is not a TTY.
 
-    As of click 8.2+, ``click.prompt``/``click.confirm`` pass the prompt text
+    As of click 8.4, ``click.prompt``/``click.confirm`` pass the prompt text
     straight to the (readline-backed) prompt function instead of routing it
     through ``echo()``. This means click's ``should_strip_ansi`` logic no
     longer fires for prompt text, so any ANSI codes baked into the prompt via
     ``click.style(..., bold=True)`` leak raw into non-TTY output (piped
-    output, CI logs, captured streams). Restore the click 8.1 behaviour by
+    output, CI logs, captured streams). Restore the pre-8.4 behaviour by
     unstyling the prompt ourselves when the destination stream isn't a TTY.
 
     Applying ``click.unstyle`` to plain text is a harmless no-op.
