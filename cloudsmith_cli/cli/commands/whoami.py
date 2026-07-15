@@ -172,12 +172,14 @@ def whoami(ctx, opts):
         data["auth"] = _get_verbose_auth_data(opts, api_host)
 
     if utils.maybe_print_as_json(opts, data):
+        if not is_auth:
+            ctx.exit(1)
         return
 
     if not is_auth:
         click.echo("You are authenticated as:")
         click.secho("Nobody (i.e. anonymous user)", fg="yellow")
-        return
+        ctx.exit(1)
 
     if opts.verbose:
         _print_verbose_text(data)
