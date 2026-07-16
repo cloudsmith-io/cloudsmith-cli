@@ -156,7 +156,7 @@ Standalone binaries include all optional features, including AWS OIDC support.
 
 #### Verifying Linux binaries
 
-The four Linux archives (`linux-x86_64-gnu`, `linux-x86_64-musl`, `linux-aarch64-gnu`, `linux-aarch64-musl`) are GPG-signed with a detached binary signature published alongside each archive as `<archive>.sig`. To verify, import the Cloudsmith CLI release public key (published alongside the releases) and check the signature:
+The four Linux archives (`linux-x86_64-gnu`, `linux-x86_64-musl`, `linux-aarch64-gnu`, `linux-aarch64-musl`) are GPG-signed with a detached binary signature published alongside each archive as `<archive>.sig`. To verify, import the Cloudsmith CLI release public key (`cloudsmith-cli-release-key.asc`, attached to each GitHub release) and check the signature:
 
 ```
 gpg --import cloudsmith-cli-release-key.asc

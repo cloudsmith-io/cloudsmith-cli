@@ -135,6 +135,8 @@ jobs:
           chmod 700 "$GNUPGHOME"
           printf 'allow-loopback-pinentry\n' > "$GNUPGHOME/gpg-agent.conf"
           printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --armor --export > binaries/cloudsmith-cli-release-key.asc
+          test -s binaries/cloudsmith-cli-release-key.asc
           for TARGET in ${BINARY_TARGETS}; do
             case "${TARGET}" in
               linux-*) ;;
@@ -152,7 +154,9 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-signatures
-          path: binaries/*.sig
+          path: |
+            binaries/*.sig
+            binaries/cloudsmith-cli-release-key.asc
           if-no-files-found: error
           retention-days: 14
 
@@ -209,6 +213,8 @@ jobs:
           test -f "${SDIST}"
           test -f "${WHEEL}"
           ASSETS+=("${SDIST}" "${WHEEL}")
+          test -s binaries/cloudsmith-cli-release-key.asc
+          ASSETS+=("binaries/cloudsmith-cli-release-key.asc")
           (
             cd binaries
             sha256sum "${SUM_ARCHIVES[@]}" > SHA256SUMS
@@ -559,6 +565,7 @@ jobs:
             esac
           done
           EXPECTED+=("SHA256SUMS")
+          EXPECTED+=("cloudsmith-cli-release-key.asc")
           EXPECTED+=("cloudsmith_cli-${VERSION}.tar.gz")
           EXPECTED+=("cloudsmith_cli-${VERSION}-py3-none-any.whl")
           MISSING=()
