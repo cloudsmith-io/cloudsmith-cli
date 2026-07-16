@@ -1,6 +1,7 @@
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,7 @@ import pytest
 from ....cli.commands.mcp import (
     _atomic_write_json,
     _configure_claude_code,
+    _get_server_config,
     _safe_update_json,
     configure_client,
     detect_available_clients,
@@ -371,6 +373,18 @@ class TestMCPServerDynamicToolGeneration:
 
 
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
+
+
+class TestMCPServerConfig:
+    def test_frozen_executable_runs_mcp_directly(self):
+        with (
+            patch.object(sys, "frozen", True, create=True),
+            patch.object(sys, "executable", "/opt/cloudsmith/cloudsmith"),
+        ):
+            assert _get_server_config("staging") == {
+                "command": "/opt/cloudsmith/cloudsmith",
+                "args": ["-P", "staging", "mcp", "start"],
+            }
 
 
 class TestMCPConfigureClaudeCode:

@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -716,3 +717,45 @@ def test_uninstall_tolerates_malformed_cred_helpers(tmp_path, monkeypatch):
     installer = DockerInstaller()
     # Must not raise
     installer.uninstall(bin_dir=str(bin_dir))
+
+
+# ---------------------------------------------------------------------------
+# 18. frozen-binary launcher target (PyInstaller standalone)
+# ---------------------------------------------------------------------------
+
+
+def test_default_install_launcher_uses_bare_command(tmp_path, monkeypatch):
+    """A pip/source install writes a launcher that forwards to the bare
+    ``cloudsmith`` command resolved via PATH."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    DockerInstaller().install(bin_dir=str(bin_dir), discover=False)
+
+    body = (bin_dir / "docker-credential-cloudsmith").read_text(encoding="utf-8")
+    assert "exec cloudsmith credential-helper docker" in body
+
+
+def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
+    """A frozen install writes a launcher that execs the absolute executable.
+
+    A standalone binary is not guaranteed to be on PATH as ``cloudsmith``, so a
+    bare-command launcher would leave Docker unable to find the helper.
+    """
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+    exe = tmp_path / "cloudsmith"
+
+    with (
+        patch.object(sys, "frozen", True, create=True),
+        patch.object(sys, "executable", str(exe)),
+    ):
+        DockerInstaller().install(bin_dir=str(bin_dir), discover=False)
+
+    body = (bin_dir / "docker-credential-cloudsmith").read_text(encoding="utf-8")
+    assert str(exe) in body
+    assert "exec cloudsmith credential-helper" not in body
