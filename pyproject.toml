@@ -1,0 +1,138 @@
+[build-system]
+requires = ["setuptools==82.0.1", "wheel==0.47.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloudsmith-cli"
+dynamic = ["version"]
+description = "Cloudsmith Command-Line Interface (CLI)"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Cloudsmith Ltd", email = "support@cloudsmith.io" },
+]
+requires-python = ">=3.10.0"
+keywords = ["cloudsmith", "cli", "devops"]
+classifiers = [
+    # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
+    # 'Development Status :: 1 - Planning',
+    # 'Development Status :: 2 - Pre-Alpha',
+    # 'Development Status :: 3 - Alpha',
+    # 'Development Status :: 4 - Beta',
+    "Development Status :: 5 - Production/Stable",
+    # 'Development Status :: 6 - Mature',
+    # 'Development Status :: 7 - Inactive',
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "click>=8.1.8,!=8.3.0",
+    "click-configfile>=0.2.3",
+    "click-didyoumean>=0.0.3",
+    "click-spinner>=0.1.7",
+    "json5>=0.9.0",  # For parsing JSONC (JSON with comments) in VS Code settings
+    "cloudsmith-api>=2.0.25,<3.0",  # Compatible upto (but excluding) 3.0+
+    "keyring>=25.4.1",
+    "mcp==1.27.2",
+    # The crypto extra must be declared here: the OIDC flow verifies JWT
+    # signatures, and a bare PyJWT requirement would let the
+    # standalone-binary build resolve without the cryptography wheels.
+    "PyJWT[crypto]>=2.0.0",
+    "python-toon==0.1.2",
+    "requests>=2.18.4",
+    "requests_toolbelt>=1.0.0",
+    "rich>=13.0.0",
+    "semver>=2.7.9",
+    "urllib3>=2.5",
+]
+
+[project.optional-dependencies]
+aws = ["boto3[crt]>=1.26.0"]
+all = ["boto3[crt]>=1.26.0"]
+
+[project.scripts]
+cloudsmith = "cloudsmith_cli.cli.commands.main:main"
+
+[project.urls]
+Homepage = "https://github.com/cloudsmith-io/cloudsmith-cli"
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+    "pylint",
+    "pytest-cov",
+    "freezegun",
+    "httpretty",
+    "bumpversion",
+]
+binary = [
+    "pyinstaller==6.20.0",
+    "pyinstaller-hooks-contrib==2026.5",
+    "setuptools==82.0.1",
+    "wheel==0.47.0",
+]
+release = [
+    "build==1.5.0",
+    "check-wheel-contents==0.6.3",
+    "setuptools==82.0.1",
+    "twine==6.2.0",
+    "wheel==0.47.0",
+]
+
+[tool.setuptools.dynamic]
+version = { file = "cloudsmith_cli/data/VERSION" }
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["cloudsmith_cli*"]
+exclude = ["cloudsmith_cli.tests*", "cloudsmith_cli.*.tests*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+cloudsmith_cli = ["data/*", "templates/*"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=cloudsmith_cli"
+norecursedirs = ["bin", ".git", ".venv"]
+
+[tool.coverage.run]
+branch = true
+source = ["cloudsmith_cli"]
+omit = []
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    # Don't complain about missing debug-only code:
+    "def __unicode__",
+    "def __repr__",
+    "if self\\.debug",
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
+omit = [
+    "cloudsmith_cli/*/__init__.py",
+    "cloudsmith_cli/*/__main__.py",
+]
+show_missing = true
+
+[tool.coverage.html]
+directory = "reports/coverage"
