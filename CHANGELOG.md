@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Standalone, self-contained CLI binaries built with PyInstaller for Linux (x86_64/aarch64, glibc and musl), macOS (arm64/x86_64) and Windows (x86_64). Each release attaches the per-platform archives and SHA256 checksums to the GitHub release and pushes them to Cloudsmith. The binaries bundle Python and all native dependencies, so no Python installation is required.
+- Linux binary archives are GPG-signed. Each `cloudsmith-<version>-linux-*.tar.gz` ships a detached `.sig` alongside it, verifiable with `gpg --verify` against the published Cloudsmith CLI signing key.
+- Released binaries are tagged on Cloudsmith by platform — `os`, `arch`, `libc` (Linux), the full target, and a type tag (`standalone-binary`/`signature`) — so CI/CD can select the right artifact via the package query API, for example `version:1.19.0 AND tag:standalone-binary AND tag:linux AND tag:x86_64 AND tag:musl`.
+
+### Changed
+
+- The official Docker image now ships the standalone musl binary on a plain Alpine base instead of the Python zipapp — the image no longer contains a Python runtime.
+- The Docker image now carries standard OCI labels (`org.opencontainers.image.*`: source, version, revision, licenses); the Docker Hub image additionally publishes the conventional floating tags (`latest`, major, and major.minor).
+
+### Removed
+
+- The multi-platform PEX zipapp (`cloudsmith.pyz`) is no longer built or published; the standalone per-platform binaries replace it. Anything that consumed `cloudsmith.pyz` from GitHub releases or the Cloudsmith raw repository (for example `cloudsmith-cli-action` with `executable: true`) must switch to the new binary archives.
+
 ## [1.19.0] - 2026-06-11
 
 ### Added

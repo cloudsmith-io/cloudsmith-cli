@@ -7,7 +7,7 @@
       "build_image": "almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
       "test_runner": "ubuntu-24.04",
       "test_kind": "docker",
-      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
+      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05",
       "archive": ".tar.gz"
     },
     {
@@ -27,7 +27,7 @@
       "build_image": "almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
       "test_runner": "ubuntu-24.04-arm",
       "test_kind": "docker",
-      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
+      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05",
       "archive": ".tar.gz"
     },
     {
