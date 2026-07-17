@@ -5,22 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.20.0] - 2026-07-17
 
 ### Added
 
 - Standalone, self-contained CLI binaries built with PyInstaller for Linux (x86_64/aarch64, glibc and musl), macOS (arm64/x86_64) and Windows (x86_64). Each release attaches the per-platform archives and SHA256 checksums to the GitHub release and pushes them to Cloudsmith. The binaries bundle Python and all native dependencies, so no Python installation is required.
 - Linux binary archives are GPG-signed. Each `cloudsmith-<version>-linux-*.tar.gz` ships a detached `.sig` alongside it, verifiable with `gpg --verify` against the published Cloudsmith CLI signing key.
-- Released binaries are tagged on Cloudsmith by platform — `os`, `arch`, `libc` (Linux), the full target, and a type tag (`standalone-binary`/`signature`) — so CI/CD can select the right artifact via the package query API, for example `version:1.19.0 AND tag:standalone-binary AND tag:linux AND tag:x86_64 AND tag:musl`.
+- Released binaries are tagged on Cloudsmith by platform — `os`, `arch`, `libc` (Linux), the full target, and a type tag (`standalone-binary`/`signature`) — so CI/CD can select the right artifact via the package query API, for example `version:1.20.0 AND tag:standalone-binary AND tag:linux AND tag:x86_64 AND tag:musl`.
+- Each release publishes a per-target install manifest (`cloudsmith-cli-manifest-<target>`) to Cloudsmith alongside the binaries, recording the archive name, download URL and SHA256 checksum, so install scripts can resolve and verify the correct binary via `.../raw/names/cloudsmith-cli-manifest-<target>/versions/{<version>|latest}/manifest.txt`.
 
 ### Changed
 
+- **`cloudsmith whoami` now exits with code 1 when not authenticated** (and 0 when authenticated), across all output formats, so scripts and CI pipelines can check authentication status without parsing the output. The command's output itself is unchanged.
+- The Homebrew tap (`cloudsmith-io/cloudsmith-cli`) now installs the standalone binary instead of the Python zipapp, so `python@3.10` is no longer a dependency — existing installs transition transparently via `brew upgrade cloudsmith-cli` (the orphaned `python@3.10` can be removed with `brew autoremove`), and `brew install cloudsmith-io/cloudsmith-cli/cloudsmith` now works as a shorter alias.
 - The official Docker image now ships the standalone musl binary on a plain Alpine base instead of the Python zipapp — the image no longer contains a Python runtime.
 - The Docker image now carries standard OCI labels (`org.opencontainers.image.*`: source, version, revision, licenses); the Docker Hub image additionally publishes the conventional floating tags (`latest`, major, and major.minor).
+- Packaging migrated to `pyproject.toml` + `uv` (`setup.py`/`setup.cfg` retired); builds now use `uv build` with a committed `uv.lock`. This does not change how the CLI is installed from PyPI.
 
 ### Removed
 
 - The multi-platform PEX zipapp (`cloudsmith.pyz`) is no longer built or published; the standalone per-platform binaries replace it. Anything that consumed `cloudsmith.pyz` from GitHub releases or the Cloudsmith raw repository (for example `cloudsmith-cli-action` with `executable: true`) must switch to the new binary archives.
+
+### Security
+
+- Stricter acceptance of API hosts and proxies. When `api_host` or `api_proxy` comes from a directory-relative `config.ini` (one found in the current working directory), the host must now match an allow-listed suffix — `api_host` allows `*.cloudsmith.io`/`*.cloudsmith.com` by default, `api_proxy` has no default and is rejected — preventing a checked-in config from redirecting credentials to an attacker-controlled endpoint. Values from CLI flags, environment variables, user-level config or an explicit `--config-file` are unaffected; additional trusted suffixes can be supplied via the `CLOUDSMITH_ALLOWED_API_HOST_SUFFIXES`/`CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES` environment variables.
 
 ## [1.19.0] - 2026-06-11
 
