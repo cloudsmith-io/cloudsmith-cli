@@ -532,6 +532,137 @@ jobs:
             "${TAGS[@]}" \
             --push .
 
+  publish-homebrew:
+    # Renders packaging/homebrew/cloudsmith-cli.rb.tmpl against the archives
+    # that publish-cloudsmith just made live and opens a bump pull request
+    # against the Homebrew tap (<owner>/homebrew-cloudsmith-cli); the tap
+    # requires reviewed pull requests, so merge it there with a squash merge.
+    # Without TAP_PUSH_TOKEN the rendered formula is only staged as a
+    # workflow artifact.
+    needs: [validate, publish-cloudsmith]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
+      HAS_TAP_TOKEN: ${{ secrets.TAP_PUSH_TOKEN != '' }}
+      VERSION: ${{ needs.validate.outputs.version }}
+      # Targets shipped via Homebrew (subset of BINARY_TARGETS; Homebrew on
+      # Linux is glibc-based, so the gnu builds).
+      HOMEBREW_TARGETS: "macos-arm64 macos-x86_64 linux-x86_64-gnu linux-aarch64-gnu"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-macos-*
+          merge-multiple: true
+          path: binaries
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-linux-*-gnu
+          merge-multiple: true
+          path: binaries
+
+      - name: Render the formula from the template
+        run: |
+          set -euo pipefail
+          FORMULA=rendered/cloudsmith-cli.rb
+          mkdir -p rendered
+          cp packaging/homebrew/cloudsmith-cli.rb.tmpl "${FORMULA}"
+          sed -i \
+            -e "s/__VERSION__/${VERSION}/g" \
+            -e "s/__NAMESPACE__/${CLOUDSMITH_NAMESPACE}/g" \
+            -e "s/__REPO__/${CLOUDSMITH_REPO}/g" \
+            "${FORMULA}"
+          for TARGET in ${HOMEBREW_TARGETS}; do
+            SHA_FILE="binaries/cloudsmith-${VERSION}-${TARGET}.tar.gz.sha256"
+            test -f "${SHA_FILE}"
+            SHA256="$(awk '{print $1}' "${SHA_FILE}")"
+            KEY="SHA256_$(printf '%s' "${TARGET}" | tr 'a-z-' 'A-Z_')"
+            sed -i "s/__${KEY}__/${SHA256}/g" "${FORMULA}"
+          done
+          if grep -n '__' "${FORMULA}"; then
+            echo "FAIL: unrendered placeholders remain"
+            exit 1
+          fi
+          ruby -c "${FORMULA}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: homebrew-formula
+          path: rendered/cloudsmith-cli.rb
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Verify the published downloads match the formula checksums
+        run: |
+          set -euo pipefail
+          for TARGET in ${HOMEBREW_TARGETS}; do
+            URL="https://dl.cloudsmith.io/public/${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}/raw/names/cloudsmith-cli-${TARGET}/versions/${VERSION}/cloudsmith-${VERSION}-${TARGET}.tar.gz"
+            EXPECTED="$(awk '{print $1}' "binaries/cloudsmith-${VERSION}-${TARGET}.tar.gz.sha256")"
+            ACTUAL=""
+            # Retry to absorb post-publish sync delay.
+            for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+              if ACTUAL="$(curl -fsSL "${URL}" | sha256sum | awk '{print $1}')"; then
+                break
+              fi
+              echo "attempt ${ATTEMPT}: ${URL} not ready; retrying"
+              sleep 30
+            done
+            test "${ACTUAL}" = "${EXPECTED}"
+            echo "verified ${URL}"
+          done
+
+      - name: Open a bump pull request against the tap repository
+        if: env.HAS_TAP_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+          CLOUDSMITH_BOT_SSH_KEY: ${{ secrets.CLOUDSMITH_BOT_SSH_KEY }}
+          TAP_REPO: ${{ github.repository_owner }}/homebrew-cloudsmith-cli
+        run: |
+          set -euo pipefail
+          BRANCH="release/cloudsmith-cli-v${VERSION}"
+          gh auth setup-git
+          git clone --depth 1 "https://github.com/${TAP_REPO}.git" tap
+          mkdir -p tap/Formula tap/Aliases
+          cp rendered/cloudsmith-cli.rb tap/Formula/cloudsmith-cli.rb
+          ln -sfn ../Formula/cloudsmith-cli.rb tap/Aliases/cloudsmith
+          if [ -z "$(git -C tap status --porcelain)" ]; then
+            echo "tap already up to date; skipping"
+            exit 0
+          fi
+          SIGNING_KEY="${RUNNER_TEMP}/cloudsmith-bot-signing-key"
+          printf '%s\n' "${CLOUDSMITH_BOT_SSH_KEY}" > "${SIGNING_KEY}"
+          chmod 600 "${SIGNING_KEY}"
+          ssh-keygen -y -f "${SIGNING_KEY}" > "${SIGNING_KEY}.pub"
+          git -C tap config user.name "Cloudsmith Bot"
+          git -C tap config user.email "vftbot@cloudsmith.io"
+          git -C tap config gpg.format ssh
+          git -C tap config user.signingkey "${SIGNING_KEY}.pub"
+          git -C tap config commit.gpgsign true
+          git -C tap checkout -b "${BRANCH}"
+          git -C tap add Formula/cloudsmith-cli.rb Aliases/cloudsmith
+          git -C tap commit -m "Bump cloudsmith-cli to v${VERSION}"
+          git -C tap push --force origin "${BRANCH}"
+          if [ -z "$(gh pr list --repo "${TAP_REPO}" --head "${BRANCH}" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --repo "${TAP_REPO}" \
+              --head "${BRANCH}" --base main \
+              --title "Bump cloudsmith-cli to v${VERSION}" \
+              --body "Automated formula update for cloudsmith-cli v${VERSION}. The release workflow verified the formula checksums against the published downloads. Merge with a squash merge."
+          else
+            echo "pull request for ${BRANCH} already open"
+          fi
+
+      - name: Report a skipped tap update
+        if: env.HAS_TAP_TOKEN != 'true'
+        run: echo "TAP_PUSH_TOKEN not configured; formula staged as a workflow artifact only."
+
   publish-github:
     needs:
       - validate
