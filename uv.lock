@@ -456,7 +456,7 @@ wheels = [
 
 [[package]]
 name = "cloudsmith-api"
-version = "2.0.27"
+version = "2.0.29"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -464,9 +464,9 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/8a/6ae3266c69a8918d763ed421703c67e1333d20aef58efde42d9ef5db7294/cloudsmith_api-2.0.27.tar.gz", hash = "sha256:2360bceb5c91ebe99606b1de409bab6970e3b762db95e01174de43152eb23e3b", size = 666096, upload-time = "2026-06-08T08:41:09.838Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/17/72/9daab7a05f38c9bce89d51a94f1235cf2f8a641dd254eadb5f0a682a0d2a/cloudsmith_api-2.0.29.tar.gz", hash = "sha256:57771b2c7cfe681d685273dfcfd214dd36c2775d9fc080122b40b4d6c404c452", size = 667775, upload-time = "2026-07-15T13:33:51.588Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/80/35fc566eb4d8ea59ab44e3d5913840f73aed0892abb9ae0f542d1c5f4960/cloudsmith_api-2.0.27-py2.py3-none-any.whl", hash = "sha256:c985146e5486e63ddde884d08cc1eb68cb4d7c6ee5133941bf3e46c3526443ae", size = 1300389, upload-time = "2026-06-08T08:41:07.781Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/7c/37f20207d34c42d0109786c504f0efe12328f8d64dc47f120eac5e90d1cb/cloudsmith_api-2.0.29-py2.py3-none-any.whl", hash = "sha256:db3cc74f5bfa96dd773c30251d681622405d5a0aa05bcead527e02cb9d744035", size = 1302309, upload-time = "2026-07-15T13:33:50.259Z" },
 ]
 
 [[package]]
@@ -529,7 +529,7 @@ requires-dist = [
     { name = "click-configfile", specifier = ">=0.2.3" },
     { name = "click-didyoumean", specifier = ">=0.0.3" },
     { name = "click-spinner", specifier = ">=0.1.7" },
-    { name = "cloudsmith-api", specifier = ">=2.0.25,<3.0" },
+    { name = "cloudsmith-api", specifier = ">=2.0.29,<3.0" },
     { name = "json5", specifier = ">=0.9.0" },
     { name = "keyring", specifier = ">=25.4.1" },
     { name = "mcp", specifier = "==1.27.2" },
