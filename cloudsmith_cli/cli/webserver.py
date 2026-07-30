@@ -20,7 +20,7 @@ def get_template_path(template_name):
 
 
 def render_template(template_name, **context):
-    """Render a template with the given context (see :func:`templates.render`)."""
+    """Render a template with the given context (see :func:`cloudsmith_cli.templates.render`)."""
     return templates.render(template_name, **context)
 
 
