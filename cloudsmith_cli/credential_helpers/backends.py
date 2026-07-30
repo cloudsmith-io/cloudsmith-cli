@@ -38,4 +38,5 @@ class BackendKind(IntEnum):
     GENERIC = 28
     VSX = 29
     MCP = 30
+    NIX = 31
     DEFAULT = 99
