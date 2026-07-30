@@ -1,13 +1,8 @@
 # Copyright 2026 Cloudsmith Ltd
 """
-Generic (package-manager-neutral) credential helper runtime.
+Generic credential helper runtime.
 
-Emits a versioned JSON credential document for external consumers such as the
-``cloudsmith-keyring`` keyring backend, which shells out to the CLI rather than
-importing it (see ENG-13681).
-
-This module is intentionally free of Click/sys imports so it can be unit-tested
-without invoking the CLI machinery.
+Emits a versioned JSON credential document.
 """
 
 import json
@@ -15,8 +10,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Bump only for a breaking change to the document shape. Consumers are expected
-# to refuse a version they do not recognise.
 PROTOCOL_VERSION = 1
 
 _REFUSAL_MESSAGE = (
@@ -66,11 +59,5 @@ def execute(credential=None) -> tuple[int, str | None, str | None]:
 
         return (0, json.dumps(response), None)
     except Exception as exc:  # pylint: disable=broad-except
-        # Protocol boundary: this command is invoked as a subprocess by pip and
-        # twine via the keyring backend, which must degrade silently rather than
-        # break the install. Covers attribute errors from a malformed credential
-        # and TypeError from json.dumps — all become a clean refusal, never a
-        # traceback. This is the only intentional broad except in this feature.
-        # (Exception does not catch KeyboardInterrupt/SystemExit, which is correct.)
         logger.debug("generic credential-helper failed: %s", exc, exc_info=True)
         return (1, None, _REFUSAL_MESSAGE)
