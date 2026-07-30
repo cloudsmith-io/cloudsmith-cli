@@ -1,5 +1,4 @@
 import html
-import os
 import socket
 from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -7,6 +6,7 @@ from urllib.parse import parse_qsl, unquote, urlparse
 
 import click
 
+from .. import templates
 from ..core.api.exceptions import ApiException
 from ..core.api.init import initialise_api
 from ..core.credentials.models import CredentialResult
@@ -16,32 +16,12 @@ from .saml import exchange_2fa_token
 
 def get_template_path(template_name):
     """Get the absolute path to a template file."""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_dir, "templates", template_name)
+    return templates.template_path(template_name)
 
 
 def render_template(template_name, **context):
-    """
-    Render a template with the given context.
-
-    Args:
-        template_name: Name of the template file
-        context: Dictionary of variables to replace in the template
-
-    Returns:
-        Rendered HTML content
-    """
-    template_path = get_template_path(template_name)
-
-    with open(template_path, encoding="utf-8") as file:
-        content = file.read()
-
-    # Replace placeholders with context values
-    for key, value in context.items():
-        placeholder = f"<!-- {key.upper()}_PLACEHOLDER -->"
-        content = content.replace(placeholder, value if value else "")
-
-    return content
+    """Render a template with the given context (see :func:`templates.render`)."""
+    return templates.render(template_name, **context)
 
 
 class AuthenticationWebServer(HTTPServer):
