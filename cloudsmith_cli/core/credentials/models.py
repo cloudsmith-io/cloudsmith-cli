@@ -42,3 +42,15 @@ class CredentialResult:
     source_name: str
     source_detail: str | None = None
     auth_type: Literal["api_key", "bearer"] = "api_key"
+
+    def auth_headers(self) -> dict[str, str]:
+        """Return the headers that authenticate a raw request with this credential.
+
+        The two headers are not interchangeable: a raw JWT in ``X-Api-Key`` is
+        rejected outright, aborting the auth chain before the SSO
+        authenticators run.
+        """
+        if self.auth_type == "bearer":
+            return {"Authorization": f"Bearer {self.api_key}"}
+
+        return {"X-Api-Key": self.api_key}

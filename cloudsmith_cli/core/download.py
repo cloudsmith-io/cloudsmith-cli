@@ -5,12 +5,11 @@ import hashlib
 import os
 
 import click
-import cloudsmith_api
 import requests
 from rich.console import Console
 from rich.table import Table
 
-from . import keyring, ratelimits, utils
+from . import ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
 from .rest import create_requests_session
@@ -36,21 +35,14 @@ def resolve_auth(
     headers = {}
     auth_source = "none"
 
-    # Follow the same authentication logic as the API initialization
-    # Priority: explicit --api-key > SSO token > configured API key
+    credential = getattr(opts, "credential", None)
 
-    # Only attempt keyring operations if keyring is enabled
-    config = cloudsmith_api.Configuration()
-    access_token = keyring.get_access_token(config.host)
-    api_key = api_key_opt or getattr(opts, "api_key", None)
-
-    if api_key:
-        # Prioritize API key (from --api-key option or CLOUDSMITH_API_KEY env var) over SSO
-        headers["X-Api-Key"] = api_key
+    if api_key_opt:
+        headers["X-Api-Key"] = api_key_opt
         auth_source = "api-key"
-    elif access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
-        auth_source = "sso"
+    elif credential:
+        headers = credential.auth_headers()
+        auth_source = "sso" if credential.auth_type == "bearer" else "api-key"
 
     return session, headers, auth_source
 

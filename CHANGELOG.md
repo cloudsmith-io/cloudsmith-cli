@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Files larger than 100MB now upload correctly when authenticated via SSO or OIDC. The multi-part upload read its credentials from `opts.api_key`, which is only populated by `--api-key`, `CLOUDSMITH_API_KEY` or `credentials.ini` — so with an SSO session or OIDC auto-discovery it was empty, the auth header was dropped, and the part upload failed with a misleading `404 - Not Found` ("this usually means the user/org is wrong or not visible") even though every preceding API call had succeeded. Credentials are now taken from the resolved credential chain, with SSO access tokens sent as a bearer `Authorization` header and API keys/OIDC tokens as `X-Api-Key`.
+- `cloudsmith download` now authenticates with OIDC credentials. It resolved its own auth from `opts.api_key` plus a direct keyring read, which between them cover neither OIDC auto-discovery nor any future credential source, so downloads from a private repository in an OIDC-authenticated pipeline were attempted anonymously. It now uses the same resolved credential as every other command.
+- The hint shown on a `401 - Unauthorised` now reflects how the session actually authenticated. It branched on `opts.api_key`, so an OIDC-authenticated session was told "You don't have an API key or access token set" despite being authenticated, and an SSO session whose token had expired could be told to check its permissions instead of to re-run `cloudsmith auth`.
+
 ## [1.20.1] - 2026-07-30
 
 ### Fixed
