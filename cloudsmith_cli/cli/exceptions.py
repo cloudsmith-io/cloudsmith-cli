@@ -7,7 +7,6 @@ import sys
 import click
 
 from ..core.api.exceptions import ApiException
-from ..core.keyring import get_access_token
 
 
 @contextlib.contextmanager
@@ -171,15 +170,16 @@ def get_error_hint(ctx, opts, exc):
 def get_401_error_hint(ctx, opts, exc):
     """Get the hint for a 401/Unauthorised error."""
     # pylint: disable=unused-argument
-    if opts.api_key:
+    credential = getattr(opts, "credential", None)
+
+    if credential and credential.auth_type == "bearer":
+        return "Since you have an SSO access token set, this probably means that it has expired. Try getting a new token with 'cloudsmith auth', then try again."
+
+    if credential:
         return (
             "Since you have an API key set, this probably means "
             "you don't have the permission to perform this action."
         )
-
-    access_token = get_access_token(opts.api_host)
-    if access_token:
-        return "Since you have an SSO access token set, this probably means that it has expired. Try getting a new token with 'cloudsmith auth', then try again."
 
     if ctx.info_name == "token":
         # This is already the token command

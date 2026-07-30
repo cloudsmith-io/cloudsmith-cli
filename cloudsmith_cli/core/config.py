@@ -117,9 +117,9 @@ def new_config_messaging(has_errors, opts, create, api_key):
         click.secho("Oops, please fix the errors and try again!", fg="red")
         return
 
-    if opts.api_key != api_key:
+    if opts.api_key_from_file != api_key:
         click.echo()
-        if opts.api_key:
+        if opts.api_key_from_file:
             click.secho(
                 "Note: The above API key doesn't match what you have in "
                 "your default credentials config file.",
