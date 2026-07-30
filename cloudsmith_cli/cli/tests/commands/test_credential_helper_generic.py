@@ -10,14 +10,7 @@ from ....credential_helpers.generic import _REFUSAL_MESSAGE, PROTOCOL_VERSION, e
 
 TOKEN = "k_secret_token_value"
 
-# Satisfies the credential chain from the flag provider so the CLI wiring tests
-# never touch the developer's real credentials.ini, keyring, or the network.
 HERMETIC_ARGS = ["--api-key", "fake-api-key"]
-
-
-# ---------------------------------------------------------------------------
-# 1. execute() — the protocol contract
-# ---------------------------------------------------------------------------
 
 
 def test_execute_success_returns_versioned_document():
@@ -89,11 +82,6 @@ def test_token_only_ever_appears_on_stdout():
 
     assert TOKEN in stdout
     assert stderr is None
-
-
-# ---------------------------------------------------------------------------
-# 2. CLI wiring
-# ---------------------------------------------------------------------------
 
 
 def test_cli_emits_bare_contract_on_stdout(runner):
