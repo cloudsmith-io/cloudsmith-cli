@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `cloudsmith credential-helper generic` resolves a credential through the full provider chain (API key, `credentials.ini`, system keyring, OIDC) and emits it as a versioned JSON document — `{"version": 1, "username": "token", "password": "<token>"}` — for tools that shell out to the CLI rather than importing it. It takes no arguments: a Cloudsmith token is organisation-wide, so the host it will be used against does not change which credential resolves. Errors exit non-zero with a message on stderr and never emit a partial document.
+
 ### Fixed
 
 - Files larger than 100MB now upload correctly when authenticated via SSO or OIDC. The multi-part upload read its credentials from `opts.api_key`, which is only populated by `--api-key`, `CLOUDSMITH_API_KEY` or `credentials.ini` — so with an SSO session or OIDC auto-discovery it was empty, the auth header was dropped, and the part upload failed with a misleading `404 - Not Found` ("this usually means the user/org is wrong or not visible") even though every preceding API call had succeeded. Credentials are now taken from the resolved credential chain, with SSO access tokens sent as a bearer `Authorization` header and API keys/OIDC tokens as `X-Api-Key`.
