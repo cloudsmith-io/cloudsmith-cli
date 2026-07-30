@@ -1,9 +1,10 @@
 # Copyright 2026 Cloudsmith Ltd
-"""List the Cloudsmith custom domains configured for an organisation.
+"""List the hosts Cloudsmith can authenticate: built-in and custom domains.
 
-Custom domains are the hosts a credential-helper consumer cannot infer on its
-own — the standard ``*.cloudsmith.io`` and ``*.cloudsmith.com`` suffixes are
-recognisable by string comparison, but a custom domain requires an API lookup.
+The built-in ``*.cloudsmith.io`` service hosts ship with the CLI so that every
+consumer shares one authoritative table; custom domains are the hosts a
+credential-helper consumer cannot infer on its own, since discovering them
+requires an API lookup.
 """
 
 from __future__ import annotations

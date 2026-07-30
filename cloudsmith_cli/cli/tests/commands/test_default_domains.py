@@ -128,6 +128,12 @@ def test_untrusted_cwd_config_is_not_honoured(tmp_path, monkeypatch):
     a Cloudsmith host and harvest a token.
     """
     monkeypatch.chdir(tmp_path)
+    # Pin the trusted lookup to "nothing found" so the developer's real
+    # config.ini cannot influence what this test observes.
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.default_domains._trusted_config_path",
+        lambda: None,
+    )
     (tmp_path / "config.ini").write_text(
         "[domains]\nevil.example.com = python\n", encoding="utf-8"
     )
