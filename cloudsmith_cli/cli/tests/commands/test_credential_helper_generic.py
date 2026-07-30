@@ -10,6 +10,10 @@ from ....credential_helpers.generic import _REFUSAL_MESSAGE, PROTOCOL_VERSION, e
 
 TOKEN = "k_secret_token_value"
 
+# Satisfies the credential chain from the flag provider so the CLI wiring tests
+# never touch the developer's real credentials.ini, keyring, or the network.
+HERMETIC_ARGS = ["--api-key", "fake-api-key"]
+
 
 # ---------------------------------------------------------------------------
 # 1. execute() — the protocol contract
@@ -102,7 +106,7 @@ def test_cli_emits_bare_contract_on_stdout(runner):
         "cloudsmith_cli.cli.commands.credential_helper.generic.execute",
         return_value=(0, document, None),
     ):
-        result = runner.invoke(generic, args=[], catch_exceptions=False)
+        result = runner.invoke(generic, args=HERMETIC_ARGS, catch_exceptions=False)
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
@@ -119,7 +123,7 @@ def test_cli_refusal_exits_1_with_empty_stdout(runner):
         "cloudsmith_cli.cli.commands.credential_helper.generic.execute",
         return_value=(1, None, _REFUSAL_MESSAGE),
     ):
-        result = runner.invoke(generic, args=[], catch_exceptions=False)
+        result = runner.invoke(generic, args=HERMETIC_ARGS, catch_exceptions=False)
 
     assert result.exit_code == 1
     assert result.stdout == ""
