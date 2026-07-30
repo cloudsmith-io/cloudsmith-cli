@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-07-30
+
+### Fixed
+
+- Standalone binaries again propagate CLI exit codes. In 1.20.0 the frozen entry point discarded the command's return value, so API failures exited 0 — for example `cloudsmith whoami` with an invalid API key reported success — breaking scripted authentication checks. Installs from PyPI (pip) were unaffected.
+
 ## [1.20.0] - 2026-07-30
 
 ### Added

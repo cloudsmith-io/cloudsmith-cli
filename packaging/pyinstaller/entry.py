@@ -68,4 +68,9 @@ if __name__ == "__main__":
     _force_utf8_output()
     if os.environ.get("CLOUDSMITH_SELFTEST"):
         sys.exit(_selftest())
-    main()  # pylint: disable=no-value-for-parameter
+    # sys.exit() is required: AliasGroup.main runs click with
+    # standalone_mode=False, so click returns the exit code (e.g. from
+    # ctx.exit()) instead of raising SystemExit. The console script wraps
+    # main() in sys.exit() too; a bare main() call would discard the code
+    # and always exit 0.
+    sys.exit(main())  # pylint: disable=no-value-for-parameter
