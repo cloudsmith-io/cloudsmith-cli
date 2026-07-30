@@ -164,9 +164,9 @@ def install_cmd(
     )
 
     per_repo = getattr(installer, "requires_repo", False)
-    if per_repo and not repo:
+    if per_repo and not (org and repo):
         click.echo(
-            f"Error: helper {helper!r} requires --repo (and --org).",
+            f"Error: helper {helper!r} requires --org and --repo.",
             err=True,
         )
         sys.exit(1)

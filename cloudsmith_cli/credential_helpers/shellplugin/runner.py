@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import sys
+from dataclasses import replace
 
 from . import config, plugin
 
@@ -47,17 +48,26 @@ def _run_process(path: str, args: list[str], env: dict[str, str]) -> int:
 def _resolve_entry(
     format_name: str, owner: str | None, repo: str | None, api_host: str | None
 ) -> config.PluginEntry:
-    """Load the stored entry for *format_name*, else build one from inputs."""
+    """Load the stored entry for *format_name*, else build one from inputs.
+
+    Explicit owner/repo (e.g. ``exec --org/--repo``) override the stored
+    binding for this invocation.
+    """
     entry = config.get_plugin(format_name)
-    if entry is not None:
-        return entry
-    return config.PluginEntry.from_dict(
-        {
-            "owner": owner or "",
-            "repo": repo or "",
-            "api_host": api_host or config.DEFAULT_API_HOST,
-        }
-    )
+    if entry is None:
+        return config.PluginEntry.from_dict(
+            {
+                "owner": owner or "",
+                "repo": repo or "",
+                "api_host": api_host or config.DEFAULT_API_HOST,
+            }
+        )
+    overrides = {
+        key: value for key, value in (("owner", owner), ("repo", repo)) if value
+    }
+    if overrides:
+        entry = replace(entry, **overrides)
+    return entry
 
 
 def _needs_auth(args: list[str], skip_auth_args: list[str]) -> bool:

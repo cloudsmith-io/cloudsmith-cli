@@ -12,13 +12,13 @@ import pytest
 from ....credential_helpers.shellplugin import config as plugin_config
 
 # ---------------------------------------------------------------------------
-# 1. config — PluginEntry + plugins.json
+# 1. config — PluginEntry + package-managers.ini
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture()
 def _home(tmp_path, monkeypatch):
-    """Point the CLI config dir at a tmp dir so plugins.json/shims land under it."""
+    """Point the CLI config dir at a tmp dir so package-managers.ini/shims land under it."""
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.shellplugin.config.get_default_config_path",
         lambda: str(tmp_path),
@@ -33,7 +33,7 @@ def test_config_path_and_shims_dir_in_config_dir(_home):
 
 
 def test_load_plugins_missing_file_returns_empty(_home):
-    """load_plugins() returns {} when plugins.json does not exist."""
+    """load_plugins() returns {} when package-managers.ini does not exist."""
     assert plugin_config.load_plugins() == {}
 
 
@@ -527,6 +527,32 @@ def test_run_no_token_warns_but_proceeds(_home, monkeypatch):
     assert captured["args"][0] == "-s"
 
 
+def test_run_explicit_org_repo_override_stored_entry(_home, monkeypatch):
+    """Explicit --org/--repo on exec take precedence over the stored binding."""
+    from ....core.credentials.models import CredentialResult
+    from ....credential_helpers.shellplugin import config, runner
+
+    config.set_plugin("maven", config.PluginEntry(owner="acme", repo="prod"))
+    monkeypatch.setattr(runner, "resolve_real_binary", lambda *_a, **_k: "/usr/bin/mvn")
+    captured = {}
+
+    def _fake_run_process(path, args, env):
+        captured["settings"] = Path(args[1]).read_text(encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(runner, "_run_process", _fake_run_process)
+
+    code = runner.run(
+        ["mvn", "install"],
+        credential=CredentialResult(api_key="k", source_name="t"),
+        owner="other",
+        repo="dev",
+    )
+    assert code == 0
+    assert "/basic/other/dev/maven/" in captured["settings"]
+    assert "/basic/acme/prod/maven/" not in captured["settings"]
+
+
 def test_run_binary_not_found_returns_nonzero(_home, monkeypatch):
     """When the real binary cannot be resolved, run returns non-zero."""
     from ....core.credentials.models import CredentialResult
@@ -666,7 +692,7 @@ def test_maven_install_snippet_custom_upload_domain_drops_org(_home, monkeypatch
 
 
 def test_maven_install_dry_run_writes_nothing(_home, monkeypatch):
-    """dry_run: no shim, no plugins.json entry, returns 'would' actions."""
+    """dry_run: no shim, no package-managers.ini entry, returns 'would' actions."""
     from ....credential_helpers.maven.installer import MavenInstaller
     from ....credential_helpers.shellplugin import config
 
@@ -706,7 +732,7 @@ def test_maven_install_discovery_failure_is_graceful(_home, monkeypatch):
 
 
 def test_maven_uninstall_removes_shim_and_entry(_home, monkeypatch):
-    """uninstall removes the shim and drops the plugins.json entry."""
+    """uninstall removes the shim and drops the package-managers.ini entry."""
     from ....credential_helpers.maven.installer import MavenInstaller
     from ....credential_helpers.shellplugin import config
 
@@ -833,9 +859,21 @@ def test_manage_install_maven_ignores_bin_dir(cli_runner, _home, tmp_path):
     assert not (other / "mvn").exists()
 
 
-def test_manage_install_maven_requires_repo(cli_runner, _home):
+def test_manage_install_maven_requires_repo(cli_runner, _home, monkeypatch):
     """Installing maven without --repo fails clearly."""
     from ....cli.commands.credential_helper.manage import install_cmd
 
+    monkeypatch.delenv("CLOUDSMITH_REPO", raising=False)
     result = cli_runner.invoke(install_cmd, ["maven", "--org", "acme", "--no-discover"])
+    assert result.exit_code != 0
+
+
+def test_manage_install_maven_requires_org(cli_runner, _home, monkeypatch):
+    """Installing maven without --org fails clearly (no malformed empty-org URLs)."""
+    from ....cli.commands.credential_helper.manage import install_cmd
+
+    monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+    result = cli_runner.invoke(
+        install_cmd, ["maven", "--repo", "prod", "--no-discover"]
+    )
     assert result.exit_code != 0
