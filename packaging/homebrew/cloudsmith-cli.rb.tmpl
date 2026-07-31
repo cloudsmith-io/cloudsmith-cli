@@ -30,6 +30,12 @@ class CloudsmithCli < Formula
     regex(/^version=(\d+(?:\.\d+)+)$/i)
   end
 
+  # The bundled libraries are private to the PyInstaller bundle and are resolved
+  # via @rpath, so Homebrew must not rewrite their dylib IDs: the absolute Cellar
+  # path does not fit in the Mach-O header padding of prebuilt wheels such as
+  # pydantic_core, which fails the install.
+  preserve_rpath
+
   def install
     # PyInstaller onedir bundle: the executable must stay next to _internal/.
     libexec.install Dir["*"]
