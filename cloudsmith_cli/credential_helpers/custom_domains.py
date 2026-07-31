@@ -11,7 +11,6 @@ import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 from ..cli.config import get_default_config_path
 from ..core.api.exceptions import ApiException
@@ -154,8 +153,7 @@ def write_cache(cache_path: Path, domains: list[CustomDomain]) -> None:
 def get_custom_domains(  # pylint: disable=too-many-return-statements
     org: str,
     *,
-    api_key: str | None = None,
-    auth_type: str = "api_key",
+    credential: CredentialResult | None = None,
     api_host: str | None = None,
     refresh: bool = False,
 ) -> list[CustomDomain]:
@@ -166,8 +164,8 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
 
     Args:
         org: Organization slug
-        api_key: Optional API key/token for authentication
-        auth_type: "api_key" (uses X-Api-Key header) or "bearer" (uses Authorization: Bearer)
+        credential: Optional resolved credential for authentication; it carries
+            its own auth scheme (X-Api-Key vs Authorization: Bearer)
         api_host: Cloudsmith API host URL (including version). Taken from the SDK
             configuration default when not provided.
         refresh: When ``True``, skip the cache read and always fetch from the API.
@@ -192,18 +190,6 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
 
     logger.debug("Fetching custom domains from API for %s", org)
 
-    normalized_auth_type: Literal["api_key", "bearer"] = (
-        "bearer" if auth_type == "bearer" else "api_key"
-    )
-    credential = (
-        CredentialResult(
-            api_key=api_key,
-            source_name="credential-helper",
-            auth_type=normalized_auth_type,
-        )
-        if api_key
-        else None
-    )
     initialise_api(host=api_host, credential=credential)
 
     try:
@@ -252,8 +238,7 @@ def get_format_domains(
     org: str,
     backend_kind: int,
     *,
-    api_key: str | None = None,
-    auth_type: str = "api_key",
+    credential: CredentialResult | None = None,
     api_host: str | None = None,
     refresh: bool = False,
 ) -> list[str]:
@@ -263,8 +248,7 @@ def get_format_domains(
     Args:
         org: Organization slug
         backend_kind: BackendKind int value (e.g. BackendKind.DOCKER == 6)
-        api_key: Optional API key/token for authentication
-        auth_type: "api_key" or "bearer"
+        credential: Optional resolved credential for authentication
         api_host: Cloudsmith API host URL
         refresh: When ``True``, bypass the cache and fetch fresh data from the API.
 
@@ -272,7 +256,7 @@ def get_format_domains(
         List of hostnames that are enabled, validated, and match the given backend_kind.
     """
     domains = get_custom_domains(
-        org, api_key=api_key, auth_type=auth_type, api_host=api_host, refresh=refresh
+        org, credential=credential, api_host=api_host, refresh=refresh
     )
     return [
         d.host

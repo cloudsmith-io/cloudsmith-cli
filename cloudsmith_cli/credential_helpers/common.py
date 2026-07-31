@@ -48,9 +48,7 @@ def extract_hostname(url):
     return hostname
 
 
-def is_cloudsmith_domain(
-    url, api_key=None, auth_type="api_key", api_host=None, backend_kind=None
-):
+def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None):
     """
     Check if a URL points to a Cloudsmith service.
 
@@ -59,8 +57,7 @@ def is_cloudsmith_domain(
 
     Args:
         url: URL or hostname to check
-        api_key: API key/token for authenticating custom domain lookups
-        auth_type: "api_key" (X-Api-Key header) or "bearer" (Authorization: Bearer)
+        credential: Resolved CredentialResult for authenticating custom domain lookups
         api_host: Cloudsmith API host URL
         backend_kind: If given, custom domains only match when their backend_kind
             equals it (standard *.cloudsmith.io domains always match regardless).
@@ -86,7 +83,7 @@ def is_cloudsmith_domain(
     if not org:
         return False
 
-    if not api_key:
+    if not credential:
         return False
 
     if backend_kind is not None:
@@ -95,17 +92,14 @@ def is_cloudsmith_domain(
             for host in get_format_domains(
                 org,
                 backend_kind,
-                api_key=api_key,
-                auth_type=auth_type,
+                credential=credential,
                 api_host=api_host,
             )
         }
     else:
         hosts = {
             d.host.lower()
-            for d in get_custom_domains(
-                org, api_key=api_key, auth_type=auth_type, api_host=api_host
-            )
+            for d in get_custom_domains(org, credential=credential, api_host=api_host)
             if d.enabled and d.validated
         }
     return hostname in hosts
