@@ -11,6 +11,8 @@ from ....credential_helpers.default_domains import (
     DomainType,
     builtin_host,
     builtin_host_for_type,
+    default_host,
+    default_host_for_type,
     domain_type_for_backend_kind,
     format_for_backend_kind,
     load_default_domains,
@@ -117,6 +119,59 @@ def test_unreadable_config_falls_back_to_builtins(tmp_path):
     assert load_default_domains(config_path=config) == list(BUILTIN_DOMAINS)
 
 
+def test_trusted_lookup_skips_a_config_without_a_domains_section(tmp_path, monkeypatch):
+    """The table comes from the first trusted config that declares one.
+
+    Existence is not enough: an app-dir config.ini holding only [default] api
+    settings would otherwise mask the deployment's [domains] override and
+    silently restore the public *.cloudsmith.io table.
+    """
+    without_domains = tmp_path / "app-dir"
+    with_domains = tmp_path / "home-dir"
+    without_domains.mkdir()
+    with_domains.mkdir()
+    (without_domains / "config.ini").write_text(
+        "[default]\napi_host = https://api.internal.example.com\n", encoding="utf-8"
+    )
+    (with_domains / "config.ini").write_text(
+        "[domains]\ncdn.internal.example.com =\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
+    monkeypatch.setattr(
+        cli_config.ConfigReader,
+        "config_searchpath",
+        [str(without_domains), str(with_domains)],
+    )
+
+    assert load_default_domains() == [
+        DefaultDomain("cdn.internal.example.com", None, DomainType.DOWNLOAD)
+    ]
+
+
+def test_default_hosts_honour_a_config_override(tmp_path, monkeypatch):
+    """default_host/_for_type resolve against the override, not the builtins."""
+    (tmp_path / "config.ini").write_text(
+        "[domains]\ncdn.internal.example.com =\nmvn.internal.example.com = maven\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
+    monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", [str(tmp_path)])
+
+    assert default_host_for_type(DomainType.DOWNLOAD) == "cdn.internal.example.com"
+    assert default_host(BackendKind.MAVEN) == "mvn.internal.example.com"
+
+
+def test_default_host_falls_back_when_the_override_omits_it(tmp_path, monkeypatch):
+    """An override that declares no host for a kind keeps the built-in one."""
+    (tmp_path / "config.ini").write_text(
+        "[domains]\ncdn.internal.example.com =\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
+    monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", [str(tmp_path)])
+
+    assert default_host(BackendKind.MAVEN) == "maven.cloudsmith.io"
+
+
 def test_untrusted_cwd_config_is_not_honoured(tmp_path, monkeypatch):
     """A [domains] section in a cwd config.ini is ignored, and detectable.
 
@@ -128,7 +183,7 @@ def test_untrusted_cwd_config_is_not_honoured(tmp_path, monkeypatch):
     # Pin the trusted lookup to "nothing found" so the developer's real
     # config.ini cannot influence what this test observes.
     monkeypatch.setattr(
-        "cloudsmith_cli.credential_helpers.default_domains._trusted_config_path",
+        "cloudsmith_cli.credential_helpers.default_domains._trusted_domains",
         lambda: None,
     )
     (tmp_path / "config.ini").write_text(

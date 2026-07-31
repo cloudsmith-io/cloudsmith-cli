@@ -119,16 +119,40 @@ BUILTIN_DOMAINS: tuple[DefaultDomain, ...] = (
 )
 
 
+def _host_for_backend_kind(
+    domains: tuple[DefaultDomain, ...] | list[DefaultDomain], backend_kind: int
+) -> str | None:
+    """Return the first host in `domains` serving `backend_kind`, if any."""
+    for domain in domains:
+        if domain.backend_kind == backend_kind:
+            return domain.host
+    return None
+
+
+def _host_for_type(
+    domains: tuple[DefaultDomain, ...] | list[DefaultDomain], domain_type: DomainType
+) -> str | None:
+    """Return the first host in `domains` of `domain_type`, if any."""
+    if domain_type is DomainType.NATIVE_API:
+        raise ValueError(
+            "NATIVE_API is served by many hosts; resolve it with builtin_host()"
+        )
+    for domain in domains:
+        if domain.domain_type is domain_type:
+            return domain.host
+    return None
+
+
 def builtin_host(backend_kind: int) -> str:
     """Return the built-in Cloudsmith service host for `backend_kind`.
 
     Raises ValueError for formats served only via the CDN, which have no
     dedicated built-in host.
     """
-    for domain in BUILTIN_DOMAINS:
-        if domain.backend_kind == backend_kind:
-            return domain.host
-    raise ValueError(f"No built-in Cloudsmith host for backend kind {backend_kind}")
+    host = _host_for_backend_kind(BUILTIN_DOMAINS, backend_kind)
+    if host is None:
+        raise ValueError(f"No built-in Cloudsmith host for backend kind {backend_kind}")
+    return host
 
 
 def builtin_host_for_type(domain_type: DomainType) -> str:
@@ -137,14 +161,26 @@ def builtin_host_for_type(domain_type: DomainType) -> str:
     Raises ValueError for NATIVE_API, which many hosts share - resolve those by
     backend kind with :func:`builtin_host` instead.
     """
-    if domain_type is DomainType.NATIVE_API:
-        raise ValueError(
-            "NATIVE_API is served by many hosts; resolve it with builtin_host()"
-        )
-    for domain in BUILTIN_DOMAINS:
-        if domain.domain_type is domain_type:
-            return domain.host
-    raise ValueError(f"No built-in Cloudsmith host of type {domain_type.value}")
+    host = _host_for_type(BUILTIN_DOMAINS, domain_type)
+    if host is None:
+        raise ValueError(f"No built-in Cloudsmith host of type {domain_type.value}")
+    return host
+
+
+def default_host(backend_kind: int) -> str:
+    """Return the host for `backend_kind`, honouring a trusted override.
+
+    A ``[domains]`` section replaces the built-in table wholesale, so a table
+    that declares no host for this kind falls back to the built-in one.
+    """
+    host = _host_for_backend_kind(load_default_domains(), backend_kind)
+    return host if host is not None else builtin_host(backend_kind)
+
+
+def default_host_for_type(domain_type: DomainType) -> str:
+    """Return the host of `domain_type`, honouring a trusted override."""
+    host = _host_for_type(load_default_domains(), domain_type)
+    return host if host is not None else builtin_host_for_type(domain_type)
 
 
 def _resolve_backend_kind(label: str) -> int | None:
@@ -195,11 +231,17 @@ def _config_candidates(*, trusted: bool) -> list[Path]:
     ]
 
 
-def _trusted_config_path() -> Path | None:
-    """Return the first existing config.ini from a trusted location, if any."""
+def _trusted_domains() -> list[DefaultDomain] | None:
+    """Return the [domains] table from the first trusted config declaring one.
+
+    Existence alone is not enough: a trusted ``config.ini`` holding only
+    ``[default]`` api settings must not mask a ``[domains]`` section in a
+    later candidate.
+    """
     for candidate in _config_candidates(trusted=True):
-        if candidate.exists():
-            return candidate
+        domains = _domains_from_config(candidate)
+        if domains is not None:
+            return domains
     return None
 
 
@@ -243,14 +285,10 @@ def load_default_domains(config_path: Path | str | None = None) -> list[DefaultD
     back to the built-in table.
     """
     if config_path is not None:
-        path = Path(config_path)
+        domains = _domains_from_config(Path(config_path))
     else:
-        path = _trusted_config_path()
+        domains = _trusted_domains()
 
-    if path is None:
-        return list(BUILTIN_DOMAINS)
-
-    domains = _domains_from_config(path)
     if domains is None:
         return list(BUILTIN_DOMAINS)
 

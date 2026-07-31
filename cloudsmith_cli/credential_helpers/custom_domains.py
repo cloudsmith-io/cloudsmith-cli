@@ -177,6 +177,9 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
             render a typo'd org, a missing permission or an unreachable API as
             "no custom domains". A 402 still returns ``[]`` even in strict
             mode — the feature being disabled genuinely means there are none.
+            The cache is bypassed too: a best-effort lookup caches ``[]`` for a
+            404, and serving that back would report the very failure strict
+            mode exists to surface as a successful empty result.
 
     Returns:
         List of CustomDomain records.
@@ -190,7 +193,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
         the wrapped tool); pass ``strict=True`` to fail loudly instead.
     """
     cache_path = get_cache_path(org)
-    cached = None if refresh else read_cache(cache_path)
+    cached = None if (refresh or strict) else read_cache(cache_path)
     if cached is not None:
         logger.debug("Using cached custom domains for %s", org)
         return cached

@@ -32,7 +32,7 @@ def hermetic_environment(monkeypatch):
     """
     monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
     monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
-    monkeypatch.setattr(default_domains, "_trusted_config_path", lambda: None)
+    monkeypatch.setattr(default_domains, "_trusted_domains", lambda: None)
     monkeypatch.delattr(cli_config.OPTIONS, "value", raising=False)
     monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
     monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", ["."])

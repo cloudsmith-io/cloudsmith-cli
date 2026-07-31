@@ -352,6 +352,36 @@ def test_get_custom_domains_strict_raises_on_failure(
 
 
 @httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_strict_ignores_a_cached_empty_result(tmp_path, monkeypatch):
+    """A strict lookup must not be answered from a best-effort cache.
+
+    A non-strict lookup caches [] for a 404, so serving the cache back would
+    render a typo'd org as "no custom domains" — the outcome strict exists to
+    surface.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/my-ogr/custom-domains/",
+        body=json.dumps({"detail": "not found"}),
+        status=404,
+        content_type="application/json",
+    )
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+
+    assert get_custom_domains("my-ogr", credential=credential, api_host=API_HOST) == []
+    assert read_cache(get_cache_path("my-ogr")) == []
+
+    with pytest.raises(ApiException):
+        get_custom_domains(
+            "my-ogr", credential=credential, api_host=API_HOST, strict=True
+        )
+
+
+@httpretty.activate(allow_net_connect=False)
 def test_get_custom_domains_bearer_credential_sends_authorization_header(
     tmp_path, monkeypatch
 ):
