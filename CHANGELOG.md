@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `cloudsmith credential-helper domains` emits a versioned JSON document — `{"version": 1, "domains": [{"host": ..., "format": ..., "enabled": ..., "validated": ..., "type": ..., "domain_type": ...}]}` — listing the hosts Cloudsmith can authenticate: the built-in service domains plus any custom domains configured for an organisation, along with the package format each one serves (`format` is `null` for hosts that serve no single format, like the download CDN). Each entry's `domain_type` says what the host is for — `download` for the CDN, `upload` for the generic upload endpoint, or `native_api` for a host that speaks a single package format's own protocol — so a consumer can pick the right host without pattern-matching on hostnames. Disabled and unvalidated custom domains are included too, with their state intact, so a misconfigured domain is visible rather than silently missing. A failed custom-domain lookup (typo'd organisation, missing permission, unreachable API) exits non-zero with a message on stderr instead of silently listing built-in hosts only. The command takes no arguments: the organisation is resolved from `CLOUDSMITH_ORG` or `oidc_org` in `config.ini`, and with no organisation configured just the built-in hosts are listed, which needs no authentication. Like `credential-helper generic`, this command is for programmatic consumers only and has no human-readable output mode.
+- The built-in domain list can be replaced via a `[domains]` section in `config.ini`, mapping hostname to package format, for dedicated and on-premise deployments. For safety this is honoured only from trusted configuration — your user-level config directory, `~/.cloudsmith`, or an explicit `--config-file`. A `[domains]` section in a directory-relative `config.ini` is ignored with a warning, because that file can be committed to a repository and this list decides which hosts may receive a credential.
+
 ## [1.20.2] - 2026-07-31
 
 ### Fixed

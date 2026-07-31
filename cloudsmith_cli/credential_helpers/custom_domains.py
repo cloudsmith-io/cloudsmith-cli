@@ -156,6 +156,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
     credential: CredentialResult | None = None,
     api_host: str | None = None,
     refresh: bool = False,
+    strict: bool = False,
 ) -> list[CustomDomain]:
     """
     Fetch custom domains for a Cloudsmith organization.
@@ -170,17 +171,23 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
             configuration default when not provided.
         refresh: When ``True``, skip the cache read and always fetch from the API.
             The fresh result is still written to the cache.
+        strict: When ``True``, a failed lookup re-raises its ``ApiException``
+            instead of degrading to an empty list. For callers that present
+            results to a user (``credential-helper domains``), which must not
+            render a typo'd org, a missing permission or an unreachable API as
+            "no custom domains". A 402 still returns ``[]`` even in strict
+            mode — the feature being disabled genuinely means there are none.
 
     Returns:
         List of CustomDomain records.
-        Empty list if API call fails or org has no custom domains.
+        Empty list if the org has no custom domains, or (unless ``strict``)
+        if the API call fails.
 
     Note:
-        Only ``ApiException`` is handled here (per-status). Network-layer errors
-        (DNS/timeout/SSL/urllib3) are intentionally NOT caught — they propagate to
-        the caller. The credential-helper protocol boundary (the click command) and
-        the installer are responsible for catching broadly and refusing gracefully,
-        so the library stays free of bare ``except Exception`` (reviewer feedback).
+        The API layer wraps transport failures (DNS/timeout/SSL) into
+        ``ApiException`` too, so every failure mode lands in the handler
+        below. The default is best-effort (helpers degrade rather than break
+        the wrapped tool); pass ``strict=True`` to fail loudly instead.
     """
     cache_path = get_cache_path(org)
     cached = None if refresh else read_cache(cache_path)
@@ -195,6 +202,8 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
     try:
         raw_domains = list_custom_domains(org)
     except ApiException as exc:
+        if strict and exc.status != 402:
+            raise
         if exc.status in (401, 403):
             # Don't cache auth failures - might work later once authenticated.
             logger.debug(

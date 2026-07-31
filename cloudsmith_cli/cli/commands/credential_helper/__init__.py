@@ -10,6 +10,7 @@ import click
 
 from ..main import main
 from .docker import docker as docker_cmd
+from .domains import domains_cmd
 from .manage import install_cmd, list_cmd, uninstall_cmd
 
 
@@ -32,6 +33,7 @@ def credential_helper():
 
 
 credential_helper.add_command(docker_cmd, name="docker")
+credential_helper.add_command(domains_cmd, name="domains")
 credential_helper.add_command(install_cmd, name="install")
 credential_helper.add_command(uninstall_cmd, name="uninstall")
 credential_helper.add_command(list_cmd, name="list")
