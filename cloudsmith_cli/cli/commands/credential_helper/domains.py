@@ -2,9 +2,8 @@
 """List the hosts Cloudsmith can authenticate: built-in and custom domains.
 
 The built-in ``*.cloudsmith.io`` service hosts ship with the CLI so that every
-consumer shares one authoritative table; custom domains are the hosts a
-credential-helper consumer cannot infer on its own, since discovering them
-requires an API lookup.
+consumer shares one authoritative table; custom domains cannot be inferred, so
+discovering them requires an API lookup.
 """
 
 from __future__ import annotations
@@ -27,8 +26,6 @@ from ...decorators import (
     resolve_credentials,
 )
 
-# Bump only for a breaking change to the document shape. Consumers are expected
-# to refuse a version they do not recognise.
 PROTOCOL_VERSION = 1
 
 
@@ -50,38 +47,25 @@ def format_name(backend_kind: int | None) -> str:
 
 
 @click.command("domains")
-@click.option(
-    "--org",
-    default=None,
-    help="Cloudsmith organisation slug (defaults to CLOUDSMITH_ORG).",
-)
-@click.option(
-    "--custom-only",
-    is_flag=True,
-    default=False,
-    help="List only the organisation's custom domains, omitting the built-in hosts.",
-)
 @common_cli_config_options
 @common_api_auth_options
 @resolve_credentials
 @click.pass_context
-def domains_cmd(ctx, opts, org: str | None, custom_only: bool) -> None:
+def domains_cmd(ctx, opts) -> None:
     """Emit the Cloudsmith hosts and their package formats as JSON.
 
-    Emits machine-readable JSON for programmatic consumers -- such as a
-    keyring backend that shells out to the CLI and parses stdout -- listing
-    the built-in Cloudsmith service hosts (``*.cloudsmith.io``) alongside the
-    organisation's custom domains. These are the hosts a credential-helper
-    consumer cannot infer on its own, since discovering them requires an API
-    lookup. Each entry's ``type`` field distinguishes ``default`` from
-    ``custom``. Every domain is included, even custom ones that are disabled
-    or not yet validated, so a domain that is present but not working is
-    visible rather than silently absent. Consumers that need a usable host
-    should filter on both ``enabled`` and ``validated``.
+    Emits machine-readable JSON for programmatic consumers listing the
+    built-in Cloudsmith service hosts (``*.cloudsmith.io``) alongside the
+    organisation's custom domains. Each entry's ``type`` field distinguishes
+    ``default`` from ``custom``. Every domain is included, even custom ones
+    that are disabled or not yet validated, so a domain that is present but
+    not working is visible rather than silently absent. Consumers that need a
+    usable host should filter on both ``enabled`` and ``validated``.
 
-    Listing the built-in hosts needs no organisation. Custom domains do, so
-    ``--org``/``CLOUDSMITH_ORG`` is only required together with
-    ``--custom-only``, or to see custom domains at all.
+    The built-in hosts are always listed and need no organisation or
+    authentication. Custom domains are looked up for the configured
+    organisation - CLOUDSMITH_ORG, or ``oidc_org`` in ``config.ini`` - and
+    omitted when none is configured.
 
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
@@ -90,23 +74,13 @@ def domains_cmd(ctx, opts, org: str | None, custom_only: bool) -> None:
     Examples:
 
     \b
-        # List the built-in hosts, no organisation required
+        # List the built-in hosts
         $ cloudsmith credential-helper domains
 
     \b
         # List built-in hosts plus an organisation's custom domains
-        $ cloudsmith credential-helper domains --org my-org
-
-    \b
-        # List only the organisation's custom domains
-        $ cloudsmith credential-helper domains --org my-org --custom-only
+        $ CLOUDSMITH_ORG=my-org cloudsmith credential-helper domains
     """
-    org = org or os.environ.get("CLOUDSMITH_ORG", "").strip() or None
-    if custom_only and not org:
-        raise click.ClickException(
-            "No organisation specified. Use --org or set CLOUDSMITH_ORG."
-        )
-
     if untrusted_config_declares_domains():
         click.secho(
             "Warning: ignoring [domains] section in ./config.ini -- config.ini "
@@ -120,23 +94,19 @@ def domains_cmd(ctx, opts, org: str | None, custom_only: bool) -> None:
     if explicit_config and os.path.isdir(explicit_config):
         explicit_config = os.path.join(explicit_config, "config.ini")
 
-    default_data = (
-        []
-        if custom_only
-        else [
-            {
-                "host": domain.host,
-                "format": domain.format_label,
-                "backend_kind": domain.backend_kind,
-                "enabled": True,
-                "validated": True,
-                "type": "default",
-            }
-            for domain in load_default_domains(config_path=explicit_config)
-        ]
-    )
+    data = [
+        {
+            "host": domain.host,
+            "format": domain.format_label,
+            "backend_kind": domain.backend_kind,
+            "enabled": True,
+            "validated": True,
+            "type": "default",
+        }
+        for domain in load_default_domains(config_path=explicit_config)
+    ]
 
-    custom_data = []
+    org = opts.oidc_org
     if org:
         api_key = opts.credential.api_key if opts.credential else None
         auth_type = (
@@ -157,7 +127,7 @@ def domains_cmd(ctx, opts, org: str | None, custom_only: bool) -> None:
                 f"Failed to fetch custom domains for {org!r}: {exc}"
             ) from exc
 
-        custom_data = [
+        data.extend(
             {
                 "host": record.host,
                 "format": format_name(record.backend_kind),
@@ -167,8 +137,6 @@ def domains_cmd(ctx, opts, org: str | None, custom_only: bool) -> None:
                 "type": "custom",
             }
             for record in sorted(records, key=lambda record: record.host)
-        ]
-
-    data = default_data + custom_data
+        )
 
     click.echo(json.dumps({"version": PROTOCOL_VERSION, "domains": data}))
