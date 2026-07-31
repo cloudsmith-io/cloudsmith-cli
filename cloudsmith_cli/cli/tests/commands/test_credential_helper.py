@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import time
 from unittest.mock import patch
 
@@ -20,6 +21,7 @@ from ....credential_helpers.custom_domains import (
     get_cache_path,
     get_custom_domains,
     get_format_domains,
+    is_cache_valid,
     read_cache,
     write_cache,
 )
@@ -241,10 +243,10 @@ def _cache_dir(tmp_path, monkeypatch):
     [
         # 200 → records built and cached
         (200, True, True),
-        # 402 → [] and cached (feature not enabled)
-        (402, False, True),
-        # 404 → [] and cached (org not found)
-        (404, False, True),
+        # 402 → [] but NOT cached (feature not enabled)
+        (402, False, False),
+        # 404 → [] but NOT cached (org not found)
+        (404, False, False),
         # 403 → [] but NOT cached (may succeed after auth)
         (403, False, False),
         # 401 → [] but NOT cached (same branch as 403)
@@ -355,12 +357,12 @@ def test_get_custom_domains_strict_raises_on_failure(
 
 
 @httpretty.activate(allow_net_connect=False)
-def test_get_custom_domains_strict_ignores_a_cached_empty_result(tmp_path, monkeypatch):
-    """A strict lookup must not be answered from a best-effort cache.
+def test_get_custom_domains_does_not_cache_a_failure(tmp_path, monkeypatch):
+    """A failed lookup writes no cache entry.
 
-    A non-strict lookup caches [] for a 404, so serving the cache back would
-    render a typo'd org as "no custom domains" — the outcome strict exists to
-    surface.
+    Caching [] for a 404 is what forced strict mode to bypass the cache: a
+    typo'd organisation would otherwise be served back as a successful
+    "no custom domains" for the whole TTL.
     """
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
@@ -376,12 +378,50 @@ def test_get_custom_domains_strict_ignores_a_cached_empty_result(tmp_path, monke
     credential = CredentialResult(api_key="k_abc", source_name="test")
 
     assert get_custom_domains("my-ogr", credential=credential, api_host=API_HOST) == []
-    assert read_cache(get_cache_path("my-ogr")) == []
 
+    assert not get_cache_path("my-ogr").exists()
     with pytest.raises(ApiException):
         get_custom_domains(
             "my-ogr", credential=credential, api_host=API_HOST, strict=True
         )
+
+
+def test_get_custom_domains_strict_is_served_from_cache(tmp_path, monkeypatch):
+    """Failures are never cached, so a cache hit is always a real result.
+
+    httpretty is not active here: a request would raise, proving the cache
+    answered.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    domains = [
+        CustomDomain(
+            host="dl.acme.com",
+            backend_kind=None,
+            enabled=True,
+            validated=True,
+            org="acme",
+        )
+    ]
+    write_cache(get_cache_path("acme"), domains)
+
+    assert get_custom_domains("acme", api_host=API_HOST, strict=True) == domains
+
+
+def test_cache_is_valid_for_seven_days(tmp_path, monkeypatch):
+    """Custom domains change rarely; a week-long cache keeps CI off the API."""
+    cache_path = tmp_path / "acme.json"
+    cache_path.write_text("{}", encoding="utf-8")
+
+    six_days = time.time() - 6 * 24 * 3600
+    os.utime(cache_path, (six_days, six_days))
+    assert is_cache_valid(cache_path) is True
+
+    eight_days = time.time() - 8 * 24 * 3600
+    os.utime(cache_path, (eight_days, eight_days))
+    assert is_cache_valid(cache_path) is False
 
 
 @httpretty.activate(allow_net_connect=False)

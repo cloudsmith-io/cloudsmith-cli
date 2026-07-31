@@ -22,8 +22,9 @@ from .default_domains import DomainScope
 
 logger = logging.getLogger(__name__)
 
-# Cache custom domains for 1 hour
-CACHE_TTL_SECONDS = 3600
+# Custom domains change rarely, so the cache is long-lived; `--refresh`
+# bypasses it when a domain has just been added or validated.
+CACHE_TTL_SECONDS = 7 * 24 * 3600
 
 # Bump when the cached record shape changes: an older document is a miss, not
 # a record with the new fields defaulted.
@@ -217,7 +218,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
     """
     Fetch custom domains for a Cloudsmith organization.
 
-    Results are cached on the filesystem for 1 hour to avoid excessive API calls.
+    Results are cached on the filesystem for 7 days to avoid excessive API calls.
 
     Args:
         org: Organization slug
@@ -233,9 +234,9 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
             render a typo'd org, a missing permission or an unreachable API as
             "no custom domains". A 402 still returns ``[]`` even in strict
             mode — the feature being disabled genuinely means there are none.
-            The cache is bypassed too: a best-effort lookup caches ``[]`` for a
-            404, and serving that back would report the very failure strict
-            mode exists to surface as a successful empty result.
+            Failures are never cached, so a strict lookup can be served from
+            the cache without risking a cached failure being reported as
+            success.
 
     Returns:
         List of CustomDomain records.
@@ -249,7 +250,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
         the wrapped tool); pass ``strict=True`` to fail loudly instead.
     """
     cache_path = get_cache_path(org)
-    cached = None if (refresh or strict) else read_cache(cache_path)
+    cached = None if refresh else read_cache(cache_path)
     if cached is not None:
         logger.debug("Using cached custom domains for %s", org)
         return cached
@@ -272,15 +273,12 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
             return []
 
         if exc.status == 404:
-            # Cache empty result to avoid repeated lookups for a missing org.
             logger.debug("Organization %s not found or has no custom domains", org)
-            write_cache(cache_path, [])
             return []
 
         if exc.status == 402:
             # Custom domains product feature not enabled - treat as none.
             logger.debug("Custom domains not enabled for %s", org)
-            write_cache(cache_path, [])
             return []
 
         logger.debug("Failed to fetch custom domains for %s: HTTP %s", org, exc.status)
