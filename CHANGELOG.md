@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.20.2] - 2026-07-31
+
 ### Fixed
 
 - Files larger than 100MB now upload correctly when authenticated via SSO or OIDC. The multi-part upload read its credentials from `opts.api_key`, which is only populated by `--api-key`, `CLOUDSMITH_API_KEY` or `credentials.ini` — so with an SSO session or OIDC auto-discovery it was empty, the auth header was dropped, and the part upload failed with a misleading `404 - Not Found` ("this usually means the user/org is wrong or not visible") even though every preceding API call had succeeded. Credentials are now taken from the resolved credential chain, with SSO access tokens sent as a bearer `Authorization` header and API keys/OIDC tokens as `X-Api-Key`.
