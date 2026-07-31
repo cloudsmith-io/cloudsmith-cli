@@ -6,7 +6,9 @@ import pytest
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.default_domains import (
     BUILTIN_DOMAINS,
+    CDN_HOST,
     DefaultDomain,
+    builtin_host,
     load_default_domains,
     untrusted_config_declares_domains,
 )
@@ -150,6 +152,24 @@ def test_untrusted_config_predicate_false_without_section(tmp_path, monkeypatch)
     (tmp_path / "config.ini").write_text("[default]\n", encoding="utf-8")
 
     assert untrusted_config_declares_domains() is False
+
+
+def test_cdn_host_is_in_builtin_table():
+    """The exported CDN host constant and the table stay in sync."""
+    assert CDN_HOST == "dl.cloudsmith.io"
+    assert any(domain.host == CDN_HOST for domain in BUILTIN_DOMAINS)
+
+
+def test_builtin_host_resolves_backend_kind():
+    """builtin_host maps a backend kind to its built-in service host."""
+    assert builtin_host(BackendKind.MAVEN) == "maven.cloudsmith.io"
+    assert builtin_host(BackendKind.PYTHON) == "python.cloudsmith.io"
+
+
+def test_builtin_host_rejects_kind_without_dedicated_host():
+    """Formats served only via the CDN have no dedicated built-in host."""
+    with pytest.raises(ValueError):
+        builtin_host(BackendKind.DEB)
 
 
 def test_default_domain_is_frozen():

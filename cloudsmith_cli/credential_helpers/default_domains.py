@@ -1,21 +1,17 @@
 # Copyright 2026 Cloudsmith Ltd
 """Built-in Cloudsmith service hosts, with a trusted-config override.
 
-``credential-helper domains`` is the single authority a keyring backend
-consults to decide which hosts may receive a Cloudsmith token. The built-in
-table below lists the standard ``*.cloudsmith.io`` hosts; a deployment with
-its own custom package-serving domains can replace that table via a
-``[domains]`` section in ``config.ini`` — but only when that file comes from a
-trusted location.
+The table below lists the standard ``*.cloudsmith.io`` service hosts and the
+package format each one serves. A deployment with its own package-serving
+domains — dedicated or on-premise — can replace the table via a ``[domains]``
+section in ``config.ini``, mapping hostname to package format.
 
-``config.ini`` is searched in the current working directory first
-(``cli/config.py``), so a ``config.ini`` committed to a repository is
-attacker-controlled input. Honouring a ``[domains]`` section from a
-directory-relative config would let a malicious repo declare an arbitrary
-host a Cloudsmith host and harvest a live credential. This module therefore
-reads ``config.ini`` only from trusted locations, mirroring the split
-``_guard_untrusted_endpoints`` (``cli/decorators.py``) already applies to
-``api_host``/``api_proxy``.
+The override is honoured only from trusted locations. ``config.ini`` is
+searched in the current working directory first (``cli/config.py``), so a
+``config.ini`` committed to a repository is attacker-controlled input; this
+module therefore never reads the domain table from a directory-relative
+config, mirroring the split ``_guard_untrusted_endpoints``
+(``cli/decorators.py``) already applies to ``api_host``/``api_proxy``.
 """
 
 from __future__ import annotations
@@ -30,6 +26,8 @@ from ..cli.config import get_default_config_path
 from .backends import BackendKind
 
 logger = logging.getLogger(__name__)
+
+CDN_HOST = "dl.cloudsmith.io"
 
 
 @dataclass(frozen=True)
@@ -47,7 +45,7 @@ BUILTIN_DOMAINS: tuple[DefaultDomain, ...] = (
     DefaultDomain("conan.cloudsmith.io", "conan", BackendKind.CONAN),
     DefaultDomain("conda.cloudsmith.io", "conda", BackendKind.CONDA),
     DefaultDomain("dart.cloudsmith.io", "dart", BackendKind.DART),
-    DefaultDomain("dl.cloudsmith.io", "-", None),
+    DefaultDomain(CDN_HOST, "-", None),
     DefaultDomain("docker.cloudsmith.io", "docker", BackendKind.DOCKER),
     DefaultDomain("generic.cloudsmith.io", "generic", BackendKind.GENERIC),
     DefaultDomain("golang.cloudsmith.io", "go", BackendKind.GO),
@@ -64,6 +62,18 @@ BUILTIN_DOMAINS: tuple[DefaultDomain, ...] = (
     DefaultDomain("terraform.cloudsmith.io", "terraform", BackendKind.TERRAFORM),
     DefaultDomain("upload.cloudsmith.io", "-", None),
 )
+
+
+def builtin_host(backend_kind: int) -> str:
+    """Return the built-in Cloudsmith service host for `backend_kind`.
+
+    Raises ValueError for formats served only via the CDN, which have no
+    dedicated built-in host.
+    """
+    for domain in BUILTIN_DOMAINS:
+        if domain.backend_kind == backend_kind:
+            return domain.host
+    raise ValueError(f"No built-in Cloudsmith host for backend kind {backend_kind}")
 
 
 def _resolve_backend_kind(label: str) -> int | None:
