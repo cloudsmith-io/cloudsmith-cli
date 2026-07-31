@@ -40,7 +40,7 @@ def _cache_key(api_host: str, org: str, service_slug: str) -> str:
     return f"oidc_{digest}.json"
 
 
-def _decode_jwt_exp(token: str) -> float | None:
+def decode_jwt_expiry(token: str) -> float | None:
     """Read the exp claim from a JWT payload.
 
     The token is only inspected to determine a cache TTL; it is never used to
@@ -150,7 +150,7 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
 
 def store_cached_token(api_host: str, org: str, service_slug: str, token: str) -> None:
     """Cache a token in keyring (if available) or filesystem."""
-    expires_at = _decode_jwt_exp(token)
+    expires_at = decode_jwt_expiry(token)
 
     data = {
         "token": token,

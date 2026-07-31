@@ -105,6 +105,7 @@ The CLI currently supports the following commands (and sub-commands):
 - `tokens`:               Manage API tokens.
   - `list`|`ls`:            List API tokens.
   - `refresh`:              Refresh an API token.
+  - `show`:                 Show the API token the CLI is authenticating with.
 - `upstream`:             Manage upstreams for a repository.
   - `cran`:                 Manage cran upstreams for a repository.
   - `dart`:                 Manage dart upstreams for a repository.
@@ -351,6 +352,38 @@ Once you have your API key you can then put this into your `credentials.ini`, us
 For convenience the CLI will ask you if you want to install the default configuration files, complete with your API key, if they don't already exist. Say 'y' or 'yes' to create the configuration files.
 
 If the configuration files already exist, you'll have to manually put the API key into the configuration files, but the CLI will print out their locations.
+
+#### Reading the Effective API Token
+
+`cloudsmith tokens show` prints the token the CLI is authenticating with, resolved through the same credential chain as every other command (`--api-key` flag, `CLOUDSMITH_API_KEY`, credentials file, keyring, OIDC auto-discovery). If OIDC auto-discovery is the resolving source, the OIDC token exchange is performed and the short-lived Cloudsmith token is printed. Only the token is written to stdout, so it can be exported as an environment variable for anything that expects one:
+
+```bash
+export CLOUDSMITH_API_KEY=$(cloudsmith tokens show)
+```
+
+This is useful in CI when a third-party client needs the OIDC-exchanged token to authenticate against a Cloudsmith registry — nothing is exported automatically, so retrieving the token is always an explicit step. On GitHub Actions, mask the token and export it to subsequent steps via `$GITHUB_ENV`:
+
+```yaml
+- name: Export the Cloudsmith token for later steps
+  run: |
+    TOKEN=$(cloudsmith tokens show)
+    echo "::add-mask::$TOKEN"
+    echo "CLOUDSMITH_API_KEY=$TOKEN" >> "$GITHUB_ENV"
+```
+
+The token also works anywhere a registry client takes a credential directly:
+
+```bash
+TOKEN=$(cloudsmith tokens show)
+npm config set //npm.cloudsmith.io/example-org/example-repo/:_authToken "$TOKEN"
+```
+
+Use `--output-format json` to also see which credential source resolved the token and, for OIDC tokens, when it expires:
+
+```bash
+cloudsmith tokens show --output-format json
+{"data": {"auth_type": "api_key", "expires_at": "2026-07-31T12:34:56Z", "source": "oidc", "source_detail": "OIDC via GitHub Actions (org: example-org, service: example-service)", "token": "..."}}
+```
 
 
 ## Uploading Packages

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `cloudsmith tokens show` prints the API token the CLI is authenticating with, resolved through the standard credential chain (`--api-key` flag, `CLOUDSMITH_API_KEY`, credentials file, keyring, OIDC auto-discovery) — performing the OIDC token exchange when that is the resolving source. This is the explicit, opt-in read path for feeding the OIDC-exchanged token to third-party registry clients (`.npmrc`, pip, `docker login`) that previously consumed the token output of the v2 GitHub Action; nothing is auto-exported and no API endpoint is called. Plain output is the bare token on stdout, so restoring the previous workflow is a one-liner: `export CLOUDSMITH_API_KEY=$(cloudsmith tokens show)` (on GitHub Actions, `echo "CLOUDSMITH_API_KEY=$TOKEN" >> "$GITHUB_ENV"` for later steps); `--output-format json` adds the resolving source and, for OIDC tokens, the expiry time. When capturing the token in CI, mask it in the job log — on GitHub Actions: `echo "::add-mask::$TOKEN"`.
+
 ## [1.20.2] - 2026-07-31
 
 ### Fixed

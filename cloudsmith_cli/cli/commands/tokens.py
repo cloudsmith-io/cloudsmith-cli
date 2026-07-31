@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 import click
 
 from ...core.api import exceptions, user as api
 from ...core.config import create_config_files, new_config_messaging
+from ...core.credentials.oidc.cache import decode_jwt_expiry
 from .. import command, decorators, utils
 from ..exceptions import handle_api_exceptions
 from .main import main
@@ -196,6 +199,60 @@ def refresh(ctx, opts, token_slug, force, save_config):
     if new_token:
         if utils.maybe_print_as_json(opts, new_token):
             return new_token
+
+
+@tokens.command()
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.resolve_credentials
+@click.pass_context
+def show(ctx, opts):
+    """Show the API token the CLI is authenticating with.
+
+    Resolves credentials through the standard chain (--api-key flag,
+    CLOUDSMITH_API_KEY, credentials file, keyring, OIDC auto-discovery) and
+    prints the resulting token to stdout, performing the OIDC token exchange
+    if that is the resolving source. No other output is written to stdout,
+    so the token can be captured or exported directly:
+
+    \b
+        export CLOUDSMITH_API_KEY=$(cloudsmith tokens show)
+
+    Use --output-format json to also see the resolving source and, for OIDC
+    tokens, the expiry time.
+    """
+    credential = opts.credential
+
+    if credential is None:
+        click.secho(
+            "No credentials could be resolved. Try getting your API key via "
+            "'cloudsmith token', or access token via 'cloudsmith auth', or "
+            "set CLOUDSMITH_ORG and CLOUDSMITH_SERVICE_SLUG to use OIDC "
+            "auto-discovery, then try again.",
+            fg="red",
+            err=True,
+        )
+        ctx.exit(1)
+
+    data = {
+        "token": credential.api_key,
+        "source": credential.source_name,
+        "source_detail": credential.source_detail,
+        "auth_type": credential.auth_type,
+    }
+
+    if credential.source_name == "oidc":
+        expires_at = decode_jwt_expiry(credential.api_key)
+        if expires_at is not None:
+            data["expires_at"] = utils.fmt_datetime(
+                datetime.fromtimestamp(expires_at, tz=timezone.utc)
+            )
+
+    if utils.maybe_print_as_json(opts, data):
+        return
+
+    click.echo(credential.api_key)
 
 
 def print_tokens(tokens):
