@@ -13,6 +13,7 @@ from unittest.mock import patch
 import click.testing
 import pytest
 
+from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     _launcher_content,
@@ -333,7 +334,7 @@ _INSTALLER_GET_FORMAT_DOMAINS = (
         "discovery_on",
         "no_discover",
         "missing_org",
-        "missing_api_key",
+        "missing_credential",
         "discovery_raises",
     ],
 )
@@ -347,19 +348,25 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
     bin_dir = tmp_path / "bin"
     monkeypatch.setenv("PATH", str(bin_dir))
 
+    credential = CredentialResult(api_key="k_test", source_name="test")
+
     if scenario == "discovery_on":
-        monkeypatch.setattr(
-            _INSTALLER_GET_FORMAT_DOMAINS,
-            lambda *_a, **_kw: ["docker.acme.com"],
-        )
+        captured = {}
+
+        def _fake_get_format_domains(*_a, **kwargs):
+            captured.update(kwargs)
+            return ["docker.acme.com"]
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _fake_get_format_domains)
         installer = DockerInstaller()
         actions = installer.install(
-            bin_dir=str(bin_dir), discover=True, org="acme", api_key="k_test"
+            bin_dir=str(bin_dir), discover=True, org="acme", credential=credential
         )
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
         assert cfg["credHelpers"]["docker.acme.com"] == "cloudsmith"
         assert any("discovered" in a and "1" in a for a in actions)
+        assert captured["credential"] is credential
 
     elif scenario == "no_discover":
         called = []
@@ -371,14 +378,14 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
         installer = DockerInstaller()
         installer.install(
-            bin_dir=str(bin_dir), discover=False, org="acme", api_key="k_test"
+            bin_dir=str(bin_dir), discover=False, org="acme", credential=credential
         )
         assert not called, "get_format_domains must not be called when discover=False"
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert "docker.cloudsmith.io" in cfg["credHelpers"]
         assert "docker.acme.com" not in cfg["credHelpers"]
 
-    elif scenario in ("missing_org", "missing_api_key"):
+    elif scenario in ("missing_org", "missing_credential"):
         called = []
 
         def _should_not_be_called(*_a, **_kw):
@@ -388,11 +395,11 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
         installer = DockerInstaller()
         org = None if scenario == "missing_org" else "acme"
-        api_key = "k_test" if scenario == "missing_org" else None
-        installer.install(bin_dir=str(bin_dir), discover=True, org=org, api_key=api_key)
+        cred = credential if scenario == "missing_org" else None
+        installer.install(bin_dir=str(bin_dir), discover=True, org=org, credential=cred)
         assert (
             not called
-        ), "get_format_domains must not be called when org/api_key absent"
+        ), "get_format_domains must not be called when org/credential absent"
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
 
@@ -405,7 +412,7 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         installer = DockerInstaller()
         # Must NOT raise
         actions = installer.install(
-            bin_dir=str(bin_dir), discover=True, org="acme", api_key="k_test"
+            bin_dir=str(bin_dir), discover=True, org="acme", credential=credential
         )
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
@@ -464,7 +471,11 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
         "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
         _fake_list,
     ):
-        result = get_custom_domains("acme", api_key="k", refresh=refresh)
+        result = get_custom_domains(
+            "acme",
+            credential=CredentialResult(api_key="k", source_name="test"),
+            refresh=refresh,
+        )
 
     if refresh:
         # API must have been called
@@ -510,6 +521,33 @@ def test_manage_cli_dry_run_exits_0(runner, tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert "would" in result.output.lower() or "dry run" in result.output.lower()
+
+
+def test_manage_cli_passes_resolved_credential_to_installer(
+    runner, tmp_path, monkeypatch
+):
+    """install hands the resolved CredentialResult to the installer intact."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+    from ....cli.commands.credential_helper.manage import install_cmd
+
+    with patch.object(DockerInstaller, "install", return_value=[]) as mock_install:
+        result = runner.invoke(
+            install_cmd,
+            [
+                "docker",
+                "--no-discover",
+                "--bin-dir",
+                str(tmp_path / "bin"),
+                "--api-key",
+                "k_flag",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    credential = mock_install.call_args.kwargs["credential"]
+    assert isinstance(credential, CredentialResult)
+    assert credential.api_key == "k_flag"
 
 
 # ---------------------------------------------------------------------------
