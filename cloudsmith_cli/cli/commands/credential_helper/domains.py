@@ -13,7 +13,10 @@ import os
 
 import click
 
-from ....credential_helpers.custom_domains import get_custom_domains
+from ....credential_helpers.custom_domains import (
+    get_custom_domains,
+    read_all_cached_domains,
+)
 from ....credential_helpers.default_domains import (
     domain_type_for_backend_kind,
     format_for_backend_kind,
@@ -30,37 +33,69 @@ from ...decorators import (
 PROTOCOL_VERSION = 1
 
 
+def _custom_entries(records) -> list[dict]:
+    """Render custom-domain records as document entries."""
+    return [
+        {
+            "host": record.host,
+            "format": format_for_backend_kind(record.backend_kind),
+            "enabled": record.enabled,
+            "validated": record.validated,
+            "type": "custom",
+            "domain_type": domain_type_for_backend_kind(record.backend_kind).value,
+            "org": record.org,
+            "repository": record.repository,
+        }
+        for record in sorted(records, key=lambda record: (record.org, record.host))
+    ]
+
+
 @click.command("domains")
+@click.option(
+    "--refresh",
+    is_flag=True,
+    default=False,
+    help="Bypass the custom-domain cache and fetch fresh data from the API.",
+)
 @common_cli_config_options
 @common_api_auth_options
 @resolve_credentials
 @click.pass_context
-def domains_cmd(ctx, opts) -> None:
+def domains_cmd(ctx, opts, refresh: bool) -> None:
     """Emit the Cloudsmith hosts and their package formats as JSON.
 
     Emits machine-readable JSON for programmatic consumers listing the
-    built-in Cloudsmith service hosts (``*.cloudsmith.io``) alongside the
-    organisation's custom domains. Each entry's ``type`` field distinguishes
-    ``default`` from ``custom``, and ``domain_type`` says what the host is for:
-    ``download``, ``upload``, or ``native_api`` for a host speaking one package
-    format's own protocol. Every domain is included, even custom ones that are
-    disabled or not yet validated, so a domain that is present but not working
-    is visible rather than silently absent. Consumers that need a usable host
-    should filter on both ``enabled`` and ``validated``.
+    built-in Cloudsmith service hosts (``*.cloudsmith.io``) alongside custom
+    domains. Each entry's ``type`` field distinguishes ``default`` from
+    ``custom``, and ``domain_type`` says what the host is for: ``download``,
+    ``upload``, or ``native_api`` for a host speaking one package format's own
+    protocol. Every domain is included, even custom ones that are disabled or
+    not yet validated, so a domain that is present but not working is visible
+    rather than silently absent. Consumers that need a usable host should
+    filter on both ``enabled`` and ``validated``.
 
     The built-in hosts are always listed and need no organisation or
-    authentication. Custom domains are looked up for the configured
-    organisation - CLOUDSMITH_ORG, or ``oidc_org`` in ``config.ini`` - and
-    omitted when none is configured.
+    authentication. When an organisation is configured - CLOUDSMITH_ORG, or
+    ``oidc_org`` in ``config.ini`` - its custom domains are looked up, and a
+    failed lookup exits non-zero rather than being rendered as "no domains".
+    With none configured, the command instead lists the custom domains any
+    earlier run already cached and makes no API call at all: there is
+    deliberately no lookup of which organisations the caller belongs to, since
+    that would cost one API call per organisation on every run. A custom
+    entry's ``org`` and ``repository`` fields say which organisation it
+    belongs to and, when scoped to one, which repository - built-in entries
+    carry ``null`` for both. Pass ``--refresh`` to bypass the cache and fetch
+    fresh data from the API for a configured organisation.
 
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
-        "enabled": ..., "validated": ..., "type": ..., "domain_type": ...}]}
+        "enabled": ..., "validated": ..., "type": ..., "domain_type": ...,
+        "org": ..., "repository": ...}]}
 
     Examples:
 
     \b
-        # List the built-in hosts
+        # List built-in hosts plus any custom domains already cached
         $ cloudsmith credential-helper domains
 
     \b
@@ -91,6 +126,8 @@ def domains_cmd(ctx, opts) -> None:
             "validated": True,
             "type": "default",
             "domain_type": domain.domain_type.value,
+            "org": None,
+            "repository": None,
         }
         for domain in load_default_domains(config_path=explicit_config)
     ]
@@ -102,23 +139,20 @@ def domains_cmd(ctx, opts) -> None:
                 org,
                 credential=opts.credential,
                 api_host=opts.api_host,
+                refresh=refresh,
                 strict=True,
             )
         except Exception as exc:  # pylint: disable=broad-except
+            # Presentation boundary: a named organisation that cannot be read
+            # is the user's error, and must not be rendered as "no domains".
             raise click.ClickException(
                 f"Failed to fetch custom domains for {org!r}: {exc}"
             ) from exc
+    else:
+        # No organisation named: list what earlier runs cached rather than
+        # spending an API call per organisation to rediscover it.
+        records = read_all_cached_domains()
 
-        data.extend(
-            {
-                "host": record.host,
-                "format": format_for_backend_kind(record.backend_kind),
-                "enabled": record.enabled,
-                "validated": record.validated,
-                "type": "custom",
-                "domain_type": domain_type_for_backend_kind(record.backend_kind).value,
-            }
-            for record in sorted(records, key=lambda record: record.host)
-        )
+    data.extend(_custom_entries(records))
 
     click.echo(json.dumps({"version": PROTOCOL_VERSION, "domains": data}))

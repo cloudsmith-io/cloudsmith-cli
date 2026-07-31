@@ -2,6 +2,8 @@
 """Tests for the `cloudsmith credential-helper domains` command."""
 
 import json
+import os
+import time
 from unittest.mock import patch
 
 import pytest
@@ -9,7 +11,11 @@ import pytest
 from ....cli import config as cli_config
 from ....cli.commands.credential_helper.domains import domains_cmd
 from ....credential_helpers import default_domains
-from ....credential_helpers.custom_domains import CustomDomain
+from ....credential_helpers.custom_domains import (
+    CustomDomain,
+    get_cache_path,
+    write_cache,
+)
 
 _PATCH_TARGET = (
     "cloudsmith_cli.cli.commands.credential_helper.domains.get_custom_domains"
@@ -38,7 +44,15 @@ def hermetic_environment(monkeypatch):
     monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", ["."])
 
 
-def _domain(host, backend_kind, enabled=True, validated=True, org="acme"):
+def _domain(
+    host,
+    backend_kind,
+    enabled=True,
+    validated=True,
+    org="acme",
+    repository=None,
+    repository_only=False,
+):
     """Build a CustomDomain record for a test."""
     return CustomDomain(
         host=host,
@@ -46,6 +60,8 @@ def _domain(host, backend_kind, enabled=True, validated=True, org="acme"):
         enabled=enabled,
         validated=validated,
         org=org,
+        repository=repository,
+        repository_only=repository_only,
     )
 
 
@@ -79,7 +95,7 @@ def test_document_has_exactly_version_and_domains_keys(runner):
 
 
 def test_custom_entry_has_exact_key_set(runner, monkeypatch):
-    """A custom entry's full key set is exactly the six expected fields."""
+    """A custom entry's full key set is exactly the eight expected fields."""
     monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
 
     result, _ = _invoke(runner, custom_domains=[_domain("pypi.acme.example.com", 3)])
@@ -91,6 +107,8 @@ def test_custom_entry_has_exact_key_set(runner, monkeypatch):
         "validated": True,
         "type": "custom",
         "domain_type": "native_api",
+        "org": "acme",
+        "repository": None,
     }
 
 
@@ -281,3 +299,133 @@ def test_untrusted_warning_suppressed_for_explicit_config_file(
 
     assert "Warning" not in result.stderr
     assert set(_by_host(result)) == {"index.internal.example.com"}
+
+
+def test_lists_cached_domains_when_no_organisation_is_configured(
+    runner, monkeypatch, tmp_path
+):
+    """A run with no org lists what earlier runs cached, without any API call.
+
+    Attribution comes from the record, not the filename: the cache filename is
+    a sanitised slug and cannot be relied on.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    called = []
+    monkeypatch.setattr(
+        "cloudsmith_cli.cli.commands.credential_helper.domains.get_custom_domains",
+        lambda *a, **k: called.append("api") or [],
+    )
+    write_cache(get_cache_path("acme"), [_domain("dl.acme.com", None, org="acme")])
+    write_cache(
+        get_cache_path("widgets"), [_domain("dl.widgets.com", None, org="widgets")]
+    )
+
+    result = runner.invoke(domains_cmd, ["-k", "fake-key"])
+
+    assert result.exit_code == 0, result.output
+    assert not called
+    custom = [d for d in json.loads(result.output)["domains"] if d["type"] == "custom"]
+    assert {(d["host"], d["org"]) for d in custom} == {
+        ("dl.acme.com", "acme"),
+        ("dl.widgets.com", "widgets"),
+    }
+
+
+def test_stale_cache_entries_are_not_listed(runner, monkeypatch, tmp_path):
+    """An expired entry is skipped, not served past its TTL."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    cache_path = get_cache_path("acme")
+    write_cache(cache_path, [_domain("dl.acme.com", None, org="acme")])
+    stale = time.time() - 8 * 24 * 3600
+    os.utime(cache_path, (stale, stale))
+
+    result = runner.invoke(domains_cmd, ["-k", "fake-key"])
+
+    assert result.exit_code == 0, result.output
+    assert all(d["type"] == "default" for d in json.loads(result.output)["domains"])
+
+
+def test_configured_organisation_is_looked_up_not_read_from_cache_dir(
+    runner, monkeypatch, tmp_path
+):
+    """A named organisation still goes through the normal lookup."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    write_cache(
+        get_cache_path("widgets"), [_domain("dl.widgets.com", None, org="widgets")]
+    )
+    monkeypatch.setattr(
+        "cloudsmith_cli.cli.commands.credential_helper.domains.get_custom_domains",
+        lambda org, **_kwargs: [_domain("dl.acme.com", None, org=org)],
+    )
+
+    result = runner.invoke(domains_cmd, ["-k", "fake-key"])
+
+    hosts = {d["host"] for d in json.loads(result.output)["domains"]}
+    assert "dl.acme.com" in hosts
+    assert "dl.widgets.com" not in hosts
+
+
+def test_repository_scoped_domain_is_reported(runner, monkeypatch):
+    """A consumer must see which repository a domain is bound to."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    monkeypatch.setattr(
+        "cloudsmith_cli.cli.commands.credential_helper.domains.get_custom_domains",
+        lambda org, **_kwargs: [
+            _domain(
+                "dl-prod.acme.com",
+                None,
+                org="acme",
+                repository="prod",
+                repository_only=True,
+            )
+        ],
+    )
+
+    result = runner.invoke(domains_cmd, ["-k", "fake-key"])
+
+    entry = [d for d in json.loads(result.output)["domains"] if d["type"] == "custom"][
+        0
+    ]
+    assert entry["org"] == "acme"
+    assert entry["repository"] == "prod"
+
+
+def test_builtin_entries_carry_null_org_and_repository(runner):
+    """Built-in hosts belong to no organisation."""
+    result = runner.invoke(domains_cmd, [])
+
+    defaults = [
+        d for d in json.loads(result.output)["domains"] if d["type"] == "default"
+    ]
+    assert defaults
+    assert all(d["org"] is None and d["repository"] is None for d in defaults)
+
+
+def test_refresh_flag_is_forwarded(runner, monkeypatch):
+    """--refresh must reach the lookup so a new domain shows up immediately."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    captured = {}
+
+    def _lookup(org, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(
+        "cloudsmith_cli.cli.commands.credential_helper.domains.get_custom_domains",
+        _lookup,
+    )
+
+    result = runner.invoke(domains_cmd, ["-k", "fake-key", "--refresh"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["refresh"] is True

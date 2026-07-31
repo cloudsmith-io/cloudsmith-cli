@@ -182,6 +182,22 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     return None
 
 
+def read_all_cached_domains() -> list[CustomDomain]:
+    """Return every custom domain in a currently-valid cache entry.
+
+    Lets a run with no configured organisation list what earlier runs already
+    fetched, at no API cost.  Each file goes through :func:`read_cache`, so the
+    TTL and format-version gates apply and a stale or unreadable entry is
+    skipped rather than reported.
+    """
+    records: list[CustomDomain] = []
+    for cache_path in sorted(get_cache_dir().glob("*.json")):
+        cached = read_cache(cache_path)
+        if cached:
+            records.extend(cached)
+    return records
+
+
 def write_cache(cache_path: Path, domains: list[CustomDomain]) -> None:
     """Write custom domains to cache file."""
     data = {
