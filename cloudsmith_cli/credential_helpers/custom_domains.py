@@ -18,11 +18,16 @@ from ..core.api.init import initialise_api
 from ..core.api.orgs import list_custom_domains
 from ..core.cache_utils import atomic_write_json
 from ..core.credentials.models import CredentialResult
+from .default_domains import DomainScope
 
 logger = logging.getLogger(__name__)
 
 # Cache custom domains for 1 hour
 CACHE_TTL_SECONDS = 3600
+
+# Bump when the cached record shape changes: an older document is a miss, not
+# a record with the new fields defaulted.
+CACHE_FORMAT_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,21 @@ class CustomDomain:
     backend_kind: int | None
     enabled: bool
     validated: bool
+    org: str
+    repository: str | None = None
+    repository_only: bool = False
+
+    @property
+    def scope(self) -> DomainScope:
+        """What this domain is bound to.
+
+        ``repository_only`` without a repository is a server-side
+        contradiction; treating it as repository-scoped would build a URL with
+        no identifying path segment at all, so it degrades to organisation.
+        """
+        if self.repository_only and self.repository:
+            return DomainScope.REPOSITORY
+        return DomainScope.ORGANIZATION
 
 
 def get_cache_dir() -> Path:
@@ -80,6 +100,32 @@ def is_cache_valid(cache_path: Path) -> bool:
         return False
 
 
+def _repository_slug(raw) -> str | None:
+    """Return the repository slug from an API or cache payload.
+
+    The API nests the repository as ``{"name": ..., "slug": ...}``; the cache
+    stores the slug flat.  One reader serves both.
+    """
+    if isinstance(raw, dict):
+        return raw.get("slug") or None
+    if isinstance(raw, str):
+        return raw or None
+    return None
+
+
+def _record_from_payload(raw: dict, org: str) -> CustomDomain:
+    """Build a CustomDomain from an API or cache payload for *org*."""
+    return CustomDomain(
+        host=raw["host"],
+        backend_kind=raw.get("backend_kind"),
+        enabled=bool(raw.get("enabled", False)),
+        validated=bool(raw.get("validated", False)),
+        org=org,
+        repository=_repository_slug(raw.get("repository")),
+        repository_only=bool(raw.get("repository_only", False)),
+    )
+
+
 def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     """
     Read custom domains from cache file.
@@ -96,6 +142,14 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     try:
         with open(cache_path, encoding="utf-8") as f:
             data = json.load(f)
+            if data.get("format_version") != CACHE_FORMAT_VERSION:
+                logger.debug(
+                    "Cache %s has format version %s, expected %s - treating as miss",
+                    cache_path,
+                    data.get("format_version"),
+                    CACHE_FORMAT_VERSION,
+                )
+                return None
             if isinstance(data, dict) and "domains" in data:
                 domains = data["domains"]
                 if isinstance(domains, list):
@@ -110,12 +164,7 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
                         return None
 
                     records = [
-                        CustomDomain(
-                            host=d["host"],
-                            backend_kind=d.get("backend_kind"),
-                            enabled=bool(d.get("enabled", False)),
-                            validated=bool(d.get("validated", False)),
-                        )
+                        _record_from_payload(d, d.get("org", ""))
                         for d in domains
                         if isinstance(d, dict) and d.get("host")
                     ]
@@ -132,12 +181,16 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
 def write_cache(cache_path: Path, domains: list[CustomDomain]) -> None:
     """Write custom domains to cache file."""
     data = {
+        "format_version": CACHE_FORMAT_VERSION,
         "domains": [
             {
                 "host": d.host,
                 "backend_kind": d.backend_kind,
                 "enabled": d.enabled,
                 "validated": d.validated,
+                "org": d.org,
+                "repository": d.repository,
+                "repository_only": d.repository_only,
             }
             for d in domains
         ],
@@ -230,16 +283,7 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
         logger.debug("Failed to fetch custom domains for %s: HTTP %s", org, exc.status)
         return []
 
-    records = [
-        CustomDomain(
-            host=d["host"],
-            backend_kind=d.get("backend_kind"),
-            enabled=bool(d.get("enabled", False)),
-            validated=bool(d.get("validated", False)),
-        )
-        for d in raw_domains
-        if d.get("host")
-    ]
+    records = [_record_from_payload(d, org) for d in raw_domains if d.get("host")]
 
     logger.debug("Fetched %d custom domains for %s", len(records), org)
     write_cache(cache_path, records)

@@ -42,6 +42,30 @@ class DomainType(str, Enum):
     NATIVE_API = "native_api"
 
 
+class DomainScope(str, Enum):
+    """What a custom domain is bound to.
+
+    A custom domain always belongs to one organisation; one that additionally
+    serves a single repository identifies that repository too, so neither
+    appears in its URLs.
+    """
+
+    ORGANIZATION = "organization"
+    REPOSITORY = "repository"
+
+
+def domain_scope(value: str | None) -> DomainScope:
+    """Resolve a persisted scope string, defaulting to organisation.
+
+    An unrecognised value degrades rather than raising: a hand-edited
+    ``package-managers.ini`` must not break every wrapped run.
+    """
+    try:
+        return DomainScope(value)
+    except ValueError:
+        return DomainScope.ORGANIZATION
+
+
 def format_for_backend_kind(backend_kind: int | None) -> str | None:
     """Return the package format a backend kind serves, or None.
 

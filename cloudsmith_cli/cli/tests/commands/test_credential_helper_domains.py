@@ -38,13 +38,14 @@ def hermetic_environment(monkeypatch):
     monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", ["."])
 
 
-def _domain(host, backend_kind, enabled=True, validated=True):
+def _domain(host, backend_kind, enabled=True, validated=True, org="acme"):
     """Build a CustomDomain record for a test."""
     return CustomDomain(
         host=host,
         backend_kind=backend_kind,
         enabled=enabled,
         validated=validated,
+        org=org,
     )
 
 

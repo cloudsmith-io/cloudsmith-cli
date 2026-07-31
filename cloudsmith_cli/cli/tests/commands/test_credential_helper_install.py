@@ -446,13 +446,13 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
 
     cache_path = get_cache_path("acme")
     cached_domain = CustomDomain(
-        host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+        host="docker.acme.com", backend_kind=6, enabled=True, validated=True, org="acme"
     )
     write_cache(cache_path, [cached_domain])
     os.utime(cache_path, (time.time(), time.time()))
 
     fresh_domain = CustomDomain(
-        host="new.acme.com", backend_kind=6, enabled=True, validated=True
+        host="new.acme.com", backend_kind=6, enabled=True, validated=True, org="acme"
     )
     api_calls = []
 

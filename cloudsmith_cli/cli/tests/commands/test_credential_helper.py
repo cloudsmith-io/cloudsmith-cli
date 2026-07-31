@@ -2,6 +2,7 @@
 
 import io
 import json
+import time
 from unittest.mock import patch
 
 import httpretty
@@ -14,6 +15,7 @@ from ....core.api.init import unset_api_key
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.custom_domains import (
+    CACHE_FORMAT_VERSION,
     CustomDomain,
     get_cache_path,
     get_custom_domains,
@@ -21,6 +23,7 @@ from ....credential_helpers.custom_domains import (
     read_cache,
     write_cache,
 )
+from ....credential_helpers.default_domains import DomainScope, domain_scope
 from ....credential_helpers.docker.runtime import (
     _REFUSAL_MESSAGE,
     execute,
@@ -431,8 +434,6 @@ def test_get_custom_domains_bearer_credential_sends_authorization_header(
 )
 def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected):
     """Cache format edge cases: legacy string-list is a miss; empty list is a hit."""
-    import time
-
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
         lambda: str(tmp_path),
@@ -441,9 +442,17 @@ def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected
     cache_path = get_cache_path("acme")
 
     if scenario == "legacy_string_list":
-        data = {"domains": ["docker.acme.com"], "cached_at": time.time()}
+        data = {
+            "format_version": CACHE_FORMAT_VERSION,
+            "domains": ["docker.acme.com"],
+            "cached_at": time.time(),
+        }
     else:
-        data = {"domains": [], "cached_at": time.time()}
+        data = {
+            "format_version": CACHE_FORMAT_VERSION,
+            "domains": [],
+            "cached_at": time.time(),
+        }
 
     cache_path.write_text(json.dumps(data), encoding="utf-8")
     assert read_cache(cache_path) == expected
@@ -546,7 +555,11 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             None,
@@ -562,6 +575,7 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
                     backend_kind=6,
                     enabled=False,
                     validated=True,
+                    org="acme",
                 )
             ],
             None,
@@ -577,6 +591,7 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
                     backend_kind=6,
                     enabled=True,
                     validated=False,
+                    org="acme",
                 )
             ],
             None,
@@ -588,7 +603,11 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             BackendKind.DOCKER,
@@ -600,7 +619,11 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="npm.acme.com", backend_kind=9, enabled=True, validated=True
+                    host="npm.acme.com",
+                    backend_kind=9,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             BackendKind.DOCKER,
@@ -613,7 +636,11 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             BackendKind.DOCKER,
@@ -681,7 +708,11 @@ def test_get_credentials_refuses_npm_custom_domain(tmp_path, monkeypatch):
         cache_path,
         [
             CustomDomain(
-                host="npm.acme.com", backend_kind=9, enabled=True, validated=True
+                host="npm.acme.com",
+                backend_kind=9,
+                enabled=True,
+                validated=True,
+                org="acme",
             )
         ],
     )
@@ -692,3 +723,145 @@ def test_get_credentials_refuses_npm_custom_domain(tmp_path, monkeypatch):
     )
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# 11. Custom domain repository scope
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "repository,repository_only,expected",
+    [
+        ("prod", True, DomainScope.REPOSITORY),
+        ("prod", False, DomainScope.ORGANIZATION),
+        # repository_only with no repository is a server-side contradiction:
+        # honouring it would build a URL with no identifying segment at all.
+        (None, True, DomainScope.ORGANIZATION),
+        (None, False, DomainScope.ORGANIZATION),
+    ],
+)
+def test_custom_domain_scope(repository, repository_only, expected):
+    """A domain is repository-scoped only when it names a repo and is bound to it."""
+    domain = CustomDomain(
+        host="dl-prod.acme.com",
+        backend_kind=None,
+        enabled=True,
+        validated=True,
+        org="acme",
+        repository=repository,
+        repository_only=repository_only,
+    )
+    assert domain.scope is expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("repository", DomainScope.REPOSITORY),
+        ("organization", DomainScope.ORGANIZATION),
+        # A hand-edited config must not break every wrapped run.
+        ("nonsense", DomainScope.ORGANIZATION),
+        (None, DomainScope.ORGANIZATION),
+        ("", DomainScope.ORGANIZATION),
+    ],
+)
+def test_domain_scope_resolves_persisted_values(value, expected):
+    """A persisted scope string resolves, degrading to organisation."""
+    assert domain_scope(value) is expected
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_parses_repository_scope(tmp_path, monkeypatch):
+    """The nested repository payload and repository_only reach the record."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps(
+            [
+                {
+                    "host": "dl-prod.acme.com",
+                    "backend_kind": None,
+                    "enabled": True,
+                    "validated": True,
+                    "repository": {"name": "Prod", "slug": "prod"},
+                    "repository_only": True,
+                },
+                {
+                    "host": "dl.acme.com",
+                    "backend_kind": None,
+                    "enabled": True,
+                    "validated": True,
+                    "repository": None,
+                    "repository_only": False,
+                },
+            ]
+        ),
+        status=200,
+        content_type="application/json",
+    )
+
+    records = get_custom_domains(
+        "acme",
+        credential=CredentialResult(api_key="k_abc", source_name="test"),
+        api_host=API_HOST,
+    )
+
+    by_host = {record.host: record for record in records}
+    assert by_host["dl-prod.acme.com"].repository == "prod"
+    assert by_host["dl-prod.acme.com"].scope is DomainScope.REPOSITORY
+    assert by_host["dl-prod.acme.com"].org == "acme"
+    assert by_host["dl.acme.com"].repository is None
+    assert by_host["dl.acme.com"].scope is DomainScope.ORGANIZATION
+
+
+def test_custom_domain_cache_round_trips_scope(tmp_path):
+    """Scope survives the cache: a miss here would build wrong URLs for 7 days."""
+    cache_path = tmp_path / "acme.json"
+    domains = [
+        CustomDomain(
+            host="dl-prod.acme.com",
+            backend_kind=None,
+            enabled=True,
+            validated=True,
+            org="acme",
+            repository="prod",
+            repository_only=True,
+        )
+    ]
+
+    write_cache(cache_path, domains)
+
+    assert read_cache(cache_path) == domains
+
+
+def test_custom_domain_cache_rejects_an_older_format_version(tmp_path):
+    """A pre-scope cache document is a miss, not an organisation-scoped record.
+
+    Serving it would report a repository-scoped domain as organisation-wide
+    for the whole TTL.
+    """
+    cache_path = tmp_path / "acme.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "format_version": 1,
+                "cached_at": time.time(),
+                "domains": [
+                    {
+                        "host": "dl-prod.acme.com",
+                        "backend_kind": None,
+                        "enabled": True,
+                        "validated": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert read_cache(cache_path) is None
