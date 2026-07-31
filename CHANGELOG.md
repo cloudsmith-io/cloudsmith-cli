@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-08-03
+
+### Added
+
+- `cloudsmith credential-helper generic` resolves a credential through the full provider chain (API key, `credentials.ini`, system keyring, OIDC) and emits it as a versioned JSON document — `{"version": 1, "username": "token", "password": "<token>"}` — for tools that shell out to the CLI rather than importing it. It takes no arguments: a Cloudsmith token is organisation-wide, so the host it will be used against does not change which credential resolves. Errors exit non-zero with a message on stderr and never emit a partial document.
+
 ## [1.20.2] - 2026-07-31
 
 ### Fixed
