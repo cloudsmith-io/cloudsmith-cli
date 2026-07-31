@@ -10,6 +10,7 @@ from . import (
     docs,
     download,
     entitlements,
+    exec_,
     help_,
     list_,
     login,
