@@ -14,9 +14,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ...cli.config import get_default_config_path
+from ..backends import BackendKind
+from ..default_domains import CDN_HOST, builtin_host
 
-DEFAULT_CDN_HOST = "dl.cloudsmith.io"
-DEFAULT_UPLOAD_HOST = "maven.cloudsmith.io"
+DEFAULT_CDN_HOST = CDN_HOST
+DEFAULT_UPLOAD_HOST = builtin_host(BackendKind.MAVEN)
 DEFAULT_REGISTRY_ID = "cloudsmith"
 DEFAULT_API_HOST = "https://api.cloudsmith.io"
 
