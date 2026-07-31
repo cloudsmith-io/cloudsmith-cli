@@ -233,10 +233,12 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
             results to a user (``credential-helper domains``), which must not
             render a typo'd org, a missing permission or an unreachable API as
             "no custom domains". A 402 still returns ``[]`` even in strict
-            mode — the feature being disabled genuinely means there are none.
-            Failures are never cached, so a strict lookup can be served from
-            the cache without risking a cached failure being reported as
-            success.
+            mode — the feature being disabled genuinely means there are none,
+            and that answer is cached like any other result. Everything else
+            that could later succeed (auth failures, a missing org, a
+            transient error) is never cached, so a strict lookup can be
+            served from the cache without risking a cached failure being
+            reported as success.
 
     Returns:
         List of CustomDomain records.
@@ -277,8 +279,12 @@ def get_custom_domains(  # pylint: disable=too-many-return-statements
             return []
 
         if exc.status == 402:
-            # Custom domains product feature not enabled - treat as none.
+            # Unlike 404 (org not found - probably a typo, must fail loudly
+            # every time) a 402 is a stable, correct answer: the product
+            # feature isn't enabled for this org. Caching it avoids hitting
+            # the API on every invocation forever.
             logger.debug("Custom domains not enabled for %s", org)
+            write_cache(cache_path, [])
             return []
 
         logger.debug("Failed to fetch custom domains for %s: HTTP %s", org, exc.status)

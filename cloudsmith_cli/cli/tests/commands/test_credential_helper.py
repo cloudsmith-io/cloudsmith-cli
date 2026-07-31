@@ -243,9 +243,10 @@ def _cache_dir(tmp_path, monkeypatch):
     [
         # 200 → records built and cached
         (200, True, True),
-        # 402 → [] but NOT cached (feature not enabled)
-        (402, False, False),
-        # 404 → [] but NOT cached (org not found)
+        # 402 → [] and cached (feature not enabled - a stable answer)
+        (402, False, True),
+        # 404 → [] but NOT cached (org not found - probably a typo, must
+        # fail loudly every time rather than replay a cached failure)
         (404, False, False),
         # 403 → [] but NOT cached (may succeed after auth)
         (403, False, False),
@@ -384,6 +385,36 @@ def test_get_custom_domains_does_not_cache_a_failure(tmp_path, monkeypatch):
         get_custom_domains(
             "my-ogr", credential=credential, api_host=API_HOST, strict=True
         )
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_caches_a_402(tmp_path, monkeypatch):
+    """A 402 (feature not enabled) is a stable answer, not a failure.
+
+    Unlike a 404, it is cached: the org's product entitlement isn't going to
+    change between one credential-helper invocation and the next, so caching
+    it avoids hitting the API forever. A second lookup within the TTL must
+    be served from the cache, not a second request.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps({"detail": "payment required"}),
+        status=402,
+        content_type="application/json",
+    )
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+
+    assert get_custom_domains("acme", credential=credential, api_host=API_HOST) == []
+    assert read_cache(get_cache_path("acme")) == []
+    assert len(httpretty.latest_requests()) == 1
+
+    assert get_custom_domains("acme", credential=credential, api_host=API_HOST) == []
+    assert len(httpretty.latest_requests()) == 1
 
 
 def test_get_custom_domains_strict_is_served_from_cache(tmp_path, monkeypatch):
