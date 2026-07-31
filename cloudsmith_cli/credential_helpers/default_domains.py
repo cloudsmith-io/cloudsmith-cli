@@ -11,7 +11,9 @@ searched in the current working directory first (``cli/config.py``), so a
 ``config.ini`` committed to a repository is attacker-controlled input; this
 module therefore never reads the domain table from a directory-relative
 config, mirroring the split ``_guard_untrusted_endpoints``
-(``cli/decorators.py``) already applies to ``api_host``/``api_proxy``.
+(``cli/decorators.py``) already applies to ``api_host``/``api_proxy``. An
+explicit ``--config-file`` is a user's direct statement of trust regardless of
+where it lives, so it is honoured ahead of the search-path locations.
 """
 
 from __future__ import annotations
@@ -239,8 +241,8 @@ def _config_candidates(*, trusted: bool) -> list[Path]:
     Absolute filenames are skipped: ``load_config`` prepends an explicit
     ``--config-file`` to ``config_files``, and joining an absolute path onto a
     search directory would yield that path under every location - handing a
-    trusted file to the untrusted scan. Callers receive an explicit config
-    directly instead (see :func:`load_default_domains`).
+    trusted file to the untrusted scan. Such an entry is read directly as a
+    trusted candidate instead, by :func:`_explicit_config_candidate`.
     """
     filenames = [
         filename
@@ -255,14 +257,39 @@ def _config_candidates(*, trusted: bool) -> list[Path]:
     ]
 
 
+def _explicit_config_candidate() -> Path | None:
+    """Return the explicit ``--config-file`` entry in ``config_files``, if any.
+
+    When ``--config-file`` names a file (rather than a directory),
+    ``ConfigReader.load_config`` prepends its absolute path to
+    ``config_files``; a directory is prepended to ``config_searchpath``
+    instead, already covered by the trusted search-path scan in
+    :func:`_config_candidates`. Such an entry is explicit user intent, so it
+    is read directly as trusted rather than through the search-directory join
+    that ``_config_candidates`` deliberately excludes absolute filenames from.
+    """
+    for filename in ConfigReader.config_files:
+        if os.path.isabs(filename):
+            return Path(filename)
+    return None
+
+
 def _trusted_domains() -> list[DefaultDomain] | None:
     """Return the [domains] table from the first trusted config declaring one.
 
+    An explicit ``--config-file`` is checked first, ahead of the search-path
+    candidates - it is the most specific statement of trust available.
     Existence alone is not enough: a trusted ``config.ini`` holding only
     ``[default]`` api settings must not mask a ``[domains]`` section in a
     later candidate.
     """
-    for candidate in _config_candidates(trusted=True):
+    candidates = []
+    explicit = _explicit_config_candidate()
+    if explicit is not None:
+        candidates.append(explicit)
+    candidates.extend(_config_candidates(trusted=True))
+
+    for candidate in candidates:
         domains = _domains_from_config(candidate)
         if domains is not None:
             return domains
@@ -303,8 +330,9 @@ def _domains_from_config(path: Path) -> list[DefaultDomain] | None:
 def load_default_domains(config_path: Path | str | None = None) -> list[DefaultDomain]:
     """Return the default domain table, honouring a trusted config override.
 
-    When `config_path` is given, that file is read directly. Otherwise
-    `config.ini` is looked up in ConfigReader's absolute search locations only,
+    When `config_path` is given, that file is read directly. Otherwise, an
+    explicit ``--config-file`` naming a file is read first if present,
+    followed by `config.ini` in ConfigReader's absolute search locations -
     never the current working directory. A malformed or unreadable file falls
     back to the built-in table.
     """

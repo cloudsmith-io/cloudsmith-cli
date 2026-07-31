@@ -223,6 +223,32 @@ def test_absolute_config_file_is_not_scanned_as_untrusted(tmp_path, monkeypatch)
     assert untrusted_config_declares_domains() is False
 
 
+def test_explicit_config_file_is_honoured_as_trusted(tmp_path, monkeypatch):
+    """An explicit --config-file's [domains] table is honoured, like -C <dir>.
+
+    load_config prepends an explicit --config-file naming a file to
+    ConfigReader.config_files as an absolute path. _config_candidates skips
+    absolute filenames (to protect the untrusted scan), which must not also
+    make the no-argument load_default_domains() path drop it - CHANGELOG
+    promises an explicit --config-file is honoured, and -C <dir> already
+    works.
+    """
+    monkeypatch.chdir(tmp_path)
+    explicit = tmp_path / "on-prem.ini"
+    explicit.write_text(
+        "[domains]\ncdn.internal.example.com =\nmvn.internal.example.com = maven\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli_config.ConfigReader, "config_files", [str(explicit), "config.ini"]
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", ["."])
+
+    assert default_host_for_type(DomainType.DOWNLOAD) == "cdn.internal.example.com"
+    assert default_host(BackendKind.MAVEN) == "mvn.internal.example.com"
+    assert untrusted_config_declares_domains() is False
+
+
 @pytest.mark.parametrize(
     "host,domain_type",
     [
