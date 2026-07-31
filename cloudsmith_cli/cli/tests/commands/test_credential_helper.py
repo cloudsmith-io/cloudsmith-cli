@@ -865,3 +865,23 @@ def test_custom_domain_cache_rejects_an_older_format_version(tmp_path):
     )
 
     assert read_cache(cache_path) is None
+
+
+@pytest.mark.parametrize(
+    "top_level",
+    [
+        [],
+        ["dl.acme.com"],
+    ],
+)
+def test_custom_domain_cache_rejects_a_non_dict_document(tmp_path, top_level):
+    """A cache file whose top-level JSON is a list is a miss, not a crash.
+
+    A hand-edited or corrupted cache file isn't bound by what this codebase
+    writes; ``.get`` on a list would raise before the version gate got a
+    chance to degrade it to a miss.
+    """
+    cache_path = tmp_path / "acme.json"
+    cache_path.write_text(json.dumps(top_level), encoding="utf-8")
+
+    assert read_cache(cache_path) is None

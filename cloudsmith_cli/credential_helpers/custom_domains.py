@@ -142,7 +142,10 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     try:
         with open(cache_path, encoding="utf-8") as f:
             data = json.load(f)
-            if data.get("format_version") != CACHE_FORMAT_VERSION:
+            if (
+                isinstance(data, dict)
+                and data.get("format_version") != CACHE_FORMAT_VERSION
+            ):
                 logger.debug(
                     "Cache %s has format version %s, expected %s - treating as miss",
                     cache_path,
