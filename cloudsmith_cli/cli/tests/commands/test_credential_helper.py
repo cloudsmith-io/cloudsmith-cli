@@ -9,6 +9,7 @@ import httpretty.core
 import pytest
 
 from ....cli.commands.credential_helper.docker import docker
+from ....core.api.exceptions import ApiException
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.custom_domains import (
@@ -298,6 +299,50 @@ def test_get_custom_domains_status_matrix(
     # For the 200 case specifically, verify the auth header (X-Api-Key)
     if status == 200:
         assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
+
+
+@pytest.mark.parametrize(
+    "status,expect_raise",
+    [
+        (200, False),
+        # 402 genuinely means "no custom domains" (feature not enabled).
+        (402, False),
+        (401, True),
+        (403, True),
+        (404, True),
+        (500, True),
+    ],
+)
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_strict_raises_on_failure(
+    tmp_path, monkeypatch, status, expect_raise
+):
+    """strict=True re-raises failures instead of degrading to [].
+
+    Consumers presenting results to a user (`credential-helper domains`) must
+    not render a typo'd org or an unreachable API as "no custom domains".
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    body = json.dumps([]) if status == 200 else json.dumps({"detail": "error"})
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=body,
+        status=status,
+        content_type="application/json",
+    )
+
+    if expect_raise:
+        with pytest.raises(ApiException):
+            get_custom_domains("acme", api_key="k_abc", api_host=API_HOST, strict=True)
+    else:
+        result = get_custom_domains(
+            "acme", api_key="k_abc", api_host=API_HOST, strict=True
+        )
+        assert result == []
 
 
 # ---------------------------------------------------------------------------
