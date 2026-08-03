@@ -226,8 +226,8 @@ def show(ctx, opts):
 
     if credential is None:
         click.secho(
-            "No credentials could be resolved. Try getting your API key via "
-            "'cloudsmith token', or access token via 'cloudsmith auth', or "
+            "No credentials could be resolved. Try 'cloudsmith auth' (or "
+            "'cloudsmith auth --request-api-key'), set CLOUDSMITH_API_KEY, or "
             "set CLOUDSMITH_ORG and CLOUDSMITH_SERVICE_SLUG to use OIDC "
             "auto-discovery, then try again.",
             fg="red",
