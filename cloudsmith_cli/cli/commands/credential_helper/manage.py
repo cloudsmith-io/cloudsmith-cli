@@ -139,12 +139,6 @@ def install_cmd(
     """
     installer = _get_installer(helper)
     org = org or os.environ.get("CLOUDSMITH_ORG", "").strip() or None
-    api_key = opts.credential.api_key if opts.credential else None
-    auth_type = (
-        getattr(opts.credential, "auth_type", "api_key")
-        if opts.credential
-        else "api_key"
-    )
     try:
         actions = installer.install(
             bin_dir=bin_dir,
@@ -153,8 +147,7 @@ def install_cmd(
             discover=not no_discover,
             refresh=refresh,
             org=org,
-            api_key=api_key,
-            auth_type=auth_type,
+            credential=opts.credential,
             api_host=opts.api_host,
         )
     except OSError as exc:

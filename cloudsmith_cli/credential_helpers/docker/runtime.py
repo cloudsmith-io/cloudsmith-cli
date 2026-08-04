@@ -45,8 +45,7 @@ def get_credentials(server_url, credential=None, api_host=None):
 
     if not is_cloudsmith_domain(
         server_url,
-        api_key=credential.api_key,
-        auth_type=getattr(credential, "auth_type", "api_key"),
+        credential=credential,
         api_host=api_host,
         backend_kind=BackendKind.DOCKER,
     ):

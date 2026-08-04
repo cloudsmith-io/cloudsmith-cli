@@ -9,8 +9,10 @@ import httpretty.core
 import pytest
 
 from ....cli.commands.credential_helper.docker import docker
+from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
+from ....credential_helpers.common import is_cloudsmith_domain
 from ....credential_helpers.custom_domains import (
     CustomDomain,
     get_cache_path,
@@ -157,8 +159,9 @@ def test_get_credentials(server_url, credential, is_cloudsmith_return, expected)
         with patch(
             "cloudsmith_cli.credential_helpers.docker.runtime.is_cloudsmith_domain",
             return_value=is_cloudsmith_return,
-        ):
+        ) as mock_check:
             result = helper_get_credentials(server_url, credential=credential)
+        assert mock_check.call_args.kwargs["credential"] is credential
 
     assert result == expected
 
@@ -281,7 +284,8 @@ def test_get_custom_domains_status_matrix(
         content_type="application/json",
     )
 
-    result = get_custom_domains("acme", api_key="k_abc", api_host=API_HOST)
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+    result = get_custom_domains("acme", credential=credential, api_host=API_HOST)
     cache = read_cache(get_cache_path("acme"))
 
     if expect_domains:
@@ -298,6 +302,43 @@ def test_get_custom_domains_status_matrix(
     # For the 200 case specifically, verify the auth header (X-Api-Key)
     if status == 200:
         assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_bearer_credential_sends_authorization_header(
+    tmp_path, monkeypatch
+):
+    """A bearer credential authenticates the lookup with its own header scheme.
+
+    The credential object flows through to the API layer unmodified, so an
+    SSO access token goes out as ``Authorization: Bearer``, never ``X-Api-Key``.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps([]),
+        status=200,
+        content_type="application/json",
+    )
+
+    # A previously configured API key must not leak into a bearer-authenticated
+    # request: initialise_api clears the class-default X-Api-Key when switching.
+    initialise_api(
+        host=API_HOST,
+        credential=CredentialResult(api_key="k_stale", source_name="test"),
+    )
+    credential = CredentialResult(
+        api_key="jwt_token", source_name="test", auth_type="bearer"
+    )
+    get_custom_domains("acme", credential=credential, api_host=API_HOST)
+
+    headers = httpretty.last_request().headers
+    assert headers.get("Authorization") == "Bearer jwt_token"
+    assert headers.get("X-Api-Key") is None
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +442,10 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
     )
 
     hosts = get_format_domains(
-        "acme", BackendKind.DOCKER, api_key="k", api_host=API_HOST
+        "acme",
+        BackendKind.DOCKER,
+        credential=CredentialResult(api_key="k", source_name="test"),
+        api_host=API_HOST,
     )
 
     assert hosts == ["docker.acme.com"]
@@ -507,8 +551,6 @@ def test_is_cloudsmith_domain(
     tmp_path, monkeypatch, host, env_org, cached_domains, backend_kind, expected
 ):
     """is_cloudsmith_domain returns correct bool for standard, custom, and edge cases."""
-    from ....credential_helpers.common import is_cloudsmith_domain
-
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
         lambda: str(tmp_path),
@@ -522,12 +564,51 @@ def test_is_cloudsmith_domain(
     if cached_domains is not None:
         write_cache(get_cache_path(env_org), cached_domains)
 
-    kwargs = {"api_key": "k_abc", "api_host": API_HOST}
+    kwargs = {
+        "credential": CredentialResult(api_key="k_abc", source_name="test"),
+        "api_host": API_HOST,
+    }
     if backend_kind is not None:
         kwargs["backend_kind"] = backend_kind
 
     result = is_cloudsmith_domain(host, **kwargs)
     assert result is expected
+
+
+@pytest.mark.parametrize(
+    "credential",
+    [
+        # no credential at all
+        None,
+        # a credential carrying no usable key — truthy as an object, so the
+        # guard has to look at api_key, not just the credential
+        CredentialResult(api_key="", source_name="test"),
+    ],
+)
+@httpretty.activate(allow_net_connect=False)
+def test_is_cloudsmith_domain_custom_domain_without_credential(
+    tmp_path, monkeypatch, credential
+):
+    """A custom-domain check without a usable credential refuses without an API call."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+    called = []
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+        lambda *_a, **_kw: called.append(True) or [],
+    )
+
+    assert (
+        is_cloudsmith_domain(
+            "docker.acme.com", credential=credential, api_host=API_HOST
+        )
+        is False
+    )
+    assert not called, "the custom-domain API must not be queried without a credential"
 
 
 # ---------------------------------------------------------------------------

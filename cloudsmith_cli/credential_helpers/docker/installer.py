@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from ...core.cache_utils import merge_json_file
+from ...core.credentials.models import CredentialResult
 from ..backends import BackendKind
 from ..custom_domains import get_format_domains
 from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
@@ -80,8 +81,7 @@ class DockerInstaller:
         discover: bool = True,
         refresh: bool = False,
         org: str | None = None,
-        api_key: str | None = None,
-        auth_type: str = "api_key",
+        credential: CredentialResult | None = None,
         api_host: str | None = None,
         dry_run: bool = False,
     ) -> list[str]:
@@ -107,10 +107,8 @@ class DockerInstaller:
             the API.  Only meaningful when *discover* is also ``True``.
         org:
             Cloudsmith organisation slug used for custom-domain discovery.
-        api_key:
-            API key used for custom-domain discovery.
-        auth_type:
-            Credential type: ``"api_key"`` (default) or ``"bearer"``.
+        credential:
+            Resolved credential used for custom-domain discovery.
         api_host:
             Cloudsmith API host URL override.
         dry_run:
@@ -133,7 +131,11 @@ class DockerInstaller:
 
         # --- Custom-domain auto-discovery (best-effort) ---
         if discover:
-            if org and api_key:
+            if dry_run:
+                # Discovery queries the API and refreshes the on-disk domain
+                # cache, neither of which a "no changes" preview may do.
+                actions.append("skipped custom-domain auto-discovery (dry run)")
+            elif org and credential and credential.api_key:
                 # Discovery boundary: network/SDK errors must never abort the
                 # default install.  ApiException is already handled inside
                 # get_format_domains; this broad catch is the deliberate outer
@@ -144,8 +146,7 @@ class DockerInstaller:
                     discovered = get_format_domains(
                         org,
                         BackendKind.DOCKER,
-                        api_key=api_key,
-                        auth_type=auth_type,
+                        credential=credential,
                         api_host=api_host,
                         refresh=refresh,
                     )
