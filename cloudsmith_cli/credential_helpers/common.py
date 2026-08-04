@@ -83,7 +83,7 @@ def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None)
     if not org:
         return False
 
-    if not credential:
+    if not credential or not credential.api_key:
         return False
 
     if backend_kind is not None:

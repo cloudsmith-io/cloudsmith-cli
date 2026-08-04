@@ -12,6 +12,7 @@ from ....cli.commands.credential_helper.docker import docker
 from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
+from ....credential_helpers.common import is_cloudsmith_domain
 from ....credential_helpers.custom_domains import (
     CustomDomain,
     get_cache_path,
@@ -550,8 +551,6 @@ def test_is_cloudsmith_domain(
     tmp_path, monkeypatch, host, env_org, cached_domains, backend_kind, expected
 ):
     """is_cloudsmith_domain returns correct bool for standard, custom, and edge cases."""
-    from ....credential_helpers.common import is_cloudsmith_domain
-
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
         lambda: str(tmp_path),
@@ -576,13 +575,40 @@ def test_is_cloudsmith_domain(
     assert result is expected
 
 
-def test_is_cloudsmith_domain_custom_domain_without_credential(monkeypatch):
-    """A custom-domain check without a credential refuses without an API call."""
-    from ....credential_helpers.common import is_cloudsmith_domain
-
+@pytest.mark.parametrize(
+    "credential",
+    [
+        # no credential at all
+        None,
+        # a credential carrying no usable key — truthy as an object, so the
+        # guard has to look at api_key, not just the credential
+        CredentialResult(api_key="", source_name="test"),
+    ],
+)
+@httpretty.activate(allow_net_connect=False)
+def test_is_cloudsmith_domain_custom_domain_without_credential(
+    tmp_path, monkeypatch, credential
+):
+    """A custom-domain check without a usable credential refuses without an API call."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
     monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
 
-    assert is_cloudsmith_domain("docker.acme.com", api_host=API_HOST) is False
+    called = []
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+        lambda *_a, **_kw: called.append(True) or [],
+    )
+
+    assert (
+        is_cloudsmith_domain(
+            "docker.acme.com", credential=credential, api_host=API_HOST
+        )
+        is False
+    )
+    assert not called, "the custom-domain API must not be queried without a credential"
 
 
 # ---------------------------------------------------------------------------
