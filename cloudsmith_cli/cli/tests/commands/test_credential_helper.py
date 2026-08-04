@@ -9,7 +9,7 @@ import httpretty.core
 import pytest
 
 from ....cli.commands.credential_helper.docker import docker
-from ....core.api.init import unset_api_key
+from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.custom_domains import (
@@ -324,9 +324,12 @@ def test_get_custom_domains_bearer_credential_sends_authorization_header(
         content_type="application/json",
     )
 
-    # initialise_api never clears the class-default api_key dict, so an
-    # X-Api-Key set by an earlier test would otherwise leak into this request.
-    unset_api_key()
+    # A previously configured API key must not leak into a bearer-authenticated
+    # request: initialise_api clears the class-default X-Api-Key when switching.
+    initialise_api(
+        host=API_HOST,
+        credential=CredentialResult(api_key="k_stale", source_name="test"),
+    )
     credential = CredentialResult(
         api_key="jwt_token", source_name="test", auth_type="bearer"
     )

@@ -43,6 +43,9 @@ def initialise_api(
 
     if credential:
         if credential.auth_type == "bearer":
+            # set_default() makes api_key sticky across calls, so an X-Api-Key
+            # left by an earlier credential would ride along with the bearer token.
+            config.api_key.pop("X-Api-Key", None)
             config.headers["Authorization"] = f"Bearer {credential.api_key}"
             if config.debug:
                 click.echo("SSO access token config value set")
