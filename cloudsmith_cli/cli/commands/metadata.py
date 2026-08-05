@@ -252,7 +252,7 @@ def list_metadata(
     "source_identity",
     default=None,
     help=(
-        "Identifier for the metadata source. " "Defaults to 'cloudsmith-cli@<version>'."
+        "Identifier for the metadata source. Defaults to 'cloudsmith-cli@<version>'."
     ),
 )
 @click.pass_context
@@ -358,8 +358,7 @@ def add_metadata(
     "inline_content",
     default=None,
     help=(
-        "Set replacement metadata content from inline JSON. Cannot be used with "
-        "--file."
+        "Set replacement metadata content from inline JSON. Cannot be used with --file."
     ),
 )
 @click.option(
