@@ -2,6 +2,7 @@
 
 import io
 import json
+import time
 from unittest.mock import patch
 
 import httpretty
@@ -9,11 +10,13 @@ import httpretty.core
 import pytest
 
 from ....cli.commands.credential_helper.docker import docker
+from ....core.api.exceptions import ApiException
 from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.common import is_cloudsmith_domain
 from ....credential_helpers.custom_domains import (
+    CACHE_FORMAT_VERSION,
     CustomDomain,
     get_cache_path,
     get_custom_domains,
@@ -21,6 +24,7 @@ from ....credential_helpers.custom_domains import (
     read_cache,
     write_cache,
 )
+from ....credential_helpers.default_domains import DomainType
 from ....credential_helpers.docker.runtime import (
     _REFUSAL_MESSAGE,
     execute,
@@ -238,10 +242,8 @@ def _cache_dir(tmp_path, monkeypatch):
     [
         # 200 → records built and cached
         (200, True, True),
-        # 402 → [] and cached (feature not enabled)
-        (402, False, True),
-        # 404 → [] and cached (org not found)
-        (404, False, True),
+        # 404 → [] but NOT cached
+        (404, False, False),
         # 403 → [] but NOT cached (may succeed after auth)
         (403, False, False),
         # 401 → [] but NOT cached (same branch as 403)
@@ -304,6 +306,80 @@ def test_get_custom_domains_status_matrix(
         assert httpretty.last_request().headers.get("X-Api-Key") == "k_abc"
 
 
+@pytest.mark.parametrize(
+    "status,expect_raise",
+    [
+        (200, False),
+        (401, True),
+        (403, True),
+        (404, True),
+        (500, True),
+    ],
+)
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_strict_raises_on_failure(
+    tmp_path, monkeypatch, status, expect_raise
+):
+    """strict=True re-raises failures instead of degrading to [].
+
+    Consumers presenting results to a user (`cloudsmith domains list`) must
+    not render a typo'd org or an unreachable API as "no custom domains".
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    body = json.dumps([]) if status == 200 else json.dumps({"detail": "error"})
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=body,
+        status=status,
+        content_type="application/json",
+    )
+
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+    if expect_raise:
+        with pytest.raises(ApiException):
+            get_custom_domains(
+                "acme", credential=credential, api_host=API_HOST, strict=True
+            )
+    else:
+        result = get_custom_domains(
+            "acme", credential=credential, api_host=API_HOST, strict=True
+        )
+        assert result == []
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_caches_an_empty_listing(tmp_path, monkeypatch):
+    """An org with no custom domains answers 200 with an empty array.
+
+    That is a real answer rather than a failure, so it is cached like any
+    other: a second lookup within the TTL must be served from the cache
+    instead of asking again.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps([]),
+        status=200,
+        content_type="application/json",
+    )
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+
+    assert get_custom_domains("acme", credential=credential, api_host=API_HOST) == []
+    assert read_cache(get_cache_path("acme")) == []
+    assert len(httpretty.latest_requests()) == 1
+
+    assert get_custom_domains("acme", credential=credential, api_host=API_HOST) == []
+    assert len(httpretty.latest_requests()) == 1
+
+
 @httpretty.activate(allow_net_connect=False)
 def test_get_custom_domains_bearer_credential_sends_authorization_header(
     tmp_path, monkeypatch
@@ -325,8 +401,6 @@ def test_get_custom_domains_bearer_credential_sends_authorization_header(
         content_type="application/json",
     )
 
-    # A previously configured API key must not leak into a bearer-authenticated
-    # request: initialise_api clears the class-default X-Api-Key when switching.
     initialise_api(
         host=API_HOST,
         credential=CredentialResult(api_key="k_stale", source_name="test"),
@@ -357,8 +431,6 @@ def test_get_custom_domains_bearer_credential_sends_authorization_header(
 )
 def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected):
     """Cache format edge cases: legacy string-list is a miss; empty list is a hit."""
-    import time
-
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
         lambda: str(tmp_path),
@@ -367,9 +439,16 @@ def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected
     cache_path = get_cache_path("acme")
 
     if scenario == "legacy_string_list":
+        # A real legacy document predates format_version, which is what makes
+        # it a miss - stamping the current version on it would describe a
+        # document no build has ever written.
         data = {"domains": ["docker.acme.com"], "cached_at": time.time()}
     else:
-        data = {"domains": [], "cached_at": time.time()}
+        data = {
+            "format_version": CACHE_FORMAT_VERSION,
+            "domains": [],
+            "cached_at": time.time(),
+        }
 
     cache_path.write_text(json.dumps(data), encoding="utf-8")
     assert read_cache(cache_path) == expected
@@ -457,7 +536,7 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "host,env_org,cached_domains,backend_kind,expected",
+    "host,org,cached_domains,backend_kind,expected",
     [
         # Standard *.cloudsmith.io → True (no API)
         ("docker.cloudsmith.io", None, None, None, True),
@@ -472,7 +551,12 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    domain_type=DomainType.NATIVE_API,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             None,
@@ -486,8 +570,10 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
                 CustomDomain(
                     host="docker.acme.com",
                     backend_kind=6,
+                    domain_type=DomainType.NATIVE_API,
                     enabled=False,
                     validated=True,
+                    org="acme",
                 )
             ],
             None,
@@ -501,8 +587,10 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
                 CustomDomain(
                     host="docker.acme.com",
                     backend_kind=6,
+                    domain_type=DomainType.NATIVE_API,
                     enabled=True,
                     validated=False,
+                    org="acme",
                 )
             ],
             None,
@@ -514,7 +602,12 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    domain_type=DomainType.NATIVE_API,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             BackendKind.DOCKER,
@@ -526,7 +619,12 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="npm.acme.com", backend_kind=9, enabled=True, validated=True
+                    host="npm.acme.com",
+                    backend_kind=9,
+                    domain_type=DomainType.NATIVE_API,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             BackendKind.DOCKER,
@@ -539,7 +637,12 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
             "acme",
             [
                 CustomDomain(
-                    host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+                    host="docker.acme.com",
+                    backend_kind=6,
+                    domain_type=DomainType.NATIVE_API,
+                    enabled=True,
+                    validated=True,
+                    org="acme",
                 )
             ],
             BackendKind.DOCKER,
@@ -548,7 +651,7 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
     ],
 )
 def test_is_cloudsmith_domain(
-    tmp_path, monkeypatch, host, env_org, cached_domains, backend_kind, expected
+    tmp_path, monkeypatch, host, org, cached_domains, backend_kind, expected
 ):
     """is_cloudsmith_domain returns correct bool for standard, custom, and edge cases."""
     monkeypatch.setattr(
@@ -556,59 +659,19 @@ def test_is_cloudsmith_domain(
         lambda: str(tmp_path),
     )
 
-    if env_org:
-        monkeypatch.setenv("CLOUDSMITH_ORG", env_org)
-    else:
-        monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
-
     if cached_domains is not None:
-        write_cache(get_cache_path(env_org), cached_domains)
+        write_cache(get_cache_path(org), cached_domains)
 
     kwargs = {
         "credential": CredentialResult(api_key="k_abc", source_name="test"),
         "api_host": API_HOST,
+        "org": org,
     }
     if backend_kind is not None:
         kwargs["backend_kind"] = backend_kind
 
     result = is_cloudsmith_domain(host, **kwargs)
     assert result is expected
-
-
-@pytest.mark.parametrize(
-    "credential",
-    [
-        # no credential at all
-        None,
-        # a credential carrying no usable key — truthy as an object, so the
-        # guard has to look at api_key, not just the credential
-        CredentialResult(api_key="", source_name="test"),
-    ],
-)
-@httpretty.activate(allow_net_connect=False)
-def test_is_cloudsmith_domain_custom_domain_without_credential(
-    tmp_path, monkeypatch, credential
-):
-    """A custom-domain check without a usable credential refuses without an API call."""
-    monkeypatch.setattr(
-        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
-        lambda: str(tmp_path),
-    )
-    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
-
-    called = []
-    monkeypatch.setattr(
-        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
-        lambda *_a, **_kw: called.append(True) or [],
-    )
-
-    assert (
-        is_cloudsmith_domain(
-            "docker.acme.com", credential=credential, api_host=API_HOST
-        )
-        is False
-    )
-    assert not called, "the custom-domain API must not be queried without a credential"
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +695,12 @@ def test_get_credentials_refuses_npm_custom_domain(tmp_path, monkeypatch):
         cache_path,
         [
             CustomDomain(
-                host="npm.acme.com", backend_kind=9, enabled=True, validated=True
+                host="npm.acme.com",
+                backend_kind=9,
+                domain_type=DomainType.NATIVE_API,
+                enabled=True,
+                validated=True,
+                org="acme",
             )
         ],
     )

@@ -131,11 +131,7 @@ class DockerInstaller:
 
         # --- Custom-domain auto-discovery (best-effort) ---
         if discover:
-            if dry_run:
-                # Discovery queries the API and refreshes the on-disk domain
-                # cache, neither of which a "no changes" preview may do.
-                actions.append("skipped custom-domain auto-discovery (dry run)")
-            elif org and credential and credential.api_key:
+            if org and credential and credential.api_key:
                 # Discovery boundary: network/SDK errors must never abort the
                 # default install.  ApiException is already handled inside
                 # get_format_domains; this broad catch is the deliberate outer

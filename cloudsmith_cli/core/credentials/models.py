@@ -27,7 +27,7 @@ class CredentialContext:
     debug: bool = False
     keyring_refresh_failed: bool = False
     oidc_audience: str | None = None
-    oidc_org: str | None = None
+    org: str | None = None
     oidc_service_slug: str | None = None
     oidc_discovery_disabled: bool = False
     oidc_detector_order: str | None = None

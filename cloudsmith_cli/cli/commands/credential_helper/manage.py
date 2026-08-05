@@ -8,7 +8,6 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 
 from __future__ import annotations
 
-import os
 import sys
 
 import click
@@ -94,11 +93,6 @@ def _get_installer(name: str):
     default=False,
     help="Bypass the custom-domain cache and fetch fresh data from the API.",
 )
-@click.option(
-    "--org",
-    default=None,
-    help="Cloudsmith organisation slug for custom-domain discovery.",
-)
 @common_cli_config_options
 @common_cli_output_options
 @common_api_auth_options
@@ -113,7 +107,6 @@ def install_cmd(
     dry_run: bool,
     no_discover: bool,
     refresh: bool,
-    org: str | None,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
@@ -138,7 +131,6 @@ def install_cmd(
         $ cloudsmith credential-helper install docker --no-discover
     """
     installer = _get_installer(helper)
-    org = org or os.environ.get("CLOUDSMITH_ORG", "").strip() or None
     try:
         actions = installer.install(
             bin_dir=bin_dir,
@@ -146,7 +138,7 @@ def install_cmd(
             dry_run=dry_run,
             discover=not no_discover,
             refresh=refresh,
-            org=org,
+            org=opts.org,
             credential=opts.credential,
             api_host=opts.api_host,
         )

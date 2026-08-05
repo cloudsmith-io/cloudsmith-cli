@@ -25,7 +25,7 @@ _REFUSAL_MESSAGE = (
 )
 
 
-def get_credentials(server_url, credential=None, api_host=None):
+def get_credentials(server_url, credential=None, api_host=None, org=None):
     """
     Get credentials for a Cloudsmith Docker registry.
 
@@ -36,6 +36,7 @@ def get_credentials(server_url, credential=None, api_host=None):
         server_url: The Docker registry server URL
         credential: Pre-resolved CredentialResult from the provider chain
         api_host: Cloudsmith API host URL
+        org: Organisation slug whose custom domains to match against
 
     Returns:
         dict: Credentials with 'Username' and 'Secret' keys, or None
@@ -48,20 +49,25 @@ def get_credentials(server_url, credential=None, api_host=None):
         credential=credential,
         api_host=api_host,
         backend_kind=BackendKind.DOCKER,
+        org=org,
     ):
         return None
 
     return {"Username": "token", "Secret": credential.api_key}
 
 
-def _execute_get(stdin, credential, api_host) -> tuple[int, str | None, str | None]:
+def _execute_get(
+    stdin, credential, api_host, org
+) -> tuple[int, str | None, str | None]:
     """Handle the 'get' operation of the Docker credential helper protocol."""
     try:
         server_url = stdin.read().strip()
         if not server_url:
             return (1, None, "Error: No server URL provided on stdin")
 
-        creds = get_credentials(server_url, credential=credential, api_host=api_host)
+        creds = get_credentials(
+            server_url, credential=credential, api_host=api_host, org=org
+        )
         if creds is None:
             return (1, None, _REFUSAL_MESSAGE)
 
@@ -78,7 +84,7 @@ def _execute_get(stdin, credential, api_host) -> tuple[int, str | None, str | No
 
 
 def execute(
-    operation, stdin, credential=None, api_host=None
+    operation, stdin, credential=None, api_host=None, org=None
 ) -> tuple[int, str | None, str | None]:
     """
     Execute a Docker credential helper protocol operation.
@@ -88,6 +94,7 @@ def execute(
         stdin: A file-like object to read the server URL from (for 'get')
         credential: Pre-resolved CredentialResult from the provider chain
         api_host: Cloudsmith API host URL
+        org: Organisation slug whose custom domains to match against
 
     Returns:
         A (exit_code, stdout_text, stderr_text) tuple.  Either text value may
@@ -106,7 +113,7 @@ def execute(
         return (0, "{}", None)
 
     if operation == "get":
-        return _execute_get(stdin, credential, api_host)
+        return _execute_get(stdin, credential, api_host, org)
 
     return (
         1,

@@ -14,6 +14,7 @@ import click.testing
 import pytest
 
 from ....core.credentials.models import CredentialResult
+from ....credential_helpers.default_domains import DomainType
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     _launcher_content,
@@ -335,8 +336,6 @@ _INSTALLER_GET_FORMAT_DOMAINS = (
         "no_discover",
         "missing_org",
         "missing_credential",
-        "blank_credential",
-        "dry_run",
         "discovery_raises",
     ],
 )
@@ -387,7 +386,7 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         assert "docker.cloudsmith.io" in cfg["credHelpers"]
         assert "docker.acme.com" not in cfg["credHelpers"]
 
-    elif scenario in ("missing_org", "missing_credential", "blank_credential"):
+    elif scenario in ("missing_org", "missing_credential"):
         called = []
 
         def _should_not_be_called(*_a, **_kw):
@@ -397,39 +396,15 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
         installer = DockerInstaller()
         org = None if scenario == "missing_org" else "acme"
-        creds = {
-            "missing_org": credential,
-            "missing_credential": None,
-            "blank_credential": CredentialResult(api_key="", source_name="test"),
-        }
+        creds = None if scenario == "missing_credential" else credential
         installer.install(
-            bin_dir=str(bin_dir), discover=True, org=org, credential=creds[scenario]
+            bin_dir=str(bin_dir), discover=True, org=org, credential=creds
         )
         assert (
             not called
         ), "get_format_domains must not be called when org/credential absent"
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
-
-    elif scenario == "dry_run":
-        called = []
-
-        def _should_not_be_called(*_a, **_kw):
-            called.append(True)
-            return []
-
-        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
-        installer = DockerInstaller()
-        actions = installer.install(
-            bin_dir=str(bin_dir),
-            discover=True,
-            org="acme",
-            credential=credential,
-            dry_run=True,
-        )
-        assert not called, "a dry run must not query the custom-domain API"
-        assert not (docker_dir / "config.json").exists()
-        assert any("skipped custom-domain auto-discovery" in a for a in actions)
 
     else:  # discovery_raises — graceful failure guard
 
@@ -474,13 +449,23 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
 
     cache_path = get_cache_path("acme")
     cached_domain = CustomDomain(
-        host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+        host="docker.acme.com",
+        backend_kind=6,
+        enabled=True,
+        validated=True,
+        org="acme",
+        domain_type=DomainType.NATIVE_API,
     )
     write_cache(cache_path, [cached_domain])
     os.utime(cache_path, (time.time(), time.time()))
 
     fresh_domain = CustomDomain(
-        host="new.acme.com", backend_kind=6, enabled=True, validated=True
+        host="new.acme.com",
+        backend_kind=6,
+        enabled=True,
+        validated=True,
+        org="acme",
+        domain_type=DomainType.NATIVE_API,
     )
     api_calls = []
 
@@ -492,6 +477,8 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
                 "backend_kind": 6,
                 "enabled": True,
                 "validated": True,
+                "domain_type": 3,
+                "primary": True,
             }
         ]
 

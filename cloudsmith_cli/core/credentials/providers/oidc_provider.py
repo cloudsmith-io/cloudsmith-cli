@@ -31,7 +31,7 @@ class OidcProvider(CredentialProvider):
                 )
             return None
 
-        org = context.oidc_org
+        org = context.org
         service_slug = context.oidc_service_slug
 
         if not org or not service_slug:

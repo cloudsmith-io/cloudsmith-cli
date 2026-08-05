@@ -412,9 +412,12 @@ def resolve_credentials(f):
         help="The OIDC audience for token requests.",
     )
     @click.option(
+        "--org",
+        "--organization",
         "--oidc-org",
+        "org",
         envvar="CLOUDSMITH_ORG",
-        help="The Cloudsmith organisation slug for OIDC token exchange.",
+        help="The Cloudsmith organisation slug.",
     )
     @click.option(
         "--oidc-service-slug",
@@ -441,15 +444,15 @@ def resolve_credentials(f):
         opts = config.get_or_create_options(ctx)
 
         oidc_audience = kwargs.pop("oidc_audience")
-        oidc_org = kwargs.pop("oidc_org")
+        org = kwargs.pop("org")
         oidc_service_slug = kwargs.pop("oidc_service_slug")
         oidc_discovery_disabled = _pop_boolean_flag(kwargs, "oidc_discovery_disabled")
         oidc_detector_order = kwargs.pop("oidc_detector_order")
 
         if oidc_audience:
             opts.oidc_audience = oidc_audience
-        if oidc_org:
-            opts.oidc_org = oidc_org
+        if org:
+            opts.org = org
         if oidc_service_slug:
             opts.oidc_service_slug = oidc_service_slug
         if oidc_discovery_disabled:
@@ -474,7 +477,7 @@ def resolve_credentials(f):
             profile=ctx.meta.get("profile"),
             debug=opts.debug,
             oidc_audience=opts.oidc_audience,
-            oidc_org=opts.oidc_org,
+            org=opts.org,
             oidc_service_slug=opts.oidc_service_slug,
             oidc_discovery_disabled=opts.oidc_discovery_disabled,
             oidc_detector_order=opts.oidc_detector_order,
