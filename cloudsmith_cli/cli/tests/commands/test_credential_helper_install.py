@@ -336,6 +336,8 @@ _INSTALLER_GET_FORMAT_DOMAINS = (
         "no_discover",
         "missing_org",
         "missing_credential",
+        "blank_credential",
+        "dry_run",
         "discovery_raises",
     ],
 )
@@ -386,7 +388,7 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         assert "docker.cloudsmith.io" in cfg["credHelpers"]
         assert "docker.acme.com" not in cfg["credHelpers"]
 
-    elif scenario in ("missing_org", "missing_credential"):
+    elif scenario in ("missing_org", "missing_credential", "blank_credential"):
         called = []
 
         def _should_not_be_called(*_a, **_kw):
@@ -396,15 +398,39 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
         installer = DockerInstaller()
         org = None if scenario == "missing_org" else "acme"
-        creds = None if scenario == "missing_credential" else credential
+        creds = {
+            "missing_org": credential,
+            "missing_credential": None,
+            "blank_credential": CredentialResult(api_key="", source_name="test"),
+        }
         installer.install(
-            bin_dir=str(bin_dir), discover=True, org=org, credential=creds
+            bin_dir=str(bin_dir), discover=True, org=org, credential=creds[scenario]
         )
         assert (
             not called
         ), "get_format_domains must not be called when org/credential absent"
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+    elif scenario == "dry_run":
+        called = []
+
+        def _should_not_be_called(*_a, **_kw):
+            called.append(True)
+            return []
+
+        monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _should_not_be_called)
+        installer = DockerInstaller()
+        actions = installer.install(
+            bin_dir=str(bin_dir),
+            discover=True,
+            org="acme",
+            credential=credential,
+            dry_run=True,
+        )
+        assert not called, "a dry run must not query the custom-domain API"
+        assert not (docker_dir / "config.json").exists()
+        assert any("skipped custom-domain auto-discovery" in a for a in actions)
 
     else:  # discovery_raises — graceful failure guard
 

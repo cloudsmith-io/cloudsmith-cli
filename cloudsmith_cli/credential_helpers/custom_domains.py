@@ -59,10 +59,16 @@ class CustomDomain:
 
 def get_cache_dir() -> Path:
     """
-    Get the cache directory for custom domains.
+    Get the cache directory for custom domains, creating it where possible.
+
+    A directory that cannot be created is not an error: every read path then
+    resolves to a miss, and :func:`write_cache` already degrades on ``OSError``.
     """
     cache_dir = Path(get_default_config_path()) / "custom_domains_cache"
-    cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    except OSError as exc:
+        logger.debug("Could not create cache directory %s: %s", cache_dir, exc)
     return cache_dir
 
 
@@ -140,12 +146,14 @@ def _precedence_key(domain: CustomDomain, repository: str | None) -> tuple:
     """Rank a candidate domain, lowest first.
 
     A domain bound to *repository* beats an organisation-wide one, primary
-    beats secondary, the oldest wins, and the host breaks any remaining tie.
+    beats secondary, the oldest wins, and the host breaks any remaining tie. A
+    record with no ``created_at`` sorts after every dated one.
     """
     bound_to_repository = repository is not None and domain.repository == repository
     return (
         not bound_to_repository,
         not domain.primary,
+        domain.created_at is None,
         domain.created_at or "",
         domain.host,
     )
@@ -176,7 +184,7 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     try:
         with open(cache_path, encoding="utf-8") as f:
             data = json.load(f)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         logger.debug("Failed to read cache %s: %s", cache_path, exc)
         return None
 
@@ -334,6 +342,7 @@ def get_format_domains(
     credential: CredentialResult | None = None,
     api_host: str | None = None,
     refresh: bool = False,
+    configure_api: bool = True,
 ) -> list[str]:
     """
     Return enabled and validated custom domain hostnames for a specific backend format.
@@ -344,6 +353,9 @@ def get_format_domains(
         credential: Optional resolved credential for authentication
         api_host: Cloudsmith API host URL
         refresh: When ``True``, bypass the cache and fetch fresh data from the API.
+        configure_api: When ``True`` (default), configure the SDK from
+            ``api_host`` and ``credential``. Pass ``False`` when the caller has
+            already done so, for the reasons :func:`get_custom_domains` gives.
 
     Returns:
         Hostnames that are usable and match the given backend_kind, in
@@ -354,6 +366,7 @@ def get_format_domains(
         credential=credential,
         api_host=api_host,
         refresh=refresh,
+        configure_api=configure_api,
     )
     matching = [
         domain

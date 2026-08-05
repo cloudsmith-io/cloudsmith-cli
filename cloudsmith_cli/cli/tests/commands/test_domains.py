@@ -51,6 +51,7 @@ def _domain(
     domain_type=None,
     enabled=True,
     validated=True,
+    primary=True,
 ):
     """Build a CustomDomain record for a test.
 
@@ -71,6 +72,7 @@ def _domain(
         repository=repository,
         domain_type=domain_type,
         created_at=created_at,
+        primary=primary,
     )
 
 
@@ -382,3 +384,67 @@ def test_repo_filter_drops_other_repositories_and_ranks_the_rest(runner, monkeyp
     assert customs == ["dl-prod.acme.example.com", "dl.acme.example.com"]
     # A built-in host serves every repository, so it survives the filter.
     assert "dl.cloudsmith.io" in {entry["host"] for entry in document}
+
+
+def test_custom_domains_are_ranked_by_precedence_without_repo(runner, monkeypatch):
+    """Precedence orders the custom entries whether or not --repo is given.
+
+    The first custom entry is the host Cloudsmith would bind, so sorting by host
+    without --repo would disagree with the credential path about which is active.
+    """
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    records = [
+        _domain(
+            "alpha.acme.example.com",
+            BackendKind.DOCKER,
+            created_at="2020-01-01T00:00:00Z",
+            primary=False,
+        ),
+        _domain(
+            "zeta.acme.example.com",
+            BackendKind.DOCKER,
+            created_at="2024-01-01T00:00:00Z",
+        ),
+    ]
+
+    result, _ = _invoke(runner, "--format", "docker", custom_domains=records)
+
+    customs = [
+        entry["host"]
+        for entry in json.loads(result.stdout)["domains"]
+        if entry["type"] == "custom"
+    ]
+    assert customs == ["zeta.acme.example.com", "alpha.acme.example.com"]
+
+
+def test_cached_domains_from_several_orgs_are_grouped_by_org(runner, tmp_path):
+    """Cross-org cached records are never interleaved into one ranking.
+
+    A no-org listing spans whatever earlier runs cached, and ranking one
+    organisation's hosts against another's expresses a preference the server
+    never made.
+    """
+    write_cache(
+        get_cache_path("acme"),
+        [_domain("mvn.acme.example.com", BackendKind.MAVEN, org="acme")],
+    )
+    write_cache(
+        get_cache_path("bravo"),
+        [
+            _domain(
+                "mvn.bravo.example.com",
+                BackendKind.MAVEN,
+                org="bravo",
+                created_at="2001-01-01T00:00:00Z",
+            )
+        ],
+    )
+
+    result, _ = _invoke(runner, "--format", "maven")
+
+    customs = [
+        entry["host"]
+        for entry in json.loads(result.stdout)["domains"]
+        if entry["type"] == "custom"
+    ]
+    assert customs == ["mvn.acme.example.com", "mvn.bravo.example.com"]

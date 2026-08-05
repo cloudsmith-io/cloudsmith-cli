@@ -40,20 +40,18 @@ class DomainType(str, Enum):
     """What a Cloudsmith host is for.
 
     A host that serves a single package format speaks that format's native
-    protocol (``NATIVE_API``); the format-less hosts are the download CDN, the
-    generic upload endpoint, and the Cloudsmith API itself.
+    protocol (``NATIVE_API``); the format-less hosts are the download CDN and
+    the generic upload endpoint.
     """
 
     DOWNLOAD = "download"
     UPLOAD = "upload"
-    API = "api"
     NATIVE_API = "native_api"
 
 
 SERVER_DOMAIN_TYPES: dict[int, DomainType] = {
     0: DomainType.DOWNLOAD,
     1: DomainType.UPLOAD,
-    2: DomainType.API,
     3: DomainType.NATIVE_API,
 }
 
@@ -242,7 +240,7 @@ def _read_domains_section(path: Path) -> configparser.SectionProxy | None:
     parser = configparser.ConfigParser(interpolation=None)
     try:
         read_files = parser.read(path, encoding="utf-8")
-    except (OSError, configparser.Error) as exc:
+    except (OSError, UnicodeDecodeError, configparser.Error) as exc:
         logger.debug("Failed to read config file %s: %s", path, exc)
         return None
 

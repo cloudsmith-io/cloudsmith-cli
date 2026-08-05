@@ -97,8 +97,8 @@ def domains_():
     "--domain-type",
     "domain_type",
     default=None,
-    help="Only list hosts with this purpose: download, upload, api, or "
-    "native_api. Every host has exactly one, so this is an exact match.",
+    help="Only list hosts with this purpose: download, upload, or native_api. "
+    "Every host has exactly one, so this is an exact match.",
 )
 @click.option(
     "--repo",
@@ -143,6 +143,9 @@ def list_domains(  # pylint: disable=too-many-arguments
     Where two custom domains could serve the same request Cloudsmith picks the
     one bound to the repository in hand, then ``primary`` over secondary, then
     the oldest — so ``created_at`` is reported to make that order reproducible.
+    The custom domains are always listed in that order, so the first is the one
+    Cloudsmith would bind; ``--repo`` is what lets the repository-bound hosts
+    take part in it.
 
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
@@ -234,10 +237,9 @@ def list_domains(  # pylint: disable=too-many-arguments
         and record.is_active
         and (repository is None or record.serves_repository(repository))
     ]
-    if repository:
-        records = order_by_precedence(records, repository)
-    else:
-        records = sorted(records, key=lambda record: (record.org, record.host))
+    records = sorted(
+        order_by_precedence(records, repository), key=lambda record: record.org
+    )
 
     data = _custom_entries(records) + default_entries
 

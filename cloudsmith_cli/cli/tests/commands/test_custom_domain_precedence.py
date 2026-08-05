@@ -66,6 +66,26 @@ def test_format_domains_are_returned_in_precedence_order():
     assert hosts == ["first.acme.com", "third.acme.com", "second.acme.com"]
 
 
+def test_domain_with_no_creation_time_ranks_last_not_first():
+    """An unknown creation time is a last resort, not the oldest domain."""
+    records = [
+        _domain("nodate.acme.com", backend_kind=BackendKind.DOCKER, created_at=None),
+        _domain(
+            "dated.acme.com",
+            backend_kind=BackendKind.DOCKER,
+            created_at="2020-01-01T00:00:00Z",
+        ),
+    ]
+
+    with patch(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_custom_domains",
+        return_value=records,
+    ):
+        hosts = get_format_domains("acme", BackendKind.DOCKER)
+
+    assert hosts == ["dated.acme.com", "nodate.acme.com"]
+
+
 def test_precedence_fields_survive_the_api_and_the_cache(tmp_path):
     """A cached run must rank domains the way the fetching run did.
 

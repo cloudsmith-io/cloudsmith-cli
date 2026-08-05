@@ -130,6 +130,14 @@ def test_an_entry_naming_no_format_is_skipped(tmp_path, no_trusted_config, label
     assert set(hosts) == {"packages.internal.example.com"}
 
 
+def test_a_config_that_is_not_utf8_falls_back_to_builtins(tmp_path, no_trusted_config):
+    """An undecodable config.ini falls back rather than aborting the command."""
+    config = tmp_path / "config.ini"
+    config.write_bytes(b"[domains]\nmaven.acme.example.com = maven\n# \xe9\xe8\xf1\n")
+
+    assert load_default_domains(config_path=config) == list(BUILTIN_DOMAINS)
+
+
 def test_trusted_lookup_skips_a_config_without_a_domains_section(tmp_path, monkeypatch):
     """The table comes from the first trusted config that declares one.
 

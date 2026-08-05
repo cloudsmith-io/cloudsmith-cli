@@ -21,6 +21,7 @@ from ....credential_helpers.custom_domains import (
     get_cache_path,
     get_custom_domains,
     get_format_domains,
+    read_all_cached_domains,
     read_cache,
     write_cache,
 )
@@ -454,6 +455,32 @@ def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected
     assert read_cache(cache_path) == expected
 
 
+def test_cache_that_is_not_utf8_reads_as_a_miss(tmp_path, monkeypatch):
+    """A cache file of undecodable bytes is a miss, not a crash."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    cache_path = get_cache_path("acme")
+    cache_path.write_bytes(b"\xff\xfe not utf-8 at all")
+
+    assert read_cache(cache_path) is None
+    assert not read_all_cached_domains()
+
+
+def test_unwritable_config_dir_reads_as_no_cached_domains(tmp_path, monkeypatch):
+    """An unwritable config directory yields no cached domains, not a crash."""
+    read_only = tmp_path / "read-only"
+    read_only.mkdir(mode=0o500)
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(read_only),
+    )
+
+    assert not read_all_cached_domains()
+
+
 # ---------------------------------------------------------------------------
 # 8. get_format_domains
 # ---------------------------------------------------------------------------
@@ -528,6 +555,24 @@ def test_get_format_domains_filters_correctly(tmp_path, monkeypatch):
     )
 
     assert hosts == ["docker.acme.com"]
+
+
+def test_get_format_domains_forwards_configure_api(monkeypatch):
+    """A caller that has already configured the SDK can say so."""
+    recorded = {}
+
+    def _fake_get_custom_domains(org, **kwargs):
+        recorded.update(kwargs)
+        return []
+
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_custom_domains",
+        _fake_get_custom_domains,
+    )
+
+    get_format_domains("acme", BackendKind.DOCKER, configure_api=False)
+
+    assert recorded["configure_api"] is False
 
 
 # ---------------------------------------------------------------------------
