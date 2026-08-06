@@ -1,6 +1,11 @@
 name: binaries
 
 on:
+  workflow_run:
+    workflows:
+    - 'Lint'
+    types:
+    - completed
   workflow_dispatch:
     inputs:
       online_smoketest:
