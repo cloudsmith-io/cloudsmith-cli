@@ -75,8 +75,7 @@ def exchange_oidc_token(
             error_detail = response.text[:200]
 
         raise OidcExchangeError(
-            f"OIDC token exchange failed with {response.status_code}: "
-            f"{error_detail}"
+            f"OIDC token exchange failed with {response.status_code}: {error_detail}"
         )
     finally:
         if not context.session:
