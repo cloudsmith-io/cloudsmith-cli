@@ -11,7 +11,6 @@ from .conftest import MockToken
 
 @pytest.mark.usefixtures("set_api_host_env_var")
 class TestListTokensCommand:
-
     def test_list_tokens_success(self, runner):
         """Test successful listing of tokens."""
         mock_tokens = [
