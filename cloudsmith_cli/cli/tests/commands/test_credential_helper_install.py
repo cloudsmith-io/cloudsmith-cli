@@ -312,9 +312,9 @@ def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
 
     launcher = result_after["launcher"]
     assert launcher is not None
-    assert isinstance(
-        launcher, str
-    ), f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
+    assert isinstance(launcher, str), (
+        f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
+    )
     assert launcher.endswith("docker-credential-cloudsmith")
     assert not isinstance(launcher, Path)
 
@@ -405,9 +405,9 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
         installer.install(
             bin_dir=str(bin_dir), discover=True, org=org, credential=creds[scenario]
         )
-        assert (
-            not called
-        ), "get_format_domains must not be called when org/credential absent"
+        assert not called, (
+            "get_format_domains must not be called when org/credential absent"
+        )
         cfg = json.loads((docker_dir / "config.json").read_text())
         assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
 
@@ -511,9 +511,9 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
         assert result == [fresh_domain]
     else:
         # API must NOT have been called
-        assert (
-            not api_calls
-        ), "API must not be called when refresh=False with valid cache"
+        assert not api_calls, (
+            "API must not be called when refresh=False with valid cache"
+        )
         assert result == [cached_domain]
 
 
@@ -623,9 +623,9 @@ def test_unwritable_bin_dir_gives_click_exception(runner, tmp_path, monkeypatch)
         ro_dir.chmod(0o700)
 
     assert result.exit_code != 0
-    assert not isinstance(
-        result.exception, OSError
-    ), f"Raw OSError escaped: {result.exception}"
+    assert not isinstance(result.exception, OSError), (
+        f"Raw OSError escaped: {result.exception}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -704,9 +704,9 @@ def test_output_format_json(
 
     assert result.exit_code == 0, result.output
     # Pure JSON on stdout (no human text leaking before the JSON)
-    assert result.output.strip().startswith(
-        "{"
-    ), f"Output does not start with {{: {result.output[:100]!r}"
+    assert result.output.strip().startswith("{"), (
+        f"Output does not start with {{: {result.output[:100]!r}"
+    )
     parsed = json.loads(result.output)
     data = parsed["data"]
 
