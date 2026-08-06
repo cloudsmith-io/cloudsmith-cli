@@ -181,17 +181,19 @@ def build_upstream_list_command(upstream_fmt):
             click.echo("Getting upstreams... ", nl=False, err=use_stderr)
 
         context_msg = "Failed to get upstreams!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                upstreams, page_info = paginate_results(
-                    api.list_upstreams,
-                    page_all,
-                    page,
-                    page_size,
-                    owner=owner,
-                    repo=repo,
-                    upstream_format=upstream_fmt,
-                )
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            upstreams, page_info = paginate_results(
+                api.list_upstreams,
+                page_all,
+                page,
+                page_size,
+                owner=owner,
+                repo=repo,
+                upstream_format=upstream_fmt,
+            )
 
         if not use_stderr:
             click.secho("OK", fg="green", err=use_stderr)
@@ -256,11 +258,13 @@ def build_upstream_create_command(upstream_fmt):
 
         context_msg = "Failed to create the upstream!"
 
-        with handle_api_exceptions(ctx, opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                upstream_resp_data = api.create_upstream(
-                    owner, repo, upstream_fmt, upstream_config
-                )
+        with (
+            handle_api_exceptions(ctx, opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            upstream_resp_data = api.create_upstream(
+                owner, repo, upstream_fmt, upstream_config
+            )
 
         if not use_stderr:
             click.secho("OK", fg="green", err=use_stderr)
@@ -337,11 +341,13 @@ def build_upstream_update_command(upstream_fmt):
             )
 
         context_msg = "Failed to update the upstream!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                upstream_resp_data = api.update_upstream(
-                    owner, repo, slug_perm, upstream_fmt, upstream_config
-                )
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            upstream_resp_data = api.update_upstream(
+                owner, repo, slug_perm, upstream_fmt, upstream_config
+            )
 
         if not use_stderr:
             click.secho("OK", fg="green", err=use_stderr)
@@ -431,9 +437,11 @@ def build_upstream_delete_command(upstream_fmt):
             )
 
         context_msg = "Failed to delete the upstream!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                api.delete_upstream(owner, repo, upstream_fmt, slug_perm)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            api.delete_upstream(owner, repo, upstream_fmt, slug_perm)
 
         if not use_stderr:
             click.secho("OK", fg="green", err=use_stderr)
