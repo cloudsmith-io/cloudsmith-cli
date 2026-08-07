@@ -70,7 +70,36 @@ class TestAuthenticationWebRequestHandlerKeyring:
         """Verify store_sso_tokens is called and returns True when keyring is enabled."""
         with patch(
             "cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=True
-        ) as mock_store:
+        ) as mock_store, patch.object(mock_handler, "_return_success_response"):
+            with patch.object(
+                AuthenticationWebRequestHandler,
+                "query_data",
+                new_callable=PropertyMock,
+            ) as mock_query:
+                with patch.object(
+                    AuthenticationWebRequestHandler,
+                    "api_host",
+                    new_callable=PropertyMock,
+                ) as mock_host:
+                    mock_query.return_value = {
+                        "access_token": "test_access_token",
+                        "refresh_token": "test_refresh_token",
+                    }
+                    mock_host.return_value = "https://api.cloudsmith.io"
+
+                    mock_handler.do_GET()
+
+                    mock_store.assert_called_once_with(
+                        "https://api.cloudsmith.io",
+                        "test_access_token",
+                        "test_refresh_token",
+                    )
+
+    def test_message_shown_when_keyring_disabled(self, mock_handler):
+        """Verify message is shown when store_sso_tokens returns False."""
+        with patch(
+            "cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=False
+        ) as mock_store, patch("click.echo") as mock_echo:
             with patch.object(mock_handler, "_return_success_response"):
                 with patch.object(
                     AuthenticationWebRequestHandler,
@@ -90,45 +119,14 @@ class TestAuthenticationWebRequestHandlerKeyring:
 
                         mock_handler.do_GET()
 
-                        mock_store.assert_called_once_with(
-                            "https://api.cloudsmith.io",
-                            "test_access_token",
-                            "test_refresh_token",
+                        # store_sso_tokens should be called (returns False)
+                        mock_store.assert_called_once()
+
+                        # Message should be displayed to stderr
+                        mock_echo.assert_called_once_with(
+                            "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                            err=True,
                         )
-
-    def test_message_shown_when_keyring_disabled(self, mock_handler):
-        """Verify message is shown when store_sso_tokens returns False."""
-        with patch(
-            "cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=False
-        ) as mock_store:
-            with patch("click.echo") as mock_echo:
-                with patch.object(mock_handler, "_return_success_response"):
-                    with patch.object(
-                        AuthenticationWebRequestHandler,
-                        "query_data",
-                        new_callable=PropertyMock,
-                    ) as mock_query:
-                        with patch.object(
-                            AuthenticationWebRequestHandler,
-                            "api_host",
-                            new_callable=PropertyMock,
-                        ) as mock_host:
-                            mock_query.return_value = {
-                                "access_token": "test_access_token",
-                                "refresh_token": "test_refresh_token",
-                            }
-                            mock_host.return_value = "https://api.cloudsmith.io"
-
-                            mock_handler.do_GET()
-
-                            # store_sso_tokens should be called (returns False)
-                            mock_store.assert_called_once()
-
-                            # Message should be displayed to stderr
-                            mock_echo.assert_called_once_with(
-                                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                                err=True,
-                            )
 
     def test_access_token_stored_on_server_instance(self, mock_handler):
         """Verify the SSO access token is stored on the server instance for direct use."""

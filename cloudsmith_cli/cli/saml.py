@@ -52,9 +52,7 @@ def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
     exchange_url = f"{api_host}/user/two-factor/"
 
     headers = {
-        "Authorization": "Bearer {two_factor_token}".format(
-            two_factor_token=two_factor_token
-        )
+        "Authorization": f"Bearer {two_factor_token}"
     }
 
     exchange_response = session.post(

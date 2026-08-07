@@ -1,7 +1,6 @@
 # Pre-Commit hooks
 # See: https://pre-commit.com/hooks.html
 repos:
-
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v5.0.0
   hooks:
@@ -42,21 +41,11 @@ repos:
       )$
   - id: trailing-whitespace
 
-- repo: https://github.com/psf/black
-  rev: 25.1.0
-  hooks:
-  - id: black
-
 - repo: https://github.com/pycqa/flake8
   rev: '7.1.2'
   hooks:
   - id: flake8
     args: ['--config=.flake8']
-
-- repo: https://github.com/pycqa/isort
-  rev: 6.0.1
-  hooks:
-  - id: isort
 
 - repo: https://github.com/asottile/pyupgrade
   rev: v3.21.2
@@ -70,19 +59,12 @@ repos:
   hooks:
   - id: zizmor
 
-- repo: local
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.16.1
   hooks:
-    - id: pylint
-      name: pylint
-      entry: pylint
-      language: system
-      types: [python]
-      args:
-        [
-          "-rn", # Only display messages
-          "-sn", # Don't display the score
-          "--rcfile=.pylintrc", # Link to your config file
-        ]
+    - id: ruff-format
+      args: ['--check', '--output-format', 'github']
+    - id: ruff-check
 
 - repo: https://github.com/crate-ci/typos
   rev: v1.42.1

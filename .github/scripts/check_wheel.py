@@ -1,5 +1,6 @@
 # Copyright 2026 Cloudsmith Ltd
 """Fail if the built wheel contains packaging or test files."""
+
 import glob
 import zipfile
 
