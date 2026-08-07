@@ -83,8 +83,7 @@ def resync_package(ctx, opts, owner, repo, slug, skip_errors):
     context_msg = "Failed to resynchronise package!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
-    ):
-        with maybe_spinner(opts):
-            api_resync_package(owner=owner, repo=repo, identifier=slug)
+    ), maybe_spinner(opts):
+        api_resync_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)

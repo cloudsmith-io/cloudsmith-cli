@@ -6,9 +6,17 @@ import click
 
 from ...core.api.metadata import (
     create_metadata as api_create_metadata,
+)
+from ...core.api.metadata import (
     delete_metadata as api_delete_metadata,
+)
+from ...core.api.metadata import (
     get_metadata as api_get_metadata,
+)
+from ...core.api.metadata import (
     list_metadata as api_list_metadata,
+)
+from ...core.api.metadata import (
     update_metadata as api_update_metadata,
 )
 from ...core.api.packages import get_package_slug_perm as api_get_package_slug_perm

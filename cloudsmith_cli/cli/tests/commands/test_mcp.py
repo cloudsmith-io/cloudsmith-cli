@@ -488,9 +488,8 @@ class TestSafeWriteHelpers:
         with patch(
             "cloudsmith_cli.cli.commands.mcp.os.replace",
             side_effect=OSError("boom"),
-        ):
-            with pytest.raises(OSError, match="boom"):
-                _atomic_write_json(target, {"k": "v"})
+        ), pytest.raises(OSError, match="boom"):
+            _atomic_write_json(target, {"k": "v"})
 
         leftovers = [
             p for p in tmp_path.iterdir() if p.name.startswith(".config.json.")

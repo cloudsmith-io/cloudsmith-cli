@@ -403,7 +403,7 @@ def get_package_detail(owner: str, repo: str, identifier: str) -> dict:
     return data.to_dict()
 
 
-def stream_download(  # noqa: C901
+def stream_download(
     url: str,
     outfile: str,
     session: requests.Session,
@@ -470,7 +470,7 @@ def stream_download(  # noqa: C901
             f"Failed to download package: HTTP {e.response.status_code}"
         )
     except requests.exceptions.RequestException as e:
-        raise click.ClickException(f"Failed to download package: {str(e)}")
+        raise click.ClickException(f"Failed to download package: {e!s}")
 
     # Get content length for progress bar
     total_size = int(response.headers.get("content-length", 0))

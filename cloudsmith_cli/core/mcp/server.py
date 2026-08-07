@@ -519,7 +519,7 @@ class DynamicMCPServer:
         except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
         except httpx.HTTPError as e:
-            return f"HTTP error: {str(e)}"
+            return f"HTTP error: {e!s}"
         finally:
             await http_client.aclose()
 
