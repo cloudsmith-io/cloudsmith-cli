@@ -115,7 +115,7 @@ def _metadata_content_failure_info(exc):
 
 def _warn_metadata_failure(failure_info):
     click.secho(
-        "Metadata content is invalid: %(error)s" % failure_info,
+        "Metadata content is invalid: {error}".format(**failure_info),
         fg="yellow",
         err=True,
     )
@@ -370,8 +370,7 @@ def attach_metadata_to_package(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Attaching metadata to package %(slug)s ... "
-        % {"slug": click.style(slug_perm, bold=True)},
+        f"Attaching metadata to package {click.style(slug_perm, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
@@ -450,11 +449,7 @@ def attach_metadata_to_package(
         slug=click.style(slug, fg="green"),
     )
     click.echo(
-        "Metadata attached: %(path)s/%(metadata)s"
-        % {
-            "path": package_path,
-            "metadata": click.style(metadata_slug_perm, bold=True),
-        },
+        f"Metadata attached: {package_path}/{click.style(metadata_slug_perm, bold=True)}",
         err=use_stderr,
     )
 
@@ -473,8 +468,7 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Checking %(filename)s file upload parameters ... "
-        % {"filename": click.style(basename, bold=True)},
+        f"Checking {click.style(basename, bold=True)} file upload parameters ... ",
         nl=False,
         err=use_stderr,
     )
@@ -507,8 +501,7 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Requesting file upload for %(filename)s ... "
-        % {"filename": click.style(basename, bold=True)},
+        f"Requesting file upload for {click.style(basename, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
@@ -602,8 +595,7 @@ def validate_create_package(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Checking %(package_type)s package upload parameters ... "
-        % {"package_type": click.style(package_type, bold=True)},
+        f"Checking {click.style(package_type, bold=True)} package upload parameters ... ",
         nl=False,
         err=use_stderr,
     )
@@ -628,8 +620,7 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Creating a new %(package_type)s package ... "
-        % {"package_type": click.style(package_type, bold=True)},
+        f"Creating a new {click.style(package_type, bold=True)} package ... ",
         nl=False,
         err=use_stderr,
     )
@@ -648,13 +639,12 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     click.secho("OK", fg="green", err=use_stderr)
 
     click.echo(
-        "Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)"
-        % {
-            "owner": click.style(owner, fg="magenta"),
-            "repo": click.style(repo, fg="magenta"),
-            "slug": click.style(slug, fg="green"),
-            "slug_perm": click.style(slug_perm, bold=True),
-        },
+        "Created: {owner}/{repo}/{slug} ({slug_perm})".format(
+            owner=click.style(owner, fg="magenta"),
+            repo=click.style(repo, fg="magenta"),
+            slug=click.style(slug, fg="green"),
+            slug_perm=click.style(slug_perm, bold=True),
+        ),
         err=use_stderr,
     )
 
@@ -749,19 +739,17 @@ def wait_for_package_sync(
 
     if ok:
         click.secho(
-            "Package synchronised successfully in %(seconds)s second(s)!"
-            % {"seconds": click.style(str(seconds), bold=True)},
+            f"Package synchronised successfully in {click.style(str(seconds), bold=True)} second(s)!",
             fg="green",
             err=use_stderr,
         )
         return
 
     click.secho(
-        "Package failed to synchronise in %(seconds)s during stage: %(stage)s"
-        % {
-            "seconds": click.style(str(seconds), bold=True),
-            "stage": click.style(stage_str or "Unknown", fg="yellow"),
-        },
+        "Package failed to synchronise in {seconds} during stage: {stage}".format(
+            seconds=click.style(str(seconds), bold=True),
+            stage=click.style(stage_str or "Unknown", fg="yellow"),
+        ),
         fg="red",
         err=use_stderr,
     )
@@ -787,11 +775,10 @@ def wait_for_package_sync(
     if attempts + 1 > 0:
         # Show attempts upto and including zero attempts left
         click.secho(
-            "Attempts left: %(left)s (%(action)s)"
-            % {
-                "left": click.style(str(attempts), bold=True),
-                "action": "trying again" if attempts > 0 else "giving up",
-            },
+            "Attempts left: {left} ({action})".format(
+                left=click.style(str(attempts), bold=True),
+                action="trying again" if attempts > 0 else "giving up",
+            ),
             err=use_stderr,
         )
         click.echo(err=use_stderr)

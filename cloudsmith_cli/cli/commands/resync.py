@@ -74,8 +74,7 @@ def resync_package(ctx, opts, owner, repo, slug, skip_errors):
     """Resynchronise a package."""
     use_stderr = utils.should_use_stderr(opts)
     click.echo(
-        "Resynchonising the %(slug)s package ... "
-        % {"slug": click.style(slug, bold=True)},
+        f"Resynchonising the {click.style(slug, bold=True)} package ... ",
         nl=False,
         err=use_stderr,
     )

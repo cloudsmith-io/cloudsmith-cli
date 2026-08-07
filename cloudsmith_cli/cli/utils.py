@@ -127,8 +127,7 @@ def print_rate_limit_info(opts, rate_info):
 
     click.echo(err=True)
     click.secho(
-        "Throttling (rate limited) for: %(throttle)s seconds ... "
-        % {"throttle": click.style(str(rate_info.interval), reverse=True)},
+        f"Throttling (rate limited) for: {click.style(str(rate_info.interval), reverse=True)} seconds ... ",
         err=True,
         reset=False,
     )
@@ -140,7 +139,7 @@ def json_serializer(obj):
     # convert date/datetime objects to strings
     if isinstance(obj, (datetime, date)):
         return fmt_datetime(obj)
-    raise TypeError("Type %s not serializable." % type(obj))
+    raise TypeError(f"Type {type(obj)} not serializable.")
 
 
 def maybe_print_as_json(opts, data, page_info=None):
@@ -219,7 +218,7 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
         return True
 
     prefix = prefix or click.style(
-        "Are you %s certain you want to" % (click.style("absolutely", bold=True))
+        "Are you {} certain you want to".format(click.style("absolutely", bold=True))
     )
 
     prompt = maybe_unstyle_prompt(f"{prefix} {prompt}?", err=err)

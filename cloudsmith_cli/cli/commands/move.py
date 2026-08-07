@@ -72,12 +72,12 @@ def move(
 
     use_stderr = utils.should_use_stderr(opts)
 
-    prompt = "move the %(slug)s from %(source)s to %(dest)s" % move_args
+    prompt = "move the {slug} from {source} to {dest}".format(**move_args)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.echo(
-        "Moving %(slug)s package from %(source)s to %(dest)s ... " % move_args,
+        "Moving {slug} package from {source} to {dest} ... ".format(**move_args),
         nl=False,
         err=use_stderr,
     )

@@ -116,11 +116,7 @@ def create_deny_policy(ctx, opts, owner, policy_config_file):
         )
 
     click.secho(
-        "Creating %(name)s deny policy for the %(owner)s namespace ..."
-        % {
-            "name": click.style(policy_name, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Creating {click.style(policy_name, bold=True)} deny policy for the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
@@ -185,11 +181,7 @@ def update_deny_policy(ctx, opts, owner, identifier, policy_config_file):
     policy_config = json.load(policy_config_file)
 
     click.secho(
-        "Updating %(identifier)s deny policy in the %(owner)s namespace ..."
-        % {
-            "identifier": click.style(identifier, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Updating {click.style(identifier, bold=True)} deny policy in the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
@@ -234,8 +226,7 @@ def delete_deny_policy(ctx, opts, owner, identifier, yes):
     }
 
     prompt = (
-        "delete the %(identifier)s deny policy from the %(namespace)s namespace"
-        % delete_args
+        "delete the {identifier} deny policy from the {namespace} namespace".format(**delete_args)
     )
 
     use_stderr = utils.should_use_stderr(opts)
@@ -243,7 +234,7 @@ def delete_deny_policy(ctx, opts, owner, identifier, yes):
         return
 
     click.secho(
-        "Deleting %(identifier)s from the %(namespace)s namespace ... " % delete_args,
+        "Deleting {identifier} from the {namespace} namespace ... ".format(**delete_args),
         nl=False,
         err=use_stderr,
     )

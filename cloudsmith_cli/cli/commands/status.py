@@ -35,12 +35,7 @@ def status(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Getting status of %(package)s in %(owner)s/%(repo)s ... "
-        % {
-            "owner": click.style(owner, bold=True),
-            "repo": click.style(repo, bold=True),
-            "package": click.style(slug, bold=True),
-        },
+        f"Getting status of {click.style(slug, bold=True)} in {click.style(owner, bold=True)}/{click.style(repo, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
@@ -79,8 +74,7 @@ def status(ctx, opts, owner_repo_package):
         return
 
     click.secho(
-        "The package status is: %(status)s"
-        % {"status": click.style(package_status, fg=status_colour)},
+        f"The package status is: {click.style(package_status, fg=status_colour)}",
         err=use_stderr,
     )
 

@@ -100,8 +100,7 @@ def list_tags(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Listing tags for the '%(package)s' package ... "
-        % {"package": click.style(package, bold=True)},
+        f"Listing tags for the '{click.style(package, bold=True)}' package ... ",
         nl=False,
         err=use_stderr,
     )
@@ -166,12 +165,11 @@ def add_tags(ctx, opts, owner_repo_package, tags, immutable):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Adding '%(tags)s' tag%(s)s to the '%(package)s' package ... "
-        % {
-            "package": click.style(package, bold=True),
-            "tags": click.style(", ".join(tags or [])),
-            "s": "s" if len(tags) != 1 else "",
-        },
+        "Adding '{tags}' tag{s} to the '{package}' package ... ".format(
+            package=click.style(package, bold=True),
+            tags=click.style(", ".join(tags or [])),
+            s="s" if len(tags) != 1 else "",
+        ),
         nl=False,
         err=use_stderr,
     )
@@ -223,8 +221,7 @@ def clear_tags(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Clearing tags on the '%(package)s' package ... "
-        % {"package": click.style(package, bold=True)},
+        f"Clearing tags on the '{click.style(package, bold=True)}' package ... ",
         nl=False,
         err=use_stderr,
     )
@@ -279,12 +276,11 @@ def remove_tags(ctx, opts, owner_repo_package, tags):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Removing '%(tags)s' tag%(s)s from the '%(package)s' package ... "
-        % {
-            "package": click.style(package, bold=True),
-            "tags": click.style(", ".join(tags or [])),
-            "s": "s" if len(tags) != 1 else "",
-        },
+        "Removing '{tags}' tag{s} from the '{package}' package ... ".format(
+            package=click.style(package, bold=True),
+            tags=click.style(", ".join(tags or [])),
+            s="s" if len(tags) != 1 else "",
+        ),
         nl=False,
         err=use_stderr,
     )
@@ -352,12 +348,11 @@ def replace_tags(ctx, opts, owner_repo_package, tags, immutable):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Replacing existing with '%(tags)s' tag%(s)s on the '%(package)s' package ... "
-        % {
-            "package": click.style(package, bold=True),
-            "tags": click.style(", ".join(tags or [])),
-            "s": "s" if len(tags) != 1 else "",
-        },
+        "Replacing existing with '{tags}' tag{s} on the '{package}' package ... ".format(
+            package=click.style(package, bold=True),
+            tags=click.style(", ".join(tags or [])),
+            s="s" if len(tags) != 1 else "",
+        ),
         nl=False,
         err=use_stderr,
     )

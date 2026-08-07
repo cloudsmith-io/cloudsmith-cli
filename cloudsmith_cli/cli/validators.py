@@ -9,7 +9,7 @@ from click.core import ParameterSource
 
 from .types import ExpandPath
 
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
 PUBLIC_API_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
@@ -48,7 +48,7 @@ def transform_api_header_authorization(param, value):
 
     value = f"{username.strip()}:{password}"
     value = base64.b64encode(bytes(value.encode()))
-    return "Basic %s" % value.decode("utf-8")
+    return "Basic {}".format(value.decode("utf-8"))
 
 
 API_HEADER_TRANSFORMS["Authorization"] = transform_api_header_authorization

@@ -171,11 +171,7 @@ def list_metadata(
 
     if metadata_slug_perm:
         _echo_action(
-            "Fetching metadata %(metadata)s for %(package)s ... "
-            % {
-                "metadata": click.style(metadata_slug_perm, bold=True),
-                "package": click.style(package, bold=True),
-            },
+            f"Fetching metadata {click.style(metadata_slug_perm, bold=True)} for {click.style(package, bold=True)} ... ",
             use_stderr,
         )
 
@@ -194,8 +190,7 @@ def list_metadata(
         return
 
     _echo_action(
-        "Listing metadata for %(package)s ... "
-        % {"package": click.style(package, bold=True)},
+        f"Listing metadata for {click.style(package, bold=True)} ... ",
         use_stderr,
     )
 
@@ -319,8 +314,7 @@ def add_metadata(
     )
 
     _echo_action(
-        "Attaching metadata to %(package)s ... "
-        % {"package": click.style(package, bold=True)},
+        f"Attaching metadata to {click.style(package, bold=True)} ... ",
         use_stderr,
     )
 
@@ -428,11 +422,7 @@ def update_metadata(
         )
 
     _echo_action(
-        "Updating metadata %(metadata)s for %(package)s ... "
-        % {
-            "metadata": click.style(metadata_slug_perm, bold=True),
-            "package": click.style(package, bold=True),
-        },
+        f"Updating metadata {click.style(metadata_slug_perm, bold=True)} for {click.style(package, bold=True)} ... ",
         use_stderr,
     )
 
@@ -488,12 +478,12 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
         "package": click.style(package, bold=True),
     }
 
-    prompt = "remove metadata %(metadata)s from package %(package)s" % remove_args
+    prompt = "remove metadata {metadata} from package {package}".format(**remove_args)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     _echo_action(
-        "Removing metadata %(metadata)s from %(package)s ... " % remove_args,
+        "Removing metadata {metadata} from {package} ... ".format(**remove_args),
         use_stderr,
     )
 
@@ -513,6 +503,5 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
 
     click.echo()
     click.secho(
-        "Metadata removed: %(slug)s."
-        % {"slug": click.style(metadata_slug_perm, bold=True)}
+        f"Metadata removed: {click.style(metadata_slug_perm, bold=True)}."
     )

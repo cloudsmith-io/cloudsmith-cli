@@ -47,12 +47,12 @@ def delete(ctx, opts, owner_repo_package, yes):
 
     use_stderr = utils.should_use_stderr(opts)
 
-    prompt = "delete the %(package)s from %(owner)s/%(repo)s" % delete_args
+    prompt = "delete the {package} from {owner}/{repo}".format(**delete_args)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.echo(
-        "Deleting %(package)s from %(owner)s/%(repo)s ... " % delete_args,
+        "Deleting {package} from {owner}/{repo} ... ".format(**delete_args),
         nl=False,
         err=use_stderr,
     )

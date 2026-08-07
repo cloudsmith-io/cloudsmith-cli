@@ -540,7 +540,7 @@ def _select_best_package(packages: list[dict]) -> dict:
 
         return (tuple(version_parts), uploaded_at)
 
-    return sorted(packages, key=sort_key, reverse=True)[0]
+    return max(packages, key=sort_key)
 
 
 def _format_size(size_bytes: int) -> str:

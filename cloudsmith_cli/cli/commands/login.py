@@ -39,8 +39,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     """Retrieve your API authentication token/key via login."""
     use_stderr = utils.should_use_stderr(opts)
     click.echo(
-        "Retrieving API token for %(login)s ... "
-        % {"login": click.style(login, bold=True)},
+        f"Retrieving API token for {click.style(login, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
@@ -60,8 +59,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
             "Enter your two-factor authentication code", type=str, err=use_stderr
         )
         click.echo(
-            "Verifying two-factor code for %(login)s ... "
-            % {"login": click.style(login, bold=True)},
+            f"Verifying two-factor code for {click.style(login, bold=True)} ... ",
             nl=False,
             err=use_stderr,
         )
@@ -95,8 +93,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
 
     if not utils.maybe_print_as_json(opts, {"token": api_key, "login": login}):
         click.echo(
-            "Your API key/token is: %(token)s"
-            % {"token": click.style(api_key, fg="magenta")}
+            "Your API key/token is: {token}".format(token=click.style(api_key, fg="magenta"))
         )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)

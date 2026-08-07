@@ -55,11 +55,10 @@ def rates(ctx, opts):
                     "Yes" if limits.throttled else "No",
                     fg="red" if limits.throttled else "green",
                 ),
-                "%(remaining)s/%(limit)s"
-                % {
-                    "remaining": click.style(str(limits.remaining), fg="yellow"),
-                    "limit": click.style(str(limits.limit), fg="yellow"),
-                },
+                "{remaining}/{limit}".format(
+                    remaining=click.style(str(limits.remaining), fg="yellow"),
+                    limit=click.style(str(limits.limit), fg="yellow"),
+                ),
                 click.style(str(limits.interval), fg="blue"),
                 click.style(str(limits.reset), fg="magenta"),
             ]

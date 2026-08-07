@@ -172,17 +172,17 @@ def download(
         click.echo(f"Using authentication: {auth_source}", err=True)
 
     # Step 2: Find package(s)
-    filter_kwargs = dict(
-        owner=owner,
-        repo=repo,
-        name=name,
-        version=version,
-        format_filter=format_filter,
-        os_filter=os_filter,
-        arch_filter=arch_filter,
-        tag_filter=tag_filter,
-        filename_filter=filename_filter,
-    )
+    filter_kwargs = {
+        "owner": owner,
+        "repo": repo,
+        "name": name,
+        "version": version,
+        "format_filter": format_filter,
+        "os_filter": os_filter,
+        "arch_filter": arch_filter,
+        "tag_filter": tag_filter,
+        "filename_filter": filename_filter,
+    }
     packages = _find_packages(ctx, opts, filter_kwargs, download_all, yes, use_stderr)
 
     # Step 3: Resolve download items (url + output path for each file)

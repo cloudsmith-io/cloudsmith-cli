@@ -71,9 +71,7 @@ def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None)
 
     # Standard Cloudsmith domains — no auth needed, always match regardless of backend_kind
     if (
-        hostname in ("cloudsmith.io", "cloudsmith.com")
-        or hostname.endswith(".cloudsmith.io")
-        or hostname.endswith(".cloudsmith.com")
+        hostname in ("cloudsmith.io", "cloudsmith.com") or hostname.endswith((".cloudsmith.io", ".cloudsmith.com"))
     ):
         return True
 

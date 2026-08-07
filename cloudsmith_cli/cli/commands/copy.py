@@ -59,12 +59,7 @@ def copy(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Copying %(slug)s package from %(source)s to %(dest)s ... "
-        % {
-            "slug": click.style(slug, bold=True),
-            "source": click.style(source, bold=True),
-            "dest": click.style(destination, bold=True),
-        },
+        f"Copying {click.style(slug, bold=True)} package from {click.style(source, bold=True)} to {click.style(destination, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )

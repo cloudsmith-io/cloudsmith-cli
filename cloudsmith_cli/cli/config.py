@@ -192,7 +192,7 @@ class ConfigReader(ConfigFileReader):
         cls._load_values_into_opts(opts, values)
 
         if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
+            values = config.get(f"profile:{profile}", {})
             cls._load_values_into_opts(opts, values)
 
         return values
@@ -203,9 +203,9 @@ class ConfigReader(ConfigFileReader):
             if v is None:
                 continue
             if isinstance(v, str):
-                if v.startswith('"') or v.startswith("'"):
+                if v.startswith(('"', "'")):
                     v = v[1:]
-                if v.endswith('"') or v.endswith("'"):
+                if v.endswith(('"', "'")):
                     v = v[:-1]
                 if not v:
                     continue

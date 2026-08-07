@@ -53,13 +53,8 @@ def list_dependencies(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Getting direct (non-transitive) dependencies of %(package)s in "
-        "%(owner)s/%(repo)s ... "
-        % {
-            "owner": click.style(owner, bold=True),
-            "repo": click.style(repo, bold=True),
-            "package": click.style(identifier, bold=True),
-        },
+        f"Getting direct (non-transitive) dependencies of {click.style(identifier, bold=True)} in "
+        f"{click.style(owner, bold=True)}/{click.style(repo, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )

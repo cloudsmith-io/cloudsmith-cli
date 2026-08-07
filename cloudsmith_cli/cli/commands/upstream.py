@@ -152,12 +152,11 @@ def build_upstream_group_func(upstream_fmt):
         pass
 
     func.__doc__ = (
-        """
-        Manage %s upstreams for a repository.
+        f"""
+        Manage {upstream_fmt} upstreams for a repository.
 
         See the help for subcommands for more information on each.
         """
-        % upstream_fmt
     )
     return func
 
@@ -246,12 +245,7 @@ def build_upstream_create_command(upstream_fmt):
 
         if not use_stderr:
             click.secho(
-                'Creating "%(name)s" upstream for the %(owner)s/%(repo)s repository...'
-                % {
-                    "name": click.style(upstream_name, bold=True),
-                    "owner": click.style(owner, bold=True),
-                    "repo": click.style(repo, bold=True),
-                },
+                f'Creating "{click.style(upstream_name, bold=True)}" upstream for the {click.style(owner, bold=True)}/{click.style(repo, bold=True)} repository...',
                 nl=False,
                 err=use_stderr,
             )
@@ -330,12 +324,7 @@ def build_upstream_update_command(upstream_fmt):
 
         if not use_stderr:
             click.secho(
-                "Updating the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository ... "
-                % {
-                    "owner": click.style(owner, bold=True),
-                    "repo": click.style(repo, bold=True),
-                    "slug_perm": click.style(slug_perm, bold=True),
-                },
+                f"Updating the {click.style(slug_perm, bold=True)} upstream from the {click.style(owner, bold=True)}/{click.style(repo, bold=True)} repository ... ",
                 nl=False,
                 err=use_stderr,
             )
@@ -422,16 +411,14 @@ def build_upstream_delete_command(upstream_fmt):
         }
 
         prompt = (
-            "delete the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository"
-            % delete_args
+            "delete the {slug_perm} upstream from the {owner}/{repo} repository".format(**delete_args)
         )
         if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
             return
 
         if not use_stderr:
             click.secho(
-                "Deleting the %(slug_perm)s upstream from the %(owner)s/%(repo)s repository ... "
-                % delete_args,
+                "Deleting the {slug_perm} upstream from the {owner}/{repo} repository ... ".format(**delete_args),
                 nl=False,
                 err=use_stderr,
             )
