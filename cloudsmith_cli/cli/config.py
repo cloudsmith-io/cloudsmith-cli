@@ -22,9 +22,8 @@ class ConfigParam(Param):
     def parse(self, text):
         if text:
             text = text.strip()
-        if self.type.name == "boolean":
-            if not text:
-                return None
+        if self.type.name == "boolean" and not text:
+            return None
         return super().parse(text)
 
     def get_error_hint(self, ctx):

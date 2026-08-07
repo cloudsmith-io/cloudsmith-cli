@@ -485,12 +485,14 @@ class TestSafeWriteHelpers:
 
     def test_atomic_write_cleans_up_tempfile_on_failure(self, tmp_path):
         target = tmp_path / "config.json"
-        with patch(
-            "cloudsmith_cli.cli.commands.mcp.os.replace",
-            side_effect=OSError("boom"),
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.mcp.os.replace",
+                side_effect=OSError("boom"),
+            ),
+            pytest.raises(OSError, match="boom"),
         ):
-            with pytest.raises(OSError, match="boom"):
-                _atomic_write_json(target, {"k": "v"})
+            _atomic_write_json(target, {"k": "v"})
 
         leftovers = [
             p for p in tmp_path.iterdir() if p.name.startswith(".config.json.")

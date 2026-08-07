@@ -99,17 +99,19 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, page_
     )
 
     context_msg = "Failed to get list of entitlements!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlements_, page_info = paginate_results(
-                api.list_entitlements,
-                page_all=page_all,
-                page=page,
-                page_size=page_size,
-                owner=owner,
-                repo=repo,
-                show_tokens=show_tokens,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlements_, page_info = paginate_results(
+            api.list_entitlements,
+            page_all=page_all,
+            page=page,
+            page_size=page_size,
+            owner=owner,
+            repo=repo,
+            show_tokens=show_tokens,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -337,11 +339,13 @@ def create(ctx, opts, owner_repo, show_tokens, name, token):
     )
 
     context_msg = "Failed to create the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.create_entitlement(
-                owner=owner, repo=repo, name=name, token=token, show_tokens=show_tokens
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.create_entitlement(
+            owner=owner, repo=repo, name=name, token=token, show_tokens=show_tokens
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -405,9 +409,11 @@ def delete(ctx, opts, owner_repo_identifier, yes):
     )
 
     context_msg = "Failed to delete the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.delete_entitlement(owner=owner, repo=repo, identifier=identifier)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.delete_entitlement(owner=owner, repo=repo, identifier=identifier)
 
     click.secho("OK", fg="green")
 
@@ -472,16 +478,18 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
     )
 
     context_msg = "Failed to update the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.update_entitlement(
-                owner=owner,
-                repo=repo,
-                identifier=identifier,
-                name=name,
-                token=token,
-                show_tokens=show_tokens,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.update_entitlement(
+            owner=owner,
+            repo=repo,
+            identifier=identifier,
+            name=name,
+            token=token,
+            show_tokens=show_tokens,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -548,11 +556,13 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
     )
 
     context_msg = "Failed to refresh the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.refresh_entitlement(
-                owner=owner, repo=repo, identifier=identifier, show_tokens=show_tokens
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.refresh_entitlement(
+            owner=owner, repo=repo, identifier=identifier, show_tokens=show_tokens
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -634,11 +644,13 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
     )
 
     context_msg = "Failed to sync the entitlements!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlements_, page_info = api.sync_entitlements(
-                owner=owner, repo=repo, source=source, show_tokens=show_tokens
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlements_, page_info = api.sync_entitlements(
+            owner=owner, repo=repo, source=source, show_tokens=show_tokens
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -806,11 +818,13 @@ def restrict(
         data["limit_date_range_to"] = limit_date_range_to
 
     context_msg = "Failed to update the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.restrict_entitlement(
-                owner=owner, repo=repo, identifier=identifier, data=data
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.restrict_entitlement(
+            owner=owner, repo=repo, identifier=identifier, data=data
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 

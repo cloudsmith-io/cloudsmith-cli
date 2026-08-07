@@ -58,9 +58,11 @@ def delete(ctx, opts, owner_repo_package, yes):
     )
 
     context_msg = "Failed to delete the package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            delete_package(owner=owner, repo=repo, identifier=slug)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        delete_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 

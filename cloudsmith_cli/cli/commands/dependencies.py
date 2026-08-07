@@ -65,11 +65,13 @@ def list_dependencies(ctx, opts, owner_repo_package):
     )
 
     context_msg = "Failed to get dependencies of package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            deps, page_info = get_package_dependencies(
-                owner=owner, repo=repo, identifier=identifier
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        deps, page_info = get_package_dependencies(
+            owner=owner, repo=repo, identifier=identifier
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 

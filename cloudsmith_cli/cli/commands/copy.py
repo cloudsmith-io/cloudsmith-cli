@@ -70,13 +70,15 @@ def copy(
     )
 
     context_msg = "Failed to copy package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            _, new_slug = copy_package(
-                owner=owner, repo=source, identifier=slug, destination=destination
-            )
+        _, new_slug = copy_package(
+            owner=owner, repo=source, identifier=slug, destination=destination
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 

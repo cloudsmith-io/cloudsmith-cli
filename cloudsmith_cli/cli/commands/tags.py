@@ -6,6 +6,8 @@ import click
 
 from ...core.api.packages import (
     get_package_tags as api_get_package_tags,
+)
+from ...core.api.packages import (
     tag_package as api_tag_package,
 )
 from .. import command, decorators, utils, validators

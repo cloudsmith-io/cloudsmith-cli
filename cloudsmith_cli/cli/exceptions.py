@@ -113,12 +113,11 @@ def handle_api_exceptions(
                     err=use_stderr,
                 )
 
-            if opts.verbose and not opts.debug:
-                if exc.headers:
-                    click.echo(err=use_stderr)
-                    click.echo("Headers in Reply:", err=use_stderr)
-                    for k, v in exc.headers.items():
-                        click.echo(f"{k} = {v}", err=use_stderr)
+            if opts.verbose and not opts.debug and exc.headers:
+                click.echo(err=use_stderr)
+                click.echo("Headers in Reply:", err=use_stderr)
+                for k, v in exc.headers.items():
+                    click.echo(f"{k} = {v}", err=use_stderr)
 
         if reraise_on_error:
             raise

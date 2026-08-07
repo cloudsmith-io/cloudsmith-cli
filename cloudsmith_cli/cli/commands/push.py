@@ -16,17 +16,25 @@ from ...core.api.files import (
     CHUNK_SIZE,
     multi_part_upload_file,
     request_file_upload,
-    upload_file as api_upload_file,
     validate_request_file_upload,
+)
+from ...core.api.files import (
+    upload_file as api_upload_file,
 )
 from ...core.api.metadata import (
     create_metadata as api_create_metadata,
+)
+from ...core.api.metadata import (
     validate_metadata as api_validate_metadata,
 )
 from ...core.api.packages import (
     create_package as api_create_package,
+)
+from ...core.api.packages import (
     get_package_formats,
     get_package_status,
+)
+from ...core.api.packages import (
     validate_create_package as api_validate_create_package,
 )
 from .. import command, decorators, utils, validators
@@ -272,8 +280,8 @@ def validate_metadata_payload(
     use_stderr = utils.should_use_stderr(opts)
 
     if source:
-        message = "Validating metadata content from {source} ... ".format(
-            source=click.style(source, bold=True),
+        message = (
+            f"Validating metadata content from {click.style(source, bold=True)} ... "
         )
     else:
         message = "Validating metadata content ... "
@@ -472,13 +480,15 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     )
 
     context_msg = "Failed to validate upload parameters!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            md5_checksum = validate_request_file_upload(
-                owner=owner, repo=repo, filepath=filename
-            )
+        md5_checksum = validate_request_file_upload(
+            owner=owner, repo=repo, filepath=filename
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -504,17 +514,19 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     )
 
     context_msg = "Failed to request file upload!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            identifier, upload_url, upload_fields = request_file_upload(
-                owner=owner,
-                repo=repo,
-                filepath=filename,
-                md5_checksum=md5_checksum,
-                is_multi_part_upload=is_multi_part_upload,
-            )
+        identifier, upload_url, upload_fields = request_file_upload(
+            owner=owner,
+            repo=repo,
+            filepath=filename,
+            md5_checksum=md5_checksum,
+            is_multi_part_upload=is_multi_part_upload,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -597,13 +609,15 @@ def validate_create_package(
     )
 
     context_msg = "Failed to validate upload parameters!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            api_validate_create_package(
-                package_format=package_type, owner=owner, repo=repo, **kwargs
-            )
+        api_validate_create_package(
+            package_format=package_type, owner=owner, repo=repo, **kwargs
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     return True
@@ -621,13 +635,15 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     )
 
     context_msg = "Failed to create package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            slug_perm, slug = api_create_package(
-                package_format=package_type, owner=owner, repo=repo, **kwargs
-            )
+        slug_perm, slug = api_create_package(
+            package_format=package_type, owner=owner, repo=repo, **kwargs
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -1016,7 +1032,7 @@ def upload_files_and_create_package(
     return slug_perm, slug
 
 
-def create_push_handlers():  # noqa: C901
+def create_push_handlers():
     """Create a handler for upload per package format."""
     # pylint: disable=fixme
     # HACK: hacky territory - Dynamically generate a handler for each of the

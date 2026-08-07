@@ -137,11 +137,8 @@ def validate_slashes(
     except ValueError:
         value = None
 
-    if value:
-        if len(value) < minimum:
-            value = None
-        elif maximum and len(value) > maximum:
-            value = None
+    if value and len(value) < minimum or maximum and len(value) > maximum:
+        value = None
 
     if not value:
         form = form or "/".join("VALUE" for _ in range(minimum))

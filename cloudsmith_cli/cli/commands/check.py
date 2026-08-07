@@ -33,9 +33,11 @@ def rates(ctx, opts):
     click.echo("Retrieving rate limits ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to retrieve status!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            resources_limits = get_rate_limits()
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        resources_limits = get_rate_limits()
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -85,9 +87,11 @@ def service(ctx, opts):
     click.echo("Retrieving service status ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to retrieve status!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            status, version = get_status(with_version=True)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        status, version = get_status(with_version=True)
 
     click.secho("OK", fg="green", err=use_stderr)
 

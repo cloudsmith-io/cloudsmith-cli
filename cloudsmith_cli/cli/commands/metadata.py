@@ -6,9 +6,17 @@ import click
 
 from ...core.api.metadata import (
     create_metadata as api_create_metadata,
+)
+from ...core.api.metadata import (
     delete_metadata as api_delete_metadata,
+)
+from ...core.api.metadata import (
     get_metadata as api_get_metadata,
+)
+from ...core.api.metadata import (
     list_metadata as api_list_metadata,
+)
+from ...core.api.metadata import (
     update_metadata as api_update_metadata,
 )
 from ...core.api.packages import get_package_slug_perm as api_get_package_slug_perm
@@ -172,12 +180,14 @@ def list_metadata(
         )
 
         context_msg = "Could not fetch package metadata."
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                slug_perm = api_get_package_slug_perm(
-                    owner=owner, repo=repo, identifier=package
-                )
-                entry = api_get_metadata(slug_perm, metadata_slug_perm)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            slug_perm = api_get_package_slug_perm(
+                owner=owner, repo=repo, identifier=package
+            )
+            entry = api_get_metadata(slug_perm, metadata_slug_perm)
 
         click.secho("OK", fg="green", err=use_stderr)
         _print_metadata_entry(opts, entry)
@@ -190,20 +200,22 @@ def list_metadata(
     )
 
     context_msg = "Could not list package metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            entries, page_info = paginate_results(
-                api_list_metadata,
-                page_all=page_all,
-                page=page,
-                page_size=page_size,
-                package_slug_perm=slug_perm,
-                source_kind=source_kind,
-                classification=classification,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        entries, page_info = paginate_results(
+            api_list_metadata,
+            page_all=page_all,
+            page=page,
+            page_size=page_size,
+            package_slug_perm=slug_perm,
+            source_kind=source_kind,
+            classification=classification,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_table(opts, entries, page_info=page_info, page_all=page_all)
@@ -252,7 +264,7 @@ def list_metadata(
     "source_identity",
     default=None,
     help=(
-        "Identifier for the metadata source. " "Defaults to 'cloudsmith-cli@<version>'."
+        "Identifier for the metadata source. Defaults to 'cloudsmith-cli@<version>'."
     ),
 )
 @click.pass_context
@@ -313,17 +325,19 @@ def add_metadata(
     )
 
     context_msg = "Could not attach metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            entry = api_create_metadata(
-                slug_perm,
-                content=metadata.content,
-                content_type=metadata.content_type,
-                source_identity=metadata.source_identity,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        entry = api_create_metadata(
+            slug_perm,
+            content=metadata.content,
+            content_type=metadata.content_type,
+            source_identity=metadata.source_identity,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_entry(opts, entry)
@@ -358,8 +372,7 @@ def add_metadata(
     "inline_content",
     default=None,
     help=(
-        "Set replacement metadata content from inline JSON. Cannot be used with "
-        "--file."
+        "Set replacement metadata content from inline JSON. Cannot be used with --file."
     ),
 )
 @click.option(
@@ -424,12 +437,14 @@ def update_metadata(
     )
 
     context_msg = "Could not update package metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            entry = api_update_metadata(slug_perm, metadata_slug_perm, **patch_kwargs)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        entry = api_update_metadata(slug_perm, metadata_slug_perm, **patch_kwargs)
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_entry(opts, entry)

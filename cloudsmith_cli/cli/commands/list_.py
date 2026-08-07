@@ -59,9 +59,11 @@ def distros(ctx, opts, package_format):
         click.echo("Getting list of distributions ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of distributions!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            distros_ = list_distros(package_format=package_format)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        distros_ = list_distros(package_format=package_format)
 
     if not use_stderr:
         click.secho("OK", fg="green", err=use_stderr)
@@ -216,18 +218,20 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
         click.echo("Getting list of packages ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of packages!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            packages_, page_info = paginate_results(
-                list_packages,
-                page_all=page_all,
-                page=page,
-                page_size=page_size,
-                owner=owner,
-                repo=repo,
-                query=query,
-                sort=sort,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        packages_, page_info = paginate_results(
+            list_packages,
+            page_all=page_all,
+            page=page,
+            page_size=page_size,
+            owner=owner,
+            repo=repo,
+            query=query,
+            sort=sort,
+        )
 
     if not use_stderr:
         click.secho("OK", fg="green", err=use_stderr)

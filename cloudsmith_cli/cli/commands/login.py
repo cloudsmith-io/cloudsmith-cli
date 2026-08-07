@@ -47,9 +47,11 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
 
     context_msg = "Failed to retrieve the API token!"
     try:
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                api_key = get_user_token(login=login, password=password)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            api_key = get_user_token(login=login, password=password)
     except TwoFactorRequiredException as e:
         click.echo("\r\033[K", nl=False, err=use_stderr)
         click.echo("Two-factor authentication is required.", err=use_stderr)
@@ -65,14 +67,16 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
         )
 
         try:
-            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                with maybe_spinner(opts):
-                    api_key = get_user_token(
-                        login=login,
-                        password=password,
-                        totp_token=totp_token,
-                        two_factor_token=e.two_factor_token,
-                    )
+            with (
+                handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+                maybe_spinner(opts),
+            ):
+                api_key = get_user_token(
+                    login=login,
+                    password=password,
+                    totp_token=totp_token,
+                    two_factor_token=e.two_factor_token,
+                )
         except cloudsmith_api.rest.ApiException:
             click.echo("\r\033[K", nl=False, err=use_stderr)
             click.secho(
@@ -84,7 +88,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
 
     except cloudsmith_api.rest.ApiException as e:
         click.echo("\r\033[K", nl=False, err=use_stderr)
-        click.secho(f"Authentication failed: {str(e)}", fg="red", err=use_stderr)
+        click.secho(f"Authentication failed: {e!s}", fg="red", err=use_stderr)
         ctx.exit(1)
 
     click.secho("OK", fg="green", err=use_stderr)

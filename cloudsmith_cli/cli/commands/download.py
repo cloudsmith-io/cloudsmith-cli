@@ -224,14 +224,18 @@ def _find_packages(
     """Find matching packages using the API."""
     if download_all:
         context_msg = "Failed to find packages!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                packages = resolve_all_packages(**filter_kwargs)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            packages = resolve_all_packages(**filter_kwargs)
     else:
         context_msg = "Failed to find package!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                packages = [resolve_package(**filter_kwargs, yes=yes)]
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            packages = [resolve_package(**filter_kwargs, yes=yes)]
 
     if not use_stderr:
         click.secho("OK", fg="green")
@@ -304,9 +308,11 @@ def _resolve_all_files_items(
         click.echo("Getting package details ...", nl=False)
 
     context_msg = f"Failed to get details for {pkg_name}!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            detail = get_package_detail(owner=owner, repo=repo, identifier=pkg["slug"])
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        detail = get_package_detail(owner=owner, repo=repo, identifier=pkg["slug"])
 
     if not use_stderr:
         click.secho("OK", fg="green")
@@ -367,12 +373,12 @@ def _resolve_single_file_item(
         if not use_stderr:
             click.echo("Getting package details ...", nl=False)
         context_msg = "Failed to get package details!"
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                detail = get_package_detail(
-                    owner=owner, repo=repo, identifier=pkg["slug"]
-                )
-                download_url = get_download_url(detail or pkg)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            detail = get_package_detail(owner=owner, repo=repo, identifier=pkg["slug"])
+            download_url = get_download_url(detail or pkg)
         if not use_stderr:
             click.secho("OK", fg="green")
 
@@ -498,7 +504,7 @@ def _echo_progress(use_stderr: bool, message: str) -> None:
     click.echo(message, nl=False, err=use_stderr)
 
 
-def _echo_status(use_stderr: bool, message: str, fg: str = None) -> None:
+def _echo_status(use_stderr: bool, message: str, fg: str | None = None) -> None:
     """Print styled status message to stdout or stderr."""
     if fg and not use_stderr:
         click.secho(message, fg=fg)
