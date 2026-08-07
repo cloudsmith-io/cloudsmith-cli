@@ -106,11 +106,13 @@ def list_tags(ctx, opts, owner_repo_package):
     )
 
     context_msg = "Failed to list tags for the package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_get_package_tags(
-                owner=owner, repo=repo, identifier=package
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_get_package_tags(
+            owner=owner, repo=repo, identifier=package
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -175,14 +177,16 @@ def add_tags(ctx, opts, owner_repo_package, tags, immutable):
     )
 
     context_msg = "Failed to add tags to package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner,
-                repo=repo,
-                identifier=package,
-                data={"action": "add", "tags": tags, "is_immutable": immutable},
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner,
+            repo=repo,
+            identifier=package,
+            data={"action": "add", "tags": tags, "is_immutable": immutable},
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -227,11 +231,13 @@ def clear_tags(ctx, opts, owner_repo_package):
     )
 
     context_msg = "Failed to clear tags on package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner, repo=repo, identifier=package, data={"action": "clear"}
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner, repo=repo, identifier=package, data={"action": "clear"}
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -286,14 +292,16 @@ def remove_tags(ctx, opts, owner_repo_package, tags):
     )
 
     context_msg = "Failed to remove tags from package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner,
-                repo=repo,
-                identifier=package,
-                data={"action": "remove", "tags": tags},
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner,
+            repo=repo,
+            identifier=package,
+            data={"action": "remove", "tags": tags},
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -358,14 +366,16 @@ def replace_tags(ctx, opts, owner_repo_package, tags, immutable):
     )
 
     context_msg = "Failed to replace tags on package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner,
-                repo=repo,
-                identifier=package,
-                data={"action": "replace", "tags": tags, "is_immutable": immutable},
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner,
+            repo=repo,
+            identifier=package,
+            data={"action": "replace", "tags": tags, "is_immutable": immutable},
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 

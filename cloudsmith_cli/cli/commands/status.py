@@ -41,10 +41,12 @@ def status(ctx, opts, owner_repo_package):
     )
 
     context_msg = "Failed to get status of package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            res = get_package_status(owner, repo, slug)
-            ok, failed, _, status_str, stage_str, reason = res
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        res = get_package_status(owner, repo, slug)
+        ok, failed, _, status_str, stage_str, reason = res
 
     click.secho("OK", fg="green", err=use_stderr)
 

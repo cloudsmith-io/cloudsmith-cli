@@ -191,9 +191,11 @@ def create(ctx, opts, owner, policy_config_file):
     )
 
     context_msg = "Failed to create the license policy!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            policies = [api.create_license_policy(owner, policy_config)]
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        policies = [api.create_license_policy(owner, policy_config)]
 
     click.secho("OK", fg="green", err=use_stderr)
 

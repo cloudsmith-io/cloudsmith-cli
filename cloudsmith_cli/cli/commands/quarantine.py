@@ -78,9 +78,11 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     )
 
     context_msg = "Failed quarantine!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.quarantine_package(owner=owner, repo=repo, identifier=slug)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.quarantine_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -123,9 +125,11 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     )
 
     context_msg = "Failed quarantine!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 

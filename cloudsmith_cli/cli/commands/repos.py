@@ -126,11 +126,13 @@ def get(ctx, opts, owner_repo, page, page_size, page_all):
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of repositories!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repos_, page_info = paginate_results(
-                api.list_repos, page_all, page, page_size, owner=owner, repo=repo
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        repos_, page_info = paginate_results(
+            api.list_repos, page_all, page, page_size, owner=owner, repo=repo
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -196,9 +198,11 @@ def create(ctx, opts, owner, repo_config_file):
     )
 
     context_msg = "Failed to create the repository!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repository = api.create_repo(owner, repo_config)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        repository = api.create_repo(owner, repo_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -255,9 +259,11 @@ def update(ctx, opts, owner_repo, repo_config_file):
     )
 
     context_msg = "Failed to update the repository!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repository = api.update_repo(owner, repo, repo_config)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        repository = api.update_repo(owner, repo, repo_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -318,8 +324,10 @@ def delete(ctx, opts, owner_repo, yes):
     )
 
     context_msg = "Failed to delete the repository!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.delete_repo(owner=owner, repo=repo)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.delete_repo(owner=owner, repo=repo)
 
     click.secho("OK", fg="green")

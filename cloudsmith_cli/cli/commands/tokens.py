@@ -75,9 +75,11 @@ def request_api_key(ctx, opts, save_config=False):
             )
 
             # List tokens and select the first one
-            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                with utils.maybe_spinner(opts):
-                    api_tokens = api.list_user_tokens()
+            with (
+                handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+                utils.maybe_spinner(opts),
+            ):
+                api_tokens = api.list_user_tokens()
 
             if not api_tokens:
                 raise click.ClickException("No existing tokens found to rotate.")
@@ -85,9 +87,11 @@ def request_api_key(ctx, opts, save_config=False):
             token_slug = api_tokens[0].slug_perm
 
             # Refresh the token
-            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                with utils.maybe_spinner(opts):
-                    new_token = api.refresh_user_token(token_slug)
+            with (
+                handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+                utils.maybe_spinner(opts),
+            ):
+                new_token = api.refresh_user_token(token_slug)
 
             if save_config:
                 create, has_errors = create_config_files(
@@ -123,9 +127,11 @@ def list_tokens(ctx, opts):
     click.echo("Retrieving API tokens... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to retrieve API tokens!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with utils.maybe_spinner(opts):
-            tokens = api.list_user_tokens()
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        utils.maybe_spinner(opts),
+    ):
+        tokens = api.list_user_tokens()
     click.secho("OK", fg="green", err=use_stderr)
 
     if utils.maybe_print_as_json(opts, tokens):
@@ -257,9 +263,11 @@ def refresh_existing_token_interactive(
         click.echo(f"Refreshing token {token_slug}... ", nl=False, err=json)
 
     try:
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with utils.maybe_spinner(opts):
-                new_token = api.refresh_user_token(token_slug)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            utils.maybe_spinner(opts),
+        ):
+            new_token = api.refresh_user_token(token_slug)
 
         if save_config:
             create, has_errors = create_config_files(

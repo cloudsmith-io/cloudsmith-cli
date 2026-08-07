@@ -488,12 +488,14 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
     )
 
     context_msg = "Could not remove package metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            api_delete_metadata(slug_perm, metadata_slug_perm)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        api_delete_metadata(slug_perm, metadata_slug_perm)
 
     click.secho("OK", fg="green", err=use_stderr)
 
