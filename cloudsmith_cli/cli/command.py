@@ -24,9 +24,12 @@ def _is_json_output_requested(exception):
         return True
 
     for idx, arg in enumerate(argv):
-        if arg in ("-F", "--output-format") and idx + 1 < len(argv):
-            if argv[idx + 1] in ("json", "pretty_json"):
-                return True
+        if (
+            arg in ("-F", "--output-format")
+            and idx + 1 < len(argv)
+            and argv[idx + 1] in ("json", "pretty_json")
+        ):
+            return True
 
     return False
 
@@ -88,9 +91,8 @@ class AliasGroup(DYMGroup):
         return commands
 
     def get_command(self, ctx, cmd_name):
-        if getattr(ctx, "showing_help", False):
-            if "|" in cmd_name:
-                cmd_name = cmd_name.split("|")[0]
+        if getattr(ctx, "showing_help", False) and "|" in cmd_name:
+            cmd_name = cmd_name.split("|")[0]
 
         try:
             cmd_name = self.inverse[cmd_name]
