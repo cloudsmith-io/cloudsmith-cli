@@ -31,8 +31,7 @@ def extract_hostname(url):
     normalized = url.lower().strip()
 
     # Remove sparse+ prefix (Cargo)
-    if normalized.startswith("sparse+"):
-        normalized = normalized[7:]
+    normalized = normalized.removeprefix("sparse+")
 
     # Remove protocol
     if "://" in normalized:
@@ -71,10 +70,8 @@ def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None)
         return False
 
     # Standard Cloudsmith domains — no auth needed, always match regardless of backend_kind
-    if (
-        hostname in ("cloudsmith.io", "cloudsmith.com")
-        or hostname.endswith(".cloudsmith.io")
-        or hostname.endswith(".cloudsmith.com")
+    if hostname in ("cloudsmith.io", "cloudsmith.com") or hostname.endswith(
+        (".cloudsmith.io", ".cloudsmith.com")
     ):
         return True
 

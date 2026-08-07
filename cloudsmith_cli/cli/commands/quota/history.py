@@ -110,9 +110,11 @@ def usage(ctx, opts, owner, oss):
     owner = owner[0]
 
     context_msg = "Failed to get quota!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            quota_ = api.quota_history(owner=owner, oss=oss)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        quota_ = api.quota_history(owner=owner, oss=oss)
 
     click.secho("OK", fg="green", err=use_stderr)
 

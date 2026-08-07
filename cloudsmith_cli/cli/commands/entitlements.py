@@ -92,24 +92,26 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, page_
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Getting list of entitlements for the %(repository)s "
-        "repository ... " % {"repository": click.style(repo, bold=True)},
+        f"Getting list of entitlements for the {click.style(repo, bold=True)} "
+        "repository ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to get list of entitlements!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlements_, page_info = paginate_results(
-                api.list_entitlements,
-                page_all=page_all,
-                page=page,
-                page_size=page_size,
-                owner=owner,
-                repo=repo,
-                show_tokens=show_tokens,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlements_, page_info = paginate_results(
+            api.list_entitlements,
+            page_all=page_all,
+            page=page,
+            page_size=page_size,
+            owner=owner,
+            repo=repo,
+            show_tokens=show_tokens,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -139,11 +141,10 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
         rows.append(
             [
                 click.style(
-                    "%(name)s (%(type)s)"
-                    % {
-                        "name": click.style(entitlement["name"], fg="cyan"),
-                        "type": "user" if entitlement["user"] else "token",
-                    }
+                    "{name} ({type})".format(
+                        name=click.style(entitlement["name"], fg="cyan"),
+                        type="user" if entitlement["user"] else "token",
+                    )
                 ),
                 click.style(entitlement["token"], fg="yellow"),
                 click.style(ent_updated_at or ent_created_at, fg="blue"),
@@ -245,11 +246,10 @@ def print_entitlements_with_restrictions(
             [
                 click.style(entitlement["slug_perm"], fg="green"),
                 click.style(
-                    "%(name)s (%(type)s)"
-                    % {
-                        "name": click.style(name, fg="cyan"),
-                        "type": "user" if user else "token",
-                    }
+                    "{name} ({type})".format(
+                        name=click.style(name, fg="cyan"),
+                        type="user" if user else "token",
+                    )
                 ),
                 click.style(updated_at or created_at, fg="white"),
                 click.style("yes" if is_active else "no", fg="yellow"),
@@ -326,22 +326,20 @@ def create(ctx, opts, owner_repo, show_tokens, name, token):
     use_stderr = utils.should_use_stderr(opts)
 
     click.secho(
-        "Creating %(name)s entitlement for the %(repository)s "
-        "repository ... "
-        % {
-            "name": click.style(name, bold=True),
-            "repository": click.style(repo, bold=True),
-        },
+        f"Creating {click.style(name, bold=True)} entitlement for the {click.style(repo, bold=True)} "
+        "repository ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to create the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.create_entitlement(
-                owner=owner, repo=repo, name=name, token=token, show_tokens=show_tokens
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.create_entitlement(
+            owner=owner, repo=repo, name=name, token=token, show_tokens=show_tokens
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -388,8 +386,9 @@ def delete(ctx, opts, owner_repo_identifier, yes):
     }
 
     prompt = (
-        "delete the %(identifier)s entitlement from the %(repository)s "
-        "repository" % delete_args
+        "delete the {identifier} entitlement from the {repository} repository".format(
+            **delete_args
+        )
     )
 
     use_stderr = utils.should_use_stderr(opts)
@@ -398,16 +397,18 @@ def delete(ctx, opts, owner_repo_identifier, yes):
         return
 
     click.secho(
-        "Deleting %(identifier)s entitlement from the %(repository)s "
-        "repository ... " % delete_args,
+        "Deleting {identifier} entitlement from the {repository} "
+        "repository ... ".format(**delete_args),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to delete the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.delete_entitlement(owner=owner, repo=repo, identifier=identifier)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.delete_entitlement(owner=owner, repo=repo, identifier=identifier)
 
     click.secho("OK", fg="green")
 
@@ -461,27 +462,25 @@ def update(ctx, opts, owner_repo_identifier, show_tokens, name, token):
     use_stderr = utils.should_use_stderr(opts)
 
     click.secho(
-        "Updating %(identifier)s entitlement for the %(repository)s "
-        "repository ... "
-        % {
-            "identifier": click.style(identifier, bold=True),
-            "repository": click.style(repo, bold=True),
-        },
+        f"Updating {click.style(identifier, bold=True)} entitlement for the {click.style(repo, bold=True)} "
+        "repository ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to update the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.update_entitlement(
-                owner=owner,
-                repo=repo,
-                identifier=identifier,
-                name=name,
-                token=token,
-                show_tokens=show_tokens,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.update_entitlement(
+            owner=owner,
+            repo=repo,
+            identifier=identifier,
+            name=name,
+            token=token,
+            show_tokens=show_tokens,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -534,25 +533,28 @@ def refresh(ctx, opts, owner_repo_identifier, show_tokens, yes):
     use_stderr = utils.should_use_stderr(opts)
 
     prompt = (
-        "refresh the %(identifier)s entitlement for the %(repository)s "
-        "repository" % refresh_args
+        "refresh the {identifier} entitlement for the {repository} repository".format(
+            **refresh_args
+        )
     )
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
-        "Refreshing %(identifier)s entitlement for the %(repository)s "
-        "repository ... " % refresh_args,
+        "Refreshing {identifier} entitlement for the {repository} "
+        "repository ... ".format(**refresh_args),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to refresh the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.refresh_entitlement(
-                owner=owner, repo=repo, identifier=identifier, show_tokens=show_tokens
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.refresh_entitlement(
+            owner=owner, repo=repo, identifier=identifier, show_tokens=show_tokens
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -611,34 +613,36 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
 
     if not yes:
         click.secho(
-            "%(warning)s This will DELETE ALL of the existing entitlements "
-            "in the %(dest)s repository and replace them with entitlements "
-            "from the %(source)s repository." % sync_args,
+            "{warning} This will DELETE ALL of the existing entitlements "
+            "in the {dest} repository and replace them with entitlements "
+            "from the {source} repository.".format(**sync_args),
             fg="yellow",
             err=use_stderr,
         )
         click.echo()
 
     prompt = (
-        "sync entitlements from the %(source)s repository to the "
-        "%(dest)s repository" % sync_args
+        "sync entitlements from the {source} repository to the "
+        "{dest} repository".format(**sync_args)
     )
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
-        "Syncing entitlements from the %(source)s repository to the "
-        "%(dest)s repository" % sync_args,
+        "Syncing entitlements from the {source} repository to the "
+        "{dest} repository".format(**sync_args),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to sync the entitlements!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlements_, page_info = api.sync_entitlements(
-                owner=owner, repo=repo, source=source, show_tokens=show_tokens
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlements_, page_info = api.sync_entitlements(
+            owner=owner, repo=repo, source=source, show_tokens=show_tokens
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -775,12 +779,8 @@ def restrict(
     use_stderr = utils.should_use_stderr(opts)
 
     click.secho(
-        "Updating %(identifier)s entitlement for the %(repository)s "
-        "repository ... "
-        % {
-            "identifier": click.style(identifier, bold=True),
-            "repository": click.style(repo, bold=True),
-        },
+        f"Updating {click.style(identifier, bold=True)} entitlement for the {click.style(repo, bold=True)} "
+        "repository ... ",
         nl=False,
         err=use_stderr,
     )
@@ -806,11 +806,13 @@ def restrict(
         data["limit_date_range_to"] = limit_date_range_to
 
     context_msg = "Failed to update the entitlement!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            entitlement = api.restrict_entitlement(
-                owner=owner, repo=repo, identifier=identifier, data=data
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        entitlement = api.restrict_entitlement(
+            owner=owner, repo=repo, identifier=identifier, data=data
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
