@@ -59,24 +59,21 @@ def copy(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Copying %(slug)s package from %(source)s to %(dest)s ... "
-        % {
-            "slug": click.style(slug, bold=True),
-            "source": click.style(source, bold=True),
-            "dest": click.style(destination, bold=True),
-        },
+        f"Copying {click.style(slug, bold=True)} package from {click.style(source, bold=True)} to {click.style(destination, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to copy package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            _, new_slug = copy_package(
-                owner=owner, repo=source, identifier=slug, destination=destination
-            )
+        _, new_slug = copy_package(
+            owner=owner, repo=source, identifier=slug, destination=destination
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
