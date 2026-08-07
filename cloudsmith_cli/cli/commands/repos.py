@@ -35,11 +35,10 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, page_all
                 click.style(str(repo["package_group_count"]), fg="blue"),
                 click.style(str(repo["num_downloads"]), fg="blue"),
                 click.style(str(repo["size_str"]), fg="blue"),
-                "%(owner_slug)s/%(slug)s"
-                % {
-                    "owner_slug": click.style(repo["namespace"], fg="magenta"),
-                    "slug": click.style(repo["slug"], fg="green"),
-                },
+                "{owner_slug}/{slug}".format(
+                    owner_slug=click.style(repo["namespace"], fg="magenta"),
+                    slug=click.style(repo["slug"], fg="green"),
+                ),
             ]
         )
 
@@ -191,11 +190,7 @@ def create(ctx, opts, owner, repo_config_file):
         )
 
     click.secho(
-        "Creating %(name)s repository for the %(owner)s namespace ..."
-        % {
-            "name": click.style(repo_name, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Creating {click.style(repo_name, bold=True)} repository for the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
@@ -254,11 +249,7 @@ def update(ctx, opts, owner_repo, repo_config_file):
     repo_config = json.load(repo_config_file)
 
     click.secho(
-        "Updating %(name)s repository in the %(owner)s namespace ..."
-        % {
-            "name": click.style(repo, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Updating {click.style(repo, bold=True)} repository in the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
@@ -311,14 +302,18 @@ def delete(ctx, opts, owner_repo, yes):
         "repository": click.style(repo, bold=True),
     }
 
-    prompt = "delete the %(repository)s from the %(namespace)s namespace" % delete_args
+    prompt = "delete the {repository} from the {namespace} namespace".format(
+        **delete_args
+    )
     # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = utils.should_use_stderr(opts)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
-        "Deleting %(repository)s from the %(namespace)s namespace ... " % delete_args,
+        "Deleting {repository} from the {namespace} namespace ... ".format(
+            **delete_args
+        ),
         nl=False,
     )
 

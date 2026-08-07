@@ -30,7 +30,7 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
         severity_keys = {k: v for k, v in severity_keys.items() if v in allowed}
 
     headers = [{"header": "Package", "justify": "left", "style": "cyan"}]
-    for key in severity_keys.keys():
+    for key in severity_keys:
         headers.append({"header": key, "justify": "center", "style": "white"})
 
     # Get package name and version for the target label
@@ -55,7 +55,7 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
 
     # Create the single summary row
     row = [target_label]
-    for _header, key in severity_keys.items():
+    for key in severity_keys.values():
         row.append(str(counts[key]))
 
     rows = [row]

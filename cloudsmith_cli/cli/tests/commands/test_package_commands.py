@@ -23,7 +23,7 @@ def test_push_and_delete_raw_package(
     runner, organization, tmp_repository, tmp_path, filesize
 ):
     # List packages again - should be empty.
-    org_repo = f'{organization}/{tmp_repository["slug"]}'
+    org_repo = f"{organization}/{tmp_repository['slug']}"
     result = runner.invoke(
         list_, args=["pkgs", org_repo, "-F", "json"], catch_exceptions=False
     )
@@ -90,7 +90,7 @@ def test_push_and_delete_raw_package(
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
 def test_list_packages_with_sort(runner, organization, tmp_repository, tmp_path):
     """Test listing packages with different sort options."""
-    org_repo = f'{organization}/{tmp_repository["slug"]}'
+    org_repo = f"{organization}/{tmp_repository['slug']}"
 
     # Create and push two packages with different names
     for name in ["aaa", "zzz"]:

@@ -47,20 +47,22 @@ def delete(ctx, opts, owner_repo_package, yes):
 
     use_stderr = utils.should_use_stderr(opts)
 
-    prompt = "delete the %(package)s from %(owner)s/%(repo)s" % delete_args
+    prompt = "delete the {package} from {owner}/{repo}".format(**delete_args)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.echo(
-        "Deleting %(package)s from %(owner)s/%(repo)s ... " % delete_args,
+        "Deleting {package} from {owner}/{repo} ... ".format(**delete_args),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to delete the package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            delete_package(owner=owner, repo=repo, identifier=slug)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        delete_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 
