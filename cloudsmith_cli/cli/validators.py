@@ -138,9 +138,7 @@ def validate_slashes(
         value = None
 
     if value:
-        if len(value) < minimum:
-            value = None
-        elif maximum and len(value) > maximum:
+        if len(value) < minimum or maximum and len(value) > maximum:
             value = None
 
     if not value:

@@ -46,9 +46,9 @@ def _print_metrics_table(opts, data):
         for metric_key in metrics_keys.values():
             metric_data = getattr(category_data, metric_key, {})
             if hasattr(metric_data, "display"):
-                value = getattr(metric_data, "display")
+                value = metric_data.display
             else:
-                value = getattr(metric_data, "value")
+                value = metric_data.value
             value = str(value or 0)
             cols.append(click.style(value, fg="green"))
         rows.append(cols)

@@ -216,8 +216,7 @@ class DockerInstaller:
         if changed:
             for host in hosts:
                 actions.append(
-                    f"set credHelpers[{host!r}]={self.HELPER_VALUE!r}"
-                    f" in {config_path}"
+                    f"set credHelpers[{host!r}]={self.HELPER_VALUE!r} in {config_path}"
                 )
         else:
             actions.append(f"config.json already up to date ({config_path})")

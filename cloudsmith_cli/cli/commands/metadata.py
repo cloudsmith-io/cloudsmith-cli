@@ -6,9 +6,17 @@ import click
 
 from ...core.api.metadata import (
     create_metadata as api_create_metadata,
+)
+from ...core.api.metadata import (
     delete_metadata as api_delete_metadata,
+)
+from ...core.api.metadata import (
     get_metadata as api_get_metadata,
+)
+from ...core.api.metadata import (
     list_metadata as api_list_metadata,
+)
+from ...core.api.metadata import (
     update_metadata as api_update_metadata,
 )
 from ...core.api.packages import get_package_slug_perm as api_get_package_slug_perm
@@ -252,7 +260,7 @@ def list_metadata(
     "source_identity",
     default=None,
     help=(
-        "Identifier for the metadata source. " "Defaults to 'cloudsmith-cli@<version>'."
+        "Identifier for the metadata source. Defaults to 'cloudsmith-cli@<version>'."
     ),
 )
 @click.pass_context
@@ -358,8 +366,7 @@ def add_metadata(
     "inline_content",
     default=None,
     help=(
-        "Set replacement metadata content from inline JSON. Cannot be used with "
-        "--file."
+        "Set replacement metadata content from inline JSON. Cannot be used with --file."
     ),
 )
 @click.option(
