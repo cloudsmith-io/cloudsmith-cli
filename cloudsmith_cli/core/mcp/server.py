@@ -433,12 +433,11 @@ class DynamicMCPServer:
                     continue
 
                 # Validate enum values
-                if "enum" in param_schema:
-                    if value not in param_schema["enum"]:
-                        allowed_values = ", ".join(param_schema["enum"])
-                        raise ValueError(
-                            f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
-                        )
+                if "enum" in param_schema and value not in param_schema["enum"]:
+                    allowed_values = ", ".join(param_schema["enum"])
+                    raise ValueError(
+                        f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
+                    )
 
                 validated_arguments[key] = value
             else:
@@ -519,7 +518,7 @@ class DynamicMCPServer:
         except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
         except httpx.HTTPError as e:
-            return f"HTTP error: {str(e)}"
+            return f"HTTP error: {e!s}"
         finally:
             await http_client.aclose()
 
