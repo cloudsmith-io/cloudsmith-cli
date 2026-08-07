@@ -240,7 +240,7 @@ class RestClient(RESTClientObject):
                 **request_kwargs,
             )
         except requests.exceptions.RequestException as exc:
-            msg = f"{type(exc).__name__}\n{str(exc)}"
+            msg = f"{type(exc).__name__}\n{exc!s}"
             raise ApiException(status=0, reason=msg)
 
         resp.encoding = resp.apparent_encoding or "utf-8"

@@ -24,8 +24,7 @@ def report_retry(seconds, context=None):
     if context == "retry-after":
         click.echo()
         click.echo(
-            "Request was throttled (429): Retrying after %(seconds)s second(s) ... "
-            % {"seconds": click.style(str(seconds), bold=True)}
+            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... "
         )
 
 

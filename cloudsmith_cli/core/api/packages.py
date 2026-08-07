@@ -32,7 +32,7 @@ def create_package(package_format, owner, repo, **kwargs):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        upload = getattr(client, "packages_upload_%s_with_http_info" % package_format)
+        upload = getattr(client, f"packages_upload_{package_format}_with_http_info")
 
         data, _, headers = upload(
             owner=owner, repo=repo, data=make_create_payload(**kwargs)
@@ -48,7 +48,7 @@ def validate_create_package(package_format, owner, repo, **kwargs):
 
     with catch_raise_api_exception():
         check = getattr(
-            client, "packages_validate_upload_%s_with_http_info" % package_format
+            client, f"packages_validate_upload_{package_format}_with_http_info"
         )
 
         _, _, headers = check(

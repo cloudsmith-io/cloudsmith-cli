@@ -481,8 +481,8 @@ class TestValidateMetadata:
             "detail": "Invalid input.",
             "fields": {
                 "content": [
-                    "Content does not conform to the schema for content type"
-                    " 'application/vnd.jfrog.buildinfo+json'."
+                    ("Content does not conform to the schema for content type"
+                    " 'application/vnd.jfrog.buildinfo+json'.")
                 ]
             },
         }
@@ -511,8 +511,8 @@ class TestValidateMetadata:
             "detail": "Invalid input.",
             "fields": {
                 "content_type": [
-                    "Content type 'application/vnd.cloudsmith.system+json'"
-                    " is not customer-writable."
+                    ("Content type 'application/vnd.cloudsmith.system+json'"
+                    " is not customer-writable.")
                 ]
             },
         }

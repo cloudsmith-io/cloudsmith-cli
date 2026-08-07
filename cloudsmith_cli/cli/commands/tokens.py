@@ -1,6 +1,7 @@
 import click
 
-from ...core.api import exceptions, user as api
+from ...core.api import exceptions
+from ...core.api import user as api
 from ...core.config import create_config_files, new_config_messaging
 from .. import command, decorators, utils
 from ..exceptions import handle_api_exceptions
@@ -18,13 +19,12 @@ def handle_duplicate_token_error(exc, ctx, opts, save_config, force, json):
         and exc.detail
         and "User has already created an API key" in exc.detail
     ):
-        if not force:
-            if not click.confirm(
-                "User already has a token. Would you like to recreate it?",
-                abort=False,
-                err=json,
-            ):
-                return None
+        if not force and not click.confirm(
+            "User already has a token. Would you like to recreate it?",
+            abort=False,
+            err=json,
+        ):
+            return None
         return refresh_existing_token_interactive(
             ctx, opts, save_config=save_config, force=force, json=json
         )
@@ -99,7 +99,7 @@ def request_api_key(ctx, opts, save_config=False):
 
         # Other errors - use the handler
         with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            raise exc
+            raise
 
 
 @main.group(cls=command.AliasGroup, name="tokens")
@@ -193,9 +193,8 @@ def refresh(ctx, opts, token_slug, force, save_config):
         ctx, opts, token_slug, save_config, force
     )
 
-    if new_token:
-        if utils.maybe_print_as_json(opts, new_token):
-            return new_token
+    if new_token and utils.maybe_print_as_json(opts, new_token):
+        return new_token
 
 
 def print_tokens(tokens):

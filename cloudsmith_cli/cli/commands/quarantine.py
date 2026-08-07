@@ -72,11 +72,7 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Adding %(repository)s/%(package_slug)s to quarantine... "
-        % {
-            "repository": click.style(repo, bold=True),
-            "package_slug": click.style(slug, bold=True),
-        },
+        f"Adding {click.style(repo, bold=True)}/{click.style(slug, bold=True)} to quarantine... ",
         nl=False,
         err=use_stderr,
     )
@@ -121,11 +117,7 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Removing %(repository)s/%(package_slug)s from quarantine... "
-        % {
-            "repository": click.style(repo, bold=True),
-            "package_slug": click.style(slug, bold=True),
-        },
+        f"Removing {click.style(repo, bold=True)}/{click.style(slug, bold=True)} from quarantine... ",
         nl=False,
         err=use_stderr,
     )
