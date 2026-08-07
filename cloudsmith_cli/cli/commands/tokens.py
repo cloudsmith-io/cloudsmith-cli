@@ -1,6 +1,7 @@
 import click
 
-from ...core.api import exceptions, user as api
+from ...core.api import exceptions
+from ...core.api import user as api
 from ...core.config import create_config_files, new_config_messaging
 from .. import command, decorators, utils
 from ..exceptions import handle_api_exceptions

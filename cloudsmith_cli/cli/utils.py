@@ -173,7 +173,7 @@ def maybe_print_as_json(opts, data, page_info=None):
         else:
             dump = json.dumps(root, sort_keys=True, default=json_serializer)
     except (TypeError, ValueError) as e:
-        click.secho(f"Failed to convert to JSON: {str(e)}", fg="red", err=True)
+        click.secho(f"Failed to convert to JSON: {e!s}", fg="red", err=True)
         return True
 
     click.echo(dump)

@@ -31,8 +31,7 @@ def extract_hostname(url):
     normalized = url.lower().strip()
 
     # Remove sparse+ prefix (Cargo)
-    if normalized.startswith("sparse+"):
-        normalized = normalized[7:]
+    normalized = normalized.removeprefix("sparse+")
 
     # Remove protocol
     if "://" in normalized:

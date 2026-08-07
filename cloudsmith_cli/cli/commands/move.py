@@ -85,11 +85,10 @@ def move(
     context_msg = "Failed to move package!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
-    ):
-        with maybe_spinner(opts):
-            _, new_slug = move_package(
-                owner=owner, repo=source, identifier=slug, destination=destination
-            )
+    ), maybe_spinner(opts):
+        _, new_slug = move_package(
+            owner=owner, repo=source, identifier=slug, destination=destination
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
