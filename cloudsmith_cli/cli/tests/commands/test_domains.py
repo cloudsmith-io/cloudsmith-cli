@@ -417,6 +417,99 @@ def test_custom_domains_are_ranked_by_precedence_without_repo(runner, monkeypatc
     assert customs == ["zeta.acme.example.com", "alpha.acme.example.com"]
 
 
+def test_default_shows_everything_with_no_pagination_metadata(runner, monkeypatch):
+    """With no --page/--page-size given, the command defaults to --page-all.
+
+    The combined list is small and built from a local cache, unlike other
+    `list` commands backed by a live paginated endpoint, so there is no
+    upside to hiding entries by default.
+    """
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    records = [_domain(f"h{i}.acme.example.com", None) for i in range(5)]
+
+    result, _ = _invoke(runner, custom_domains=records)
+
+    document = json.loads(result.stdout)
+    assert "meta" not in document
+    assert len([e for e in document["domains"] if e["type"] == "custom"]) == 5
+
+
+def test_page_size_selects_a_page_and_reports_pagination_metadata(runner, monkeypatch):
+    """Passing --page-size switches the command into paged output."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    records = [
+        _domain(
+            f"h{i}.acme.example.com", None, created_at=f"2020-01-{i + 1:02d}T00:00:00Z"
+        )
+        for i in range(5)
+    ]
+
+    unpaged, _ = _invoke(runner, custom_domains=records)
+    total = len(json.loads(unpaged.stdout)["domains"])
+
+    result, _ = _invoke(
+        runner, "--page-size", "2", "--page", "1", custom_domains=records
+    )
+
+    document = json.loads(result.stdout)
+    assert len(document["domains"]) == 2
+    pagination = document["meta"]["pagination"]
+    assert pagination["page"] == 1
+    assert pagination["page_size"] == 2
+    assert pagination["results_total"] == total
+    assert pagination["page_max"] == -(-total // 2)
+
+
+def test_second_page_continues_where_the_first_left_off(runner, monkeypatch):
+    """Successive pages walk through the full list without gaps or overlap."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    records = [
+        _domain(
+            f"h{i}.acme.example.com", None, created_at=f"2020-01-{i + 1:02d}T00:00:00Z"
+        )
+        for i in range(5)
+    ]
+
+    page_one, _ = _invoke(
+        runner, "--page-size", "2", "--page", "1", custom_domains=records
+    )
+    page_two, _ = _invoke(
+        runner, "--page-size", "2", "--page", "2", custom_domains=records
+    )
+
+    hosts_one = [e["host"] for e in json.loads(page_one.stdout)["domains"]]
+    hosts_two = [e["host"] for e in json.loads(page_two.stdout)["domains"]]
+    assert not set(hosts_one) & set(hosts_two)
+    assert json.loads(page_two.stdout)["meta"]["pagination"]["page"] == 2
+
+
+def test_page_all_shows_everything_even_with_explicit_page_size(runner, monkeypatch):
+    """--page-all still means "everything", overriding any --page-size given."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+    records = [_domain(f"h{i}.acme.example.com", None) for i in range(5)]
+
+    result, _ = _invoke(runner, "--page-all", custom_domains=records)
+
+    document = json.loads(result.stdout)
+    assert "meta" not in document
+    assert len([e for e in document["domains"] if e["type"] == "custom"]) == 5
+
+
+def test_page_and_page_all_are_mutually_exclusive(runner, monkeypatch):
+    """Explicit --page together with --page-all is rejected, as elsewhere in the CLI."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "acme")
+
+    with patch(_PATCH_TARGET, return_value=[]):
+        result = runner.invoke(
+            list_domains,
+            ["--page", "2", "--page-all", *HERMETIC_ARGS],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code != 0
+    assert "--page-all" in result.output or "page-all" in result.output
+
+
 def test_cached_domains_from_several_orgs_are_grouped_by_org(runner, tmp_path):
     """Cross-org cached records are never interleaved into one ranking.
 

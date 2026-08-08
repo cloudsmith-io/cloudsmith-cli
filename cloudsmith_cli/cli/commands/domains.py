@@ -12,8 +12,10 @@ import json
 import os
 
 import click
+from click.core import ParameterSource
 
 from ...core.api.exceptions import ApiException
+from ...core.pagination import PageInfo
 from ...credential_helpers.custom_domains import (
     get_custom_domains,
     order_by_precedence,
@@ -30,6 +32,7 @@ from ..config import get_default_config_path
 from ..decorators import (
     common_api_auth_options,
     common_cli_config_options,
+    common_cli_list_options,
     initialise_api,
 )
 from .main import main
@@ -109,6 +112,7 @@ def domains_():
     "Drops custom domains bound to a different repository.",
 )
 @common_cli_config_options
+@common_cli_list_options
 @common_api_auth_options
 @initialise_api
 @click.pass_context
@@ -119,6 +123,9 @@ def list_domains(  # pylint: disable=too-many-arguments
     format_: str | None,
     domain_type: str | None,
     repo: str | None,
+    page: int,
+    page_size: int,
+    page_all: bool,
 ) -> None:
     """Emit the Cloudsmith hosts and their package formats as JSON.
 
@@ -147,10 +154,21 @@ def list_domains(  # pylint: disable=too-many-arguments
     Cloudsmith would bind; ``--repo`` is what lets the repository-bound hosts
     take part in it.
 
+    Results support the same --page/--page-size (-p/-l) options as other
+    `list` commands, selecting a page of the combined, filtered list. Unlike
+    those commands, this one defaults to --page-all (--show-all): the
+    combined list is small and built from a local cache rather than a live
+    paginated endpoint, so there is no benefit to hiding entries by default.
+    Passing --page or --page-size switches to paged output.
+
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
         "type": ..., "domain_type": ..., "org": ..., "repository": ...,
-        "primary": ..., "created_at": ...}]}
+        "primary": ..., "created_at": ...}], "meta": {"pagination": {...}}}
+
+        "meta" is only present when the result is paginated (i.e. not
+        --page-all), and mirrors the pagination metadata other `list`
+        commands emit for `-F json`.
 
     Examples:
 
@@ -170,6 +188,24 @@ def list_domains(  # pylint: disable=too-many-arguments
         # Where to upload to
         $ cloudsmith domains list --org my-org --domain-type upload
     """
+    if not page_all:
+        explicit_sources = {
+            src
+            for src in (
+                ParameterSource.COMMANDLINE,
+                ParameterSource.ENVIRONMENT,
+                getattr(ParameterSource, "PROMPT", None),
+            )
+            if src is not None
+        }
+        page_explicit = ctx.get_parameter_source("page") in explicit_sources
+        page_size_explicit = ctx.get_parameter_source("page_size") in explicit_sources
+        if not page_explicit and not page_size_explicit:
+            # Unlike other `list` commands, domains list defaults to showing
+            # everything: the combined list is small and built from a local
+            # cache, so paging by default would hide entries for no benefit.
+            page_all = True
+
     explicit_config = ctx.meta.get("config_file")
     if explicit_config and os.path.isdir(explicit_config):
         explicit_config = os.path.join(explicit_config, "config.ini")
@@ -243,4 +279,23 @@ def list_domains(  # pylint: disable=too-many-arguments
 
     data = _custom_entries(records) + default_entries
 
-    click.echo(json.dumps({"version": PROTOCOL_VERSION, "domains": data}))
+    document = {"version": PROTOCOL_VERSION, "domains": data}
+
+    if not page_all:
+        if page < 1 or page_size < 1:
+            raise click.UsageError("--page and --page-size must be positive.")
+
+        total = len(data)
+        start = (page - 1) * page_size
+        page_info = PageInfo()
+        page_info.count = total
+        page_info.page = page
+        page_info.page_size = page_size
+        page_info.page_total = -(-total // page_size) or 1
+
+        document["domains"] = data[start : start + page_size]
+        document["meta"] = {
+            "pagination": page_info.as_dict(num_results=len(document["domains"]))
+        }
+
+    click.echo(json.dumps(document))
