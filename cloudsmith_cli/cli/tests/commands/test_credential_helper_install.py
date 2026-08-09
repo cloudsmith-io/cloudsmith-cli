@@ -14,6 +14,7 @@ import click.testing
 import pytest
 
 from ....core.credentials.models import CredentialResult
+from ....credential_helpers.default_domains import DomainType
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     _launcher_content,
@@ -474,13 +475,23 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
 
     cache_path = get_cache_path("acme")
     cached_domain = CustomDomain(
-        host="docker.acme.com", backend_kind=6, enabled=True, validated=True
+        host="docker.acme.com",
+        backend_kind=6,
+        enabled=True,
+        validated=True,
+        org="acme",
+        domain_type=DomainType.NATIVE_API,
     )
     write_cache(cache_path, [cached_domain])
     os.utime(cache_path, (time.time(), time.time()))
 
     fresh_domain = CustomDomain(
-        host="new.acme.com", backend_kind=6, enabled=True, validated=True
+        host="new.acme.com",
+        backend_kind=6,
+        enabled=True,
+        validated=True,
+        org="acme",
+        domain_type=DomainType.NATIVE_API,
     )
     api_calls = []
 
@@ -492,6 +503,8 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
                 "backend_kind": 6,
                 "enabled": True,
                 "validated": True,
+                "domain_type": 3,
+                "primary": True,
             }
         ]
 

@@ -8,6 +8,7 @@ from . import (
     delete,
     dependencies,
     docs,
+    domains,
     download,
     entitlements,
     help_,

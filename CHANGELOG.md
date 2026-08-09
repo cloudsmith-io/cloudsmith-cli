@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `cloudsmith domains list` lists the hosts Cloudsmith can authenticate as a versioned JSON document: `{"version": 1, "domains": [{"host": ..., "format": ..., "type": ..., "domain_type": ..., "org": ..., "repository": ..., "primary": ..., "created_at": ...}]}`. The built-in list can be replaced by a `[domains]` section in a trusted `config.ini` — each entry maps a hostname to the format it serves, or to `download`/`upload` — for dedicated deployments. An organisation's own custom domains are listed ahead of the built-in hosts, and a custom domain that is disabled or not yet validated is left out entirely, since it serves nothing. `--format` and `--repo` narrow the list to the hosts usable for a package format or repository, most-preferred first, and `--domain-type` to those with one purpose: `download`, `upload`, `api` or `native_api`.
+- The Cloudsmith organisation is now named by `--org`, with `--organization` and `--oidc-org` accepted as aliases for the same option, and `org`, `organization` or `oidc_org` accepted in `config.ini`. `--oidc-org` named the setting after the first feature that wanted it; it is read by custom-domain discovery as well as OIDC token exchange, so it is now named after what it is. The `CLOUDSMITH_ORG` environment variable is unchanged, and `credential-helper install` no longer has a separate `--org` of its own.
+
 ## [1.21.0] - 2026-08-03
 
 ### Added

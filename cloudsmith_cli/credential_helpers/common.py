@@ -6,7 +6,6 @@ Provides domain checking used by all credential helpers.
 """
 
 import logging
-import os
 
 from .custom_domains import get_custom_domains, get_format_domains
 
@@ -48,7 +47,9 @@ def extract_hostname(url):
     return hostname
 
 
-def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None):
+def is_cloudsmith_domain(
+    url, credential=None, api_host=None, backend_kind=None, org=None
+):
     """
     Check if a URL points to a Cloudsmith service.
 
@@ -62,6 +63,8 @@ def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None)
         backend_kind: If given, custom domains only match when their backend_kind
             equals it (standard *.cloudsmith.io domains always match regardless).
             When None (default), any enabled+validated custom domain matches.
+        org: Organisation slug whose custom domains to match against, as the
+            CLI resolved it from --org, CLOUDSMITH_ORG or config.ini
 
     Returns:
         bool: True if this is a Cloudsmith domain
@@ -79,7 +82,6 @@ def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None)
         return True
 
     # Custom domains require org + auth
-    org = os.environ.get("CLOUDSMITH_ORG", "").strip()
     if not org:
         return False
 
@@ -100,6 +102,6 @@ def is_cloudsmith_domain(url, credential=None, api_host=None, backend_kind=None)
         hosts = {
             d.host.lower()
             for d in get_custom_domains(org, credential=credential, api_host=api_host)
-            if d.enabled and d.validated
+            if d.is_active
         }
     return hostname in hosts
