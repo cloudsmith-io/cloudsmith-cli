@@ -11,6 +11,7 @@ from . import (
     domains,
     download,
     entitlements,
+    exec_,
     help_,
     list_,
     login,

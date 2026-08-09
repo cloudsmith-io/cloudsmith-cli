@@ -13,6 +13,8 @@ import sys
 import click
 
 from ....credential_helpers.docker.installer import DockerInstaller
+from ....credential_helpers.maven.config import DEFAULT_SERVER_ID
+from ....credential_helpers.maven.installer import MavenInstaller
 from ... import utils
 from ...decorators import (
     common_api_auth_options,
@@ -27,6 +29,7 @@ from ...decorators import (
 
 _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
+    "maven": MavenInstaller,
 }
 
 
@@ -73,7 +76,7 @@ def _get_installer(name: str):
     "--domain",
     "domains",
     multiple=True,
-    help="Additional registry hostname to configure (repeatable).",
+    help="Additional registry hostname to configure (repeatable). Docker only.",
 )
 @click.option(
     "--dry-run",
@@ -85,13 +88,26 @@ def _get_installer(name: str):
     "--no-discover",
     is_flag=True,
     default=False,
-    help="Disable automatic discovery of custom Docker domains.",
+    help="Disable automatic discovery of custom domains.",
 )
 @click.option(
     "--refresh",
     is_flag=True,
     default=False,
     help="Bypass the custom-domain cache and fetch fresh data from the API.",
+)
+@click.option(
+    "--repo",
+    default=None,
+    envvar="CLOUDSMITH_REPO",
+    help="Maven only: the Cloudsmith repository slug to bind.",
+)
+@click.option(
+    "--server-id",
+    default=DEFAULT_SERVER_ID,
+    show_default=True,
+    help="Maven only: the <server> id the credentials are registered under in "
+    "the generated settings.xml, matching your pom.xml.",
 )
 @common_cli_config_options
 @common_cli_output_options
@@ -107,16 +123,24 @@ def install_cmd(
     dry_run: bool,
     no_discover: bool,
     refresh: bool,
+    repo: str | None,
+    server_id: str,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``).
+    HELPER is the name of the credential helper to install (``docker`` or
+    ``maven``). The maven helper binds one repository, so it requires
+    ``--org`` and ``--repo``.
 
     Examples:
 
     \b
         # Install Docker credential helper
         $ cloudsmith credential-helper install docker
+
+    \b
+        # Install the Maven helper for one repository
+        $ cloudsmith credential-helper install maven --org my-org --repo my-repo
 
     \b
         # Install with a custom domain
@@ -131,18 +155,37 @@ def install_cmd(
         $ cloudsmith credential-helper install docker --no-discover
     """
     installer = _get_installer(helper)
+
+    # click passes CLOUDSMITH_REPO through verbatim, and a padded slug would
+    # be interpolated into a URL and 404. opts.org is already normalised on its
+    # way through the options object.
+    repo = (repo or "").strip() or None
+
+    # The Maven helper binds a single repository and keeps its shim in a fixed
+    # shims directory, so --bin-dir and --domain do not apply to it.
+    if installer.requires_repo:
+        if not (opts.org and repo):
+            raise click.ClickException(f"helper {helper!r} requires --org and --repo.")
+        for name, value in (("--bin-dir", bin_dir), ("--domain", domains)):
+            if value:
+                click.echo(f"Warning: {name} is ignored for {helper!r}.", err=True)
+        extra: dict = {"repo": repo, "server_id": server_id}
+    else:
+        extra = {"bin_dir": bin_dir, "domains": domains}
+
     try:
         actions = installer.install(
-            bin_dir=bin_dir,
-            domains=domains,
             dry_run=dry_run,
             discover=not no_discover,
             refresh=refresh,
             org=opts.org,
             credential=opts.credential,
             api_host=opts.api_host,
+            **extra,
         )
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
+        # ValueError: a trusted [domains] table that declares no host for this
+        # helper's format, which has no default to fall back on.
         raise click.ClickException(
             f"Failed to install {helper!r} credential helper: {exc}"
         )
@@ -202,8 +245,9 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
         $ cloudsmith credential-helper uninstall docker --dry-run
     """
     installer = _get_installer(helper)
+    extra = {} if installer.requires_repo else {"bin_dir": bin_dir}
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(dry_run=dry_run, **extra)
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"
