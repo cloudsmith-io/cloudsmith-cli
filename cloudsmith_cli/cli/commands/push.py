@@ -6,7 +6,7 @@ import math
 import os
 import shlex
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import click
 
@@ -16,17 +16,25 @@ from ...core.api.files import (
     CHUNK_SIZE,
     multi_part_upload_file,
     request_file_upload,
-    upload_file as api_upload_file,
     validate_request_file_upload,
+)
+from ...core.api.files import (
+    upload_file as api_upload_file,
 )
 from ...core.api.metadata import (
     create_metadata as api_create_metadata,
+)
+from ...core.api.metadata import (
     validate_metadata as api_validate_metadata,
 )
 from ...core.api.packages import (
     create_package as api_create_package,
+)
+from ...core.api.packages import (
     get_package_formats,
     get_package_status,
+)
+from ...core.api.packages import (
     validate_create_package as api_validate_create_package,
 )
 from .. import command, decorators, utils, validators
@@ -107,7 +115,7 @@ def _metadata_content_failure_info(exc):
 
 def _warn_metadata_failure(failure_info):
     click.secho(
-        "Metadata content is invalid: %(error)s" % failure_info,
+        "Metadata content is invalid: {error}".format(**failure_info),
         fg="yellow",
         err=True,
     )
@@ -272,8 +280,8 @@ def validate_metadata_payload(
     use_stderr = utils.should_use_stderr(opts)
 
     if source:
-        message = "Validating metadata content from {source} ... ".format(
-            source=click.style(source, bold=True),
+        message = (
+            f"Validating metadata content from {click.style(source, bold=True)} ... "
         )
     else:
         message = "Validating metadata content ... "
@@ -362,8 +370,7 @@ def attach_metadata_to_package(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Attaching metadata to package %(slug)s ... "
-        % {"slug": click.style(slug_perm, bold=True)},
+        f"Attaching metadata to package {click.style(slug_perm, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
@@ -442,11 +449,7 @@ def attach_metadata_to_package(
         slug=click.style(slug, fg="green"),
     )
     click.echo(
-        "Metadata attached: %(path)s/%(metadata)s"
-        % {
-            "path": package_path,
-            "metadata": click.style(metadata_slug_perm, bold=True),
-        },
+        f"Metadata attached: {package_path}/{click.style(metadata_slug_perm, bold=True)}",
         err=use_stderr,
     )
 
@@ -465,20 +468,21 @@ def validate_upload_file(ctx, opts, owner, repo, filepath, skip_errors):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Checking %(filename)s file upload parameters ... "
-        % {"filename": click.style(basename, bold=True)},
+        f"Checking {click.style(basename, bold=True)} file upload parameters ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to validate upload parameters!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            md5_checksum = validate_request_file_upload(
-                owner=owner, repo=repo, filepath=filename
-            )
+        md5_checksum = validate_request_file_upload(
+            owner=owner, repo=repo, filepath=filename
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -497,24 +501,25 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Requesting file upload for %(filename)s ... "
-        % {"filename": click.style(basename, bold=True)},
+        f"Requesting file upload for {click.style(basename, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to request file upload!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            identifier, upload_url, upload_fields = request_file_upload(
-                owner=owner,
-                repo=repo,
-                filepath=filename,
-                md5_checksum=md5_checksum,
-                is_multi_part_upload=is_multi_part_upload,
-            )
+        identifier, upload_url, upload_fields = request_file_upload(
+            owner=owner,
+            repo=repo,
+            filepath=filename,
+            md5_checksum=md5_checksum,
+            is_multi_part_upload=is_multi_part_upload,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -590,20 +595,21 @@ def validate_create_package(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Checking %(package_type)s package upload parameters ... "
-        % {"package_type": click.style(package_type, bold=True)},
+        f"Checking {click.style(package_type, bold=True)} package upload parameters ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to validate upload parameters!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            api_validate_create_package(
-                package_format=package_type, owner=owner, repo=repo, **kwargs
-            )
+        api_validate_create_package(
+            package_format=package_type, owner=owner, repo=repo, **kwargs
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     return True
@@ -614,31 +620,31 @@ def create_package(ctx, opts, owner, repo, package_type, skip_errors, **kwargs):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Creating a new %(package_type)s package ... "
-        % {"package_type": click.style(package_type, bold=True)},
+        f"Creating a new {click.style(package_type, bold=True)} package ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to create package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            slug_perm, slug = api_create_package(
-                package_format=package_type, owner=owner, repo=repo, **kwargs
-            )
+        slug_perm, slug = api_create_package(
+            package_format=package_type, owner=owner, repo=repo, **kwargs
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
     click.echo(
-        "Created: %(owner)s/%(repo)s/%(slug)s (%(slug_perm)s)"
-        % {
-            "owner": click.style(owner, fg="magenta"),
-            "repo": click.style(repo, fg="magenta"),
-            "slug": click.style(slug, fg="green"),
-            "slug_perm": click.style(slug_perm, bold=True),
-        },
+        "Created: {owner}/{repo}/{slug} ({slug_perm})".format(
+            owner=click.style(owner, fg="magenta"),
+            repo=click.style(repo, fg="magenta"),
+            slug=click.style(slug, fg="green"),
+            slug_perm=click.style(slug_perm, bold=True),
+        ),
         err=use_stderr,
     )
 
@@ -669,7 +675,7 @@ def wait_for_package_sync(
             fg="cyan",
         )
 
-    start = datetime.now()
+    start = datetime.now(tz=timezone.utc)
     context_msg = "Failed to synchronise file!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
@@ -726,26 +732,24 @@ def wait_for_package_sync(
                 if left > 0:
                     pb.update(left)
 
-    end = datetime.now()
+    end = datetime.now(tz=timezone.utc)
     seconds = (end - start).total_seconds()
 
     click.echo(err=use_stderr)
 
     if ok:
         click.secho(
-            "Package synchronised successfully in %(seconds)s second(s)!"
-            % {"seconds": click.style(str(seconds), bold=True)},
+            f"Package synchronised successfully in {click.style(str(seconds), bold=True)} second(s)!",
             fg="green",
             err=use_stderr,
         )
         return
 
     click.secho(
-        "Package failed to synchronise in %(seconds)s during stage: %(stage)s"
-        % {
-            "seconds": click.style(str(seconds), bold=True),
-            "stage": click.style(stage_str or "Unknown", fg="yellow"),
-        },
+        "Package failed to synchronise in {seconds} during stage: {stage}".format(
+            seconds=click.style(str(seconds), bold=True),
+            stage=click.style(stage_str or "Unknown", fg="yellow"),
+        ),
         fg="red",
         err=use_stderr,
     )
@@ -771,11 +775,10 @@ def wait_for_package_sync(
     if attempts + 1 > 0:
         # Show attempts upto and including zero attempts left
         click.secho(
-            "Attempts left: %(left)s (%(action)s)"
-            % {
-                "left": click.style(str(attempts), bold=True),
-                "action": "trying again" if attempts > 0 else "giving up",
-            },
+            "Attempts left: {left} ({action})".format(
+                left=click.style(str(attempts), bold=True),
+                action="trying again" if attempts > 0 else "giving up",
+            ),
             err=use_stderr,
         )
         click.echo(err=use_stderr)
@@ -1016,7 +1019,7 @@ def upload_files_and_create_package(
     return slug_perm, slug
 
 
-def create_push_handlers():  # noqa: C901
+def create_push_handlers():
     """Create a handler for upload per package format."""
     # pylint: disable=fixme
     # HACK: hacky territory - Dynamically generate a handler for each of the

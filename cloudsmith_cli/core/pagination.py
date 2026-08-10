@@ -19,8 +19,8 @@ class PageInfo:
         data = self.as_dict()
         data["valid"] = self.is_valid
         return (
-            "Valid: %(valid)s, Count: %(count)s, Page: %(page)s, "
-            "Size: %(page_size)s, Total: %(results_total)s" % data
+            "Valid: {valid}, Count: {count}, Page: {page}, "
+            "Size: {page_size}, Total: {results_total}".format(**data)
         )
 
     def calculate_range(self, num_results):

@@ -407,9 +407,11 @@ class TestMCPConfigureClaudeCode:
         assert result["projects"] == existing["projects"]
 
     def test_user_scope_errors_when_claude_json_missing(self, tmp_path):
-        with patch("cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path):
-            with pytest.raises(ValueError, match="Launch Claude Code at least once"):
-                _configure_claude_code("cloudsmith", SERVER_CONFIG, is_global=True)
+        with (
+            patch("cloudsmith_cli.cli.commands.mcp.Path.home", return_value=tmp_path),
+            pytest.raises(ValueError, match="Launch Claude Code at least once"),
+        ):
+            _configure_claude_code("cloudsmith", SERVER_CONFIG, is_global=True)
 
     def test_project_scope_writes_local_mcp_json(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -485,12 +487,14 @@ class TestSafeWriteHelpers:
 
     def test_atomic_write_cleans_up_tempfile_on_failure(self, tmp_path):
         target = tmp_path / "config.json"
-        with patch(
-            "cloudsmith_cli.cli.commands.mcp.os.replace",
-            side_effect=OSError("boom"),
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.mcp.os.replace",
+                side_effect=OSError("boom"),
+            ),
+            pytest.raises(OSError, match="boom"),
         ):
-            with pytest.raises(OSError, match="boom"):
-                _atomic_write_json(target, {"k": "v"})
+            _atomic_write_json(target, {"k": "v"})
 
         leftovers = [
             p for p in tmp_path.iterdir() if p.name.startswith(".config.json.")
@@ -554,9 +558,11 @@ class TestSafeWriteHelpers:
                 os.utime(target, ns=(result.st_atime_ns, result.st_mtime_ns + 1000))
             return result
 
-        with patch.object(Path, "stat", always_racing):
-            with pytest.raises(ValueError, match="another process keeps modifying"):
-                _safe_update_json(target, lambda c: c, max_retries=2)
+        with (
+            patch.object(Path, "stat", always_racing),
+            pytest.raises(ValueError, match="another process keeps modifying"),
+        ):
+            _safe_update_json(target, lambda c: c, max_retries=2)
 
     def test_safe_update_raises_on_malformed_json(self, tmp_path):
         target = tmp_path / "config.json"
