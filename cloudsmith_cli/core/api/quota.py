@@ -27,15 +27,14 @@ def quota_limits(owner=None, oss=False, **kwargs):
                 res, _, headers = client.quota_oss_read_with_http_info(
                     owner=owner, **api_kwargs
                 )
-    elif not oss:
-        if hasattr(client, "quota_read_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.quota_read_with_http_info(
-                    owner=owner, **api_kwargs
-                )
+    elif not oss and hasattr(client, "quota_read_with_http_info"):
+        with catch_raise_api_exception():
+            res, _, headers = client.quota_read_with_http_info(
+                owner=owner, **api_kwargs
+            )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res
+    return res
 
 
 def quota_history(owner=None, oss=False, **kwargs):
@@ -53,12 +52,11 @@ def quota_history(owner=None, oss=False, **kwargs):
                 res, _, headers = client.quota_oss_history_read_with_http_info(
                     owner=owner, **api_kwargs
                 )
-    elif not oss:
-        if hasattr(client, "quota_history_read_with_http_info"):
-            with catch_raise_api_exception():
-                res, _, headers = client.quota_history_read_with_http_info(
-                    owner=owner, **api_kwargs
-                )
+    elif not oss and hasattr(client, "quota_history_read_with_http_info"):
+        with catch_raise_api_exception():
+            res, _, headers = client.quota_history_read_with_http_info(
+                owner=owner, **api_kwargs
+            )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return res if not res else res
+    return res

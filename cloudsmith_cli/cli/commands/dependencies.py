@@ -53,23 +53,20 @@ def list_dependencies(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Getting direct (non-transitive) dependencies of %(package)s in "
-        "%(owner)s/%(repo)s ... "
-        % {
-            "owner": click.style(owner, bold=True),
-            "repo": click.style(repo, bold=True),
-            "package": click.style(identifier, bold=True),
-        },
+        f"Getting direct (non-transitive) dependencies of {click.style(identifier, bold=True)} in "
+        f"{click.style(owner, bold=True)}/{click.style(repo, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to get dependencies of package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            deps, page_info = get_package_dependencies(
-                owner=owner, repo=repo, identifier=identifier
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        deps, page_info = get_package_dependencies(
+            owner=owner, repo=repo, identifier=identifier
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
