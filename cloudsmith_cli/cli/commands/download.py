@@ -491,7 +491,7 @@ def _perform_downloads(
                 )
             _echo_status(use_stderr, " OK", fg="green")
             results.append({**item, "status": "OK"})
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             _echo_status(use_stderr, " FAILED", fg="red")
             results.append({**item, "status": "FAILED", "error": str(e)})
 

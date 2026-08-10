@@ -66,6 +66,8 @@ class ConfigSchema:
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
         oidc_audience = ConfigParam(name="oidc_audience", type=str)
+        org = ConfigParam(name="org", type=str)
+        organization = ConfigParam(name="organization", type=str)
         oidc_org = ConfigParam(name="oidc_org", type=str)
         oidc_service_slug = ConfigParam(name="oidc_service_slug", type=str)
         oidc_detector_order = ConfigParam(name="oidc_detector_order", type=str)
@@ -483,14 +485,36 @@ class Options:  # pylint: disable=too-many-public-methods
         self._set_option("oidc_audience", value)
 
     @property
+    def org(self):
+        """Get value for the Cloudsmith organisation slug."""
+        return self._get_option("org")
+
+    @org.setter
+    def org(self, value):
+        """Set value for the Cloudsmith organisation slug."""
+        if isinstance(value, str):
+            value = value.strip() or None
+        self._set_option("org", value)
+
+    @property
+    def organization(self):
+        """Get the organisation slug, spelled in full."""
+        return self.org
+
+    @organization.setter
+    def organization(self, value):
+        """Set the organisation slug, spelled in full."""
+        self.org = value
+
+    @property
     def oidc_org(self):
-        """Get value for OIDC organisation slug."""
-        return self._get_option("oidc_org")
+        """Get the organisation slug under its original OIDC-era name."""
+        return self.org
 
     @oidc_org.setter
     def oidc_org(self, value):
-        """Set value for OIDC organisation slug."""
-        self._set_option("oidc_org", value)
+        """Set the organisation slug under its original OIDC-era name."""
+        self.org = value
 
     @property
     def oidc_service_slug(self):

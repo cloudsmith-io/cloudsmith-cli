@@ -29,7 +29,8 @@ def docker(opts, operation):
 
     Provides credentials for all Cloudsmith Docker registries: ``*.cloudsmith.io``,
     ``*.cloudsmith.com``, and any custom domains configured for the organisation
-    (requires CLOUDSMITH_ORG and a valid API key/token).
+    (requires an organisation - ``--org``, CLOUDSMITH_ORG or ``org`` in
+    ``config.ini`` - and a valid API key/token).
 
     Input (stdin):
         Server URL as plain text (e.g. "docker.cloudsmith.io")
@@ -57,6 +58,7 @@ def docker(opts, operation):
         sys.stdin,
         credential=opts.credential,
         api_host=opts.api_host,
+        org=opts.org,
     )
 
     if stdout is not None:
