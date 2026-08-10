@@ -74,17 +74,18 @@ def resync_package(ctx, opts, owner, repo, slug, skip_errors):
     """Resynchronise a package."""
     use_stderr = utils.should_use_stderr(opts)
     click.echo(
-        "Resynchonising the %(slug)s package ... "
-        % {"slug": click.style(slug, bold=True)},
+        f"Resynchonising the {click.style(slug, bold=True)} package ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to resynchronise package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            api_resync_package(owner=owner, repo=repo, identifier=slug)
+        api_resync_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)

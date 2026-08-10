@@ -1,5 +1,6 @@
 # Copyright 2026 Cloudsmith Ltd
 """Fail if the built wheel contains packaging or test files."""
+
 import glob
 import zipfile
 
@@ -11,7 +12,7 @@ with zipfile.ZipFile(wheel[0]) as archive:
 forbidden = [
     name
     for name in names
-    if name.startswith("packaging/") or "/tests/" in name or name.startswith("tests/")
+    if name.startswith(("packaging/", "tests/")) or "/tests/" in name
 ]
 if forbidden:
     raise SystemExit(f"wheel contains non-runtime files: {forbidden}")

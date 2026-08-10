@@ -1,7 +1,7 @@
 """CLI - Validators."""
 
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 import click
@@ -9,7 +9,7 @@ from click.core import ParameterSource
 
 from .types import ExpandPath
 
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
 PUBLIC_API_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
@@ -48,7 +48,7 @@ def transform_api_header_authorization(param, value):
 
     value = f"{username.strip()}:{password}"
     value = base64.b64encode(bytes(value.encode()))
-    return "Basic %s" % value.decode("utf-8")
+    return "Basic {}".format(value.decode("utf-8"))
 
 
 API_HEADER_TRANSFORMS["Authorization"] = transform_api_header_authorization
@@ -137,11 +137,8 @@ def validate_slashes(
     except ValueError:
         value = None
 
-    if value:
-        if len(value) < minimum:
-            value = None
-        elif maximum and len(value) > maximum:
-            value = None
+    if value and len(value) < minimum or maximum and len(value) > maximum:
+        value = None
 
     if not value:
         form = form or "/".join("VALUE" for _ in range(minimum))
@@ -277,8 +274,10 @@ def validate_optional_timestamp(ctx, param, value):
 
     if value:
         try:
-            return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
-                hour=0, minute=0, second=0
+            return (
+                datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+                .replace(tzinfo=timezone.utc)
+                .replace(hour=0, minute=0, second=0)
             )
         except ValueError:
             raise click.BadParameter(
