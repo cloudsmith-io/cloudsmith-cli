@@ -69,12 +69,7 @@ def handle_api_exceptions(
                 click.secho("ERROR", fg="red", err=use_stderr)
 
             click.secho(
-                "%(context)s (status: %(code)s - %(code_text)s)"
-                % {
-                    "context": context_msg,
-                    "code": exc.status,
-                    "code_text": exc.status_description,
-                },
+                f"{context_msg} (status: {exc.status} - {exc.status_description})",
                 fg="red",
                 err=use_stderr,
             )
@@ -84,26 +79,26 @@ def handle_api_exceptions(
 
                 if detail:
                     click.secho(
-                        "Detail: %(detail)s"
-                        % {"detail": click.style(detail, fg="red", bold=False)},
+                        "Detail: {detail}".format(
+                            detail=click.style(detail, fg="red", bold=False)
+                        ),
                         bold=True,
                         err=use_stderr,
                     )
 
                 if fields:
                     for k, v in fields.items():
-                        field = "%s Field" % k.capitalize()
+                        field = f"{k.capitalize()} Field"
 
                         # Flatten list/tuple error messages for text output
                         if isinstance(v, (list, tuple)):
                             v = " ".join(v)
 
                         click.secho(
-                            "%(field)s: %(message)s"
-                            % {
-                                "field": click.style(field, bold=True),
-                                "message": click.style(v, fg="red"),
-                            },
+                            "{field}: {message}".format(
+                                field=click.style(field, bold=True),
+                                message=click.style(v, fg="red"),
+                            ),
                             err=use_stderr,
                         )
 
@@ -113,12 +108,11 @@ def handle_api_exceptions(
                     err=use_stderr,
                 )
 
-            if opts.verbose and not opts.debug:
-                if exc.headers:
-                    click.echo(err=use_stderr)
-                    click.echo("Headers in Reply:", err=use_stderr)
-                    for k, v in exc.headers.items():
-                        click.echo(f"{k} = {v}", err=use_stderr)
+            if opts.verbose and not opts.debug and exc.headers:
+                click.echo(err=use_stderr)
+                click.echo("Headers in Reply:", err=use_stderr)
+                for k, v in exc.headers.items():
+                    click.echo(f"{k} = {v}", err=use_stderr)
 
         if reraise_on_error:
             raise
@@ -161,7 +155,7 @@ def get_details(exc):
 def get_error_hint(ctx, opts, exc):
     """Get a hint to show to the user (if any)."""
     module = sys.modules[__name__]
-    get_specific_error_hint = getattr(module, "get_%s_error_hint" % exc.status, None)
+    get_specific_error_hint = getattr(module, f"get_{exc.status}_error_hint", None)
     if get_specific_error_hint:
         return get_specific_error_hint(ctx, opts, exc)
     return None

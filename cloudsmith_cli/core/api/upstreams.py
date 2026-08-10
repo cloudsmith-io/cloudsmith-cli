@@ -18,7 +18,7 @@ def list_upstreams(owner, repo, upstream_format, page, page_size):
     """List upstreams by format in a repo."""
     client = get_upstreams_api()
 
-    func = getattr(client, "repos_upstream_%s_list_with_http_info" % upstream_format)
+    func = getattr(client, f"repos_upstream_{upstream_format}_list_with_http_info")
 
     with catch_raise_api_exception():
         upstreams, _, headers = func(
@@ -34,7 +34,7 @@ def create_upstream(owner, repo, upstream_format, upstream_config):
     """Create an upstream for a certain package format in a repo."""
     client = get_upstreams_api()
 
-    func = getattr(client, "repos_upstream_%s_create_with_http_info" % upstream_format)
+    func = getattr(client, f"repos_upstream_{upstream_format}_create_with_http_info")
 
     with catch_raise_api_exception():
         upstream, _, headers = func(owner=owner, identifier=repo, data=upstream_config)
@@ -48,7 +48,7 @@ def update_upstream(owner, repo, slug_perm, upstream_format, upstream_config):
     client = get_upstreams_api()
 
     func = getattr(
-        client, "repos_upstream_%s_partial_update_with_http_info" % upstream_format
+        client, f"repos_upstream_{upstream_format}_partial_update_with_http_info"
     )
 
     with catch_raise_api_exception():
@@ -64,7 +64,7 @@ def delete_upstream(owner, repo, upstream_format, slug_perm):
     """Delete an upstream from a repo."""
     client = get_upstreams_api()
 
-    func = getattr(client, "repos_upstream_%s_delete_with_http_info" % upstream_format)
+    func = getattr(client, f"repos_upstream_{upstream_format}_delete_with_http_info")
 
     with catch_raise_api_exception():
         _, _, headers = func(owner, repo, slug_perm)

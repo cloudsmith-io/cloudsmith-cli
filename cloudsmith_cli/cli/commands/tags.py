@@ -6,6 +6,8 @@ import click
 
 from ...core.api.packages import (
     get_package_tags as api_get_package_tags,
+)
+from ...core.api.packages import (
     tag_package as api_tag_package,
 )
 from .. import command, decorators, utils, validators
@@ -98,18 +100,19 @@ def list_tags(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Listing tags for the '%(package)s' package ... "
-        % {"package": click.style(package, bold=True)},
+        f"Listing tags for the '{click.style(package, bold=True)}' package ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to list tags for the package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_get_package_tags(
-                owner=owner, repo=repo, identifier=package
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_get_package_tags(
+            owner=owner, repo=repo, identifier=package
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -164,25 +167,26 @@ def add_tags(ctx, opts, owner_repo_package, tags, immutable):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Adding '%(tags)s' tag%(s)s to the '%(package)s' package ... "
-        % {
-            "package": click.style(package, bold=True),
-            "tags": click.style(", ".join(tags or [])),
-            "s": "s" if len(tags) != 1 else "",
-        },
+        "Adding '{tags}' tag{s} to the '{package}' package ... ".format(
+            package=click.style(package, bold=True),
+            tags=click.style(", ".join(tags or [])),
+            s="s" if len(tags) != 1 else "",
+        ),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to add tags to package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner,
-                repo=repo,
-                identifier=package,
-                data={"action": "add", "tags": tags, "is_immutable": immutable},
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner,
+            repo=repo,
+            identifier=package,
+            data={"action": "add", "tags": tags, "is_immutable": immutable},
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -221,18 +225,19 @@ def clear_tags(ctx, opts, owner_repo_package):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Clearing tags on the '%(package)s' package ... "
-        % {"package": click.style(package, bold=True)},
+        f"Clearing tags on the '{click.style(package, bold=True)}' package ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to clear tags on package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner, repo=repo, identifier=package, data={"action": "clear"}
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner, repo=repo, identifier=package, data={"action": "clear"}
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -277,25 +282,26 @@ def remove_tags(ctx, opts, owner_repo_package, tags):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Removing '%(tags)s' tag%(s)s from the '%(package)s' package ... "
-        % {
-            "package": click.style(package, bold=True),
-            "tags": click.style(", ".join(tags or [])),
-            "s": "s" if len(tags) != 1 else "",
-        },
+        "Removing '{tags}' tag{s} from the '{package}' package ... ".format(
+            package=click.style(package, bold=True),
+            tags=click.style(", ".join(tags or [])),
+            s="s" if len(tags) != 1 else "",
+        ),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to remove tags from package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner,
-                repo=repo,
-                identifier=package,
-                data={"action": "remove", "tags": tags},
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner,
+            repo=repo,
+            identifier=package,
+            data={"action": "remove", "tags": tags},
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -350,25 +356,26 @@ def replace_tags(ctx, opts, owner_repo_package, tags, immutable):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Replacing existing with '%(tags)s' tag%(s)s on the '%(package)s' package ... "
-        % {
-            "package": click.style(package, bold=True),
-            "tags": click.style(", ".join(tags or [])),
-            "s": "s" if len(tags) != 1 else "",
-        },
+        "Replacing existing with '{tags}' tag{s} on the '{package}' package ... ".format(
+            package=click.style(package, bold=True),
+            tags=click.style(", ".join(tags or [])),
+            s="s" if len(tags) != 1 else "",
+        ),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to replace tags on package!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            package_tags, package_tags_immutable = api_tag_package(
-                owner=owner,
-                repo=repo,
-                identifier=package,
-                data={"action": "replace", "tags": tags, "is_immutable": immutable},
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        package_tags, package_tags_immutable = api_tag_package(
+            owner=owner,
+            repo=repo,
+            identifier=package,
+            data={"action": "replace", "tags": tags, "is_immutable": immutable},
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
