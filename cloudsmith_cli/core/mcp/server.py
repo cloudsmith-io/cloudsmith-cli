@@ -2,7 +2,7 @@ import asyncio
 import copy
 import inspect
 import json
-from typing import Any, Optional
+from typing import Any
 from urllib import parse
 
 import cloudsmith_api
@@ -237,11 +237,13 @@ class DynamicMCPServer:
         action_parts_count = 0
         for action_suffix in sorted_suffixes:
             action_suffix_parts = action_suffix.split("_")
-            if len(parts) >= len(action_suffix_parts):
+            if (
+                len(parts) >= len(action_suffix_parts)
                 # Check if the end of the tool name matches this action suffix
-                if parts[-len(action_suffix_parts) :] == action_suffix_parts:
-                    action_parts_count = len(action_suffix_parts)
-                    break
+                and parts[-len(action_suffix_parts) :] == action_suffix_parts
+            ):
+                action_parts_count = len(action_suffix_parts)
+                break
 
         # If no action suffix found, treat the last part as the action
         if action_parts_count == 0:
@@ -363,7 +365,7 @@ class DynamicMCPServer:
                 # Create parameter with default value
                 default = param_schema.get("default", None)
                 annotation_type = (
-                    param_type if default is not None else Optional[param_type]
+                    param_type if default is not None else param_type | None
                 )
 
             sig_params.append(
@@ -433,12 +435,11 @@ class DynamicMCPServer:
                     continue
 
                 # Validate enum values
-                if "enum" in param_schema:
-                    if value not in param_schema["enum"]:
-                        allowed_values = ", ".join(param_schema["enum"])
-                        raise ValueError(
-                            f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
-                        )
+                if "enum" in param_schema and value not in param_schema["enum"]:
+                    allowed_values = ", ".join(param_schema["enum"])
+                    raise ValueError(
+                        f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
+                    )
 
                 validated_arguments[key] = value
             else:
@@ -519,7 +520,7 @@ class DynamicMCPServer:
         except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
         except httpx.HTTPError as e:
-            return f"HTTP error: {str(e)}"
+            return f"HTTP error: {e!s}"
         finally:
             await http_client.aclose()
 

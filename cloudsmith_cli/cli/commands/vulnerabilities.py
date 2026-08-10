@@ -81,17 +81,19 @@ def vulnerabilities(
     total_filtered_vulns = 0
 
     context_msg = "Failed to retrieve vulnerability report!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with utils.maybe_spinner(opts):
-            data = get_package_scan_result(
-                opts=opts,
-                owner=owner,
-                repo=repo,
-                package=slug,
-                show_assessment=show_assessment,
-                severity_filter=severity_filter,
-                fixable=fixable,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        utils.maybe_spinner(opts),
+    ):
+        data = get_package_scan_result(
+            opts=opts,
+            owner=owner,
+            repo=repo,
+            package=slug,
+            show_assessment=show_assessment,
+            severity_filter=severity_filter,
+            fixable=fixable,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 

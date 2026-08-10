@@ -155,9 +155,11 @@ def whoami(ctx, opts):
     )
 
     context_msg = "Failed to retrieve your authentication status!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with utils.maybe_spinner(opts):
-            is_auth, username, email, name = get_user_brief()
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        utils.maybe_spinner(opts),
+    ):
+        is_auth, username, email, name = get_user_brief()
     click.secho("OK", fg="green", err=use_stderr)
 
     data = {
