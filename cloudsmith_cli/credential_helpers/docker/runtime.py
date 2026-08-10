@@ -118,6 +118,8 @@ def execute(
     return (
         1,
         None,
-        f"Error: Unknown operation '{operation}'. "
-        "Valid operations: get, store, erase, list",
+        (
+            f"Error: Unknown operation '{operation}'. "
+            "Valid operations: get, store, erase, list"
+        ),
     )

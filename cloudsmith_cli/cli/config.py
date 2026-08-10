@@ -22,9 +22,8 @@ class ConfigParam(Param):
     def parse(self, text):
         if text:
             text = text.strip()
-        if self.type.name == "boolean":
-            if not text:
-                return None
+        if self.type.name == "boolean" and not text:
+            return None
         return super().parse(text)
 
     def get_error_hint(self, ctx):
@@ -83,10 +82,11 @@ class ConfigSchema:
 class ConfigReader(ConfigFileReader):
     """Reader for standard configuration."""
 
-    config_files = ["config.ini"]
-    config_name = "standard"
-    config_searchpath = list(_CFG_SEARCH_PATHS)
-    config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
+    def __init__(self):
+        self.config_files = ["config.ini"]
+        self.config_name = "standard"
+        self.config_searchpath = list(_CFG_SEARCH_PATHS)
+        self.config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
 
     @classmethod
     def select_config_schema_for(cls, section_name):
@@ -195,7 +195,7 @@ class ConfigReader(ConfigFileReader):
         cls._load_values_into_opts(opts, values)
 
         if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
+            values = config.get(f"profile:{profile}", {})
             cls._load_values_into_opts(opts, values)
 
         return values
@@ -206,9 +206,9 @@ class ConfigReader(ConfigFileReader):
             if v is None:
                 continue
             if isinstance(v, str):
-                if v.startswith('"') or v.startswith("'"):
+                if v.startswith(('"', "'")):
                     v = v[1:]
-                if v.endswith('"') or v.endswith("'"):
+                if v.endswith(('"', "'")):
                     v = v[:-1]
                 if not v:
                     continue
@@ -235,10 +235,14 @@ class CredentialsSchema:
 class CredentialsReader(ConfigReader):
     """Reader for credentials configuration."""
 
-    config_files = ["credentials.ini"]
-    config_name = "credentials"
-    config_searchpath = list(_CFG_SEARCH_PATHS)
-    config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
+    def __init__(self):
+        self.config_files = ["credentials.ini"]
+        self.config_name = "credentials"
+        self.config_searchpath = list(_CFG_SEARCH_PATHS)
+        self.config_section_schemas = [
+            CredentialsSchema.Default,
+            CredentialsSchema.Profile,
+        ]
 
     @classmethod
     def find_existing_files(cls):
