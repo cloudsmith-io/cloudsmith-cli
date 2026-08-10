@@ -51,7 +51,7 @@ def get_access_token(api_host):
 
 def update_refresh_attempted_at(api_host, refresh_time=None):
     if refresh_time is None:
-        refresh_time = datetime.utcnow()
+        refresh_time = datetime.now(tz=datetime.timezone.utc)
 
     refresh_attempted_at_value = refresh_time.isoformat()
 
@@ -79,7 +79,9 @@ def should_refresh_access_token(api_host):
     token_refreshed_at = get_refresh_attempted_at(api_host)
 
     if token_refreshed_at:
-        return token_refreshed_at < (datetime.utcnow() - timedelta(minutes=30))
+        return token_refreshed_at < (
+            datetime.now(tz=datetime.timezone.utc) - timedelta(minutes=30)
+        )
 
     return True
 
