@@ -199,24 +199,24 @@ class TestPush(unittest.TestCase):
             ) as mock_validate_create_package,
             patch("cloudsmith_cli.cli.commands.push.api_validate_metadata"),
             patch("cloudsmith_cli.cli.commands.push.api_create_metadata"),
+            pytest.raises(click.ClickException, match="JSON object"),
         ):
-            with pytest.raises(click.ClickException, match="JSON object"):
-                upload_files_and_create_package(
-                    self.mock_ctx,
-                    MagicMock(spec=[]),
-                    self.package_type,
-                    [self.owner, self.repo],
-                    self.dry_run,
-                    self.no_wait_for_sync,
-                    self.wait_interval,
-                    self.skip_errors,
-                    self.sync_attempts,
-                    package_file="path",
-                    name="x",
-                    version="1",
-                    metadata_content="null",
-                    metadata_content_type="application/json",
-                )
+            upload_files_and_create_package(
+                self.mock_ctx,
+                MagicMock(spec=[]),
+                self.package_type,
+                [self.owner, self.repo],
+                self.dry_run,
+                self.no_wait_for_sync,
+                self.wait_interval,
+                self.skip_errors,
+                self.sync_attempts,
+                package_file="path",
+                name="x",
+                version="1",
+                metadata_content="null",
+                metadata_content_type="application/json",
+            )
 
         mock_validate_create_package.assert_not_called()
 
@@ -794,16 +794,18 @@ class TestPush(unittest.TestCase):
     def test_resolve_push_metadata_options_flag_beats_env_error(self):
         """``--on-metadata-failure error`` overrides ``...=warn`` in the env."""
         opts = SimpleNamespace(cli_metadata_failure_mode="error")
-        with patch.dict(
-            "cloudsmith_cli.cli.commands.push.os.environ",
-            {"CLOUDSMITH_METADATA_FAILURE_MODE": "warn"},
+        with (
+            patch.dict(
+                "cloudsmith_cli.cli.commands.push.os.environ",
+                {"CLOUDSMITH_METADATA_FAILURE_MODE": "warn"},
+            ),
+            pytest.raises(click.ClickException, match="Invalid JSON"),
         ):
-            with pytest.raises(click.ClickException, match="Invalid JSON"):
-                resolve_push_metadata_options(
-                    metadata_content="not-json",
-                    metadata_content_type="application/json",
-                    opts=opts,
-                )
+            resolve_push_metadata_options(
+                metadata_content="not-json",
+                metadata_content_type="application/json",
+                opts=opts,
+            )
 
     def test_resolve_push_metadata_options_env_beats_config_error(self):
         """``...=warn`` env var overrides ``metadata_failure_mode = error`` config."""

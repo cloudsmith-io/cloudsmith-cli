@@ -22,13 +22,13 @@ class TestCredentialChainPriority:
         """Explicit --api-key must win over a keyring SSO token."""
         context = self._context(api_key_from_flag="explicit-flag-key")
 
-        with patch.object(keyring, "should_use_keyring", return_value=True):
-            with patch.object(keyring, "get_access_token", return_value="sso-token"):
-                with patch.object(
-                    keyring, "should_refresh_access_token", return_value=False
-                ):
-                    chain = CredentialProviderChain()
-                    result = chain.resolve(context)
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="sso-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=False),
+        ):
+            chain = CredentialProviderChain()
+            result = chain.resolve(context)
 
         assert result is not None
         assert result.api_key == "explicit-flag-key"
@@ -38,13 +38,13 @@ class TestCredentialChainPriority:
         """CLOUDSMITH_API_KEY env var must win over keyring SSO."""
         context = self._context(api_key_from_env="env-key")
 
-        with patch.object(keyring, "should_use_keyring", return_value=True):
-            with patch.object(keyring, "get_access_token", return_value="sso-token"):
-                with patch.object(
-                    keyring, "should_refresh_access_token", return_value=False
-                ):
-                    chain = CredentialProviderChain()
-                    result = chain.resolve(context)
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="sso-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=False),
+        ):
+            chain = CredentialProviderChain()
+            result = chain.resolve(context)
 
         assert result is not None
         assert result.api_key == "env-key"
@@ -54,13 +54,13 @@ class TestCredentialChainPriority:
         """credentials.ini must win over keyring SSO."""
         context = self._context(api_key_from_file="file-key")
 
-        with patch.object(keyring, "should_use_keyring", return_value=True):
-            with patch.object(keyring, "get_access_token", return_value="sso-token"):
-                with patch.object(
-                    keyring, "should_refresh_access_token", return_value=False
-                ):
-                    chain = CredentialProviderChain()
-                    result = chain.resolve(context)
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="sso-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=False),
+        ):
+            chain = CredentialProviderChain()
+            result = chain.resolve(context)
 
         assert result is not None
         assert result.api_key == "file-key"
@@ -112,13 +112,13 @@ class TestCredentialChainPriority:
         """Keyring SSO is the fallback when no explicit keys are set."""
         context = self._context()
 
-        with patch.object(keyring, "should_use_keyring", return_value=True):
-            with patch.object(keyring, "get_access_token", return_value="sso-token"):
-                with patch.object(
-                    keyring, "should_refresh_access_token", return_value=False
-                ):
-                    chain = CredentialProviderChain()
-                    result = chain.resolve(context)
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="sso-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=False),
+        ):
+            chain = CredentialProviderChain()
+            result = chain.resolve(context)
 
         assert result is not None
         assert result.api_key == "sso-token"
