@@ -13,7 +13,7 @@ def test_upstream_commands(
 ):
     upstream_config = {
         # "name" and "upstream_url" are the only required properties for most formats.
-        "name": "cli-test-upstream-%s" % upstream_format,
+        "name": f"cli-test-upstream-{upstream_format}",
         # This obviously isn't an upstream url and will not work on the server,
         # but we aren't testing the server.
         "upstream_url": "https://www.cloudsmith.io",
@@ -23,7 +23,7 @@ def test_upstream_commands(
         "distro_versions": ["ubuntu/xenial"],
     }
 
-    upstream_config_file = tmp_path / ("cli-test-upstream-%s.json" % upstream_format)
+    upstream_config_file = tmp_path / (f"cli-test-upstream-{upstream_format}.json")
     upstream_config_file.write_text(str(json.dumps(upstream_config)))
 
     org_repo = f"{organization}/{tmp_repository['slug']}"

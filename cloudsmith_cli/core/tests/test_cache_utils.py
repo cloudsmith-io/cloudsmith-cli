@@ -181,9 +181,9 @@ class TestMergeJsonFileBackup:
 
         bak_path = path + ".bak"
         assert os.path.exists(bak_path), ".bak must be created"
-        assert (
-            _perms(bak_path) == 0o600
-        ), f".bak perms should be 0o600, got {oct(_perms(bak_path))}"
+        assert _perms(bak_path) == 0o600, (
+            f".bak perms should be 0o600, got {oct(_perms(bak_path))}"
+        )
 
 
 class TestMergeJsonFileIdempotent:
@@ -214,9 +214,9 @@ class TestMergeJsonFileIdempotent:
         merge_json_file(path, mutate)  # second: no change
 
         bak_mtime_after_second = os.path.getmtime(bak_path)
-        assert (
-            bak_mtime_after_first == bak_mtime_after_second
-        ), ".bak must not be refreshed"
+        assert bak_mtime_after_first == bak_mtime_after_second, (
+            ".bak must not be refreshed"
+        )
 
 
 class TestMergeJsonFileDryRun:
@@ -337,9 +337,9 @@ class TestMergeJsonFileStableSerialization:
         with open(path, "rb") as fh:
             raw_bytes = fh.read()
         assert "café".encode() in raw_bytes, "expected raw UTF-8, not \\uXXXX"
-        assert (
-            b"\\u" not in raw_bytes
-        ), "must not use JSON unicode escapes for non-ASCII"
+        assert b"\\u" not in raw_bytes, (
+            "must not use JSON unicode escapes for non-ASCII"
+        )
 
         # Second call: identical mutate → no change (idempotent)
         bak_path = path + ".bak"
@@ -352,9 +352,9 @@ class TestMergeJsonFileStableSerialization:
 
         # .bak must not have been touched on the no-op call
         if bak_mtime_before is not None:
-            assert (
-                os.path.getmtime(bak_path) == bak_mtime_before
-            ), ".bak must not refresh"
+            assert os.path.getmtime(bak_path) == bak_mtime_before, (
+                ".bak must not refresh"
+            )
         else:
             assert not os.path.exists(bak_path), ".bak must not be created on no-op"
 

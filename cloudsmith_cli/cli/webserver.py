@@ -234,9 +234,9 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 click.secho("\nAuthentication complete", fg="green", err=True)
                 self._return_success_response()
                 return
-        except Exception as exc:
+        except Exception:
             self._return_error_response()
-            raise exc
+            raise
 
         click.secho("\nNo valid authentication parameters received", fg="red", err=True)
         self._return_error_response()

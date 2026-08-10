@@ -72,24 +72,26 @@ def move(
 
     use_stderr = utils.should_use_stderr(opts)
 
-    prompt = "move the %(slug)s from %(source)s to %(dest)s" % move_args
+    prompt = "move the {slug} from {source} to {dest}".format(**move_args)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.echo(
-        "Moving %(slug)s package from %(source)s to %(dest)s ... " % move_args,
+        "Moving {slug} package from {source} to {dest} ... ".format(**move_args),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to move package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            _, new_slug = move_package(
-                owner=owner, repo=source, identifier=slug, destination=destination
-            )
+        _, new_slug = move_package(
+            owner=owner, repo=source, identifier=slug, destination=destination
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 

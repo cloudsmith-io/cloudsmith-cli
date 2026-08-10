@@ -105,11 +105,13 @@ def ls(ctx, opts, owner, page, page_size, page_all):
     click.echo("Getting license policies ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get license policies!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            policies, page_info = paginate_results(
-                api.list_license_policies, page_all, page, page_size, owner=owner
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        policies, page_info = paginate_results(
+            api.list_license_policies, page_all, page, page_size, owner=owner
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -183,19 +185,17 @@ def create(ctx, opts, owner, policy_config_file):
         )
 
     click.secho(
-        "Creating %(name)s license policy for the %(owner)s namespace ..."
-        % {
-            "name": click.style(policy_name, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Creating {click.style(policy_name, bold=True)} license policy for the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to create the license policy!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            policies = [api.create_license_policy(owner, policy_config)]
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        policies = [api.create_license_policy(owner, policy_config)]
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -252,19 +252,17 @@ def update(ctx, opts, owner, identifier, policy_config_file):
     policy_config = json.load(policy_config_file)
 
     click.secho(
-        "Updating %(slug_perm)s license policy in the %(owner)s namespace ..."
-        % {
-            "slug_perm": click.style(identifier, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Updating {click.style(identifier, bold=True)} license policy in the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to update the license policy!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            policies = [api.update_license_policy(owner, identifier, policy_config)]
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        policies = [api.update_license_policy(owner, identifier, policy_config)]
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -313,8 +311,9 @@ def delete(ctx, opts, owner, identifier, yes):
     }
 
     prompt = (
-        "delete the %(slug_perm)s license policy from the %(namespace)s namespace"
-        % delete_args
+        "delete the {slug_perm} license policy from the {namespace} namespace".format(
+            **delete_args
+        )
     )
     use_stderr = utils.should_use_stderr(opts)
 
@@ -322,14 +321,18 @@ def delete(ctx, opts, owner, identifier, yes):
         return
 
     click.secho(
-        "Deleting %(slug_perm)s from the %(namespace)s namespace ... " % delete_args,
+        "Deleting {slug_perm} from the {namespace} namespace ... ".format(
+            **delete_args
+        ),
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to delete the license policy!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.delete_license_policy(owner=owner, slug_perm=identifier)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.delete_license_policy(owner=owner, slug_perm=identifier)
 
     click.secho("OK", fg="green", err=use_stderr)
