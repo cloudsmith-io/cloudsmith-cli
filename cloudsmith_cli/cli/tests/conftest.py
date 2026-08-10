@@ -13,7 +13,7 @@ def _get_env_var_or_skip(key):
     """Return the environment variable value if set, otherwise skip the test."""
     value = os.environ.get(key)
     if not value:
-        pytest.skip("%s not provided" % key)
+        pytest.skip(f"{key} not provided")
     return value
 
 

@@ -268,7 +268,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
             if not use_stderr:
                 click.echo(
                     click.style(
-                        f"✗ Error configuring {client_name.title()}: {str(e)}", fg="red"
+                        f"✗ Error configuring {client_name.title()}: {e!s}", fg="red"
                     )
                 )
             results.append({"client": client_name, "success": False, "error": str(e)})
@@ -459,30 +459,30 @@ def _atomic_write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     existing_mode = path.stat().st_mode & 0o777 if path.exists() else None
 
-    tmp = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         mode="w",
         dir=path.parent,
         prefix=f".{path.name}.",
         suffix=".tmp",
         delete=False,
-    )
-    tmp_path = Path(tmp.name)
-    try:
-        with tmp as f:
-            # json5 is used for reading; we write standard JSON, which drops
-            # any user comments (currently only relevant for VS Code's JSONC).
-            json.dump(data, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        if existing_mode is not None:
-            os.chmod(tmp_path, existing_mode)
-        os.replace(tmp_path, path)
-    except BaseException:
+    ) as tmp:
+        tmp_path = Path(tmp.name)
         try:
-            tmp_path.unlink()
-        except FileNotFoundError:
-            pass
-        raise
+            with tmp as f:
+                # json5 is used for reading; we write standard JSON, which drops
+                # any user comments (currently only relevant for VS Code's JSONC).
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            if existing_mode is not None:
+                os.chmod(tmp_path, existing_mode)
+            os.replace(tmp_path, path)
+        except BaseException:
+            try:
+                tmp_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
 
 
 def _safe_update_json(path: Path, mutate, *, max_retries: int = 3) -> None:

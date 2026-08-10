@@ -150,9 +150,12 @@ def _search_packages(
         if tag_filter and not _matches_tag_filter(pkg, tag_filter):
             continue
         # Apply filename filter (glob patterns are client-side only)
-        if filename_filter and any(c in filename_filter for c in "*?["):
-            if not fnmatch.fnmatch(pkg.get("filename", ""), filename_filter):
-                continue
+        if (
+            filename_filter
+            and any(c in filename_filter for c in "*?[")
+            and not fnmatch.fnmatch(pkg.get("filename", ""), filename_filter)
+        ):
+            continue
         filtered_packages.append(pkg)
 
     return filtered_packages
@@ -403,7 +406,7 @@ def get_package_detail(owner: str, repo: str, identifier: str) -> dict:
     return data.to_dict()
 
 
-def stream_download(  # noqa: C901
+def stream_download(
     url: str,
     outfile: str,
     session: requests.Session,
@@ -470,7 +473,7 @@ def stream_download(  # noqa: C901
             f"Failed to download package: HTTP {e.response.status_code}"
         )
     except requests.exceptions.RequestException as e:
-        raise click.ClickException(f"Failed to download package: {str(e)}")
+        raise click.ClickException(f"Failed to download package: {e!s}")
 
     # Get content length for progress bar
     total_size = int(response.headers.get("content-length", 0))
@@ -537,7 +540,7 @@ def _select_best_package(packages: list[dict]) -> dict:
 
         return (tuple(version_parts), uploaded_at)
 
-    return sorted(packages, key=sort_key, reverse=True)[0]
+    return max(packages, key=sort_key)
 
 
 def _format_size(size_bytes: int) -> str:

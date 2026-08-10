@@ -24,35 +24,16 @@ def make_user_agent(prefix=None):
 def pretty_print_list_info(num_results, page_info=None, suffix="", page_all=False):
     """Print information about list results."""
     if page_all:
-        click.echo(
-            "Results: %(num_results)d %(suffix)s"
-            % {
-                "num_results": num_results,
-                "suffix": suffix,
-            }
-        )
+        click.echo(f"Results: {num_results} {suffix}")
     elif page_info and page_info.page is not None and page_info.page_size is not None:
         start = (page_info.page - 1) * page_info.page_size + 1
         end = min(start + num_results - 1, page_info.count or 0)
         click.echo(
-            "Results: %(start)d-%(end)d (%(count)d) of %(total)d %(suffix)s "
-            "(page: %(page)d/%(pages)d, page size: %(page_size)d)"
-            % {
-                "start": start,
-                "end": end,
-                "count": num_results,
-                "total": page_info.count or 0,
-                "suffix": suffix,
-                "page": page_info.page,
-                "pages": page_info.page_total or 1,
-                "page_size": page_info.page_size,
-            }
+            f"Results: {start}-{end} ({num_results}) of {page_info.count} {suffix} "
+            f"(page: {page_info.page}/{page_info.page_total}, page size: {page_info.page_size})"
         )
     else:
-        click.echo(
-            "Results: %(num_results)d %(suffix)s"
-            % {"num_results": num_results, "suffix": suffix}
-        )
+        click.echo(f"Results: {num_results} {suffix}")
 
 
 def fmt_datetime(value):
@@ -127,8 +108,7 @@ def print_rate_limit_info(opts, rate_info):
 
     click.echo(err=True)
     click.secho(
-        "Throttling (rate limited) for: %(throttle)s seconds ... "
-        % {"throttle": click.style(str(rate_info.interval), reverse=True)},
+        f"Throttling (rate limited) for: {click.style(str(rate_info.interval), reverse=True)} seconds ... ",
         err=True,
         reset=False,
     )
@@ -140,7 +120,7 @@ def json_serializer(obj):
     # convert date/datetime objects to strings
     if isinstance(obj, (datetime, date)):
         return fmt_datetime(obj)
-    raise TypeError("Type %s not serializable." % type(obj))
+    raise TypeError(f"Type {type(obj)} not serializable.")
 
 
 def maybe_print_as_json(opts, data, page_info=None):
@@ -173,7 +153,7 @@ def maybe_print_as_json(opts, data, page_info=None):
         else:
             dump = json.dumps(root, sort_keys=True, default=json_serializer)
     except (TypeError, ValueError) as e:
-        click.secho(f"Failed to convert to JSON: {str(e)}", fg="red", err=True)
+        click.secho(f"Failed to convert to JSON: {e!s}", fg="red", err=True)
         return True
 
     click.echo(dump)
@@ -219,7 +199,7 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
         return True
 
     prefix = prefix or click.style(
-        "Are you %s certain you want to" % (click.style("absolutely", bold=True))
+        "Are you {} certain you want to".format(click.style("absolutely", bold=True))
     )
 
     prompt = maybe_unstyle_prompt(f"{prefix} {prompt}?", err=err)
