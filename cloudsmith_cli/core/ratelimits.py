@@ -15,16 +15,10 @@ class RateLimitsInfo:
 
     def __str__(self):
         """Get rate limit information as text."""
+        throttled = "Yes" if self.throttled else "No"
         return (
-            "Throttled: %(throttled)s, Remaining: %(remaining)d/%(limit)d, "
-            "Interval: %(interval)f, Reset: %(reset)s"
-            % {
-                "throttled": "Yes" if self.throttled else "No",
-                "remaining": self.remaining,
-                "limit": self.limit,
-                "interval": self.interval,
-                "reset": self.reset,
-            }
+            f"Throttled: {throttled}, Remaining: {self.remaining}/{self.limit}, "
+            f"Interval: {self.interval}, Reset: {self.reset}"
         )
 
     @classmethod
@@ -39,7 +33,9 @@ class RateLimitsInfo:
         if "remaining" in data:
             info.remaining = int(data["remaining"])
         if "reset" in data:
-            info.reset = datetime.datetime.utcfromtimestamp(int(data["reset"]))
+            info.reset = datetime.datetime.fromtimestamp(
+                int(data["reset"]), tz=datetime.timezone.utc
+            )
         if "throttled" in data:
             info.throttled = bool(data["throttled"])
         else:

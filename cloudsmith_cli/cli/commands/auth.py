@@ -133,7 +133,7 @@ def authenticate(
             err=True,
         )
 
-    owner = owner[0].strip("'[]'")
+    owner = owner[0].strip("[]'")
 
     click.echo(
         f"Beginning authentication for the {click.style(owner, bold=True)} org ... ",

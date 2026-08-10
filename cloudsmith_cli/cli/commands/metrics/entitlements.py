@@ -46,9 +46,9 @@ def _print_metrics_table(opts, data):
         for metric_key in metrics_keys.values():
             metric_data = getattr(category_data, metric_key, {})
             if hasattr(metric_data, "display"):
-                value = getattr(metric_data, "display")
+                value = metric_data.display
             else:
-                value = getattr(metric_data, "value")
+                value = metric_data.value
             value = str(value or 0)
             cols.append(click.style(value, fg="green"))
         rows.append(cols)
@@ -126,16 +126,18 @@ def usage(ctx, opts, owner_repo, tokens, start, finish):
     data = None
     context_msg = "Failed to get list of metrics!"
     data = {}
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            if owner and repo:
-                data = api.get_repository_entitlements_metrics(
-                    owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
-                )
-            elif owner:
-                data = api.get_namespace_entitlements_metrics(
-                    owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
-                )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        if owner and repo:
+            data = api.get_repository_entitlements_metrics(
+                owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
+            )
+        elif owner:
+            data = api.get_namespace_entitlements_metrics(
+                owner=owner, repo=repo, tokens=tokens, start=start, finish=finish
+            )
 
     click.secho("OK", fg="green", err=use_stderr)
 

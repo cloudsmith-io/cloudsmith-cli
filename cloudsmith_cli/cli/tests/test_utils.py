@@ -5,7 +5,7 @@ from ..utils import maybe_truncate_list, maybe_truncate_string
 
 @pytest.mark.parametrize(
     "data,max_length,expected_len",
-    [(range(0, 1), 5, 1), (range(0, 5), 5, 5), (list(), 5, 0), (None, 5, 0)],
+    [(range(1), 5, 1), (range(5), 5, 5), ([], 5, 0), (None, 5, 0)],
 )
 def test_maybe_truncate_list(data, max_length, expected_len):
     truncated = maybe_truncate_list(data, max_length)

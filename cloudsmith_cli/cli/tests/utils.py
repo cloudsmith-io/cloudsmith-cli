@@ -9,4 +9,4 @@ def random_str():
 
 def random_bool():
     """Return a random bool."""
-    return datetime.now().microsecond % 2 == 0
+    return datetime.now(tz=datetime.timezone.utc).microsecond % 2 == 0
