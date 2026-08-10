@@ -6,9 +6,17 @@ import click
 
 from ...core.api.metadata import (
     create_metadata as api_create_metadata,
+)
+from ...core.api.metadata import (
     delete_metadata as api_delete_metadata,
+)
+from ...core.api.metadata import (
     get_metadata as api_get_metadata,
+)
+from ...core.api.metadata import (
     list_metadata as api_list_metadata,
+)
+from ...core.api.metadata import (
     update_metadata as api_update_metadata,
 )
 from ...core.api.packages import get_package_slug_perm as api_get_package_slug_perm
@@ -163,47 +171,46 @@ def list_metadata(
 
     if metadata_slug_perm:
         _echo_action(
-            "Fetching metadata %(metadata)s for %(package)s ... "
-            % {
-                "metadata": click.style(metadata_slug_perm, bold=True),
-                "package": click.style(package, bold=True),
-            },
+            f"Fetching metadata {click.style(metadata_slug_perm, bold=True)} for {click.style(package, bold=True)} ... ",
             use_stderr,
         )
 
         context_msg = "Could not fetch package metadata."
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                slug_perm = api_get_package_slug_perm(
-                    owner=owner, repo=repo, identifier=package
-                )
-                entry = api_get_metadata(slug_perm, metadata_slug_perm)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            slug_perm = api_get_package_slug_perm(
+                owner=owner, repo=repo, identifier=package
+            )
+            entry = api_get_metadata(slug_perm, metadata_slug_perm)
 
         click.secho("OK", fg="green", err=use_stderr)
         _print_metadata_entry(opts, entry)
         return
 
     _echo_action(
-        "Listing metadata for %(package)s ... "
-        % {"package": click.style(package, bold=True)},
+        f"Listing metadata for {click.style(package, bold=True)} ... ",
         use_stderr,
     )
 
     context_msg = "Could not list package metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            entries, page_info = paginate_results(
-                api_list_metadata,
-                page_all=page_all,
-                page=page,
-                page_size=page_size,
-                package_slug_perm=slug_perm,
-                source_kind=source_kind,
-                classification=classification,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        entries, page_info = paginate_results(
+            api_list_metadata,
+            page_all=page_all,
+            page=page,
+            page_size=page_size,
+            package_slug_perm=slug_perm,
+            source_kind=source_kind,
+            classification=classification,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_table(opts, entries, page_info=page_info, page_all=page_all)
@@ -252,7 +259,7 @@ def list_metadata(
     "source_identity",
     default=None,
     help=(
-        "Identifier for the metadata source. " "Defaults to 'cloudsmith-cli@<version>'."
+        "Identifier for the metadata source. Defaults to 'cloudsmith-cli@<version>'."
     ),
 )
 @click.pass_context
@@ -307,23 +314,24 @@ def add_metadata(
     )
 
     _echo_action(
-        "Attaching metadata to %(package)s ... "
-        % {"package": click.style(package, bold=True)},
+        f"Attaching metadata to {click.style(package, bold=True)} ... ",
         use_stderr,
     )
 
     context_msg = "Could not attach metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            entry = api_create_metadata(
-                slug_perm,
-                content=metadata.content,
-                content_type=metadata.content_type,
-                source_identity=metadata.source_identity,
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        entry = api_create_metadata(
+            slug_perm,
+            content=metadata.content,
+            content_type=metadata.content_type,
+            source_identity=metadata.source_identity,
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_entry(opts, entry)
@@ -358,8 +366,7 @@ def add_metadata(
     "inline_content",
     default=None,
     help=(
-        "Set replacement metadata content from inline JSON. Cannot be used with "
-        "--file."
+        "Set replacement metadata content from inline JSON. Cannot be used with --file."
     ),
 )
 @click.option(
@@ -415,21 +422,19 @@ def update_metadata(
         )
 
     _echo_action(
-        "Updating metadata %(metadata)s for %(package)s ... "
-        % {
-            "metadata": click.style(metadata_slug_perm, bold=True),
-            "package": click.style(package, bold=True),
-        },
+        f"Updating metadata {click.style(metadata_slug_perm, bold=True)} for {click.style(package, bold=True)} ... ",
         use_stderr,
     )
 
     context_msg = "Could not update package metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            entry = api_update_metadata(slug_perm, metadata_slug_perm, **patch_kwargs)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        entry = api_update_metadata(slug_perm, metadata_slug_perm, **patch_kwargs)
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_entry(opts, entry)
@@ -473,22 +478,24 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
         "package": click.style(package, bold=True),
     }
 
-    prompt = "remove metadata %(metadata)s from package %(package)s" % remove_args
+    prompt = "remove metadata {metadata} from package {package}".format(**remove_args)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     _echo_action(
-        "Removing metadata %(metadata)s from %(package)s ... " % remove_args,
+        "Removing metadata {metadata} from {package} ... ".format(**remove_args),
         use_stderr,
     )
 
     context_msg = "Could not remove package metadata."
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            slug_perm = api_get_package_slug_perm(
-                owner=owner, repo=repo, identifier=package
-            )
-            api_delete_metadata(slug_perm, metadata_slug_perm)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        slug_perm = api_get_package_slug_perm(
+            owner=owner, repo=repo, identifier=package
+        )
+        api_delete_metadata(slug_perm, metadata_slug_perm)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -497,7 +504,4 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
         return
 
     click.echo()
-    click.secho(
-        "Metadata removed: %(slug)s."
-        % {"slug": click.style(metadata_slug_perm, bold=True)}
-    )
+    click.secho(f"Metadata removed: {click.style(metadata_slug_perm, bold=True)}.")

@@ -268,7 +268,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
             if not use_stderr:
                 click.echo(
                     click.style(
-                        f"✗ Error configuring {client_name.title()}: {str(e)}", fg="red"
+                        f"✗ Error configuring {client_name.title()}: {e!s}", fg="red"
                     )
                 )
             results.append({"client": client_name, "success": False, "error": str(e)})
