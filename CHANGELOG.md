@@ -7,10 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-08-11
+
 ### Added
 
 - `cloudsmith domains list` lists the hosts Cloudsmith can authenticate as a versioned JSON document: `{"version": 1, "domains": [{"host": ..., "format": ..., "type": ..., "domain_type": ..., "org": ..., "repository": ..., "primary": ..., "created_at": ...}]}`. The built-in list can be replaced by a `[domains]` section in a trusted `config.ini` — each entry maps a hostname to the format it serves, or to `download`/`upload` — for dedicated deployments. An organisation's own custom domains are listed ahead of the built-in hosts, and a custom domain that is disabled or not yet validated is left out entirely, since it serves nothing. `--format` and `--repo` narrow the list to the hosts usable for a package format or repository, most-preferred first, and `--domain-type` to those with one purpose: `download`, `upload`, `api` or `native_api`.
 - The Cloudsmith organisation is now named by `--org`, with `--organization` and `--oidc-org` accepted as aliases for the same option, and `org`, `organization` or `oidc_org` accepted in `config.ini`. `--oidc-org` named the setting after the first feature that wanted it; it is read by custom-domain discovery as well as OIDC token exchange, so it is now named after what it is. The `CLOUDSMITH_ORG` environment variable is unchanged, and `credential-helper install` no longer has a separate `--org` of its own.
+
+### Fixed
+
+- Logging in via SSO no longer leaves a previously loaded API key attached to later requests. `initialise_api()` reset request headers on every call but never cleared the underlying API key, which `Configuration.set_default()` makes sticky across calls — so a session that had read an API key from `credentials.ini` could carry both an `Authorization: Bearer` header and a stale `X-Api-Key` after SSO login, with the API able to authenticate as the pre-login identity while the CLI reported a successful login.
+- `cloudsmith credential-helper install docker --dry-run` no longer makes a live API call or overwrites the on-disk custom-domain cache. Custom-domain discovery ran before the dry-run short-circuit, so a dry run had the same side effects as a real install; discovery is now skipped under `--dry-run` and reported as such in the planned actions.
 
 ## [1.21.0] - 2026-08-03
 
