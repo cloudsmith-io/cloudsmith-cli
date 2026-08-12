@@ -272,6 +272,242 @@ def update(ctx, opts, owner_repo, repo_config_file):
     print_repositories(opts=opts, data=[repository], show_list_info=True)
 
 
+def print_gpg_key(gpg_key):
+    """Print a repository's GPG key details as human-readable text."""
+    click.echo()
+    click.echo(
+        f"Fingerprint: {click.style(gpg_key.get('fingerprint') or '(none)', fg='green')}"
+    )
+    click.echo(
+        "Fingerprint (short): "
+        f"{click.style(gpg_key.get('fingerprint_short') or '(none)', fg='green')}"
+    )
+    click.echo(f"Active: {click.style(str(bool(gpg_key.get('active'))), fg='blue')}")
+    click.echo(f"Default: {click.style(str(bool(gpg_key.get('default'))), fg='blue')}")
+
+    comment = gpg_key.get("comment")
+    if comment:
+        click.echo(f"Comment: {comment}")
+
+    public_key = gpg_key.get("public_key")
+    if public_key:
+        click.echo()
+        click.echo("Public Key:")
+        click.echo(public_key)
+
+    click.echo()
+
+
+@repositories.group(cls=command.AliasGroup, name="gpg", aliases=[])
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
+@click.pass_context
+def gpg(ctx, opts):  # pylint: disable=unused-argument
+    """
+    Manage a repository's GPG signing key.
+
+    See the help for subcommands for more information on each.
+
+    Note: The API doesn't currently support deleting a repository's GPG key,
+    so there's no 'delete' subcommand here.
+    """
+
+
+@gpg.command(name="get", aliases=["list", "ls"])
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
+@click.argument(
+    "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_repo
+)
+@click.pass_context
+def gpg_get(ctx, opts, owner_repo):
+    """
+    Get the active GPG signing key for a repository.
+
+    - OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the
+      REPO name to get the GPG key for, separated by a slash.
+
+        Example: 'your-org/your-repo'
+
+    Full CLI example:
+
+      $ cloudsmith repos gpg get your-org/your-repo
+    """
+    owner, repo = owner_repo
+    use_stderr = utils.should_use_stderr(opts)
+
+    click.echo("Getting GPG key ... ", nl=False, err=use_stderr)
+
+    context_msg = "Failed to get the repository GPG key!"
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        gpg_key = api.list_repo_gpg_key(owner, repo)
+
+    click.secho("OK", fg="green", err=use_stderr)
+
+    if utils.maybe_print_as_json(opts, gpg_key):
+        return
+
+    print_gpg_key(gpg_key)
+
+
+@gpg.command(name="upload", aliases=["set"])
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
+@click.argument(
+    "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_repo
+)
+@click.option(
+    "--private-key-file",
+    "private_key_file",
+    type=click.File("r"),
+    required=True,
+    help="Path to a file containing the armored GPG private key to upload. "
+    "Use '-' to read from stdin.",
+)
+@click.option(
+    "--passphrase-file",
+    "passphrase_file",
+    type=click.File("r"),
+    required=False,
+    default=None,
+    help="Path to a file containing the GPG private key's passphrase. If "
+    "omitted, you'll be prompted for it interactively (leave blank if the "
+    "key has none). The passphrase is never accepted as a plain "
+    "command-line value, to avoid leaking it into shell history or the "
+    "process list.",
+)
+@click.pass_context
+def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
+    """
+    Set (upload) the active GPG signing key for a repository.
+
+    - OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the
+      REPO name to set the GPG key for, separated by a slash.
+
+        Example: 'your-org/your-repo'
+
+    The private key material is always read from a file (or stdin via '-'),
+    never accepted as a plain command-line argument.
+
+    Full CLI example:
+
+      $ cloudsmith repos gpg upload your-org/your-repo --private-key-file key.asc
+    """
+    owner, repo = owner_repo
+    use_stderr = utils.should_use_stderr(opts)
+
+    gpg_private_key = private_key_file.read()
+    if not gpg_private_key.strip():
+        raise click.BadParameter(
+            "The private key file is empty.", param_hint="--private-key-file"
+        )
+
+    if passphrase_file is not None:
+        gpg_passphrase = passphrase_file.read().strip() or None
+    else:
+        gpg_passphrase = (
+            click.prompt(
+                "GPG passphrase (leave blank if the key has none)",
+                hide_input=True,
+                default="",
+                show_default=False,
+            ).strip()
+            or None
+        )
+
+    click.echo(
+        f"Uploading GPG key for {click.style(repo, bold=True)} in the "
+        f"{click.style(owner, bold=True)} namespace ... ",
+        nl=False,
+        err=use_stderr,
+    )
+
+    context_msg = "Failed to set the repository GPG key!"
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        gpg_key = api.create_repo_gpg_key(
+            owner, repo, gpg_private_key=gpg_private_key, gpg_passphrase=gpg_passphrase
+        )
+
+    click.secho("OK", fg="green", err=use_stderr)
+
+    if utils.maybe_print_as_json(opts, gpg_key):
+        return
+
+    print_gpg_key(gpg_key)
+
+
+@gpg.command(name="regenerate", aliases=["regen"])
+@decorators.common_cli_config_options
+@decorators.common_cli_output_options
+@decorators.common_api_auth_options
+@decorators.initialise_api
+@click.argument(
+    "owner_repo", metavar="OWNER/REPO", callback=validators.validate_owner_repo
+)
+@click.option(
+    "-y",
+    "--yes",
+    default=False,
+    is_flag=True,
+    help="Assume yes as default answer to questions (this is dangerous!)",
+)
+@click.pass_context
+def gpg_regenerate(ctx, opts, owner_repo, yes):
+    """
+    Regenerate the GPG signing key for a repository.
+
+    - OWNER/REPO: Specify the OWNER namespace (i.e. user or org), and the
+      REPO name to regenerate the GPG key for, separated by a slash.
+
+        Example: 'your-org/your-repo'
+
+    This replaces the repository's current GPG key with a newly generated
+    one; consumers relying on the old key's fingerprint will need to pick up
+    the new one. There is no way to undo this from the CLI.
+
+    Full CLI example:
+
+      $ cloudsmith repos gpg regenerate your-org/your-repo
+    """
+    owner, repo = owner_repo
+    use_stderr = utils.should_use_stderr(opts)
+
+    prompt = (
+        f"regenerate the GPG key for {click.style(repo, bold=True)} in the "
+        f"{click.style(owner, bold=True)} namespace"
+    )
+    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
+        return
+
+    click.echo("Regenerating GPG key ... ", nl=False, err=use_stderr)
+
+    context_msg = "Failed to regenerate the repository GPG key!"
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        gpg_key = api.regenerate_repo_gpg_key(owner, repo)
+
+    click.secho("OK", fg="green", err=use_stderr)
+
+    if utils.maybe_print_as_json(opts, gpg_key):
+        return
+
+    print_gpg_key(gpg_key)
+
+
 @repositories.command(aliases=["rm"])
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options

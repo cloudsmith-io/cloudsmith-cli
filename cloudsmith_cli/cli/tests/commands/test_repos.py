@@ -1,10 +1,36 @@
 import json
+from unittest.mock import patch
 
 import pytest
 
 from ...commands.list_ import repos as list_repos
-from ...commands.repos import create, delete, get, update
+from ...commands.repos import (
+    create,
+    delete,
+    get,
+    gpg_get,
+    gpg_regenerate,
+    gpg_upload,
+    update,
+)
 from ..utils import random_str
+
+HERMETIC_ARGS = ["--api-key", "fake-api-key"]
+
+# Not a real GPG key - deliberately not using the literal
+# "-----BEGIN ... PRIVATE KEY-----" marker so secret-scanning tooling (e.g.
+# the detect-private-key pre-commit hook) doesn't flag this fixture.
+_FAKE_GPG_KEY_MATERIAL = "fake-armored-gpg-private-key-material-for-tests-only"
+
+_GPG_KEY = {
+    "active": True,
+    "comment": "my-repo GPG key",
+    "created_at": "2026-01-01T00:00:00Z",
+    "default": True,
+    "fingerprint": "AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555",
+    "fingerprint_short": "EEEE5555",
+    "public_key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n...\n-----END PGP PUBLIC KEY BLOCK-----",
+}
 
 
 def create_repo_config_file(directory, name, description, repository_type_str, slug):
@@ -200,3 +226,157 @@ def test_repos_commands(runner, organization, tmp_path):
         + " namespace ... OK"
         in result.output
     )
+
+
+class TestReposGpgGet:
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    def test_success_prints_fingerprint(self, mock_list, runner):
+        mock_list.return_value = dict(_GPG_KEY)
+
+        result = runner.invoke(
+            gpg_get, ["my-org/my-repo", *HERMETIC_ARGS], catch_exceptions=False
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_list.assert_called_once_with("my-org", "my-repo")
+        assert _GPG_KEY["fingerprint"] in result.output
+        assert _GPG_KEY["fingerprint_short"] in result.output
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    def test_json_output(self, mock_list, runner):
+        mock_list.return_value = dict(_GPG_KEY)
+
+        result = runner.invoke(
+            gpg_get,
+            ["my-org/my-repo", "-F", "json", *HERMETIC_ARGS],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        # "Getting GPG key ... " progress text goes to stderr, but the runner
+        # merges streams, so pick out the JSON line specifically.
+        json_line = next(
+            line for line in result.output.splitlines() if line.startswith("{")
+        )
+        document = json.loads(json_line)
+        assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
+
+    def test_invalid_owner_repo_rejected(self, runner):
+        result = runner.invoke(
+            gpg_get, ["not-a-valid-argument", *HERMETIC_ARGS], catch_exceptions=False
+        )
+
+        assert result.exit_code != 0
+        assert "Must be in the form of OWNER/REPO" in result.output
+
+
+class TestReposGpgUpload:
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_uploads_key_and_passphrase_from_files(self, mock_create, runner, tmp_path):
+        mock_create.return_value = dict(_GPG_KEY)
+
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+        passphrase_file = tmp_path / "passphrase.txt"
+        passphrase_file.write_text("s3cret\n")
+
+        result = runner.invoke(
+            gpg_upload,
+            [
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--passphrase-file",
+                str(passphrase_file),
+                *HERMETIC_ARGS,
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_create.assert_called_once_with(
+            "my-org",
+            "my-repo",
+            gpg_private_key=_FAKE_GPG_KEY_MATERIAL,
+            gpg_passphrase="s3cret",
+        )
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_prompts_for_passphrase_when_no_file_given(
+        self, mock_create, runner, tmp_path
+    ):
+        mock_create.return_value = dict(_GPG_KEY)
+
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            gpg_upload,
+            ["my-org/my-repo", "--private-key-file", str(key_file), *HERMETIC_ARGS],
+            input="\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_create.assert_called_once_with(
+            "my-org",
+            "my-repo",
+            gpg_private_key=_FAKE_GPG_KEY_MATERIAL,
+            gpg_passphrase=None,
+        )
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_empty_private_key_file_rejected(self, mock_create, runner, tmp_path):
+        key_file = tmp_path / "key.asc"
+        key_file.write_text("   \n")
+
+        result = runner.invoke(
+            gpg_upload,
+            ["my-org/my-repo", "--private-key-file", str(key_file), *HERMETIC_ARGS],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "private key file is empty" in result.output
+        mock_create.assert_not_called()
+
+    def test_private_key_flag_not_accepted(self, runner):
+        """Key material must never be a plain CLI value (shell-history/process-list leak)."""
+        result = runner.invoke(
+            gpg_upload,
+            ["my-org/my-repo", "--private-key", "sekrit", *HERMETIC_ARGS],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "no such option" in result.output.lower()
+
+
+class TestReposGpgRegenerate:
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_prompts_for_confirmation_and_declines(self, mock_regenerate, runner):
+        result = runner.invoke(
+            gpg_regenerate,
+            ["my-org/my-repo", *HERMETIC_ARGS],
+            input="N",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "OK, phew! Close call. :-)" in result.output
+        mock_regenerate.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_yes_flag_skips_confirmation(self, mock_regenerate, runner):
+        new_key = dict(_GPG_KEY, fingerprint="1111AAAA2222BBBB3333CCCC4444DDDD5555EEEE")
+        mock_regenerate.return_value = new_key
+
+        result = runner.invoke(
+            gpg_regenerate,
+            ["my-org/my-repo", "-y", *HERMETIC_ARGS],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_regenerate.assert_called_once_with("my-org", "my-repo")
+        assert new_key["fingerprint"] in result.output
