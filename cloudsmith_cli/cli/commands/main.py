@@ -7,7 +7,7 @@ from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
 from .. import command, decorators, utils
 
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
 
 def print_version(opts):
@@ -22,14 +22,8 @@ def print_version(opts):
 
     if not utils.maybe_print_as_json(opts, data):
         click.echo("Versions:")
-        click.secho(
-            "CLI Package Version: %(version)s"
-            % {"version": click.style(cli_version, bold=True)}
-        )
-        click.secho(
-            "API Package Version: %(version)s"
-            % {"version": click.style(api_version, bold=True)}
-        )
+        click.secho(f"CLI Package Version: {click.style(cli_version, bold=True)}")
+        click.secho(f"API Package Version: {click.style(api_version, bold=True)}")
 
 
 @click.group(
@@ -46,12 +40,11 @@ def print_version(opts):
 
 The Cloudsmith Command-Line Interface - Be Awesome. Automate Everything.
     """,
-    epilog="""
-For more help, see the docs: %(help_website)s
+    epilog=f"""
+For more help, see the docs: {get_help_website()}
 
-For issues/contributing: %(github_website)s
-    """
-    % {"help_website": get_help_website(), "github_website": get_github_website()},
+For issues/contributing: {get_github_website()}
+    """,
 )
 @click.option(
     "-V",

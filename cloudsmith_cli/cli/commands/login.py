@@ -39,17 +39,18 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     """Retrieve your API authentication token/key via login."""
     use_stderr = utils.should_use_stderr(opts)
     click.echo(
-        "Retrieving API token for %(login)s ... "
-        % {"login": click.style(login, bold=True)},
+        f"Retrieving API token for {click.style(login, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to retrieve the API token!"
     try:
-        with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-            with maybe_spinner(opts):
-                api_key = get_user_token(login=login, password=password)
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
+        ):
+            api_key = get_user_token(login=login, password=password)
     except TwoFactorRequiredException as e:
         click.echo("\r\033[K", nl=False, err=use_stderr)
         click.echo("Two-factor authentication is required.", err=use_stderr)
@@ -58,21 +59,22 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
             "Enter your two-factor authentication code", type=str, err=use_stderr
         )
         click.echo(
-            "Verifying two-factor code for %(login)s ... "
-            % {"login": click.style(login, bold=True)},
+            f"Verifying two-factor code for {click.style(login, bold=True)} ... ",
             nl=False,
             err=use_stderr,
         )
 
         try:
-            with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-                with maybe_spinner(opts):
-                    api_key = get_user_token(
-                        login=login,
-                        password=password,
-                        totp_token=totp_token,
-                        two_factor_token=e.two_factor_token,
-                    )
+            with (
+                handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+                maybe_spinner(opts),
+            ):
+                api_key = get_user_token(
+                    login=login,
+                    password=password,
+                    totp_token=totp_token,
+                    two_factor_token=e.two_factor_token,
+                )
         except cloudsmith_api.rest.ApiException:
             click.echo("\r\033[K", nl=False, err=use_stderr)
             click.secho(
@@ -84,15 +86,16 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
 
     except cloudsmith_api.rest.ApiException as e:
         click.echo("\r\033[K", nl=False, err=use_stderr)
-        click.secho(f"Authentication failed: {str(e)}", fg="red", err=use_stderr)
+        click.secho(f"Authentication failed: {e!s}", fg="red", err=use_stderr)
         ctx.exit(1)
 
     click.secho("OK", fg="green", err=use_stderr)
 
     if not utils.maybe_print_as_json(opts, {"token": api_key, "login": login}):
         click.echo(
-            "Your API key/token is: %(token)s"
-            % {"token": click.style(api_key, fg="magenta")}
+            "Your API key/token is: {token}".format(
+                token=click.style(api_key, fg="magenta")
+            )
         )
 
     create, has_errors = create_config_files(ctx, opts, api_key=api_key)

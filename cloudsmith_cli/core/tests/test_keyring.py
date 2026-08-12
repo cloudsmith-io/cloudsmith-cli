@@ -77,7 +77,7 @@ class TestKeyring:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_update_refresh_attempted_at(self, mock_get_user, mock_set_password):
-        attempted_at = datetime.utcnow().isoformat()
+        attempted_at = datetime.now(tz=timezone.utc).isoformat()
 
         update_refresh_attempted_at(self.api_host)
 
@@ -126,7 +126,7 @@ class TestKeyring:
     def test_should_refresh_access_token_with_new_token(
         self, mock_get_user, mock_get_password
     ):
-        mock_get_password.return_value = datetime.utcnow().isoformat()
+        mock_get_password.return_value = datetime.now(tz=timezone.utc).isoformat()
 
         assert not should_refresh_access_token(self.api_host)
         mock_get_password.assert_called_once_with(
@@ -139,7 +139,7 @@ class TestKeyring:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.utcnow() - timedelta(minutes=30)
+            datetime.now(tz=timezone.utc) - timedelta(minutes=30)
         ).isoformat()
 
         assert not should_refresh_access_token(self.api_host)
@@ -153,7 +153,7 @@ class TestKeyring:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.utcnow() - timedelta(minutes=31)
+            datetime.now(tz=timezone.utc) - timedelta(minutes=31)
         ).isoformat()
 
         assert should_refresh_access_token(self.api_host)
