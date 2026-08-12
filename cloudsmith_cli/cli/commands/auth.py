@@ -17,7 +17,7 @@ AUTH_SERVER_PORT = 12400
 
 
 def _perform_saml_authentication(
-    opts, owner, enable_token_creation=False, use_stderr=False
+    opts, owner, enable_token_creation=False, use_stderr=False, no_browser=False
 ):
     """Perform SAML authentication via web browser and local web server."""
     session = create_configured_session(opts)
@@ -30,7 +30,27 @@ def _perform_saml_authentication(
         err=use_stderr,
     )
     click.echo(err=use_stderr)
-    webbrowser.open(idp_url)
+
+    if no_browser:
+        click.echo(
+            "Skipping automatic browser launch (--no-browser). "
+            "Please open the URL above manually to continue.",
+            err=use_stderr,
+        )
+    else:
+        try:
+            webbrowser.open(idp_url)
+        except Exception:  # pylint: disable=broad-exception-caught
+            # webbrowser.open() raises webbrowser.Error when it can't find a
+            # runnable browser (e.g. Cygwin/headless environments), but
+            # browser-launch failures are unpredictable across platforms, so
+            # we catch broadly here and degrade gracefully rather than
+            # crashing -- the URL above can still be opened manually.
+            click.echo(
+                "Couldn't open a browser automatically. "
+                "Please open the URL above manually to continue.",
+                err=use_stderr,
+            )
 
     click.echo("Starting webserver to begin authentication ... ", err=use_stderr)
 
@@ -91,12 +111,29 @@ def _perform_saml_authentication(
     help="Retrieve API token (auto-creates or auto-rotates, no prompts). "
     "Warning: If token exists, this will rotate it and invalidate the old key.",
 )
+@click.option(
+    "--no-browser",
+    default=False,
+    is_flag=True,
+    help="Don't try to automatically open a browser; just print the SAML IDP URL "
+    "to open manually. Useful in headless-but-same-machine-reachable shells "
+    "(e.g. Cygwin), where you'd rather paste the URL into a different browser "
+    "on the same host.",
+)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @decorators.initialise_api
 @click.pass_context
 def authenticate(
-    ctx, opts, owner, token, force, save_config, json, request_api_key_flag
+    ctx,
+    opts,
+    owner,
+    token,
+    force,
+    save_config,
+    json,
+    request_api_key_flag,
+    no_browser,
 ):
     """Authenticate to Cloudsmith using the org's SAML setup."""
     # Validate mutual exclusivity
@@ -150,6 +187,7 @@ def authenticate(
             owner,
             enable_token_creation=enable_token_creation,
             use_stderr=use_stderr,
+            no_browser=no_browser,
         )
 
     if request_api_key_flag:

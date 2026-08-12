@@ -1,5 +1,6 @@
 """Tests for the auth command."""
 
+import webbrowser
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -102,6 +103,95 @@ class TestAuthenticateCommand:
         mock_auth_server.assert_called_once()
         call_kwargs = mock_auth_server.call_args.kwargs
         assert call_kwargs.get("owner") == "testorg"
+
+
+class TestBrowserFallback:
+    """Tests for graceful handling of webbrowser.open() failures."""
+
+    def test_webbrowser_error_does_not_crash(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify a webbrowser.Error from webbrowser.open() doesn't crash the command."""
+        mock_webbrowser.Error = webbrowser.Error
+        mock_webbrowser.open.side_effect = webbrowser.Error("no runnable browser found")
+
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Couldn't open a browser automatically" in result.output
+        mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
+        mock_auth_server.assert_called_once()
+
+    def test_generic_exception_from_open_does_not_crash(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify any unexpected exception from webbrowser.open() also degrades gracefully."""
+        mock_webbrowser.open.side_effect = RuntimeError("platform-specific failure")
+
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Couldn't open a browser automatically" in result.output
+        mock_auth_server.assert_called_once()
+
+
+class TestNoBrowserFlag:
+    """Tests for the --no-browser flag."""
+
+    def test_no_browser_skips_webbrowser_open(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify --no-browser never calls webbrowser.open()."""
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg", "--no-browser"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        mock_webbrowser.open.assert_not_called()
+        assert "Skipping automatic browser launch" in result.output
+        mock_auth_server.assert_called_once()
+
+    def test_without_no_browser_still_opens_browser(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify default behavior (no flag) still calls webbrowser.open()."""
+        runner.invoke(
+            authenticate,
+            ["--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
 
 
 class TestRequestApiKeyFlag:
