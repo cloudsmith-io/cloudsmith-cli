@@ -38,6 +38,7 @@ from ...core.api.packages import (
     validate_create_package as api_validate_create_package,
 )
 from .. import command, decorators, utils, validators
+from ..dsc_parser import resolve_dsc_files
 from ..exceptions import handle_api_exceptions
 from ..metadata_common import (
     MetadataContentError,
@@ -1181,6 +1182,22 @@ def create_push_handlers():
             parameters = context.get(ctx.info_name)
             kwargs["package_type"] = ctx.info_name
 
+            # deb-only: derive --sources-file/--changes-file from a .dsc's
+            # Files:/Checksums-Sha256: stanza (see GitHub issue #56). Only
+            # the `deb` subcommand ever registers --dsc-file (below), so
+            # this is a no-op kwargs.pop() for every other format.
+            dsc_file = kwargs.pop("dsc_file", None)
+            if dsc_file:
+                dsc_sources_file, dsc_changes_file = resolve_dsc_files(dsc_file)
+                # Precedence: explicit --sources-file/--changes-file always
+                # win over values derived from --dsc-file. A user who passes
+                # both wants a manual override, not to have their explicit
+                # flag silently clobbered.
+                if not kwargs.get("sources_file"):
+                    kwargs["sources_file"] = dsc_sources_file
+                if not kwargs.get("changes_file"):
+                    kwargs["changes_file"] = dsc_changes_file
+
             owner_repo = kwargs.pop("owner_repo")
             if "distribution" in parameters:
                 kwargs["distribution"] = "/".join(owner_repo[2:])
@@ -1306,6 +1323,32 @@ def create_push_handlers():
                 **option_kwargs,
             )
             push_handler = decorator(push_handler)
+
+        if key == "deb":
+            # deb-only shim (GitHub issue #56): the generic per-format loop
+            # above is driven entirely by the API's package-format model, so
+            # this stays layered on top rather than becoming a new branch in
+            # that generic system.
+            push_handler = click.option(
+                "--dsc-file",
+                "dsc_file",
+                type=click.Path(
+                    exists=True, dir_okay=False, readable=True, resolve_path=True
+                ),
+                default=None,
+                help=(
+                    "Path to a Debian .dsc control file. Its 'Files:' (or "
+                    "'Checksums-Sha256:') stanza is parsed to auto-fill "
+                    "--sources-file/--changes-file, resolving referenced "
+                    "filenames relative to the .dsc's directory. Any "
+                    "--sources-file/--changes-file passed explicitly always "
+                    "takes precedence over a value derived from --dsc-file. "
+                    "Rejected with an error if the .dsc references a "
+                    "multi-component source package (*.orig-*.tar.*) or a "
+                    "detached signature (*.asc) -- Cloudsmith's deb upload "
+                    "format does not support either."
+                ),
+            )(push_handler)
 
         handlers[key] = push_handler
 
