@@ -72,19 +72,17 @@ def add_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Adding %(repository)s/%(package_slug)s to quarantine... "
-        % {
-            "repository": click.style(repo, bold=True),
-            "package_slug": click.style(slug, bold=True),
-        },
+        f"Adding {click.style(repo, bold=True)}/{click.style(slug, bold=True)} to quarantine... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed quarantine!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.quarantine_package(owner=owner, repo=repo, identifier=slug)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.quarantine_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -121,19 +119,17 @@ def remove_quarantine(ctx, opts, owner_repo_package, page, page_size, page_all):
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Removing %(repository)s/%(package_slug)s from quarantine... "
-        % {
-            "repository": click.style(repo, bold=True),
-            "package_slug": click.style(slug, bold=True),
-        },
+        f"Removing {click.style(repo, bold=True)}/{click.style(slug, bold=True)} from quarantine... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed quarantine!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.quarantine_restore_package(owner=owner, repo=repo, identifier=slug)
 
     click.secho("OK", fg="green", err=use_stderr)
 

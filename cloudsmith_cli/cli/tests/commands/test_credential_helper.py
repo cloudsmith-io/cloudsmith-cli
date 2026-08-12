@@ -29,6 +29,8 @@ from ....credential_helpers.default_domains import DomainType
 from ....credential_helpers.docker.runtime import (
     _REFUSAL_MESSAGE,
     execute,
+)
+from ....credential_helpers.docker.runtime import (
     get_credentials as helper_get_credentials,
 )
 
@@ -70,13 +72,7 @@ def test_execute_protocol_matrix(
     """execute() returns the expected (code, stdout, stderr) for each operation."""
     stdin = io.StringIO(stdin_text)
 
-    if operation == "get" and get_return is not None:
-        with patch(
-            "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials",
-            return_value=get_return,
-        ):
-            code, stdout, stderr = execute(operation, stdin)
-    elif operation == "get":
+    if operation == "get" and get_return is not None or operation == "get":
         with patch(
             "cloudsmith_cli.credential_helpers.docker.runtime.get_credentials",
             return_value=get_return,

@@ -35,11 +35,10 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, page_all
                 click.style(str(repo["package_group_count"]), fg="blue"),
                 click.style(str(repo["num_downloads"]), fg="blue"),
                 click.style(str(repo["size_str"]), fg="blue"),
-                "%(owner_slug)s/%(slug)s"
-                % {
-                    "owner_slug": click.style(repo["namespace"], fg="magenta"),
-                    "slug": click.style(repo["slug"], fg="green"),
-                },
+                "{owner_slug}/{slug}".format(
+                    owner_slug=click.style(repo["namespace"], fg="magenta"),
+                    slug=click.style(repo["slug"], fg="green"),
+                ),
             ]
         )
 
@@ -127,11 +126,13 @@ def get(ctx, opts, owner_repo, page, page_size, page_all):
     click.echo("Getting list of repositories ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to get list of repositories!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repos_, page_info = paginate_results(
-                api.list_repos, page_all, page, page_size, owner=owner, repo=repo
-            )
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        repos_, page_info = paginate_results(
+            api.list_repos, page_all, page, page_size, owner=owner, repo=repo
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -191,19 +192,17 @@ def create(ctx, opts, owner, repo_config_file):
         )
 
     click.secho(
-        "Creating %(name)s repository for the %(owner)s namespace ..."
-        % {
-            "name": click.style(repo_name, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Creating {click.style(repo_name, bold=True)} repository for the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to create the repository!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repository = api.create_repo(owner, repo_config)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        repository = api.create_repo(owner, repo_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -254,19 +253,17 @@ def update(ctx, opts, owner_repo, repo_config_file):
     repo_config = json.load(repo_config_file)
 
     click.secho(
-        "Updating %(name)s repository in the %(owner)s namespace ..."
-        % {
-            "name": click.style(repo, bold=True),
-            "owner": click.style(owner, bold=True),
-        },
+        f"Updating {click.style(repo, bold=True)} repository in the {click.style(owner, bold=True)} namespace ...",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to update the repository!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            repository = api.update_repo(owner, repo, repo_config)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        repository = api.update_repo(owner, repo, repo_config)
 
     click.secho("OK", fg="green", err=use_stderr)
 
@@ -311,20 +308,26 @@ def delete(ctx, opts, owner_repo, yes):
         "repository": click.style(repo, bold=True),
     }
 
-    prompt = "delete the %(repository)s from the %(namespace)s namespace" % delete_args
+    prompt = "delete the {repository} from the {namespace} namespace".format(
+        **delete_args
+    )
     # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = utils.should_use_stderr(opts)
     if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
         return
 
     click.secho(
-        "Deleting %(repository)s from the %(namespace)s namespace ... " % delete_args,
+        "Deleting {repository} from the {namespace} namespace ... ".format(
+            **delete_args
+        ),
         nl=False,
     )
 
     context_msg = "Failed to delete the repository!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with maybe_spinner(opts):
-            api.delete_repo(owner=owner, repo=repo)
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        maybe_spinner(opts),
+    ):
+        api.delete_repo(owner=owner, repo=repo)
 
     click.secho("OK", fg="green")
