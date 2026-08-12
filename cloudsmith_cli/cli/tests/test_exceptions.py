@@ -30,10 +30,17 @@ class TestGet401ErrorHint:
 
         assert "cloudsmith auth" in hint_for(credential)
 
-    def test_api_key_credential_suggests_a_permissions_problem(self):
+    def test_api_key_credential_does_not_assert_a_permissions_problem(self):
+        """A 401 means authentication failed, not that authorization was
+        denied -- the hint shouldn't claim it's specifically a permissions
+        issue, since that contradicts the 401 status line it's paired with.
+        """
         credential = CredentialResult(api_key="csa_abc123", source_name="oidc")
 
-        assert "permission" in hint_for(credential)
+        hint = hint_for(credential)
+
+        assert "permission" not in hint
+        assert "credentials" in hint
 
     def test_no_credential_suggests_authenticating(self):
         assert "cloudsmith token" in hint_for(None)
