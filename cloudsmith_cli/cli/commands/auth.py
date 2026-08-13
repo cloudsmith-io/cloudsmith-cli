@@ -26,7 +26,7 @@ def _perform_saml_authentication(
     idp_url = get_idp_url(api_host, owner, session=session)
 
     click.echo(
-        f"Opening your organization's SAML IDP URL in your browser: {click.style(idp_url, bold=True)}",
+        f"Your organization's SAML IDP URL is: {click.style(idp_url, bold=True)}",
         err=use_stderr,
     )
     click.echo(err=use_stderr)
@@ -39,13 +39,16 @@ def _perform_saml_authentication(
         )
     else:
         try:
-            webbrowser.open(idp_url)
+            browser_opened = webbrowser.open(idp_url)
         except Exception:  # pylint: disable=broad-exception-caught
             # webbrowser.open() raises webbrowser.Error when it can't find a
             # runnable browser (e.g. Cygwin/headless environments), but
             # browser-launch failures are unpredictable across platforms, so
             # we catch broadly here and degrade gracefully rather than
             # crashing -- the URL above can still be opened manually.
+            browser_opened = False
+
+        if not browser_opened:
             click.echo(
                 "Couldn't open a browser automatically. "
                 "Please open the URL above manually to continue.",
