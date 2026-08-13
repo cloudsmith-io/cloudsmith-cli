@@ -40,12 +40,10 @@ def _perform_saml_authentication(
     else:
         try:
             browser_opened = webbrowser.open(idp_url)
-        except Exception:  # pylint: disable=broad-exception-caught
-            # webbrowser.open() raises webbrowser.Error when it can't find a
-            # runnable browser (e.g. Cygwin/headless environments), but
-            # browser-launch failures are unpredictable across platforms, so
-            # we catch broadly here and degrade gracefully rather than
-            # crashing -- the URL above can still be opened manually.
+        except Exception:
+            # Browser launch failures vary by platform (webbrowser.Error on
+            # Cygwin/headless, anything else elsewhere), so catch broadly and
+            # fall back to the manual URL rather than crashing.
             browser_opened = False
 
         if not browser_opened:
@@ -118,10 +116,8 @@ def _perform_saml_authentication(
     "--no-browser",
     default=False,
     is_flag=True,
-    help="Don't try to automatically open a browser; just print the SAML IDP URL "
-    "to open manually. Useful in headless-but-same-machine-reachable shells "
-    "(e.g. Cygwin), where you'd rather paste the URL into a different browser "
-    "on the same host.",
+    help="Don't try to open a browser automatically; print the SAML IDP URL to "
+    "open manually instead.",
 )
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options

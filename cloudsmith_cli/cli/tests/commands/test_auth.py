@@ -122,7 +122,6 @@ class TestBrowserFallback:
         mock_auth_server,
     ):
         """Verify a webbrowser.Error from webbrowser.open() doesn't crash the command."""
-        mock_webbrowser.Error = webbrowser.Error
         mock_webbrowser.open.side_effect = webbrowser.Error("no runnable browser found")
 
         result = runner.invoke(
