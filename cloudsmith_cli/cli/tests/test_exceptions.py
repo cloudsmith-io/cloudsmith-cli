@@ -3,8 +3,6 @@
 import json
 from unittest.mock import Mock, patch
 
-import click.testing
-
 from cloudsmith_cli.cli.commands.main import main
 from cloudsmith_cli.cli.exceptions import get_401_error_hint
 from cloudsmith_cli.core.api.exceptions import ApiException
@@ -45,10 +43,7 @@ class TestGet401ErrorHint:
         """A 401 alone cannot establish a specific permissions problem."""
         credential = CredentialResult(api_key="csa_abc123", source_name="oidc")
 
-        hint = hint_for(credential)
-
-        assert hint == API_KEY_HINT
-        assert "permission" not in hint.lower()
+        assert hint_for(credential) == API_KEY_HINT
 
     def test_no_credential_suggests_authenticating(self):
         assert "cloudsmith token" in hint_for(None)
@@ -57,12 +52,18 @@ class TestGet401ErrorHint:
         assert "login failed" in hint_for(None, info_name="token")
 
 
-def invoke_credentialed_401(output_format="pretty"):
-    """Raise a translated 401 through the registered command tree."""
+def invoke_credentialed_401(runner, config_dir, output_format="pretty"):
+    """Raise a translated 401 through the registered command tree.
+
+    The config and credentials paths point at an empty directory so a real
+    config.ini or credentials.ini on the machine cannot change the hint.
+    """
     args = [
         "whoami",
         "--config-file",
-        "/dev/null",
+        str(config_dir),
+        "--credentials-file",
+        str(config_dir),
         "--api-host",
         "https://api.example.invalid",
         "--api-key",
@@ -74,19 +75,21 @@ def invoke_credentialed_401(output_format="pretty"):
         "cloudsmith_cli.cli.commands.whoami.get_user_brief",
         side_effect=ApiException(status=401, detail="Invalid API key"),
     ):
-        return click.testing.CliRunner().invoke(main, args)
+        return runner.invoke(main, args)
 
 
-def test_credentialed_401_renders_actionable_hint_in_text_output():
-    result = invoke_credentialed_401()
+class TestCredentialed401Rendering:
+    """The hint has to survive the renderers, not just the hint function."""
 
-    assert "status: 401 - Unauthorized" in result.output
-    assert f"Hint: {API_KEY_HINT}" in result.output
+    def test_text_output_renders_the_hint(self, runner, tmp_path):
+        result = invoke_credentialed_401(runner, tmp_path)
 
+        assert "status: 401 - Unauthorized" in result.output
+        assert f"Hint: {API_KEY_HINT}" in result.output
 
-def test_credentialed_401_renders_actionable_hint_in_json_output():
-    result = invoke_credentialed_401("json")
+    def test_json_output_renders_the_hint(self, runner, tmp_path):
+        result = invoke_credentialed_401(runner, tmp_path, output_format="json")
 
-    error = json.loads(result.stdout)
-    assert error["meta"] == {"code": 401, "description": "Unauthorized"}
-    assert error["help"]["hint"] == API_KEY_HINT
+        error = json.loads(result.stdout)
+        assert error["meta"] == {"code": 401, "description": "Unauthorized"}
+        assert error["help"]["hint"] == API_KEY_HINT
