@@ -4,15 +4,8 @@ from unittest.mock import patch
 import pytest
 
 from ...commands.list_ import repos as list_repos
-from ...commands.repos import (
-    create,
-    delete,
-    get,
-    gpg_get,
-    gpg_regenerate,
-    gpg_upload,
-    update,
-)
+from ...commands.main import main
+from ...commands.repos import create, delete, get, update
 from ..utils import random_str
 
 HERMETIC_ARGS = ["--api-key", "fake-api-key"]
@@ -31,6 +24,18 @@ _GPG_KEY = {
     "fingerprint_short": "EEEE5555",
     "public_key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\n...\n-----END PGP PUBLIC KEY BLOCK-----",
 }
+
+
+def gpg_command_args(command, *args):
+    """Build arguments that exercise the registered repos GPG command tree."""
+    return [
+        "repos",
+        *HERMETIC_ARGS,
+        "gpg",
+        command,
+        *args,
+        *HERMETIC_ARGS,
+    ]
 
 
 def create_repo_config_file(directory, name, description, repository_type_str, slug):
@@ -230,11 +235,16 @@ def test_repos_commands(runner, organization, tmp_path):
 
 class TestReposGpgGet:
     @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
-    def test_success_prints_fingerprint(self, mock_list, runner):
+    @pytest.mark.parametrize("command_name", ["get", "list", "ls"])
+    def test_registered_commands_print_fingerprint(
+        self, mock_list, runner, command_name
+    ):
         mock_list.return_value = dict(_GPG_KEY)
 
         result = runner.invoke(
-            gpg_get, ["my-org/my-repo", *HERMETIC_ARGS], catch_exceptions=False
+            main,
+            gpg_command_args(command_name, "my-org/my-repo"),
+            catch_exceptions=False,
         )
 
         assert result.exit_code == 0, result.output
@@ -247,8 +257,8 @@ class TestReposGpgGet:
         mock_list.return_value = dict(_GPG_KEY)
 
         result = runner.invoke(
-            gpg_get,
-            ["my-org/my-repo", "-F", "json", *HERMETIC_ARGS],
+            main,
+            gpg_command_args("get", "my-org/my-repo", "-F", "json"),
             catch_exceptions=False,
         )
 
@@ -263,11 +273,33 @@ class TestReposGpgGet:
 
     def test_invalid_owner_repo_rejected(self, runner):
         result = runner.invoke(
-            gpg_get, ["not-a-valid-argument", *HERMETIC_ARGS], catch_exceptions=False
+            main,
+            gpg_command_args("get", "not-a-valid-argument"),
+            catch_exceptions=False,
         )
 
         assert result.exit_code != 0
         assert "Must be in the form of OWNER/REPO" in result.output
+
+    def test_structural_group_does_not_advertise_inert_common_options(self, runner):
+        result = runner.invoke(
+            main,
+            ["repos", *HERMETIC_ARGS, "gpg", "--help"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "--output-format" not in result.output
+        assert "--debug" not in result.output
+        assert "--verbose" not in result.output
+
+        misplaced = runner.invoke(
+            main,
+            ["repos", *HERMETIC_ARGS, "gpg", "-F", "json", "get", "my-org/my-repo"],
+            catch_exceptions=False,
+        )
+        assert misplaced.exit_code != 0
+        assert "No such option '-F'" in misplaced.output
 
 
 class TestReposGpgUpload:
@@ -281,15 +313,15 @@ class TestReposGpgUpload:
         passphrase_file.write_text("s3cret\n")
 
         result = runner.invoke(
-            gpg_upload,
-            [
+            main,
+            gpg_command_args(
+                "upload",
                 "my-org/my-repo",
                 "--private-key-file",
                 str(key_file),
                 "--passphrase-file",
                 str(passphrase_file),
-                *HERMETIC_ARGS,
-            ],
+            ),
             catch_exceptions=False,
         )
 
@@ -311,8 +343,10 @@ class TestReposGpgUpload:
         key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
 
         result = runner.invoke(
-            gpg_upload,
-            ["my-org/my-repo", "--private-key-file", str(key_file), *HERMETIC_ARGS],
+            main,
+            gpg_command_args(
+                "upload", "my-org/my-repo", "--private-key-file", str(key_file)
+            ),
             input="\n",
             catch_exceptions=False,
         )
@@ -326,13 +360,196 @@ class TestReposGpgUpload:
         )
 
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    @pytest.mark.parametrize(
+        "passphrase,expected",
+        [
+            (" leading-space\n", " leading-space"),
+            ("trailing-space \n", "trailing-space "),
+            (" \t \n", " \t "),
+            ("windows-line-ending\r\n", "windows-line-ending"),
+        ],
+    )
+    def test_passphrase_file_preserves_whitespace_and_removes_one_line_ending(
+        self, mock_create, runner, tmp_path, passphrase, expected
+    ):
+        mock_create.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+        passphrase_file = tmp_path / "passphrase.txt"
+        passphrase_file.write_bytes(passphrase.encode())
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--passphrase-file",
+                str(passphrase_file),
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert mock_create.call_args.kwargs["gpg_passphrase"] == expected
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    @pytest.mark.parametrize(
+        "passphrase", [" leading-space", "trailing-space ", " \t "]
+    )
+    def test_prompt_preserves_passphrase_whitespace(
+        self, mock_create, runner, tmp_path, passphrase
+    ):
+        mock_create.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload", "my-org/my-repo", "--private-key-file", str(key_file)
+            ),
+            input=f"{passphrase}\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert mock_create.call_args.kwargs["gpg_passphrase"] == passphrase
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_private_key_stdin_requires_separate_passphrase_file(
+        self, mock_create, runner
+    ):
+        result = runner.invoke(
+            main,
+            gpg_command_args("upload", "my-org/my-repo", "--private-key-file", "-"),
+            input=_FAKE_GPG_KEY_MATERIAL,
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "--passphrase-file" in result.output
+        assert "Must be a file path (not '-')" in result.output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_uploads_private_key_from_stdin_with_passphrase_file(
+        self, mock_create, runner, tmp_path
+    ):
+        mock_create.return_value = dict(_GPG_KEY)
+        passphrase_file = tmp_path / "passphrase.txt"
+        passphrase_file.write_text("passphrase\n")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                "-",
+                "--passphrase-file",
+                str(passphrase_file),
+            ),
+            input=_FAKE_GPG_KEY_MATERIAL,
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        mock_create.assert_called_once_with(
+            "my-org",
+            "my-repo",
+            gpg_private_key=_FAKE_GPG_KEY_MATERIAL,
+            gpg_passphrase="passphrase",
+        )
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_rejects_using_stdin_for_both_secret_inputs(self, mock_create, runner):
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                "-",
+                "--passphrase-file",
+                "-",
+            ),
+            input=_FAKE_GPG_KEY_MATERIAL,
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "Must be a file path (not '-')" in result.output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_passphrase_can_be_read_from_stdin_when_key_uses_path(
+        self, mock_create, runner, tmp_path
+    ):
+        mock_create.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--passphrase-file",
+                "-",
+            ),
+            input=" stdin-passphrase \n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert mock_create.call_args.kwargs["gpg_passphrase"] == " stdin-passphrase "
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_debug_is_rejected_without_disclosing_secrets(
+        self, mock_create, runner, tmp_path
+    ):
+        private_key = "private-key-debug-sentinel"
+        passphrase = "passphrase-debug-sentinel"
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(private_key)
+        passphrase_file = tmp_path / "passphrase.txt"
+        passphrase_file.write_text(passphrase)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--passphrase-file",
+                str(passphrase_file),
+                "--debug",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "Debug output is disabled for this command" in result.output
+        for output in (result.stdout, result.stderr):
+            assert private_key not in output
+            assert passphrase not in output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
     def test_empty_private_key_file_rejected(self, mock_create, runner, tmp_path):
         key_file = tmp_path / "key.asc"
         key_file.write_text("   \n")
 
         result = runner.invoke(
-            gpg_upload,
-            ["my-org/my-repo", "--private-key-file", str(key_file), *HERMETIC_ARGS],
+            main,
+            gpg_command_args(
+                "upload", "my-org/my-repo", "--private-key-file", str(key_file)
+            ),
             catch_exceptions=False,
         )
 
@@ -343,8 +560,8 @@ class TestReposGpgUpload:
     def test_private_key_flag_not_accepted(self, runner):
         """Key material must never be a plain CLI value (shell-history/process-list leak)."""
         result = runner.invoke(
-            gpg_upload,
-            ["my-org/my-repo", "--private-key", "sekrit", *HERMETIC_ARGS],
+            main,
+            gpg_command_args("upload", "my-org/my-repo", "--private-key", "sekrit"),
             catch_exceptions=False,
         )
 
@@ -356,8 +573,8 @@ class TestReposGpgRegenerate:
     @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
     def test_prompts_for_confirmation_and_declines(self, mock_regenerate, runner):
         result = runner.invoke(
-            gpg_regenerate,
-            ["my-org/my-repo", *HERMETIC_ARGS],
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo"),
             input="N",
             catch_exceptions=False,
         )
@@ -372,8 +589,8 @@ class TestReposGpgRegenerate:
         mock_regenerate.return_value = new_key
 
         result = runner.invoke(
-            gpg_regenerate,
-            ["my-org/my-repo", "-y", *HERMETIC_ARGS],
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "-y"),
             catch_exceptions=False,
         )
 

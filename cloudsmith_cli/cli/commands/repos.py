@@ -299,12 +299,8 @@ def print_gpg_key(gpg_key):
 
 
 @repositories.group(cls=command.AliasGroup, name="gpg", aliases=[])
-@decorators.common_cli_config_options
-@decorators.common_cli_output_options
-@decorators.common_api_auth_options
-@decorators.initialise_api
 @click.pass_context
-def gpg(ctx, opts):  # pylint: disable=unused-argument
+def gpg(ctx):  # pylint: disable=unused-argument
     """
     Manage a repository's GPG signing key.
 
@@ -371,7 +367,8 @@ def gpg_get(ctx, opts, owner_repo):
     type=click.File("r"),
     required=True,
     help="Path to a file containing the armored GPG private key to upload. "
-    "Use '-' to read from stdin.",
+    "Use '-' to read from stdin; in that case --passphrase-file must be a "
+    "file path.",
 )
 @click.option(
     "--passphrase-file",
@@ -381,9 +378,10 @@ def gpg_get(ctx, opts, owner_repo):
     default=None,
     help="Path to a file containing the GPG private key's passphrase. If "
     "omitted, you'll be prompted for it interactively (leave blank if the "
-    "key has none). The passphrase is never accepted as a plain "
-    "command-line value, to avoid leaking it into shell history or the "
-    "process list.",
+    "key has none). One trailing line ending is ignored. Use '-' to read "
+    "from stdin only when --private-key-file is a path. The passphrase is "
+    "never accepted as a plain command-line value, to avoid leaking it "
+    "into shell history or the process list.",
 )
 @click.pass_context
 def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
@@ -405,6 +403,22 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
     owner, repo = owner_repo
     use_stderr = utils.should_use_stderr(opts)
 
+    if opts.debug:
+        raise click.BadParameter(
+            "Debug output is disabled for this command because the request "
+            "contains private key material and a passphrase.",
+            param_hint="--debug",
+        )
+
+    stdin = click.get_text_stream("stdin")
+    private_key_from_stdin = private_key_file is stdin
+    passphrase_from_stdin = passphrase_file is stdin
+    if private_key_from_stdin and (passphrase_file is None or passphrase_from_stdin):
+        raise click.BadParameter(
+            "Must be a file path (not '-') when --private-key-file is '-'.",
+            param_hint="--passphrase-file",
+        )
+
     gpg_private_key = private_key_file.read()
     if not gpg_private_key.strip():
         raise click.BadParameter(
@@ -412,17 +426,20 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
         )
 
     if passphrase_file is not None:
-        gpg_passphrase = passphrase_file.read().strip() or None
+        gpg_passphrase = passphrase_file.read()
+        if gpg_passphrase.endswith("\r\n"):
+            gpg_passphrase = gpg_passphrase[:-2]
+        elif gpg_passphrase.endswith(("\r", "\n")):
+            gpg_passphrase = gpg_passphrase[:-1]
     else:
-        gpg_passphrase = (
-            click.prompt(
-                "GPG passphrase (leave blank if the key has none)",
-                hide_input=True,
-                default="",
-                show_default=False,
-            ).strip()
-            or None
+        gpg_passphrase = click.prompt(
+            "GPG passphrase (leave blank if the key has none)",
+            hide_input=True,
+            default="",
+            show_default=False,
         )
+    if gpg_passphrase == "":
+        gpg_passphrase = None
 
     click.echo(
         f"Uploading GPG key for {click.style(repo, bold=True)} in the "
