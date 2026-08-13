@@ -363,6 +363,12 @@ For example, if you wanted to upload a Debian package, you can do it in one-step
 cloudsmith push deb your-org/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
 ```
 
+To upload a Debian *source* package, give it the `.dsc`. The source and Debian packaging archives listed in the `.dsc` are found and uploaded with it:
+
+```
+cloudsmith push deb your-org/your-repo/ubuntu/xenial hello_2.10-3.dsc
+```
+
 Want to know how to do it with another packaging format? Easy, just ask for help:
 
 ```

@@ -1,6 +1,7 @@
-"""Parse Debian ``.dsc`` control files for ``push deb --dsc-file``."""
+"""Parse Debian ``.dsc`` control files for ``push deb`` source uploads."""
 
 import os
+from dataclasses import dataclass, field
 from email.parser import Parser
 
 import click
@@ -10,11 +11,23 @@ _SIGNATURE = "-----BEGIN PGP SIGNATURE-----"
 _DETACHED_SIGNATURE_SUFFIX = ".asc"
 _FILE_LIST_FIELDS = ("Checksums-Sha256", "Files")
 _QUILT_FORMATS = {"2.0", "3.0 (quilt)"}
-_SINGLE_TARBALL_FORMATS = {"3.0 (native)", "3.0 (git)", "3.0 (bzr)"}
+_NATIVE_FORMAT = "3.0 (native)"
+
+
+@dataclass(frozen=True)
+class ResolvedDscFiles:
+    """Source-package members resolved from a Debian ``.dsc``."""
+
+    sources_file: str
+    changes_file: str | None = None
+    #: Members deliberately left out of the upload, for the caller to report.
+    ignored_files: tuple[str, ...] = field(default_factory=tuple)
 
 
 def _usage_error(dsc_path, message):
-    return click.UsageError(f"--dsc-file {dsc_path!r} {message}")
+    # Names the file rather than the option: the .dsc is just as often taken
+    # from PACKAGE_FILE as from an explicit --dsc-file.
+    return click.UsageError(f"Debian source control file {dsc_path!r} {message}")
 
 
 def _unwrap_clearsigned_control(text, dsc_path):
@@ -127,19 +140,19 @@ def _classify_members(message, filenames, dsc_path):
     source_format = _required_field(message, "Format", dsc_path)
     upstream_version = version.rsplit("-", 1)[0]
 
+    # Detached upstream signatures (e.g. hello_2.10.orig.tar.gz.asc) are
+    # common and have no field in the deb upload model. Nothing in the
+    # uploaded source is lost by leaving them out, so they are skipped with a
+    # warning rather than failing the push.
     signature_files = [
         filename
         for filename in filenames
         if filename.endswith(_DETACHED_SIGNATURE_SUFFIX)
     ]
-    if signature_files:
-        raise _usage_error(
-            dsc_path,
-            "references detached upstream signature file(s) ({files}). Cloudsmith "
-            "does not support detached upstream signatures for deb uploads.".format(
-                files=", ".join(signature_files)
-            ),
-        )
+    # Classify the uploadable members only. A signature shares its tarball's
+    # stem (`*.orig.tar.gz.asc`), so leaving it in would match as a second
+    # source archive.
+    members = [f for f in filenames if f not in set(signature_files)]
 
     sources = []
     changes = []
@@ -150,29 +163,33 @@ def _classify_members(message, filenames, dsc_path):
         orig_stem = f"{source}_{upstream_version}.orig"
         component_prefix = f"{orig_stem}-"
         debian_stem = f"{source}_{version}.debian"
-        sources = [f for f in filenames if _is_tar_archive(f, orig_stem)]
-        changes = [f for f in filenames if _is_tar_archive(f, debian_stem)]
+        sources = [f for f in members if _is_tar_archive(f, orig_stem)]
+        changes = [f for f in members if _is_tar_archive(f, debian_stem)]
         component_files = [
             f
-            for f in filenames
+            for f in members
             if f.startswith(component_prefix) and ".tar." in f[len(component_prefix) :]
         ]
     elif source_format == "1.0":
         orig_stem = f"{source}_{upstream_version}.orig"
         diff_name = f"{source}_{version}.diff.gz"
         native_stem = f"{source}_{version}"
-        orig_files = [f for f in filenames if _is_tar_archive(f, orig_stem)]
-        diff_files = [f for f in filenames if f == diff_name]
-        native_files = [f for f in filenames if _is_tar_archive(f, native_stem)]
+        orig_files = [f for f in members if _is_tar_archive(f, orig_stem)]
+        diff_files = [f for f in members if f == diff_name]
+        native_files = [f for f in members if _is_tar_archive(f, native_stem)]
         if orig_files or diff_files:
             legacy_non_native = True
             sources = orig_files
             changes = diff_files
         else:
             sources = native_files
-    elif source_format in _SINGLE_TARBALL_FORMATS:
-        sources = [f for f in filenames if _is_tar_archive(f, f"{source}_{version}")]
+    elif source_format == _NATIVE_FORMAT:
+        sources = [f for f in members if _is_tar_archive(f, f"{source}_{version}")]
     else:
+        # '3.0 (git)' ships a git bundle and '3.0 (bzr)' a VCS tarball, neither
+        # of which is a source archive the deb upload model can index, so both
+        # fall through to the unsupported-format error alongside
+        # '3.0 (custom)'.
         raise _usage_error(
             dsc_path, f"uses unsupported Debian source format {source_format!r}."
         )
@@ -185,8 +202,8 @@ def _classify_members(message, filenames, dsc_path):
             "uploads.".format(files=", ".join(component_files)),
         )
 
-    classified = set(sources + changes + signature_files + component_files)
-    unexpected = [f for f in filenames if f not in classified]
+    classified = set(sources + changes + component_files)
+    unexpected = [f for f in members if f not in classified]
     if unexpected:
         raise _usage_error(
             dsc_path,
@@ -212,33 +229,40 @@ def _classify_members(message, filenames, dsc_path):
             f"format '1.0'; found {len(changes)}.",
         )
 
-    return sources[0], changes[0] if changes else None
+    return sources[0], changes[0] if changes else None, tuple(signature_files)
 
 
 def _resolve_member(base_dir, filename, dsc_path):
+    """Canonicalise a member that ``_validate_member_names`` has vetted."""
     candidate = os.path.join(base_dir, filename)
-    resolved = os.path.realpath(candidate)
-    if os.path.dirname(resolved) != base_dir or not os.path.isfile(resolved):
+    if not os.path.isfile(candidate):
         raise _usage_error(
             dsc_path,
-            f"references {filename!r}, but it is not a regular file directly "
-            "next to the .dsc.",
+            f"references {filename!r}, but it is not a regular file next to the .dsc.",
         )
-    return resolved
+    # Uploading the canonical path means a symlink swapped between this check
+    # and the upload cannot redirect the read. The link itself may point
+    # outside the directory: `mk-origtargz --symlink` (the uscan default)
+    # routinely symlinks the .orig tarball in from a download cache.
+    return os.path.realpath(candidate)
 
 
 def resolve_dsc_files(dsc_path):
-    """Return ``(sources_file, changes_file)`` derived from a Debian ``.dsc``."""
+    """Return the :class:`ResolvedDscFiles` derived from a Debian ``.dsc``."""
     message = _read_control_message(dsc_path)
     filenames = _extract_filenames(message, dsc_path)
     _validate_member_names(filenames, dsc_path)
-    source_filename, changes_filename = _classify_members(message, filenames, dsc_path)
+    source_filename, changes_filename, ignored_files = _classify_members(
+        message, filenames, dsc_path
+    )
 
     base_dir = os.path.realpath(os.path.dirname(os.path.abspath(dsc_path)))
-    sources_file = _resolve_member(base_dir, source_filename, dsc_path)
-    changes_file = (
-        _resolve_member(base_dir, changes_filename, dsc_path)
-        if changes_filename
-        else None
+    return ResolvedDscFiles(
+        sources_file=_resolve_member(base_dir, source_filename, dsc_path),
+        changes_file=(
+            _resolve_member(base_dir, changes_filename, dsc_path)
+            if changes_filename
+            else None
+        ),
+        ignored_files=ignored_files,
     )
-    return sources_file, changes_file

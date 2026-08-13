@@ -73,8 +73,9 @@ def _upload_identifier(*, filepath, **_kwargs):
     return f"uploaded:{Path(filepath).name}"
 
 
-def _invoke(runner, tmp_path, extra_args, mocks):
-    package_file = _touch(tmp_path, "pkg_1.0-1_amd64.deb")
+def _invoke(runner, tmp_path, extra_args, mocks, package_file=None):
+    if package_file is None:
+        package_file = _touch(tmp_path, "pkg_1.0-1_amd64.deb")
     with (
         patch(_MOCK_TARGETS[0]) as mock_validate_create_package,
         patch(_MOCK_TARGETS[1], return_value="checksum") as mock_validate_upload,
@@ -143,6 +144,56 @@ def test_dsc_maps_real_source_package_members_to_uploaded_sdk_fields(
     assert create_kwargs["changes_file"] == (
         f"uploaded:{changes_name}" if changes_name else None
     )
+
+
+def test_dsc_as_package_file_is_parsed_without_the_option(runner, tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+    debian_archive = _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
+    dsc_path = _write_dsc(
+        tmp_path,
+        [source_archive.name, debian_archive.name],
+        version="1.0-1",
+        source_format="3.0 (quilt)",
+    )
+
+    mocks = {}
+    result = _invoke(runner, tmp_path, [], mocks, package_file=dsc_path)
+
+    assert result.exit_code == 0, result.output
+    kwargs = mocks["validate_create_package"].call_args.kwargs
+    assert kwargs["sources_file"] == str(source_archive)
+    assert kwargs["changes_file"] == str(debian_archive)
+
+
+def test_explicit_sources_file_stops_the_package_file_being_parsed(runner, tmp_path):
+    # The .dsc references a member that is absent, so parsing it at all would
+    # abort the push; --sources-file means the caller drives the members.
+    explicit_source = _touch(tmp_path, "explicit.tar.gz")
+    dsc_path = _write_dsc(tmp_path, ["absent_1.0.tar.gz"])
+
+    mocks = {}
+    result = _invoke(
+        runner,
+        tmp_path,
+        ["--sources-file", str(explicit_source)],
+        mocks,
+        package_file=dsc_path,
+    )
+
+    assert result.exit_code == 0, result.output
+    kwargs = mocks["validate_create_package"].call_args.kwargs
+    assert kwargs["sources_file"] == str(explicit_source)
+    assert kwargs["changes_file"] is None
+
+
+def test_binary_package_file_is_never_parsed_as_a_dsc(runner, tmp_path):
+    mocks = {}
+    result = _invoke(runner, tmp_path, [], mocks)
+
+    assert result.exit_code == 0, result.output
+    kwargs = mocks["validate_create_package"].call_args.kwargs
+    assert kwargs["sources_file"] is None
+    assert kwargs["changes_file"] is None
 
 
 def test_clearsigned_dsc_is_parsed_through_registered_command(runner, tmp_path):
@@ -238,7 +289,7 @@ def test_member_path_is_rejected_before_network_calls(runner, tmp_path, member):
     mocks["validate_upload_file"].assert_not_called()
 
 
-def test_escaping_symlink_is_rejected_before_network_calls(runner, tmp_path):
+def test_symlinked_member_uploads_its_canonical_target(runner, tmp_path):
     dsc_dir = tmp_path / "dsc"
     dsc_dir.mkdir()
     outside_archive = _touch(tmp_path, "outside.tar.gz")
@@ -248,8 +299,24 @@ def test_escaping_symlink_is_rejected_before_network_calls(runner, tmp_path):
     mocks = {}
     result = _invoke(runner, tmp_path, ["--dsc-file", str(dsc_path)], mocks)
 
+    assert result.exit_code == 0, result.output
+    _, kwargs = mocks["create_package"].call_args
+    assert kwargs["sources_file"] == "uploaded:outside.tar.gz"
+
+
+def test_member_symlinked_to_a_directory_is_rejected_before_network_calls(
+    runner, tmp_path
+):
+    dsc_dir = tmp_path / "dsc"
+    dsc_dir.mkdir()
+    (dsc_dir / "pkg_1.0.tar.gz").symlink_to(tmp_path, target_is_directory=True)
+    dsc_path = _write_dsc(dsc_dir, ["pkg_1.0.tar.gz"])
+
+    mocks = {}
+    result = _invoke(runner, tmp_path, ["--dsc-file", str(dsc_path)], mocks)
+
     assert result.exit_code != 0
-    assert "not a regular file directly next to the .dsc" in result.output
+    assert "not a regular file next to the .dsc" in result.output
     mocks["validate_create_package"].assert_not_called()
     mocks["validate_upload_file"].assert_not_called()
 
@@ -272,7 +339,7 @@ def test_multi_component_is_rejected_before_network_calls(runner, tmp_path):
     mocks["validate_create_package"].assert_not_called()
 
 
-def test_detached_signature_is_rejected_before_network_calls(runner, tmp_path):
+def test_detached_signature_is_skipped_with_a_warning(runner, tmp_path):
     filenames = [
         _touch(tmp_path, "pkg_1.0.orig.tar.gz").name,
         _touch(tmp_path, "pkg_1.0.orig.tar.gz.asc").name,
@@ -285,9 +352,11 @@ def test_detached_signature_is_rejected_before_network_calls(runner, tmp_path):
     mocks = {}
     result = _invoke(runner, tmp_path, ["--dsc-file", str(dsc_path)], mocks)
 
-    assert result.exit_code != 0
-    assert "detached upstream signature" in result.output
-    mocks["validate_create_package"].assert_not_called()
+    assert result.exit_code == 0, result.output
+    assert "Not uploading pkg_1.0.orig.tar.gz.asc" in result.output
+    _, kwargs = mocks["create_package"].call_args
+    assert kwargs["sources_file"] == "uploaded:pkg_1.0.orig.tar.gz"
+    assert kwargs["changes_file"] == "uploaded:pkg_1.0-1.debian.tar.xz"
 
 
 def test_push_deb_help_documents_dsc_file_option(runner):

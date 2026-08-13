@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.22.0] - 2026-08-11
+### Added
+
+- `cloudsmith push deb` now derives a Debian source package's members from its `.dsc`, so `cloudsmith push deb <owner>/<repo>/<distro>/<release> foo_1.0-1.dsc` is enough where `--sources-file` and `--changes-file` previously had to be worked out by hand (and their suffixes vary: `.orig.tar.gz`, `.orig.tar.bz2`, `.debian.tar.xz`, `.diff.gz`, ...). The `Checksums-Sha256:` or `Files:` field of the `.dsc` is read — plain or OpenPGP-clearsigned — and the upstream/native source archive becomes `--sources-file` while the Debian packaging archive becomes `--changes-file`, for the `1.0`, `2.0`, `3.0 (native)` and `3.0 (quilt)` source formats. `--dsc-file` names a `.dsc` other than `PACKAGE_FILE`, and an explicit `--sources-file` or `--changes-file` still wins for its own field. A detached upstream signature (`*.orig.tar.*.asc`) is skipped with a warning, since the deb package format has no field to carry it; a multi-component source package (`*.orig-<component>.tar.*`) is rejected outright, because leaving a component behind would upload incomplete source.
 
 ### Added
 

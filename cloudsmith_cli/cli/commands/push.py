@@ -76,6 +76,10 @@ METADATA_KWARG_NAMES = (
 #: separately from the metadata payload kwargs so it does not leak into the
 #: package-create API call.
 METADATA_FAILURE_MODE_KWARG = "cli_metadata_failure_mode"
+#: Filename suffix of a Debian source control file. A ``deb`` push whose
+#: PACKAGE_FILE carries it is a source-package upload, so its members can be
+#: derived without ``--dsc-file`` (GitHub issue #56).
+DSC_SUFFIX = ".dsc"
 
 
 def _metadata_failure_is_warn(opts=None):
@@ -1020,6 +1024,13 @@ def upload_files_and_create_package(
     return slug_perm, slug
 
 
+def _implied_dsc_file(package_file):
+    """Return ``package_file`` if it is itself a Debian ``.dsc``, else None."""
+    if isinstance(package_file, str) and package_file.endswith(DSC_SUFFIX):
+        return package_file
+    return None
+
+
 def create_push_handlers():
     """Create a handler for upload per package format."""
     # pylint: disable=fixme
@@ -1187,16 +1198,32 @@ def create_push_handlers():
             # `deb` subcommand ever registers --dsc-file (below), so this is
             # a no-op kwargs.pop() for every other format.
             dsc_file = kwargs.pop("dsc_file", None)
+            if dsc_file is None and not kwargs.get("sources_file"):
+                # Pushing a Debian source package means passing the .dsc as
+                # PACKAGE_FILE, and the API rejects it without a sources
+                # archive, so parse it by default rather than making the user
+                # name the same file twice. An explicit --sources-file means
+                # the caller is driving the members manually; leave them to it.
+                dsc_file = _implied_dsc_file(kwargs.get("package_file"))
             if dsc_file:
-                dsc_sources_file, dsc_changes_file = resolve_dsc_files(dsc_file)
+                resolved_dsc = resolve_dsc_files(dsc_file)
+                if resolved_dsc.ignored_files:
+                    click.secho(
+                        "Not uploading {files}: the deb package format has no "
+                        "field for detached upstream signatures.".format(
+                            files=", ".join(resolved_dsc.ignored_files)
+                        ),
+                        fg="yellow",
+                        err=utils.should_use_stderr(opts),
+                    )
                 # Precedence: explicit --sources-file/--changes-file always
                 # win over values derived from --dsc-file. A user who passes
                 # both wants a manual override, not to have their explicit
                 # flag silently clobbered.
                 if not kwargs.get("sources_file"):
-                    kwargs["sources_file"] = dsc_sources_file
+                    kwargs["sources_file"] = resolved_dsc.sources_file
                 if not kwargs.get("changes_file"):
-                    kwargs["changes_file"] = dsc_changes_file
+                    kwargs["changes_file"] = resolved_dsc.changes_file
 
             owner_repo = kwargs.pop("owner_repo")
             if "distribution" in parameters:
@@ -1332,23 +1359,28 @@ def create_push_handlers():
             push_handler = click.option(
                 "--dsc-file",
                 "dsc_file",
-                type=click.Path(
-                    exists=True, dir_okay=False, readable=True, resolve_path=True
+                type=ExpandPath(
+                    dir_okay=False, exists=True, writable=False, resolve_path=True
                 ),
                 default=None,
                 help=(
-                    "Path to a Debian .dsc control file. Its 'Files:' (or "
-                    "'Checksums-Sha256:') field is parsed to auto-fill "
+                    "Path to a Debian .dsc control file, plain or "
+                    "OpenPGP-clearsigned. Only needed to point at a .dsc "
+                    "other than PACKAGE_FILE: pushing a source package means "
+                    "passing the .dsc as PACKAGE_FILE, and that is parsed "
+                    "automatically unless --sources-file is given. Its "
+                    "'Checksums-Sha256:' (or 'Files:') field supplies "
                     "--sources-file with the upstream/native source archive "
                     "and --changes-file with the Debian packaging archive "
-                    "(.debian.tar.* or .diff.gz). Referenced files must be "
-                    "directly next to the .dsc. Any "
-                    "--sources-file/--changes-file passed explicitly always "
-                    "takes precedence over a value derived from --dsc-file. "
-                    "Rejected with an error if the .dsc references a "
-                    "multi-component source package (*.orig-*.tar.*) or a "
-                    "detached signature (*.asc) -- Cloudsmith's deb upload "
-                    "format does not support either."
+                    "(.debian.tar.* or .diff.gz). Supports the 1.0, 2.0, "
+                    "3.0 (native) and 3.0 (quilt) source formats, and the "
+                    "referenced files must sit next to the .dsc. An explicit "
+                    "--sources-file or --changes-file always takes precedence "
+                    "over the derived value for that field. Detached upstream "
+                    "signatures (*.asc) are skipped with a warning; a "
+                    "multi-component source package (*.orig-*.tar.*) is "
+                    "rejected, because the deb package format has no field "
+                    "for the extra components."
                 ),
             )(push_handler)
 

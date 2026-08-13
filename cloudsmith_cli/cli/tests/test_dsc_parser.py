@@ -5,7 +5,7 @@ import os
 import click
 import pytest
 
-from ..dsc_parser import resolve_dsc_files
+from ..dsc_parser import ResolvedDscFiles, resolve_dsc_files
 
 
 def _file_field(name, filenames):
@@ -53,7 +53,7 @@ def test_resolves_native_source_archive(tmp_path):
     source_archive = _touch(tmp_path, "pkg_1.0.tar.xz")
     dsc_path = _write_dsc(tmp_path, [source_archive.name])
 
-    assert resolve_dsc_files(str(dsc_path)) == (str(source_archive), None)
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(str(source_archive))
 
 
 def test_resolves_quilt_source_and_debian_archives(tmp_path):
@@ -66,9 +66,8 @@ def test_resolves_quilt_source_and_debian_archives(tmp_path):
         source_format="3.0 (quilt)",
     )
 
-    assert resolve_dsc_files(str(dsc_path)) == (
-        str(source_archive),
-        str(debian_archive),
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(
+        str(source_archive), str(debian_archive)
     )
 
 
@@ -82,9 +81,8 @@ def test_resolves_legacy_non_native_source_and_diff_archives(tmp_path):
         source_format="1.0",
     )
 
-    assert resolve_dsc_files(str(dsc_path)) == (
-        str(source_archive),
-        str(diff_archive),
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(
+        str(source_archive), str(diff_archive)
     )
 
 
@@ -113,9 +111,8 @@ def test_resolves_clearsigned_dsc_using_matching_sha256_and_files(tmp_path):
         clearsigned=True,
     )
 
-    assert resolve_dsc_files(str(dsc_path)) == (
-        str(source_archive),
-        str(debian_archive),
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(
+        str(source_archive), str(debian_archive)
     )
 
 
@@ -123,7 +120,7 @@ def test_uses_checksums_sha256_when_files_is_absent(tmp_path):
     source_archive = _touch(tmp_path, "pkg_1.0.tar.gz")
     dsc_path = _write_dsc(tmp_path, [source_archive.name], fields=("Checksums-Sha256",))
 
-    assert resolve_dsc_files(str(dsc_path)) == (str(source_archive), None)
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(str(source_archive))
 
 
 def test_rejects_conflicting_checksum_file_lists(tmp_path):
@@ -152,7 +149,7 @@ def test_rejects_malformed_file_list_row(tmp_path):
 def test_rejects_missing_referenced_file(tmp_path):
     dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz"])
 
-    with pytest.raises(click.UsageError, match="not a regular file directly"):
+    with pytest.raises(click.UsageError, match="not a regular file next to"):
         resolve_dsc_files(str(dsc_path))
 
 
@@ -175,10 +172,10 @@ def test_rejects_multi_component_source_package(tmp_path):
         resolve_dsc_files(str(dsc_path))
 
 
-def test_rejects_detached_signature(tmp_path):
-    _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+def test_skips_detached_signature_without_failing(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.orig.tar.gz")
     _touch(tmp_path, "pkg_1.0.orig.tar.gz.asc")
-    _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
+    debian_archive = _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
     dsc_path = _write_dsc(
         tmp_path,
         [
@@ -190,7 +187,19 @@ def test_rejects_detached_signature(tmp_path):
         source_format="3.0 (quilt)",
     )
 
-    with pytest.raises(click.UsageError, match="detached upstream signature"):
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(
+        str(source_archive),
+        str(debian_archive),
+        ignored_files=("pkg_1.0.orig.tar.gz.asc",),
+    )
+
+
+@pytest.mark.parametrize("source_format", ["3.0 (git)", "3.0 (bzr)", "3.0 (custom)"])
+def test_rejects_source_formats_without_an_indexable_archive(source_format, tmp_path):
+    _touch(tmp_path, "pkg_1.0.git")
+    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.git"], source_format=source_format)
+
+    with pytest.raises(click.UsageError, match="unsupported Debian source format"):
         resolve_dsc_files(str(dsc_path))
 
 
@@ -202,14 +211,26 @@ def test_rejects_member_paths(filename, tmp_path):
         resolve_dsc_files(str(dsc_path))
 
 
-def test_rejects_symlink_that_escapes_dsc_directory(tmp_path):
+def test_resolves_symlinked_member_to_its_canonical_target(tmp_path):
+    # `mk-origtargz --symlink` (the uscan default) links the .orig tarball in
+    # from a download cache, so a member pointing outside the .dsc directory
+    # is a normal build tree, not an attempt to escape it.
     dsc_dir = tmp_path / "source-package"
     dsc_dir.mkdir()
     outside_archive = _touch(tmp_path, "outside.tar.gz")
     (dsc_dir / "pkg_1.0.tar.gz").symlink_to(outside_archive)
     dsc_path = _write_dsc(dsc_dir, ["pkg_1.0.tar.gz"])
 
-    with pytest.raises(click.UsageError, match="not a regular file directly"):
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(str(outside_archive))
+
+
+def test_rejects_member_symlinked_to_a_directory(tmp_path):
+    dsc_dir = tmp_path / "source-package"
+    dsc_dir.mkdir()
+    (dsc_dir / "pkg_1.0.tar.gz").symlink_to(tmp_path, target_is_directory=True)
+    dsc_path = _write_dsc(dsc_dir, ["pkg_1.0.tar.gz"])
+
+    with pytest.raises(click.UsageError, match="not a regular file next to"):
         resolve_dsc_files(str(dsc_path))
 
 
@@ -228,7 +249,7 @@ def test_native_name_or_version_containing_orig_marker_is_not_a_component(
         tmp_path, [filename], source=source, version=version, name="package.dsc"
     )
 
-    assert resolve_dsc_files(str(dsc_path)) == (str(source_archive), None)
+    assert resolve_dsc_files(str(dsc_path)) == ResolvedDscFiles(str(source_archive))
 
 
 def test_rejects_missing_file_listing(tmp_path):
@@ -245,6 +266,6 @@ def test_resolved_paths_are_canonical(tmp_path):
     internal_link.symlink_to(tmp_path, target_is_directory=True)
     dsc_path = _write_dsc(tmp_path, [source_archive.name])
 
-    sources_file, _ = resolve_dsc_files(os.path.join(str(internal_link), dsc_path.name))
+    resolved = resolve_dsc_files(os.path.join(str(internal_link), dsc_path.name))
 
-    assert sources_file == str(source_archive)
+    assert resolved.sources_file == str(source_archive)
