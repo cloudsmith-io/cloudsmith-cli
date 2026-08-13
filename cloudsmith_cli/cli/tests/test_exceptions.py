@@ -1,9 +1,20 @@
 """Tests for CLI error hints."""
 
-from unittest.mock import Mock
+import json
+from unittest.mock import Mock, patch
 
+import click.testing
+
+from cloudsmith_cli.cli.commands.main import main
 from cloudsmith_cli.cli.exceptions import get_401_error_hint
+from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.credentials.models import CredentialResult
+
+
+API_KEY_HINT = (
+    "This usually means your API key is invalid, expired, or lacks access to this "
+    "resource - check your credentials and try again."
+)
 
 
 def hint_for(credential, info_name="push"):
@@ -31,19 +42,51 @@ class TestGet401ErrorHint:
         assert "cloudsmith auth" in hint_for(credential)
 
     def test_api_key_credential_does_not_assert_a_permissions_problem(self):
-        """A 401 means authentication failed, not that authorization was
-        denied -- the hint shouldn't claim it's specifically a permissions
-        issue, since that contradicts the 401 status line it's paired with.
-        """
+        """A 401 alone cannot establish a specific permissions problem."""
         credential = CredentialResult(api_key="csa_abc123", source_name="oidc")
 
         hint = hint_for(credential)
 
-        assert "permission" not in hint
-        assert "credentials" in hint
+        assert hint == API_KEY_HINT
+        assert "permission" not in hint.lower()
 
     def test_no_credential_suggests_authenticating(self):
         assert "cloudsmith token" in hint_for(None)
 
     def test_no_credential_on_token_command_reports_a_failed_login(self):
         assert "login failed" in hint_for(None, info_name="token")
+
+
+def invoke_credentialed_401(output_format="pretty"):
+    """Raise a translated 401 through the registered command tree."""
+    args = [
+        "whoami",
+        "--config-file",
+        "/dev/null",
+        "--api-host",
+        "https://api.example.invalid",
+        "--api-key",
+        "fake-api-key",
+        "--output-format",
+        output_format,
+    ]
+    with patch(
+        "cloudsmith_cli.cli.commands.whoami.get_user_brief",
+        side_effect=ApiException(status=401, detail="Invalid API key"),
+    ):
+        return click.testing.CliRunner().invoke(main, args)
+
+
+def test_credentialed_401_renders_actionable_hint_in_text_output():
+    result = invoke_credentialed_401()
+
+    assert "status: 401 - Unauthorized" in result.output
+    assert f"Hint: {API_KEY_HINT}" in result.output
+
+
+def test_credentialed_401_renders_actionable_hint_in_json_output():
+    result = invoke_credentialed_401("json")
+
+    error = json.loads(result.stdout)
+    assert error["meta"] == {"code": 401, "description": "Unauthorized"}
+    assert error["help"]["hint"] == API_KEY_HINT
