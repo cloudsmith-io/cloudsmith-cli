@@ -1,169 +1,244 @@
-"""CLI - Parse Debian ``.dsc`` control files for ``push deb --dsc-file``.
-
-A ``.dsc`` (Debian source control) file is an RFC822-style control file that
-lists the other files making up a Debian source package (the orig tarball,
-the debian packaging tarball/diff, and optionally a detached signature or
-extra "component" tarballs) in its ``Files:`` and/or ``Checksums-Sha256:``
-stanza. This module extracts those filenames so ``cloudsmith push deb`` can
-derive ``--sources-file``/``--changes-file`` automatically instead of
-requiring both to be passed by hand (see GitHub issue #56).
-
-Only a single-tarball, non-signed source package is supported, matching what
-Cloudsmith's ``deb`` package-upload format actually accepts:
-
-- Multi-component source packages (extra ``*.orig-component.tar.*`` files)
-  and detached upstream signatures (``*.asc``) referenced by the ``.dsc``
-  are rejected with a clear error rather than silently dropped, since the
-  Cloudsmith backend has nowhere to put them.
-"""
+"""Parse Debian ``.dsc`` control files for ``push deb --dsc-file``."""
 
 import os
 from email.parser import Parser
 
 import click
 
-#: Marker identifying a multi-component source tarball reference
-#: (e.g. ``foo_1.0.orig-libbar.tar.gz``). Cloudsmith's ``deb`` upload format
-#: only accepts a single source tarball, so a ``.dsc`` referencing one of
-#: these can't be represented and must be rejected rather than guessed at.
-_MULTI_COMPONENT_MARKER = ".orig-"
-
-#: Suffix identifying a detached signature file (e.g. a ``.dsc.asc`` or an
-#: ``.orig.tar.gz.asc``). Cloudsmith's ``deb`` upload format has no field for
-#: a detached signature, so these must be rejected rather than silently
-#: dropped.
+_CLEAR_SIGNED_MESSAGE = "-----BEGIN PGP SIGNED MESSAGE-----"
+_SIGNATURE = "-----BEGIN PGP SIGNATURE-----"
 _DETACHED_SIGNATURE_SUFFIX = ".asc"
+_FILE_LIST_FIELDS = ("Checksums-Sha256", "Files")
+_QUILT_FORMATS = {"2.0", "3.0 (quilt)"}
+_SINGLE_TARBALL_FORMATS = {"3.0 (native)", "3.0 (git)", "3.0 (bzr)"}
 
-_CHANGES_SUFFIX = ".changes"
-_DSC_SUFFIX = ".dsc"
 
-#: The stanza names that carry the file listing in a ``.dsc``, in the order
-#: they're checked. ``Files:`` (MD5) is present in every ``.dsc``;
-#: ``Checksums-Sha256:`` is the modern equivalent. Either is sufficient.
-_FILE_LIST_FIELDS = ("Files", "Checksums-Sha256")
+def _usage_error(dsc_path, message):
+    return click.UsageError(f"--dsc-file {dsc_path!r} {message}")
+
+
+def _unwrap_clearsigned_control(text, dsc_path):
+    """Return deb822 control text from an optional OpenPGP cleartext signature."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].rstrip("\r\n") != _CLEAR_SIGNED_MESSAGE:
+        return text
+
+    index = 1
+    while index < len(lines) and lines[index].rstrip("\r\n"):
+        index += 1
+    if index == len(lines):
+        raise _usage_error(dsc_path, "has a malformed OpenPGP cleartext signature.")
+
+    cleartext = []
+    for line in lines[index + 1 :]:
+        if line.rstrip("\r\n") == _SIGNATURE:
+            return "".join(cleartext)
+        # RFC 9580 cleartext signatures dash-escape lines beginning with "-".
+        cleartext.append(line.removeprefix("- "))
+
+    raise _usage_error(dsc_path, "has a malformed OpenPGP cleartext signature.")
 
 
 def _read_control_message(dsc_path):
-    """Parse ``dsc_path`` as an RFC822-style control file.
-
-    Uses the stdlib ``email.parser`` rather than a new dependency (e.g.
-    ``python-debian``) since a ``.dsc``'s single stanza is plain RFC822
-    headers followed by (in modern ``.dsc`` files) an inline PGP signature,
-    which we don't need to verify or even skip explicitly -- the signature
-    lines simply aren't valid headers and are ignored by the permissive
-    parser.
-    """
+    """Parse ``dsc_path`` as a plain or OpenPGP-clearsigned deb822 stanza."""
     try:
         with open(dsc_path, encoding="utf-8", errors="replace") as dsc_fh:
-            return Parser().parse(dsc_fh)
+            text = dsc_fh.read()
     except OSError as exc:
-        raise click.UsageError(
-            f"Could not read --dsc-file {dsc_path!r}: {exc}"
-        ) from exc
+        raise _usage_error(dsc_path, f"could not be read: {exc}") from exc
+
+    return Parser().parsestr(_unwrap_clearsigned_control(text, dsc_path))
+
+
+def _parse_file_list(field_name, field_value, dsc_path):
+    filenames = []
+    for line in field_value.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split()
+        if len(parts) != 3:
+            raise _usage_error(
+                dsc_path,
+                f"has a malformed {field_name!r} entry {line.strip()!r}; "
+                "expected '<checksum> <size> <filename>'.",
+            )
+        filenames.append(parts[2])
+    return filenames
 
 
 def _extract_filenames(message, dsc_path):
-    """Return the filenames listed in a ``.dsc``'s file-listing stanza.
-
-    Each non-blank line of ``Files:``/``Checksums-Sha256:`` looks like
-    ``<checksum> <size> [<section> <priority>] <filename>``; only the
-    trailing filename token is needed.
-    """
+    """Return an agreed filename list, preferring the strong SHA-256 field."""
+    file_lists = {}
     for field_name in _FILE_LIST_FIELDS:
         field_value = message.get(field_name)
-        if not field_value:
-            continue
+        if field_value:
+            filenames = _parse_file_list(field_name, field_value, dsc_path)
+            if filenames:
+                file_lists[field_name] = filenames
 
-        filenames = [
-            line.split()[-1] for line in field_value.splitlines() if line.split()
+    if not file_lists:
+        raise _usage_error(
+            dsc_path,
+            "has no non-empty 'Checksums-Sha256:' or 'Files:' field to parse.",
+        )
+
+    for filenames in file_lists.values():
+        if len(filenames) != len(set(filenames)):
+            raise _usage_error(dsc_path, "lists the same source-package member twice.")
+
+    selected_name = next(iter(file_lists))
+    selected = file_lists[selected_name]
+    for field_name, filenames in file_lists.items():
+        if set(filenames) != set(selected):
+            raise _usage_error(
+                dsc_path,
+                f"has conflicting filenames in {selected_name!r} and {field_name!r}.",
+            )
+
+    return selected
+
+
+def _required_field(message, field_name, dsc_path):
+    value = message.get(field_name)
+    if not value or not value.strip():
+        raise _usage_error(dsc_path, f"has no {field_name!r} field.")
+    return value.strip()
+
+
+def _validate_member_names(filenames, dsc_path):
+    for filename in filenames:
+        if os.path.isabs(filename) or os.path.basename(filename) != filename:
+            raise _usage_error(
+                dsc_path,
+                f"references invalid member filename {filename!r}; source-package "
+                "members must be filenames next to the .dsc, not paths.",
+            )
+
+
+def _is_tar_archive(filename, stem):
+    prefix = f"{stem}.tar."
+    return filename.startswith(prefix) and len(filename) > len(prefix)
+
+
+def _classify_members(message, filenames, dsc_path):
+    """Map source-package members to the two fields accepted by the SDK."""
+    source = _required_field(message, "Source", dsc_path)
+    version = _required_field(message, "Version", dsc_path).split(":", 1)[-1]
+    source_format = _required_field(message, "Format", dsc_path)
+    upstream_version = version.rsplit("-", 1)[0]
+
+    signature_files = [
+        filename
+        for filename in filenames
+        if filename.endswith(_DETACHED_SIGNATURE_SUFFIX)
+    ]
+    if signature_files:
+        raise _usage_error(
+            dsc_path,
+            "references detached upstream signature file(s) ({files}). Cloudsmith "
+            "does not support detached upstream signatures for deb uploads.".format(
+                files=", ".join(signature_files)
+            ),
+        )
+
+    sources = []
+    changes = []
+    component_files = []
+    legacy_non_native = False
+
+    if source_format in _QUILT_FORMATS:
+        orig_stem = f"{source}_{upstream_version}.orig"
+        component_prefix = f"{orig_stem}-"
+        debian_stem = f"{source}_{version}.debian"
+        sources = [f for f in filenames if _is_tar_archive(f, orig_stem)]
+        changes = [f for f in filenames if _is_tar_archive(f, debian_stem)]
+        component_files = [
+            f
+            for f in filenames
+            if f.startswith(component_prefix) and ".tar." in f[len(component_prefix) :]
         ]
-        if filenames:
-            return filenames
+    elif source_format == "1.0":
+        orig_stem = f"{source}_{upstream_version}.orig"
+        diff_name = f"{source}_{version}.diff.gz"
+        native_stem = f"{source}_{version}"
+        orig_files = [f for f in filenames if _is_tar_archive(f, orig_stem)]
+        diff_files = [f for f in filenames if f == diff_name]
+        native_files = [f for f in filenames if _is_tar_archive(f, native_stem)]
+        if orig_files or diff_files:
+            legacy_non_native = True
+            sources = orig_files
+            changes = diff_files
+        else:
+            sources = native_files
+    elif source_format in _SINGLE_TARBALL_FORMATS:
+        sources = [f for f in filenames if _is_tar_archive(f, f"{source}_{version}")]
+    else:
+        raise _usage_error(
+            dsc_path, f"uses unsupported Debian source format {source_format!r}."
+        )
 
-    raise click.UsageError(
-        f"--dsc-file {dsc_path!r} has no (non-empty) 'Files:' or "
-        "'Checksums-Sha256:' stanza to parse."
-    )
+    if component_files:
+        raise _usage_error(
+            dsc_path,
+            "references a multi-component source package ({files}). Cloudsmith "
+            "does not support multi-component Debian source packages for deb "
+            "uploads.".format(files=", ".join(component_files)),
+        )
+
+    classified = set(sources + changes + signature_files + component_files)
+    unexpected = [f for f in filenames if f not in classified]
+    if unexpected:
+        raise _usage_error(
+            dsc_path,
+            "contains unsupported or incorrectly named source-package member(s) "
+            f"({', '.join(unexpected)}) for format {source_format!r}.",
+        )
+    if len(sources) != 1:
+        raise _usage_error(
+            dsc_path,
+            f"must reference exactly one main source archive for format "
+            f"{source_format!r}; found {len(sources)}.",
+        )
+    if source_format in _QUILT_FORMATS and len(changes) != 1:
+        raise _usage_error(
+            dsc_path,
+            f"must reference exactly one Debian packaging archive for format "
+            f"{source_format!r}; found {len(changes)}.",
+        )
+    if legacy_non_native and len(changes) != 1:
+        raise _usage_error(
+            dsc_path,
+            "must reference exactly one Debian packaging diff for non-native "
+            f"format '1.0'; found {len(changes)}.",
+        )
+
+    return sources[0], changes[0] if changes else None
+
+
+def _resolve_member(base_dir, filename, dsc_path):
+    candidate = os.path.join(base_dir, filename)
+    resolved = os.path.realpath(candidate)
+    if os.path.dirname(resolved) != base_dir or not os.path.isfile(resolved):
+        raise _usage_error(
+            dsc_path,
+            f"references {filename!r}, but it is not a regular file directly "
+            "next to the .dsc.",
+        )
+    return resolved
 
 
 def resolve_dsc_files(dsc_path):
-    """Resolve the source tarball and (optional) changes file for a ``.dsc``.
-
-    Returns a ``(sources_file, changes_file)`` tuple of paths resolved
-    relative to the directory containing ``dsc_path``. ``changes_file`` is
-    ``None`` when the ``.dsc`` doesn't reference one -- a ``.dsc`` describes
-    the source package itself, and pairing it with a ``.changes`` file is
-    optional (e.g. when the package was never built/uploaded with
-    ``dpkg-genchanges``).
-
-    Raises ``click.UsageError`` when:
-
-    - the ``.dsc`` references a detached signature (``*.asc``) or a
-      multi-component source tarball (``*.orig-<component>.tar.*``) --
-      Cloudsmith's ``deb`` upload format doesn't support either, so this
-      fails loudly instead of silently dropping the reference or uploading
-      the wrong file.
-    - the remaining files don't resolve to exactly one source tarball, or
-      more than one ``.changes`` file.
-    - a referenced file doesn't exist on disk next to the ``.dsc``.
-    """
+    """Return ``(sources_file, changes_file)`` derived from a Debian ``.dsc``."""
     message = _read_control_message(dsc_path)
     filenames = _extract_filenames(message, dsc_path)
+    _validate_member_names(filenames, dsc_path)
+    source_filename, changes_filename = _classify_members(message, filenames, dsc_path)
 
-    signature_files = [f for f in filenames if f.endswith(_DETACHED_SIGNATURE_SUFFIX)]
-    if signature_files:
-        raise click.UsageError(
-            "--dsc-file {dsc!r} references a detached signature file ({files}). "
-            "Cloudsmith does not support detached upstream signatures for deb "
-            "uploads.".format(dsc=dsc_path, files=", ".join(signature_files))
-        )
-
-    multi_component_files = [f for f in filenames if _MULTI_COMPONENT_MARKER in f]
-    if multi_component_files:
-        raise click.UsageError(
-            "--dsc-file {dsc!r} references a multi-component source package "
-            "({files}). Cloudsmith does not support multi-component Debian "
-            "source packages for deb uploads.".format(
-                dsc=dsc_path, files=", ".join(multi_component_files)
-            )
-        )
-
-    changes_files = [f for f in filenames if f.endswith(_CHANGES_SUFFIX)]
-    if len(changes_files) > 1:
-        raise click.UsageError(
-            "--dsc-file {dsc!r} references more than one .changes file "
-            "({files}); expected at most one.".format(
-                dsc=dsc_path, files=", ".join(changes_files)
-            )
-        )
-
-    source_files = [
-        f for f in filenames if f not in changes_files and not f.endswith(_DSC_SUFFIX)
-    ]
-    if not source_files:
-        raise click.UsageError(
-            f"--dsc-file {dsc_path!r} does not reference a source tarball."
-        )
-    if len(source_files) > 1:
-        raise click.UsageError(
-            "--dsc-file {dsc!r} references more than one source tarball "
-            "({files}); expected exactly one non-signature, "
-            "non-multi-component file.".format(
-                dsc=dsc_path, files=", ".join(source_files)
-            )
-        )
-
-    base_dir = os.path.dirname(os.path.abspath(dsc_path))
-
-    def _resolve(filename):
-        resolved = os.path.join(base_dir, filename)
-        if not os.path.isfile(resolved):
-            raise click.UsageError(
-                f"--dsc-file {dsc_path!r} references {filename!r}, but it "
-                f"was not found next to the .dsc (expected at {resolved!r})."
-            )
-        return resolved
-
-    sources_file = _resolve(source_files[0])
-    changes_file = _resolve(changes_files[0]) if changes_files else None
+    base_dir = os.path.realpath(os.path.dirname(os.path.abspath(dsc_path)))
+    sources_file = _resolve_member(base_dir, source_filename, dsc_path)
+    changes_file = (
+        _resolve_member(base_dir, changes_filename, dsc_path)
+        if changes_filename
+        else None
+    )
     return sources_file, changes_file

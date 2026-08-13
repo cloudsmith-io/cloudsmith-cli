@@ -1182,10 +1182,10 @@ def create_push_handlers():
             parameters = context.get(ctx.info_name)
             kwargs["package_type"] = ctx.info_name
 
-            # deb-only: derive --sources-file/--changes-file from a .dsc's
-            # Files:/Checksums-Sha256: stanza (see GitHub issue #56). Only
-            # the `deb` subcommand ever registers --dsc-file (below), so
-            # this is a no-op kwargs.pop() for every other format.
+            # deb-only: derive the upstream/native source archive and Debian
+            # packaging archive from a .dsc (see GitHub issue #56). Only the
+            # `deb` subcommand ever registers --dsc-file (below), so this is
+            # a no-op kwargs.pop() for every other format.
             dsc_file = kwargs.pop("dsc_file", None)
             if dsc_file:
                 dsc_sources_file, dsc_changes_file = resolve_dsc_files(dsc_file)
@@ -1338,9 +1338,11 @@ def create_push_handlers():
                 default=None,
                 help=(
                     "Path to a Debian .dsc control file. Its 'Files:' (or "
-                    "'Checksums-Sha256:') stanza is parsed to auto-fill "
-                    "--sources-file/--changes-file, resolving referenced "
-                    "filenames relative to the .dsc's directory. Any "
+                    "'Checksums-Sha256:') field is parsed to auto-fill "
+                    "--sources-file with the upstream/native source archive "
+                    "and --changes-file with the Debian packaging archive "
+                    "(.debian.tar.* or .diff.gz). Referenced files must be "
+                    "directly next to the .dsc. Any "
                     "--sources-file/--changes-file passed explicitly always "
                     "takes precedence over a value derived from --dsc-file. "
                     "Rejected with an error if the .dsc references a "

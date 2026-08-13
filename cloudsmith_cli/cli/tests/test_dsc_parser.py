@@ -1,4 +1,6 @@
-"""Tests for ``cloudsmith_cli.cli.dsc_parser`` (GitHub issue #56)."""
+"""Tests for Debian ``.dsc`` parsing and member resolution."""
+
+import os
 
 import click
 import pytest
@@ -6,13 +8,38 @@ import pytest
 from ..dsc_parser import resolve_dsc_files
 
 
-def _write_dsc(tmp_path, file_lines, field="Files", name="pkg_1.0-1.dsc"):
-    """Write a minimal .dsc control file listing ``file_lines`` under ``field``."""
-    body_lines = "\n".join(f" deadbeef 100 {line}" for line in file_lines)
-    dsc_path = tmp_path / name
-    dsc_path.write_text(
-        f"Format: 3.0 (native)\nSource: pkg\nVersion: 1.0-1\n{field}:\n{body_lines}\n"
+def _file_field(name, filenames):
+    checksum = "a" * (64 if name == "Checksums-Sha256" else 32)
+    entries = "\n".join(f" {checksum} 100 {filename}" for filename in filenames)
+    return f"{name}:\n{entries}\n"
+
+
+def _write_dsc(
+    tmp_path,
+    filenames,
+    *,
+    source="pkg",
+    version="1.0",
+    source_format="3.0 (native)",
+    fields=("Files",),
+    clearsigned=False,
+    name=None,
+):
+    control = (
+        f"Format: {source_format}\nSource: {source}\nVersion: {version}\n"
+        + "".join(_file_field(field, filenames) for field in fields)
     )
+    if clearsigned:
+        control = (
+            "-----BEGIN PGP SIGNED MESSAGE-----\n"
+            "Hash: SHA256\n\n"
+            f"{control}"
+            "-----BEGIN PGP SIGNATURE-----\n"
+            "test-signature-data\n"
+            "-----END PGP SIGNATURE-----\n"
+        )
+    dsc_path = tmp_path / (name or f"{source}_{version}.dsc")
+    dsc_path.write_text(control)
     return dsc_path
 
 
@@ -22,101 +49,202 @@ def _touch(tmp_path, name):
     return path
 
 
-def test_resolve_dsc_files_happy_path_with_changes(tmp_path):
-    _touch(tmp_path, "pkg_1.0.tar.gz")
-    _touch(tmp_path, "pkg_1.0-1_amd64.changes")
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz", "pkg_1.0-1_amd64.changes"])
+def test_resolves_native_source_archive(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.tar.xz")
+    dsc_path = _write_dsc(tmp_path, [source_archive.name])
 
-    sources_file, changes_file = resolve_dsc_files(str(dsc_path))
-
-    assert sources_file == str(tmp_path / "pkg_1.0.tar.gz")
-    assert changes_file == str(tmp_path / "pkg_1.0-1_amd64.changes")
+    assert resolve_dsc_files(str(dsc_path)) == (str(source_archive), None)
 
 
-def test_resolve_dsc_files_happy_path_without_changes(tmp_path):
-    _touch(tmp_path, "pkg_1.0.tar.gz")
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz"])
+def test_resolves_quilt_source_and_debian_archives(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+    debian_archive = _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
+    dsc_path = _write_dsc(
+        tmp_path,
+        [source_archive.name, debian_archive.name],
+        version="1.0-1",
+        source_format="3.0 (quilt)",
+    )
 
-    sources_file, changes_file = resolve_dsc_files(str(dsc_path))
-
-    assert sources_file == str(tmp_path / "pkg_1.0.tar.gz")
-    assert changes_file is None
-
-
-def test_resolve_dsc_files_uses_checksums_sha256_fallback(tmp_path):
-    _touch(tmp_path, "pkg_1.0.tar.gz")
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz"], field="Checksums-Sha256")
-
-    sources_file, _ = resolve_dsc_files(str(dsc_path))
-
-    assert sources_file == str(tmp_path / "pkg_1.0.tar.gz")
+    assert resolve_dsc_files(str(dsc_path)) == (
+        str(source_archive),
+        str(debian_archive),
+    )
 
 
-def test_resolve_dsc_files_missing_referenced_file_errors(tmp_path):
-    # pkg_1.0.tar.gz is referenced but never actually written to disk.
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz"])
+def test_resolves_legacy_non_native_source_and_diff_archives(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+    diff_archive = _touch(tmp_path, "pkg_1.0-1.diff.gz")
+    dsc_path = _write_dsc(
+        tmp_path,
+        [source_archive.name, diff_archive.name],
+        version="1.0-1",
+        source_format="1.0",
+    )
 
-    with pytest.raises(click.UsageError, match="not found next to the .dsc"):
+    assert resolve_dsc_files(str(dsc_path)) == (
+        str(source_archive),
+        str(diff_archive),
+    )
+
+
+def test_rejects_legacy_non_native_source_without_diff(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+    dsc_path = _write_dsc(
+        tmp_path,
+        [source_archive.name],
+        version="1.0-1",
+        source_format="1.0",
+    )
+
+    with pytest.raises(click.UsageError, match="exactly one Debian packaging diff"):
         resolve_dsc_files(str(dsc_path))
 
 
-def test_resolve_dsc_files_rejects_multi_component(tmp_path):
+def test_resolves_clearsigned_dsc_using_matching_sha256_and_files(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+    debian_archive = _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
+    dsc_path = _write_dsc(
+        tmp_path,
+        [source_archive.name, debian_archive.name],
+        version="1.0-1",
+        source_format="3.0 (quilt)",
+        fields=("Files", "Checksums-Sha256"),
+        clearsigned=True,
+    )
+
+    assert resolve_dsc_files(str(dsc_path)) == (
+        str(source_archive),
+        str(debian_archive),
+    )
+
+
+def test_uses_checksums_sha256_when_files_is_absent(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.tar.gz")
+    dsc_path = _write_dsc(tmp_path, [source_archive.name], fields=("Checksums-Sha256",))
+
+    assert resolve_dsc_files(str(dsc_path)) == (str(source_archive), None)
+
+
+def test_rejects_conflicting_checksum_file_lists(tmp_path):
+    dsc_path = tmp_path / "pkg_1.0.dsc"
+    dsc_path.write_text(
+        "Format: 3.0 (native)\nSource: pkg\nVersion: 1.0\n"
+        + _file_field("Files", ["pkg_1.0.tar.gz"])
+        + _file_field("Checksums-Sha256", ["other_1.0.tar.gz"])
+    )
+
+    with pytest.raises(click.UsageError, match="conflicting filenames"):
+        resolve_dsc_files(str(dsc_path))
+
+
+def test_rejects_malformed_file_list_row(tmp_path):
+    dsc_path = tmp_path / "pkg_1.0.dsc"
+    dsc_path.write_text(
+        "Format: 3.0 (native)\nSource: pkg\nVersion: 1.0\n"
+        "Files:\n deadbeef pkg_1.0.tar.gz\n"
+    )
+
+    with pytest.raises(click.UsageError, match="malformed 'Files' entry"):
+        resolve_dsc_files(str(dsc_path))
+
+
+def test_rejects_missing_referenced_file(tmp_path):
+    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz"])
+
+    with pytest.raises(click.UsageError, match="not a regular file directly"):
+        resolve_dsc_files(str(dsc_path))
+
+
+def test_rejects_multi_component_source_package(tmp_path):
     _touch(tmp_path, "pkg_1.0.orig.tar.gz")
     _touch(tmp_path, "pkg_1.0.orig-libbar.tar.gz")
+    _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
     dsc_path = _write_dsc(
-        tmp_path, ["pkg_1.0.orig.tar.gz", "pkg_1.0.orig-libbar.tar.gz"]
+        tmp_path,
+        [
+            "pkg_1.0.orig.tar.gz",
+            "pkg_1.0.orig-libbar.tar.gz",
+            "pkg_1.0-1.debian.tar.xz",
+        ],
+        version="1.0-1",
+        source_format="3.0 (quilt)",
     )
 
     with pytest.raises(click.UsageError, match="multi-component"):
         resolve_dsc_files(str(dsc_path))
 
 
-def test_resolve_dsc_files_rejects_detached_signature(tmp_path):
-    _touch(tmp_path, "pkg_1.0.tar.gz")
-    _touch(tmp_path, "pkg_1.0.tar.gz.asc")
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz", "pkg_1.0.tar.gz.asc"])
-
-    with pytest.raises(click.UsageError, match="detached signature"):
-        resolve_dsc_files(str(dsc_path))
-
-
-def test_resolve_dsc_files_rejects_ambiguous_multiple_source_tarballs(tmp_path):
-    _touch(tmp_path, "pkg_1.0.tar.gz")
+def test_rejects_detached_signature(tmp_path):
+    _touch(tmp_path, "pkg_1.0.orig.tar.gz")
+    _touch(tmp_path, "pkg_1.0.orig.tar.gz.asc")
     _touch(tmp_path, "pkg_1.0-1.debian.tar.xz")
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0.tar.gz", "pkg_1.0-1.debian.tar.xz"])
-
-    with pytest.raises(click.UsageError, match="more than one source tarball"):
-        resolve_dsc_files(str(dsc_path))
-
-
-def test_resolve_dsc_files_rejects_multiple_changes_files(tmp_path):
-    _touch(tmp_path, "pkg_1.0.tar.gz")
-    _touch(tmp_path, "pkg_1.0-1_amd64.changes")
-    _touch(tmp_path, "pkg_1.0-1_source.changes")
     dsc_path = _write_dsc(
         tmp_path,
         [
-            "pkg_1.0.tar.gz",
-            "pkg_1.0-1_amd64.changes",
-            "pkg_1.0-1_source.changes",
+            "pkg_1.0.orig.tar.gz",
+            "pkg_1.0.orig.tar.gz.asc",
+            "pkg_1.0-1.debian.tar.xz",
         ],
+        version="1.0-1",
+        source_format="3.0 (quilt)",
     )
 
-    with pytest.raises(click.UsageError, match="more than one .changes file"):
+    with pytest.raises(click.UsageError, match="detached upstream signature"):
         resolve_dsc_files(str(dsc_path))
 
 
-def test_resolve_dsc_files_no_files_stanza_errors(tmp_path):
+@pytest.mark.parametrize("filename", ["/etc/passwd", "../pkg_1.0.tar.gz"])
+def test_rejects_member_paths(filename, tmp_path):
+    dsc_path = _write_dsc(tmp_path, [filename])
+
+    with pytest.raises(click.UsageError, match="must be filenames next to the .dsc"):
+        resolve_dsc_files(str(dsc_path))
+
+
+def test_rejects_symlink_that_escapes_dsc_directory(tmp_path):
+    dsc_dir = tmp_path / "source-package"
+    dsc_dir.mkdir()
+    outside_archive = _touch(tmp_path, "outside.tar.gz")
+    (dsc_dir / "pkg_1.0.tar.gz").symlink_to(outside_archive)
+    dsc_path = _write_dsc(dsc_dir, ["pkg_1.0.tar.gz"])
+
+    with pytest.raises(click.UsageError, match="not a regular file directly"):
+        resolve_dsc_files(str(dsc_path))
+
+
+@pytest.mark.parametrize(
+    ("source", "version", "filename"),
+    [
+        ("foo.orig-bar", "1.0", "foo.orig-bar_1.0.tar.gz"),
+        ("foo", "1.0.orig-bar", "foo_1.0.orig-bar.tar.gz"),
+    ],
+)
+def test_native_name_or_version_containing_orig_marker_is_not_a_component(
+    source, version, filename, tmp_path
+):
+    source_archive = _touch(tmp_path, filename)
+    dsc_path = _write_dsc(
+        tmp_path, [filename], source=source, version=version, name="package.dsc"
+    )
+
+    assert resolve_dsc_files(str(dsc_path)) == (str(source_archive), None)
+
+
+def test_rejects_missing_file_listing(tmp_path):
     dsc_path = tmp_path / "empty.dsc"
-    dsc_path.write_text("Format: 3.0 (native)\nSource: pkg\nVersion: 1.0-1\n")
+    dsc_path.write_text("Format: 3.0 (native)\nSource: pkg\nVersion: 1.0\n")
 
-    with pytest.raises(click.UsageError, match="Files"):
+    with pytest.raises(click.UsageError, match="Checksums-Sha256"):
         resolve_dsc_files(str(dsc_path))
 
 
-def test_resolve_dsc_files_no_source_tarball_errors(tmp_path):
-    _touch(tmp_path, "pkg_1.0-1_amd64.changes")
-    dsc_path = _write_dsc(tmp_path, ["pkg_1.0-1_amd64.changes"])
+def test_resolved_paths_are_canonical(tmp_path):
+    source_archive = _touch(tmp_path, "pkg_1.0.tar.gz")
+    internal_link = tmp_path / "linked"
+    internal_link.symlink_to(tmp_path, target_is_directory=True)
+    dsc_path = _write_dsc(tmp_path, [source_archive.name])
 
-    with pytest.raises(click.UsageError, match="does not reference a source tarball"):
-        resolve_dsc_files(str(dsc_path))
+    sources_file, _ = resolve_dsc_files(os.path.join(str(internal_link), dsc_path.name))
+
+    assert sources_file == str(source_archive)
