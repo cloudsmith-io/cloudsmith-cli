@@ -334,6 +334,33 @@ class TestReposGpgUpload:
         )
 
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_json_output(self, mock_create, runner, tmp_path):
+        mock_create.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+        passphrase_file = tmp_path / "passphrase.txt"
+        passphrase_file.write_text("passphrase\n")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--passphrase-file",
+                str(passphrase_file),
+                "-F",
+                "json",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        document = json.loads(result.stdout)
+        assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
     def test_prompts_for_passphrase_when_no_file_given(
         self, mock_create, runner, tmp_path
     ):
@@ -597,3 +624,18 @@ class TestReposGpgRegenerate:
         assert result.exit_code == 0, result.output
         mock_regenerate.assert_called_once_with("my-org", "my-repo")
         assert new_key["fingerprint"] in result.output
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_pretty_json_output(self, mock_regenerate, runner):
+        mock_regenerate.return_value = dict(_GPG_KEY)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "-y", "-F", "pretty_json"),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        document = json.loads(result.stdout)
+        assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
+        assert result.stdout.startswith("{\n    ")
