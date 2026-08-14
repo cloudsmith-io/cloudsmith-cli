@@ -45,6 +45,8 @@ dependencies = [
     "json5>=0.9.0",  # For parsing JSONC (JSON with comments) in VS Code settings
     "cloudsmith-api>=2.0.29,<3.0",  # Compatible upto (but excluding) 3.0+
     "keyring>=25.4.1",
+    "keyrings-alt>=5.0.2",
+    "keyrings-cryptfile>=1.3.9",
     "mcp==1.28.1",
     # The crypto extra must be declared here: the OIDC flow verifies JWT
     # signatures, and a bare PyJWT requirement would let the

@@ -25,9 +25,21 @@ hiddenimports += collect_submodules(
     filter=lambda name: name != "mcp.cli" and not name.startswith("mcp.cli."),
 )
 hiddenimports += collect_submodules("keyring.backends")
+hiddenimports += collect_submodules("keyrings.cryptfile")
+hiddenimports += collect_submodules("keyrings.alt")
 hiddenimports += ["boto3", "botocore.exceptions"]
 
-for dist in ("cloudsmith-cli", "cloudsmith-api", "mcp", "keyring"):
+# keyring discovers backends via importlib.metadata entry points, so the
+# extra backend packages need their dist metadata bundled too, not just
+# their modules, or keyring won't see them as installed.
+for dist in (
+    "cloudsmith-cli",
+    "cloudsmith-api",
+    "mcp",
+    "keyring",
+    "keyrings.cryptfile",
+    "keyrings.alt",
+):
     datas += copy_metadata(dist)
 
 a = Analysis(
@@ -45,6 +57,7 @@ a = Analysis(
         "mcp.cli",
         "cloudsmith_cli.cli.tests",
         "cloudsmith_cli.core.tests",
+        "keyrings.cryptfile.tests",
     ],
 )
 
