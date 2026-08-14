@@ -47,6 +47,12 @@ def mock_delete_password():
         yield delete_password_mock
 
 
+@pytest.fixture
+def mock_get_keyring():
+    with patch.object(keyring, "get_keyring") as get_keyring_mock:
+        yield get_keyring_mock
+
+
 class TestKeyring:
     api_host = "https://example.com"
 
@@ -252,6 +258,94 @@ class TestShouldUseKeyring:
         """Keyring should be used when CLOUDSMITH_NO_KEYRING is falsy."""
         with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
             assert should_use_keyring() is True
+
+
+class TestKeyringBackendAlias:
+    """Tests for CLOUDSMITH_KEYRING_BACKEND aliasing PYTHON_KEYRING_BACKEND."""
+
+    api_host = "https://example.com"
+
+    def test_sets_python_keyring_backend_when_unset(
+        self, mock_get_user, mock_get_password
+    ):
+        env = os.environ.copy()
+        env.pop("PYTHON_KEYRING_BACKEND", None)
+        env["CLOUDSMITH_KEYRING_BACKEND"] = "keyring.backends.null.Keyring"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert (
+                os.environ["PYTHON_KEYRING_BACKEND"] == "keyring.backends.null.Keyring"
+            )
+
+    def test_does_not_override_existing_python_keyring_backend(
+        self, mock_get_user, mock_get_password
+    ):
+        env = os.environ.copy()
+        env["PYTHON_KEYRING_BACKEND"] = "keyring.backends.SecretService.Keyring"
+        env["CLOUDSMITH_KEYRING_BACKEND"] = "keyring.backends.null.Keyring"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert (
+                os.environ["PYTHON_KEYRING_BACKEND"]
+                == "keyring.backends.SecretService.Keyring"
+            )
+
+    def test_no_op_when_alias_not_set(self, mock_get_user, mock_get_password):
+        env = os.environ.copy()
+        env.pop("PYTHON_KEYRING_BACKEND", None)
+        env.pop("CLOUDSMITH_KEYRING_BACKEND", None)
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert "PYTHON_KEYRING_BACKEND" not in os.environ
+
+
+class TestKeyringPropertyAlias:
+    """Tests for CLOUDSMITH_KEYRING_KEY aliasing KEYRING_PROPERTY_KEYRING_KEY.
+
+    keyrings.cryptfile and keyrings.alt override KeyringBackend.__init__
+    without calling super(), so KEYRING_PROPERTY_* env vars never reach
+    those backends via the library's own documented mechanism; we apply
+    them ourselves by calling set_properties_from_env() on the resolved
+    backend.
+    """
+
+    api_host = "https://example.com"
+
+    def test_sets_keyring_property_when_unset(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_KEYRING_KEY", None)
+        env["CLOUDSMITH_KEYRING_KEY"] = "super-secret"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert os.environ["KEYRING_PROPERTY_KEYRING_KEY"] == "super-secret"
+
+    def test_does_not_override_existing_keyring_property(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        env = os.environ.copy()
+        env["KEYRING_PROPERTY_KEYRING_KEY"] = "native-secret"
+        env["CLOUDSMITH_KEYRING_KEY"] = "alias-secret"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert os.environ["KEYRING_PROPERTY_KEYRING_KEY"] == "native-secret"
+
+    def test_no_op_when_alias_not_set(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_KEYRING_KEY", None)
+        env.pop("CLOUDSMITH_KEYRING_KEY", None)
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert "KEYRING_PROPERTY_KEYRING_KEY" not in os.environ
+
+    def test_applies_properties_to_resolved_backend(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        get_access_token(self.api_host)
+        mock_get_keyring.return_value.set_properties_from_env.assert_called_once()
 
 
 class TestDeleteSsoTokens:
