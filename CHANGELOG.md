@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- The packaged binary now bundles `keyrings.cryptfile` and `keyrings.alt`, encrypted/file-based `keyring` backends, so a host with no OS keyring (e.g. a headless Linux container) can still persist SSO/OIDC tokens via `PYTHON_KEYRING_BACKEND`. On such a host, `keyring`'s own priority-based selection will pick `keyrings.cryptfile` automatically even without setting that variable, and unlocking or creating its encrypted store prompts via `getpass` on first use — in a non-interactive process with `stdin` already closed, `getpass` returns an empty string immediately rather than prompting, so the store ends up encrypted with a blank password.
+
 ## [1.22.0] - 2026-08-11
 
 ### Added
