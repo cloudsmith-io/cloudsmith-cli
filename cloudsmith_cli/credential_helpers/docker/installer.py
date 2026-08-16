@@ -11,14 +11,19 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 
 from ...core.cache_utils import merge_json_file
 from ...core.credentials.models import CredentialResult
 from ..backends import BackendKind
 from ..custom_domains import get_format_domains
-from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+from ..launchers import (
+    cloudsmith_command,
+    is_on_path,
+    remove_launcher,
+    resolve_bin_dir,
+    write_launcher,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +56,12 @@ class DockerInstaller:
     """
 
     LAUNCHER_NAME = "docker-credential-cloudsmith"
-    TARGET_CMD = "cloudsmith credential-helper docker"
     HELPER_VALUE = "cloudsmith"
     DEFAULT_HOST = "docker.cloudsmith.io"
 
     name = "docker"
     summary = "Docker credential helper for Cloudsmith registries"
-
-    @classmethod
-    def _resolve_target_cmd(cls) -> str:
-        """Return the command the launcher forwards to.
-
-        A pip/source install resolves the bare ``cloudsmith`` command via
-        ``PATH``.  A frozen standalone binary (PyInstaller) is not guaranteed
-        to be on ``PATH`` under that name, so point the launcher at the
-        absolute executable instead — mirroring the frozen handling in
-        :func:`cloudsmith_cli.cli.commands.mcp._get_server_config`.  The path
-        is quoted so a directory containing spaces still execs correctly.
-        """
-        if getattr(sys, "frozen", False):
-            return f'"{sys.executable}" credential-helper docker'
-        return cls.TARGET_CMD
+    requires_repo = False
 
     def install(
         self,
@@ -208,7 +198,9 @@ class DockerInstaller:
 
         # Real install
         launcher_path = write_launcher(
-            target_dir, self.LAUNCHER_NAME, self._resolve_target_cmd()
+            target_dir,
+            self.LAUNCHER_NAME,
+            cloudsmith_command("credential-helper", "docker"),
         )
         actions.append(f"wrote launcher {launcher_path}")
 

@@ -24,9 +24,31 @@ def _is_windows() -> bool:
     return os.name == "nt"
 
 
+def is_frozen() -> bool:
+    """Return True when running from a frozen standalone build (PyInstaller)."""
+    return getattr(sys, "frozen", False)
+
+
+def cloudsmith_command(*args: str) -> str:
+    """Return the ``cloudsmith`` command line a launcher forwards to.
+
+    A pip/source install resolves the bare ``cloudsmith`` command via ``PATH``.
+    A frozen standalone build is not guaranteed to be on ``PATH`` under that
+    name, so it is addressed by its absolute executable instead — quoted, so a
+    directory containing spaces still execs correctly.
+    """
+    executable = f'"{sys.executable}"' if is_frozen() else "cloudsmith"
+    return " ".join((executable, *args))
+
+
 def _launcher_filename(name: str, *, windows: bool) -> str:
     """Return the launcher file name for the platform (``.cmd`` on Windows)."""
     return f"{name}.cmd" if windows else name
+
+
+def launcher_filename(name: str) -> str:
+    """Return the launcher file name *name* is written under on this platform."""
+    return _launcher_filename(name, windows=_is_windows())
 
 
 def _launcher_content(target_cmd: str, *, windows: bool) -> str:
@@ -101,7 +123,7 @@ def remove_launcher(bin_dir: Path, name: str) -> bool:
     bool
         ``True`` if a file was removed, ``False`` if no file was found.
     """
-    target = Path(bin_dir) / _launcher_filename(name, windows=_is_windows())
+    target = Path(bin_dir) / launcher_filename(name)
 
     if target.exists():
         target.unlink()

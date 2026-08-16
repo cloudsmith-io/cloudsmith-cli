@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `cloudsmith credential-helper install maven --org <org> --repo <repo>` sets up transparent Maven authentication. Maven has no credential-helper protocol, so the CLI installs an `mvn` shim that wraps every invocation in `cloudsmith exec`, activated by putting the shims directory first on `PATH`. Wrapped runs resolve dependencies from the bound repository through a mode-0600 `settings.xml` injected via `mvn -s` and deleted when the run ends, never written to `~/.m2` — and `~/.m2/settings.xml` is not consulted, so mirrors and proxies declared there do not apply. Passing your own `-s/--settings` runs Maven unwrapped, with a warning. Publishing is opt-in: `install` prints the `distributionManagement` snippet to add to `pom.xml`. Custom download and upload domains are discovered from the organisation as for the Docker helper.
+- `cloudsmith exec -- <command>` runs a package-manager command with Cloudsmith credentials provisioned for that single run and cleaned up afterwards — the same machinery the `mvn` shim uses, callable directly in CI without touching `PATH`. The package manager is detected from the command name, and help and version invocations pass straight through unwrapped.
+- `cloudsmith credential-helper shell-init` prints the shell initialisation (bash, zsh and fish) that puts the Cloudsmith shims directory first on `PATH`, for `eval "$(cloudsmith credential-helper shell-init)"` in a shell rc file.
+
+### Security
+
+- The `<server>` id in the generated Maven `settings.xml` is `cloudsmith` by default, matching the `distributionManagement` snippet `install` prints so a team can share one `pom.xml`. Maven matches a server's credentials to a repository by id alone, with no host check, so a `pom.xml` declaring a repository under that id receives the token — the same exposure as the `~/.m2/settings.xml` a Maven user would otherwise keep. Pass `--server-id` at install time to bind the credential to an id a third-party `pom.xml` cannot guess.
+
 ## [1.23.0] - 2026-08-14
 
 ### Added

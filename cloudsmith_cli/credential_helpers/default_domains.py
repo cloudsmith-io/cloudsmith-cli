@@ -289,6 +289,39 @@ def load_default_domains(config_path: Path | str | None = None) -> list[DefaultD
     return domains
 
 
+def _default_host(matches, described_as: str) -> str:
+    """Return the first effective default host satisfying `matches`.
+
+    A declared ``[domains]`` table replaces the built-ins wholesale, so a host
+    it omits raises rather than resolving to the ``*.cloudsmith.io`` one the
+    operator deliberately did not list - handing that back would publish a
+    dedicated deployment's artifacts, and its token, to the public service.
+    """
+    for domain in load_default_domains():
+        if matches(domain):
+            return domain.host
+    raise ValueError(f"No Cloudsmith host for {described_as}")
+
+
+def default_host(backend_kind: int) -> str:
+    """Return the host for `backend_kind`, honouring a trusted override."""
+    return _default_host(
+        lambda domain: domain.backend_kind == backend_kind,
+        f"backend kind {backend_kind}",
+    )
+
+
+def default_host_for_type(domain_type: DomainType) -> str:
+    """Return the host of `domain_type`, honouring a trusted override."""
+    if domain_type is DomainType.NATIVE_API:
+        raise ValueError(
+            "NATIVE_API is served by many hosts; resolve it with default_host()"
+        )
+    return _default_host(
+        lambda domain: domain.domain_type is domain_type, f"type {domain_type.value}"
+    )
+
+
 def untrusted_config_declares_domains() -> bool:
     """True if a directory-relative config.ini declares a [domains] section.
 

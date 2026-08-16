@@ -9,6 +9,8 @@ from ....credential_helpers.default_domains import (
     BUILTIN_DOMAINS,
     DefaultDomain,
     DomainType,
+    default_host,
+    default_host_for_type,
     load_default_domains,
     untrusted_config_declares_domains,
 )
@@ -187,3 +189,59 @@ def test_untrusted_cwd_config_is_not_honoured(tmp_path, monkeypatch):
 
     assert all(domain.host != "evil.example.com" for domain in domains)
     assert untrusted_config_declares_domains() is True
+
+
+def test_default_host_resolves_backend_kind(no_trusted_config):
+    """With no override the table is the built-in one."""
+    assert default_host(BackendKind.MAVEN) == "maven.cloudsmith.io"
+    assert default_host(BackendKind.PYTHON) == "python.cloudsmith.io"
+
+
+def test_default_host_rejects_kind_without_dedicated_host(no_trusted_config):
+    """Formats served only via the CDN have no dedicated host to resolve."""
+    with pytest.raises(ValueError):
+        default_host(BackendKind.DEB)
+
+
+def test_default_host_for_type_resolves_download_and_upload(no_trusted_config):
+    """The download/upload hosts are looked up by type, not by constant."""
+    assert default_host_for_type(DomainType.DOWNLOAD) == "dl.cloudsmith.io"
+    assert default_host_for_type(DomainType.UPLOAD) == "upload.cloudsmith.io"
+
+
+def test_default_host_for_type_rejects_ambiguous_native_api(no_trusted_config):
+    """NATIVE_API covers many hosts, so there is no single one to return."""
+    with pytest.raises(ValueError):
+        default_host_for_type(DomainType.NATIVE_API)
+
+
+def test_default_hosts_honour_a_config_override(tmp_path, monkeypatch):
+    """default_host/_for_type resolve against the override, not the builtins."""
+    (tmp_path / "config.ini").write_text(
+        "[domains]\n"
+        "cdn.internal.example.com = download\n"
+        "mvn.internal.example.com = maven\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
+    monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", [str(tmp_path)])
+
+    assert default_host_for_type(DomainType.DOWNLOAD) == "cdn.internal.example.com"
+    assert default_host(BackendKind.MAVEN) == "mvn.internal.example.com"
+
+
+def test_default_host_raises_when_the_override_omits_it(tmp_path, monkeypatch):
+    """An override that omits a kind must not resolve to the public host.
+
+    A declared table replaces the built-ins wholesale, so falling back would
+    hand a dedicated deployment `maven.cloudsmith.io` - publishing its
+    artifacts, and its token, to a host the operator never listed.
+    """
+    (tmp_path / "config.ini").write_text(
+        "[domains]\ncdn.internal.example.com = download\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
+    monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", [str(tmp_path)])
+
+    with pytest.raises(ValueError):
+        default_host(BackendKind.MAVEN)
