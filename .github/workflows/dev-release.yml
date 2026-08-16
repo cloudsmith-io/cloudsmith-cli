@@ -13,9 +13,6 @@ concurrency:
   group: dev-release-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  BINARY_TARGETS: "linux-x86_64-gnu linux-x86_64-musl linux-aarch64-gnu linux-aarch64-musl macos-arm64 macos-x86_64 windows-x86_64"
-
 jobs:
   binaries:
     name: Binaries
@@ -78,14 +75,12 @@ jobs:
           BRANCH_TAG=$(printf '%s' "${BRANCH}" | sed 's/[^A-Za-z0-9._-]/-/g' | cut -c1-64)
           SUMMARY_ROWS=""
 
-          for TARGET in ${BINARY_TARGETS}; do
-            EXT=.tar.gz
-            if [ "${TARGET}" = windows-x86_64 ]; then
-              EXT=.zip
-            fi
+          while IFS=$'\t' read -r TARGET EXT; do
             ARCHIVE="binaries/cloudsmith-${BASE_VERSION}-${TARGET}${EXT}"
+            ARCHIVE_BASE="$(basename "${ARCHIVE}")"
             test -f "${ARCHIVE}"
             test -f "${ARCHIVE}.sha256"
+            (cd binaries && sha256sum -c "${ARCHIVE_BASE}.sha256")
 
             OS="${TARGET%%-*}"
             REST="${TARGET#*-}"
@@ -109,11 +104,10 @@ jobs:
               --tags "dev-build,branch-${BRANCH_TAG},${COMMON}" \
               --republish
 
-            ARCHIVE_BASE="$(basename "${ARCHIVE}")"
             SHA256="$(awk '{print $1}' "${ARCHIVE}.sha256")"
             URL="https://dl.cloudsmith.io/public/${REPO}/raw/names/cloudsmith-cli-${TARGET}/versions/${DEV_VERSION}/${ARCHIVE_BASE}"
             SUMMARY_ROWS="${SUMMARY_ROWS}| ${TARGET} | [${ARCHIVE_BASE}](${URL}) | \`${SHA256}\` |"$'\n'
-          done
+          done < <(jq -r '.include[] | [.name, .archive] | @tsv' .github/scripts/binaries-matrix.json)
 
           {
             printf '## Dev build %s\n\n' "${DEV_VERSION}"
