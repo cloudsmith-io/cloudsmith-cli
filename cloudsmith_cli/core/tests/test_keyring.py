@@ -47,7 +47,7 @@ def mock_delete_password():
         yield delete_password_mock
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_get_keyring():
     with patch.object(keyring, "get_keyring") as get_keyring_mock:
         yield get_keyring_mock
