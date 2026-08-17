@@ -1,0 +1,119 @@
+name: Dev Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - eng-13952-dev-release-workflow
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  binaries:
+    name: Binaries
+    uses: ./.github/workflows/binaries.yml
+    with:
+      online_smoketest: false
+    permissions:
+      contents: read
+      id-token: write
+
+  publish-dev:
+    needs: binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_DEV_REPO: ${{ vars.CLOUDSMITH_DEV_REPO }}
+      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
+      BRANCH: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - id: version
+        name: Derive the dev build version
+        run: |
+          set -euo pipefail
+          BASE=$(cat cloudsmith_cli/data/VERSION)
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "dev=${BASE}-dev.${GITHUB_RUN_NUMBER}.g${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cloudsmith-*
+          merge-multiple: true
+          path: binaries
+
+      - name: Set up the built cloudsmith binary on the runner
+        uses: ./.github/actions/setup-cloudsmith-binary
+        with:
+          version: ${{ steps.version.outputs.base }}
+
+      - name: Pre-authenticate with OIDC
+        run: |
+          set -euo pipefail
+          cloudsmith whoami
+
+      - name: Publish dev binaries
+        env:
+          BASE_VERSION: ${{ steps.version.outputs.base }}
+          DEV_VERSION: ${{ steps.version.outputs.dev }}
+        run: |
+          set -euo pipefail
+          REPO="${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_DEV_REPO}"
+          BRANCH_TAG=$(printf '%s' "${BRANCH}" | sed 's/[^A-Za-z0-9._-]/-/g' | cut -c1-64)
+          SUMMARY_ROWS=""
+
+          while IFS=$'\t' read -r TARGET EXT; do
+            ARCHIVE="binaries/cloudsmith-${BASE_VERSION}-${TARGET}${EXT}"
+            ARCHIVE_BASE="$(basename "${ARCHIVE}")"
+            test -f "${ARCHIVE}"
+            test -f "${ARCHIVE}.sha256"
+            (cd binaries && sha256sum -c "${ARCHIVE_BASE}.sha256")
+
+            OS="${TARGET%%-*}"
+            REST="${TARGET#*-}"
+            case "${OS}" in
+              linux)
+                ARCH="${REST%-*}"
+                LIBC="${REST##*-}"
+                COMMON="${OS},${ARCH},${LIBC},${TARGET}"
+                ;;
+              *)
+                ARCH="${REST}"
+                COMMON="${OS},${ARCH},${TARGET}"
+                ;;
+            esac
+
+            cloudsmith push raw \
+              "${REPO}" \
+              "${ARCHIVE}" \
+              --name "cloudsmith-cli-${TARGET}" \
+              --version "${DEV_VERSION}" \
+              --tags "dev-build,branch-${BRANCH_TAG},${COMMON}" \
+              --republish
+
+            SHA256="$(awk '{print $1}' "${ARCHIVE}.sha256")"
+            URL="https://dl.cloudsmith.io/public/${REPO}/raw/names/cloudsmith-cli-${TARGET}/versions/${DEV_VERSION}/${ARCHIVE_BASE}"
+            SUMMARY_ROWS="${SUMMARY_ROWS}| ${TARGET} | [${ARCHIVE_BASE}](${URL}) | \`${SHA256}\` |"$'\n'
+          done < <(jq -r '.include[] | [.name, .archive] | @tsv' .github/scripts/binaries-matrix.json)
+
+          {
+            printf '## Dev build %s\n\n' "${DEV_VERSION}"
+            printf 'Branch `%s` at commit `%s`, published to `%s`.\n\n' \
+              "${BRANCH}" "${GITHUB_SHA}" "${REPO}"
+            printf '| Target | Download | SHA256 |\n'
+            printf '|---|---|---|\n'
+            printf '%s' "${SUMMARY_ROWS}"
+          } >> "$GITHUB_STEP_SUMMARY"

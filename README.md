@@ -319,12 +319,20 @@ You can authenticate using your organization's SAML provider, if configured, wit
 ```
 cloudsmith auth --owner example
 Beginning authentication for the example org ...
-Opening your organization's SAML IDP URL in your browser: https://example.com/some-saml-idp
+Your organization's SAML IDP URL is: https://example.com/some-saml-idp
 
 Starting webserver to begin authentication ...
 
 Authentication complete
 ```
+
+The CLI opens the IDP URL in your browser automatically. If it can't (for example in Cygwin or a headless shell), it tells you to open the URL above manually and carries on waiting for the callback. Use `--no-browser` to skip the automatic launch entirely:
+
+```
+cloudsmith auth --owner example --no-browser
+```
+
+*Note:* The authentication callback is served on `127.0.0.1:12400`, so the browser you open the URL in must be running on the same machine as the CLI.
 
 #### Getting Your API Key
 

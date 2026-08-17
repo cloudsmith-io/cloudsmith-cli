@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `CLOUDSMITH_KEYRING_BACKEND` is now accepted as an alias for `PYTHON_KEYRING_BACKEND`. If both are set, `PYTHON_KEYRING_BACKEND` takes precedence.
 - `CLOUDSMITH_KEYRING_KEY` is now accepted as an alias for `KEYRING_PROPERTY_KEYRING_KEY`, letting the bundled `keyrings.cryptfile`/`keyrings.alt` encrypted backends be unlocked non-interactively (e.g. in headless containers) without an interactive `getpass()` prompt. If both are set, `KEYRING_PROPERTY_KEYRING_KEY` takes precedence. Note: both bundled backends override `KeyringBackend.__init__` without calling `super().__init__()`, so `keyring`'s own automatic `KEYRING_PROPERTY_*` handling never runs for them — we apply it ourselves after resolving the backend.
+- `cloudsmith auth --no-browser` skips the automatic browser launch and prints the SAML IDP URL to open manually, for shells where launching a browser is unwanted or unreliable.
+
+### Fixed
+
+- `cloudsmith auth` no longer fails when it can't launch a browser. `webbrowser.open()` raises `webbrowser.Error` where no runnable browser is found (Cygwin, headless shells) and returns `False` on other launch failures; neither outcome was handled, so the command either crashed or silently waited on a callback the user had no way to trigger. Either outcome now prints the IDP URL with instructions to open it manually, and authentication continues against the same local callback.
+- `python -m cloudsmith_cli` now exits non-zero when a command fails. `AliasGroup.main` runs click with `standalone_mode=False` so click returns the exit code from `ctx.exit()` rather than raising `SystemExit`, and the module entrypoint discarded that return value — so a failed push, or an unauthorised request, exited 0. The `cloudsmith` console script and the standalone binaries already wrapped `main()` in `sys.exit()` and were unaffected.
+- The hint shown for a 401 when a credential is set no longer claims the cause is a missing permission. A 401 does not tell the CLI whether the credential is invalid, expired, or simply has no access to the resource, so the hint now names those possibilities and asks the user to check their credentials, instead of contradicting the `401 - Unauthorized` status it accompanies.
 
 ## [1.23.0] - 2026-08-14
 
