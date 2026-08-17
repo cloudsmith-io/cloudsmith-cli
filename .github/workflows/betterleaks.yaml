@@ -1,0 +1,17 @@
+name: Betterleaks Scan
+on:
+  - push
+  - pull_request
+
+jobs:
+  betterleaks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: dortort/betterleaks-action@v0.1.0
+        id: betterleaks
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
