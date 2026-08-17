@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `CLOUDSMITH_KEYRING_BACKEND` is now accepted as an alias for `PYTHON_KEYRING_BACKEND`. If both are set, `PYTHON_KEYRING_BACKEND` takes precedence.
+- `CLOUDSMITH_KEYRING_KEY` is now accepted as an alias for `KEYRING_PROPERTY_KEYRING_KEY`, letting the bundled `keyrings.cryptfile`/`keyrings.alt` encrypted backends be unlocked non-interactively (e.g. in headless containers) without an interactive `getpass()` prompt. If both are set, `KEYRING_PROPERTY_KEYRING_KEY` takes precedence. Note: both bundled backends override `KeyringBackend.__init__` without calling `super().__init__()`, so `keyring`'s own automatic `KEYRING_PROPERTY_*` handling never runs for them — we apply it ourselves after resolving the backend.
 - `cloudsmith auth --no-browser` skips the automatic browser launch and prints the SAML IDP URL to open manually, for shells where launching a browser is unwanted or unreliable.
 
 ### Fixed
