@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cloudsmith auth` no longer fails when it can't launch a browser. `webbrowser.open()` raises `webbrowser.Error` where no runnable browser is found (Cygwin, headless shells) and returns `False` on other launch failures; neither outcome was handled, so the command either crashed or silently waited on a callback the user had no way to trigger. Either outcome now prints the IDP URL with instructions to open it manually, and authentication continues against the same local callback.
 
+## [1.23.0] - 2026-08-14
+
+### Added
+
+- The packaged binary now bundles `keyrings.cryptfile` and `keyrings.alt`, encrypted/file-based `keyring` backends, so a host with no OS keyring (e.g. a headless Linux container) can still persist SSO/OIDC tokens via `PYTHON_KEYRING_BACKEND`.
+
 ## [1.22.0] - 2026-08-11
 
 ### Added
