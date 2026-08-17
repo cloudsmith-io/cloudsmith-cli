@@ -4,6 +4,8 @@ import os
 import pkgutil
 import sys
 
+import keyring.backend
+
 import cloudsmith_cli
 from cloudsmith_cli.cli.commands.main import main
 
@@ -27,6 +29,22 @@ def _force_utf8_output() -> None:
                 pass
 
 
+def _check_extra_keyring_backends(failed: list) -> None:
+    """Verify keyrings.cryptfile/keyrings.alt are discoverable via entry points.
+
+    ``cloudsmith_cli`` never imports these backend packages directly - keyring
+    finds them at runtime via importlib.metadata entry points - so the
+    ``cloudsmith_cli.*`` import sweep above never touches them. A missing
+    dist-info directory (copy_metadata not applied) leaves them silently
+    absent from discovery rather than raising, so this checks the discovered
+    class list explicitly instead of relying on an import error.
+    """
+    discovered = [type(b).__module__ for b in keyring.backend.get_all_keyring()]
+    for module_prefix in ("keyrings.cryptfile", "keyrings.alt"):
+        if not any(name.startswith(module_prefix) for name in discovered):
+            failed.append(f"{module_prefix}: not discovered via entry points")
+
+
 def _selftest() -> int:
     """Import every bundled ``cloudsmith_cli`` module; fail on any ImportError.
 
@@ -36,9 +54,10 @@ def _selftest() -> int:
     binary needs but PyInstaller did not collect surfaces here as an
     ImportError instead of crashing a user at runtime. Triggered only by the
     ``CLOUDSMITH_SELFTEST`` env var (set by the packaging smoketest), so it is
-    never reachable as a normal CLI command. Data-file, dist-metadata, and
-    dynamic-dispatch paths (which importing a module does not exercise) are
-    covered by the functional smoketest steps, not here.
+    never reachable as a normal CLI command. Data-file and dynamic-dispatch
+    paths (which importing a module does not exercise) are covered by the
+    functional smoketest steps, not here - except for the extra keyring
+    backends, whose entry-point discovery is checked below.
     """
     failed = []
 
@@ -57,6 +76,8 @@ def _selftest() -> int:
 
     if count == 0:
         failed.append("walk_packages enumerated 0 modules (frozen sweep broken)")
+
+    _check_extra_keyring_backends(failed)
 
     for line in failed:
         print(f"SELFTEST missing: {line}")
