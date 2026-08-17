@@ -1,0 +1,22 @@
+name: Betterleaks Scan
+on:
+  push:
+   branches:
+   - master
+  pull_request: 
+   branches:
+     - "**"
+jobs:
+  betterleaks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: dortort/betterleaks-action@v0.1.0
+      id: betterleaks
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
