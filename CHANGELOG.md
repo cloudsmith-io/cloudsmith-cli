@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-08-18
+
 ### Added
 
 - `CLOUDSMITH_KEYRING_BACKEND` is now accepted as an alias for `PYTHON_KEYRING_BACKEND`. If both are set, `PYTHON_KEYRING_BACKEND` takes precedence.
