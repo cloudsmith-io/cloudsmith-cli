@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `CLOUDSMITH_KEYRING_BACKEND` is now accepted as an alias for `PYTHON_KEYRING_BACKEND`. If both are set, `PYTHON_KEYRING_BACKEND` takes precedence.
+- `CLOUDSMITH_KEYRING_KEY` is now accepted as an alias for `KEYRING_PROPERTY_KEYRING_KEY`, letting the bundled `keyrings.cryptfile`/`keyrings.alt` encrypted backends be unlocked non-interactively (e.g. in headless containers) without an interactive `getpass()` prompt. If both are set, `KEYRING_PROPERTY_KEYRING_KEY` takes precedence. Note: both bundled backends override `KeyringBackend.__init__` without calling `super().__init__()`, so `keyring`'s own automatic `KEYRING_PROPERTY_*` handling never runs for them — we apply it ourselves after resolving the backend.
+- `cloudsmith auth --no-browser` skips the automatic browser launch and prints the SAML IDP URL to open manually, for shells where launching a browser is unwanted or unreliable.
+
+### Fixed
+
+- `cloudsmith auth` no longer fails when it can't launch a browser. `webbrowser.open()` raises `webbrowser.Error` where no runnable browser is found (Cygwin, headless shells) and returns `False` on other launch failures; neither outcome was handled, so the command either crashed or silently waited on a callback the user had no way to trigger. Either outcome now prints the IDP URL with instructions to open it manually, and authentication continues against the same local callback.
+- `python -m cloudsmith_cli` now exits non-zero when a command fails. `AliasGroup.main` runs click with `standalone_mode=False` so click returns the exit code from `ctx.exit()` rather than raising `SystemExit`, and the module entrypoint discarded that return value — so a failed push, or an unauthorised request, exited 0. The `cloudsmith` console script and the standalone binaries already wrapped `main()` in `sys.exit()` and were unaffected.
+- The hint shown for a 401 when a credential is set no longer claims the cause is a missing permission. A 401 does not tell the CLI whether the credential is invalid, expired, or simply has no access to the resource, so the hint now names those possibilities and asks the user to check their credentials, instead of contradicting the `401 - Unauthorized` status it accompanies.
+- The AWS OIDC detector now resolves the AWS region for its STS client with the AWS CLI precedence: explicit session region, `AWS_REGION`, `AWS_DEFAULT_REGION`, the shared config file, then EC2 instance metadata. botocore's own session resolution does not read `AWS_REGION` and never consults instance metadata, so on hosts that configure the region only through those sources the client targeted the legacy global STS endpoint instead of the regional one.
+- `--debug` now prints the CLI's debug log records to stderr; previously the flag was recorded but no log handler was installed, so the records went nowhere. The flag is also honoured when set on the group (`cloudsmith -d <command>`) or through the config file, where the subcommand's own flag default used to overwrite it.
+
+### Changed
+
+- The minimum supported `click` version is now 8.2.
+
+## [1.23.0] - 2026-08-14
+
+### Added
+
+- The packaged binary now bundles `keyrings.cryptfile` and `keyrings.alt`, encrypted/file-based `keyring` backends, so a host with no OS keyring (e.g. a headless Linux container) can still persist SSO/OIDC tokens via `PYTHON_KEYRING_BACKEND`.
+
+## [1.22.0] - 2026-08-11
+
+### Added
+
 - `cloudsmith push deb` now derives a Debian source package's members from its `.dsc`, so `cloudsmith push deb <owner>/<repo>/<distro>/<release> foo_1.0-1.dsc` is enough where `--sources-file` and `--changes-file` previously had to be worked out by hand (and their suffixes vary: `.orig.tar.gz`, `.orig.tar.bz2`, `.debian.tar.xz`, `.diff.gz`, ...). The `Checksums-Sha256:` or `Files:` field of the `.dsc` is read — plain or OpenPGP-clearsigned — and the upstream/native source archive becomes `--sources-file` while the Debian packaging archive becomes `--changes-file`, for the `1.0`, `2.0`, `3.0 (native)` and `3.0 (quilt)` source formats. `--dsc-file` names a `.dsc` other than `PACKAGE_FILE`, and an explicit `--sources-file` or `--changes-file` still wins for its own field. A detached upstream signature (`*.orig.tar.*.asc`) is skipped with a warning, since the deb package format has no field to carry it; a multi-component source package (`*.orig-<component>.tar.*`) is rejected outright, because leaving a component behind would upload incomplete source.
 - `cloudsmith domains list` lists the hosts Cloudsmith can authenticate as a versioned JSON document: `{"version": 1, "domains": [{"host": ..., "format": ..., "type": ..., "domain_type": ..., "org": ..., "repository": ..., "primary": ..., "created_at": ...}]}`. The built-in list can be replaced by a `[domains]` section in a trusted `config.ini` — each entry maps a hostname to the format it serves, or to `download`/`upload` — for dedicated deployments. An organisation's own custom domains are listed ahead of the built-in hosts, and a custom domain that is disabled or not yet validated is left out entirely, since it serves nothing. `--format` and `--repo` narrow the list to the hosts usable for a package format or repository, most-preferred first, and `--domain-type` to those with one purpose: `download`, `upload`, `api` or `native_api`.
 - The Cloudsmith organisation is now named by `--org`, with `--organization` and `--oidc-org` accepted as aliases for the same option, and `org`, `organization` or `oidc_org` accepted in `config.ini`. `--oidc-org` named the setting after the first feature that wanted it; it is read by custom-domain discovery as well as OIDC token exchange, so it is now named after what it is. The `CLOUDSMITH_ORG` environment variable is unchanged, and `credential-helper install` no longer has a separate `--org` of its own.

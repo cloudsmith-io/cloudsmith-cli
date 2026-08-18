@@ -171,8 +171,9 @@ def get_401_error_hint(ctx, opts, exc):
 
     if credential:
         return (
-            "Since you have an API key set, this probably means "
-            "you don't have the permission to perform this action."
+            "This usually means your API key is invalid, expired, or "
+            "lacks access to this resource - check your credentials and "
+            "try again."
         )
 
     if ctx.info_name == "token":
