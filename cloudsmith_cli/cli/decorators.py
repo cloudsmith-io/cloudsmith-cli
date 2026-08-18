@@ -1,6 +1,7 @@
 """CLI - Decorators."""
 
 import functools
+import logging
 import os
 
 import click
@@ -26,6 +27,27 @@ def report_retry(seconds, context=None):
         click.echo(
             f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... "
         )
+
+
+_DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
+
+
+def _configure_debug_logging(enabled):
+    """Install or remove the stderr handler for this package's debug records."""
+    package_logger = logging.getLogger("cloudsmith_cli")
+    for handler in list(package_logger.handlers):
+        if handler.name == _DEBUG_LOG_HANDLER_NAME:
+            package_logger.removeHandler(handler)
+    if not enabled:
+        package_logger.setLevel(logging.NOTSET)
+        package_logger.propagate = True
+        return
+    package_logger.setLevel(logging.DEBUG)
+    package_logger.propagate = False
+    handler = logging.StreamHandler()
+    handler.name = _DEBUG_LOG_HANDLER_NAME
+    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    package_logger.addHandler(handler)
 
 
 def _pop_boolean_flag(kwargs, name, invert=False):
@@ -158,7 +180,8 @@ def common_cli_output_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
-        opts.debug = kwargs.pop("debug")
+        opts.debug = kwargs.pop("debug") or opts.debug
+        _configure_debug_logging(opts.debug)
         opts.output = kwargs.pop("output_format")
         opts.verbose = kwargs.pop("verbose")
         kwargs["opts"] = opts

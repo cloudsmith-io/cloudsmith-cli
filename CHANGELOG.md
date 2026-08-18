@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith auth` no longer fails when it can't launch a browser. `webbrowser.open()` raises `webbrowser.Error` where no runnable browser is found (Cygwin, headless shells) and returns `False` on other launch failures; neither outcome was handled, so the command either crashed or silently waited on a callback the user had no way to trigger. Either outcome now prints the IDP URL with instructions to open it manually, and authentication continues against the same local callback.
 - `python -m cloudsmith_cli` now exits non-zero when a command fails. `AliasGroup.main` runs click with `standalone_mode=False` so click returns the exit code from `ctx.exit()` rather than raising `SystemExit`, and the module entrypoint discarded that return value — so a failed push, or an unauthorised request, exited 0. The `cloudsmith` console script and the standalone binaries already wrapped `main()` in `sys.exit()` and were unaffected.
 - The hint shown for a 401 when a credential is set no longer claims the cause is a missing permission. A 401 does not tell the CLI whether the credential is invalid, expired, or simply has no access to the resource, so the hint now names those possibilities and asks the user to check their credentials, instead of contradicting the `401 - Unauthorized` status it accompanies.
+- The AWS OIDC detector now resolves the AWS region for its STS client with the AWS CLI precedence: explicit session region, `AWS_REGION`, `AWS_DEFAULT_REGION`, the shared config file, then EC2 instance metadata. botocore's own session resolution does not read `AWS_REGION` and never consults instance metadata, so on hosts that configure the region only through those sources the client targeted the legacy global STS endpoint instead of the regional one.
+- `--debug` now prints the CLI's debug log records to stderr; previously the flag was recorded but no log handler was installed, so the records went nowhere. The flag is also honoured when set on the group (`cloudsmith -d <command>`) or through the config file, where the subcommand's own flag default used to overwrite it.
+
+### Changed
+
+- The minimum supported `click` version is now 8.2.
 
 ## [1.23.0] - 2026-08-14
 

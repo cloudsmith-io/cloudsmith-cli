@@ -20,6 +20,38 @@ logger = logging.getLogger(__name__)
 DEFAULT_AUDIENCE = "cloudsmith"
 
 
+def _resolve_region(session) -> str | None:
+    """Resolve the AWS region with the AWS CLI precedence.
+
+    The order is: explicit session config, AWS_REGION, AWS_DEFAULT_REGION,
+    the config file region, then EC2 instance metadata.
+    """
+    try:
+        # Lazy imports: botocore is an optional dependency (the aws extra).
+        from botocore.configprovider import ConfigChainFactory
+        from botocore.exceptions import BotoCoreError
+        from botocore.utils import BadIMDSRequestError, IMDSRegionProvider
+    except ImportError:
+        logger.debug("AWSDetector: region providers unavailable", exc_info=True)
+        return None
+
+    # No public accessor exists for the underlying botocore session.
+    botocore_session = session._session  # pylint: disable=protected-access
+    chain = ConfigChainFactory(session=botocore_session).create_config_chain(
+        instance_name="region",
+        env_var_names=["AWS_REGION", "AWS_DEFAULT_REGION"],
+        config_property_names="region",
+    )
+    region = chain.provide()
+    if region:
+        return region
+    try:
+        return IMDSRegionProvider(session=botocore_session).provide()
+    except (BotoCoreError, BadIMDSRequestError):
+        logger.debug("AWSDetector: IMDS region lookup failed", exc_info=True)
+        return None
+
+
 class AWSDetector(EnvironmentDetector):
     """Detects AWS environments and obtains a JWT via STS GetWebIdentityToken."""
 
@@ -71,7 +103,7 @@ class AWSDetector(EnvironmentDetector):
 
         audience = self.context.oidc_audience or DEFAULT_AUDIENCE
         session = self._session or boto3.Session()
-        sts = session.client("sts")
+        sts = session.client("sts", region_name=_resolve_region(session))
         response = sts.get_web_identity_token(
             Audience=[audience],
             SigningAlgorithm="RS256",
