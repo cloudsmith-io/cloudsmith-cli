@@ -49,6 +49,14 @@ class TestResolveRegion:
             session = boto3.Session()
             assert _resolve_region(session) == "us-west-2"
 
+    def test_falls_back_to_config_file_region(self, tmp_path):
+        config_file = tmp_path / "aws_config"
+        config_file.write_text("[default]\nregion = eu-central-1\n")
+        env = _aws_env(AWS_CONFIG_FILE=str(config_file))
+        with mock.patch.dict("os.environ", env, clear=True):
+            session = boto3.Session()
+            assert _resolve_region(session) == "eu-central-1"
+
     def test_falls_back_to_imds_when_unset(self):
         with mock.patch.dict("os.environ", _aws_env(), clear=True):
             session = boto3.Session()
