@@ -38,7 +38,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "click>=8.1.8,!=8.3.0",
+    "click>=8.2,!=8.3.0",
     "click-configfile>=0.2.3",
     "click-didyoumean>=0.0.3",
     "click-spinner>=0.1.7",
@@ -72,6 +72,7 @@ Homepage = "https://github.com/cloudsmith-io/cloudsmith-cli"
 
 [dependency-groups]
 dev = [
+    "boto3[crt]>=1.26.0",
     "pre-commit",
     "pylint",
     "pytest-cov",
