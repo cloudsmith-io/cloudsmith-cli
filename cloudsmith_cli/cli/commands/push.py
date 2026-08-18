@@ -38,6 +38,7 @@ from ...core.api.packages import (
     validate_create_package as api_validate_create_package,
 )
 from .. import command, decorators, utils, validators
+from ..dsc_parser import resolve_dsc_files
 from ..exceptions import handle_api_exceptions
 from ..metadata_common import (
     MetadataContentError,
@@ -75,6 +76,10 @@ METADATA_KWARG_NAMES = (
 #: separately from the metadata payload kwargs so it does not leak into the
 #: package-create API call.
 METADATA_FAILURE_MODE_KWARG = "cli_metadata_failure_mode"
+#: Filename suffix of a Debian source control file. A ``deb`` push whose
+#: PACKAGE_FILE carries it is a source-package upload, so its members can be
+#: derived without ``--dsc-file`` (GitHub issue #56).
+DSC_SUFFIX = ".dsc"
 
 
 def _metadata_failure_is_warn(opts=None):
@@ -1019,6 +1024,13 @@ def upload_files_and_create_package(
     return slug_perm, slug
 
 
+def _implied_dsc_file(package_file):
+    """Return ``package_file`` if it is itself a Debian ``.dsc``, else None."""
+    if isinstance(package_file, str) and package_file.endswith(DSC_SUFFIX):
+        return package_file
+    return None
+
+
 def create_push_handlers():
     """Create a handler for upload per package format."""
     # pylint: disable=fixme
@@ -1181,6 +1193,38 @@ def create_push_handlers():
             parameters = context.get(ctx.info_name)
             kwargs["package_type"] = ctx.info_name
 
+            # deb-only: derive the upstream/native source archive and Debian
+            # packaging archive from a .dsc (see GitHub issue #56). Only the
+            # `deb` subcommand ever registers --dsc-file (below), so this is
+            # a no-op kwargs.pop() for every other format.
+            dsc_file = kwargs.pop("dsc_file", None)
+            if dsc_file is None and not kwargs.get("sources_file"):
+                # Pushing a Debian source package means passing the .dsc as
+                # PACKAGE_FILE, and the API rejects it without a sources
+                # archive, so parse it by default rather than making the user
+                # name the same file twice. An explicit --sources-file means
+                # the caller is driving the members manually; leave them to it.
+                dsc_file = _implied_dsc_file(kwargs.get("package_file"))
+            if dsc_file:
+                resolved_dsc = resolve_dsc_files(dsc_file)
+                if resolved_dsc.ignored_files:
+                    click.secho(
+                        "Not uploading {files}: the deb package format has no "
+                        "field for detached upstream signatures.".format(
+                            files=", ".join(resolved_dsc.ignored_files)
+                        ),
+                        fg="yellow",
+                        err=utils.should_use_stderr(opts),
+                    )
+                # Precedence: explicit --sources-file/--changes-file always
+                # win over values derived from --dsc-file. A user who passes
+                # both wants a manual override, not to have their explicit
+                # flag silently clobbered.
+                if not kwargs.get("sources_file"):
+                    kwargs["sources_file"] = resolved_dsc.sources_file
+                if not kwargs.get("changes_file"):
+                    kwargs["changes_file"] = resolved_dsc.changes_file
+
             owner_repo = kwargs.pop("owner_repo")
             if "distribution" in parameters:
                 kwargs["distribution"] = "/".join(owner_repo[2:])
@@ -1306,6 +1350,39 @@ def create_push_handlers():
                 **option_kwargs,
             )
             push_handler = decorator(push_handler)
+
+        if key == "deb":
+            # deb-only shim (GitHub issue #56): the generic per-format loop
+            # above is driven entirely by the API's package-format model, so
+            # this stays layered on top rather than becoming a new branch in
+            # that generic system.
+            push_handler = click.option(
+                "--dsc-file",
+                "dsc_file",
+                type=ExpandPath(
+                    dir_okay=False, exists=True, writable=False, resolve_path=True
+                ),
+                default=None,
+                help=(
+                    "Path to a Debian .dsc control file, plain or "
+                    "OpenPGP-clearsigned. Only needed to point at a .dsc "
+                    "other than PACKAGE_FILE: pushing a source package means "
+                    "passing the .dsc as PACKAGE_FILE, and that is parsed "
+                    "automatically unless --sources-file is given. Its "
+                    "'Checksums-Sha256:' (or 'Files:') field supplies "
+                    "--sources-file with the upstream/native source archive "
+                    "and --changes-file with the Debian packaging archive "
+                    "(.debian.tar.* or .diff.gz). Supports the 1.0, 2.0, "
+                    "3.0 (native) and 3.0 (quilt) source formats, and the "
+                    "referenced files must sit next to the .dsc. An explicit "
+                    "--sources-file or --changes-file always takes precedence "
+                    "over the derived value for that field. Detached upstream "
+                    "signatures (*.asc) are skipped with a warning; a "
+                    "multi-component source package (*.orig-*.tar.*) is "
+                    "rejected, because the deb package format has no field "
+                    "for the extra components."
+                ),
+            )(push_handler)
 
         handlers[key] = push_handler
 
