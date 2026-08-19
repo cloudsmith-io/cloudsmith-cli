@@ -81,6 +81,18 @@ METADATA_FAILURE_MODE_KWARG = "cli_metadata_failure_mode"
 #: PACKAGE_FILE carries it is a source-package upload, so its members can be
 #: derived without ``--dsc-file`` (GitHub issue #56).
 DSC_SUFFIX = ".dsc"
+#: Package-format fields that carry a single uploadable file but whose model
+#: field name doesn't end in ``_file`` (the convention the generic push loop
+#: otherwise keys off to decide what needs uploading via the file-upload API
+#: before being sent to package-create as an identifier). Nix's sidecar
+#: metadata field is named ``narinfo`` - matching the real
+#: ``<storeHash>.narinfo`` filename - rather than ``narinfo_file``.
+SINGLE_FILE_FIELD_NAMES = frozenset({"narinfo"})
+
+
+def _is_single_file_field(key):
+    """Return True iff `key` names a package-format field for one uploadable file."""
+    return key.endswith("_file") or key in SINGLE_FILE_FIELD_NAMES
 
 
 def _metadata_failure_is_warn(opts=None):
@@ -929,7 +941,7 @@ def upload_files_and_create_package(
             continue
 
         # Handle a single file
-        if k.endswith("_file"):
+        if _is_single_file_field(k):
             md5_checksums[k] = validate_upload_file(
                 ctx=ctx,
                 opts=opts,
@@ -964,7 +976,7 @@ def upload_files_and_create_package(
             continue
 
         # Handle a single file
-        if k.endswith("_file"):
+        if _is_single_file_field(k):
             kwargs[k] = upload_file(
                 ctx=ctx,
                 opts=opts,
@@ -1348,8 +1360,10 @@ def create_push_handlers():
             option_kwargs = {}
             option_name_fmt = "--%(key)s"
 
-            if k.endswith("_file"):
-                # Treat parameters that end with _file as uploadable filepaths.
+            if _is_single_file_field(k):
+                # Treat parameters that end with _file (or are otherwise
+                # known to carry a single uploadable file, e.g. nix's
+                # narinfo) as uploadable filepaths.
                 option_kwargs["type"] = ExpandPath(
                     dir_okay=False, exists=True, writable=False, resolve_path=True
                 )
