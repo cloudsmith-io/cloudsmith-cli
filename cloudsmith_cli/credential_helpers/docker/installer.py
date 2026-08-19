@@ -224,7 +224,7 @@ class DockerInstaller:
         if not is_on_path(target_dir):
             actions.append(
                 f"WARNING: {target_dir} is not on PATH — "
-                "add it to your PATH so Docker can find docker-credential-cloudsmith"
+                "add it to your PATH so pnpm can find npm-credential-cloudsmith"
             )
 
         return actions

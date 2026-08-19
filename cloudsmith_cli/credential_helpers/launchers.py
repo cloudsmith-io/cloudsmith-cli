@@ -54,7 +54,7 @@ def _user_bin_dir(windows: bool) -> Path:
     return Path.home() / ".local" / "bin"
 
 
-def write_launcher(bin_dir: Path, name: str, target_cmd: str) -> Path:
+def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> Path:
     """Write a launcher script for *name* in *bin_dir* that execs *target_cmd*.
 
     Parameters
@@ -73,6 +73,11 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str) -> Path:
         The path of the written file.
     """
     windows = _is_windows()
+    if dry_run:
+        if windows:
+            return bin_dir / f"{name}.cmd"
+        else:
+            return bin_dir / name
     bin_dir = Path(bin_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
 
@@ -86,7 +91,7 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str) -> Path:
     return dest
 
 
-def remove_launcher(bin_dir: Path, name: str) -> bool:
+def remove_launcher(bin_dir: Path, name: str, dry_run=False) -> bool:
     """Remove a launcher previously created by :func:`write_launcher`.
 
     Parameters
@@ -104,7 +109,8 @@ def remove_launcher(bin_dir: Path, name: str) -> bool:
     target = Path(bin_dir) / _launcher_filename(name, windows=_is_windows())
 
     if target.exists():
-        target.unlink()
+        if not dry_run:
+            target.unlink()
         return True
     return False
 

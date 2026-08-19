@@ -12,6 +12,7 @@ from ..main import main
 from .docker import docker as docker_cmd
 from .generic import generic as generic_cmd
 from .manage import install_cmd, list_cmd, uninstall_cmd
+from .npm import npm as npm_cmd
 
 
 @click.group()
@@ -32,6 +33,7 @@ def credential_helper():
     """
 
 
+credential_helper.add_command(npm_cmd, name="npm")
 credential_helper.add_command(docker_cmd, name="docker")
 credential_helper.add_command(generic_cmd, name="generic")
 credential_helper.add_command(install_cmd, name="install")

@@ -12,6 +12,8 @@ import sys
 
 import click
 
+from cloudsmith_cli.credential_helpers.npm.installer import NPMInstaller
+
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
@@ -27,6 +29,7 @@ from ...decorators import (
 
 _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
+    "npm": NPMInstaller,
 }
 
 
