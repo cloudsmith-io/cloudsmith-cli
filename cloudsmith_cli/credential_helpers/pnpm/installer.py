@@ -12,7 +12,7 @@ from cloudsmith_cli.credential_helpers.launchers import (
     resolve_bin_dir,
     write_launcher,
 )
-from cloudsmith_cli.credential_helpers.npm.rc import NPMRC, AuthKeyConflictError
+from cloudsmith_cli.credential_helpers.pnpm.rc import NPMRC, AuthKeyConflictError
 
 from ...core.credentials.models import CredentialResult
 
@@ -28,13 +28,13 @@ def _config_path() -> Path:
     return Path.home() / ".npmrc"
 
 
-class NPMInstaller:
-    LAUNCHER_NAME = "npm-credential-cloudsmith"
-    TARGET_CMD = "cloudsmith credential-helper npm"
+class PNPMInstaller:
+    LAUNCHER_NAME = "pnpm-credential-cloudsmith"
+    TARGET_CMD = "cloudsmith credential-helper pnpm"
     DEFAULT_HOST = "npm.cloudsmith.io"
 
-    name = "npm"
-    summary = "NPM credential helper for Cloudsmith registries"
+    name = "pnpm"
+    summary = "pnpm credential helper for Cloudsmith registries"
 
     @classmethod
     def _resolve_target_cmd(cls) -> str:
@@ -48,7 +48,7 @@ class NPMInstaller:
         is quoted so a directory containing spaces still execs correctly.
         """
         if getattr(sys, "frozen", False):
-            return f'"{sys.executable}" credential-helper npm'
+            return f'"{sys.executable}" credential-helper pnpm'
         return cls.TARGET_CMD
 
     def install(
@@ -63,7 +63,7 @@ class NPMInstaller:
         api_host: str | None = None,
         dry_run: bool = False,
     ) -> list[str]:
-        """Install the NPM credential helper.
+        """Install the pnpm credential helper.
 
         Writes the launcher binary and registers Cloudsmith registry hosts in
         ``${NPM_CONFIG_USERCONFIG:-~/.npmrc}``.
@@ -77,7 +77,7 @@ class NPMInstaller:
             Additional registry hostnames to configure (in addition to the
             default ``npm.cloudsmith.io``).
         discover:
-            When ``True`` (default), attempt to auto-discover NPM custom
+            When ``True`` (default), attempt to auto-discover pnpm custom
             domains via the Cloudsmith API.  Discovery is best-effort and never
             prevents the defaults from being registered.
         refresh:
@@ -129,7 +129,7 @@ class NPMInstaller:
                     discovered = []
                 new_hosts = [h for h in discovered if h not in hosts]
                 hosts.extend(discovered)
-                actions.append(f"discovered {len(new_hosts)} new NPM custom domain(s)")
+                actions.append(f"discovered {len(new_hosts)} new pnpm custom domain(s)")
             else:
                 logger.debug(
                     "skipped auto-discovery"

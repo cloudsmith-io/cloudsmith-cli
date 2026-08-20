@@ -13,7 +13,7 @@ import sys
 import click
 
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
-from cloudsmith_cli.credential_helpers.npm.installer import NPMInstaller
+from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
@@ -30,7 +30,7 @@ from ...decorators import (
 
 _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
-    "npm": NPMInstaller,
+    "pnpm": PNPMInstaller,
 }
 
 
@@ -114,10 +114,10 @@ def install_cmd(
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``, ``npm``).
+    HELPER is the name of the credential helper to install (e.g. ``docker``, ``pnpm``).
 
-    Important for NPM/pnpm: The tokenHelper directive is only honored in the
-    user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm/npm
+    Important for pnpm: The tokenHelper directive is only honored in the
+    user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
     security restriction. The absolute path to the launcher is automatically
     calculated and configured.
 

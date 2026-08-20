@@ -1,15 +1,15 @@
 # Copyright 2026 Cloudsmith Ltd
 """
-Npm credential helper command.
+pnpm credential helper command.
 
-Implements the NPM credential helper protocol for Cloudsmith registries.
+Implements the pnpm credential helper protocol for Cloudsmith registries.
 """
 
 import sys
 
 import click
 
-from ....credential_helpers.npm import *
+from ....credential_helpers.pnpm import execute
 from ...decorators import common_api_auth_options, resolve_credentials
 
 
