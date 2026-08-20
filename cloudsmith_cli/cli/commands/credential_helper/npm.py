@@ -18,16 +18,18 @@ from ...decorators import common_api_auth_options, resolve_credentials
 @resolve_credentials
 def npm(opts, repo):
     """
-    Input (stdin):
+    Input (arg, optional):
         Server URL as plain text (e.g. "npm.cloudsmith.io")
 
     Output (stdout):
         Text: <cloudsmith-token>
 
+    \b
     Exit codes:
         0: Success
         1: Error (no credentials available, not a Cloudsmith registry, etc.)
 
+    \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
         CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
