@@ -118,8 +118,18 @@ class NPMRC:
                     self._lines.append(line.rstrip("\n"))
 
     def add(self, entry: URLEntry) -> bool:
-        if entry.id in self._mapping:
+        if entry in self:
             return False
+
+        if NPMRC.URLEntry.from_values(entry._domain, entry._key) in self:
+            for i, line in enumerate(self._lines):
+                if isinstance(line, NPMRC.URLEntry) and line.id == entry.id:
+                    self._lines[i] = entry
+                    break
+
+            self._modified = True
+            self._mapping[entry.id] = entry._value
+            return True
 
         if NPMRC.URLEntry.from_values(entry._domain, "_authToken") in self:
             self._failures += 1

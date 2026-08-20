@@ -338,6 +338,43 @@ def test_npm_installer_dry_run(tmp_path, monkeypatch):
     assert any(a.startswith("would set //npm.cloudsmith.io/") for a in actions)
 
 
+def test_npm_installer_dry_run_updates_existing_tokenhelper(tmp_path, monkeypatch):
+    """dry_run with existing tokenHelper reports update same as adding new entry.
+
+    When re-installing with a different bin_dir, the dry-run should report
+    the update using the same "would set" format as if adding a new entry.
+    """
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    old_bin_dir = tmp_path / "old_bin"
+    new_bin_dir = tmp_path / "new_bin"
+
+    # Seed config with existing tokenHelper entry
+    npm_path.write_text(
+        f"//npm.cloudsmith.io/:tokenHelper={old_bin_dir}/npm-credential-cloudsmith\n"
+    )
+
+    # Re-install with different bin_dir in dry-run mode
+    installer = NPMInstaller()
+    actions = installer.install(
+        bin_dir=str(new_bin_dir), domains=("npm.cloudsmith.io",), dry_run=True
+    )
+
+    # Verify no files were created/modified
+    assert not (new_bin_dir / "npm-credential-cloudsmith").exists()
+    assert npm_path.read_text().startswith(
+        f"//npm.cloudsmith.io/:tokenHelper={old_bin_dir}"
+    )
+
+    # Verify dry-run reported the update as a "would set" action
+    # Same format as if it were being added for the first time
+    assert any("would write launcher" in a for a in actions)
+    assert any(a.startswith("would set //npm.cloudsmith.io/") for a in actions)
+    assert any(str(new_bin_dir) in a for a in actions), (
+        "Actions should mention the new bin_dir path"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 7. install idempotent
 # ---------------------------------------------------------------------------
@@ -375,6 +412,59 @@ def test_npm_installer_idempotent(tmp_path, monkeypatch):
 
     assert mtime_before == mtime_after
     assert any("already up to date" in a for a in actions)
+
+
+def test_npm_installer_updates_tokenhelper_with_different_bin_dir(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """Re-installing with a different bin_dir updates the tokenHelper path.
+
+    When an entry with tokenHelper already exists for a domain, calling install
+    again with a different bin_dir should overwrite the old launcher path with
+    the new one. Verifies that only the matching domain entries are updated.
+    """
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    old_bin_dir = tmp_path / "old_bin"
+    new_bin_dir = tmp_path / "new_bin"
+
+    # Seed config with existing tokenHelper entries for domains that will be
+    # re-installed, plus one unrelated entry
+    npm_path.write_text(
+        f"//npm.cloudsmith.io/:tokenHelper={old_bin_dir}/npm-credential-cloudsmith\n"
+        f"//my.custom.domain/:tokenHelper={old_bin_dir}/npm-credential-cloudsmith\n"
+        "//registry.npmjs.org/:_authToken=abc123"
+    )
+
+    # Re-install with new bin_dir for the same domains that already exist
+    installer = NPMInstaller()
+    installer.install(bin_dir=str(new_bin_dir), domains=("my.custom.domain",))
+
+    content = npm_path.read_text()
+
+    # Verify old paths are replaced with new ones for managed domains
+    assert (
+        f"//npm.cloudsmith.io/:tokenHelper={new_bin_dir}/npm-credential-cloudsmith"
+        in content
+    ), "npm.cloudsmith.io should be updated to new_bin_dir"
+
+    assert (
+        f"//my.custom.domain/:tokenHelper={new_bin_dir}/npm-credential-cloudsmith"
+        in content
+    ), "my.custom.domain should be updated to new_bin_dir"
+
+    # Verify old bin_dir paths are gone
+    assert f"{old_bin_dir}" not in content, (
+        "All old bin_dir paths should be replaced with new_bin_dir"
+    )
+
+    # Verify non-cloudsmith entries are preserved
+    assert "//registry.npmjs.org/:_authToken=abc123" in content, (
+        "Non-cloudsmith entries should be preserved"
+    )
+
+    # Verify launcher exists in new location
+    assert (new_bin_dir / "npm-credential-cloudsmith").exists()
 
 
 # ---------------------------------------------------------------------------

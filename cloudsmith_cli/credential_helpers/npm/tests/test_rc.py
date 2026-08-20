@@ -409,6 +409,123 @@ class TestNPMRC:
                 assert invalid_count == 2
                 assert valid_count == 2
 
+    def test_npmrc_add_update_existing_entry_modifies_lines(self):
+        """Updating an existing entry modifies the _lines list in place.
+
+        When adding an entry with the same domain and key but different value,
+        the entry in _lines should be replaced with the new entry object.
+        This ensures that __str__() returns the updated value.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text("//registry.example.com/:tokenHelper=/old/path/helper\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Verify initial state
+                assert len(npmrc._lines) == 1
+                old_entry = npmrc._lines[0]
+                assert isinstance(old_entry, NPMRC.URLEntry)
+                assert old_entry._value == "/old/path/helper"
+
+                # Add a new entry with same domain/key but different value
+                new_entry = NPMRC.URLEntry.from_values(
+                    "registry.example.com", "tokenHelper", "/new/path/helper"
+                )
+                result = npmrc.add(new_entry)
+
+                # Verify operation returned True
+                assert result is True
+
+                # Verify _lines was updated with the new entry object
+                assert len(npmrc._lines) == 1
+                updated_entry = npmrc._lines[0]
+                assert isinstance(updated_entry, NPMRC.URLEntry)
+                assert updated_entry is new_entry, (
+                    "_lines should contain the new entry object, not the old one"
+                )
+                assert updated_entry._value == "/new/path/helper"
+
+    def test_npmrc_add_update_sets_modified_flag(self):
+        """Updating an existing entry sets the _modified flag to True."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text("//registry.example.com/:tokenHelper=/old/path/helper\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Verify initial state
+                assert npmrc.modified is False
+
+                # Update the entry
+                new_entry = NPMRC.URLEntry.from_values(
+                    "registry.example.com", "tokenHelper", "/new/path/helper"
+                )
+                npmrc.add(new_entry)
+
+                # Verify _modified flag was set
+                assert npmrc.modified is True
+
+    def test_npmrc_add_update_syncs_mapping(self):
+        """Updating an entry keeps _mapping in sync with _lines.
+
+        When an entry is updated, the mapping value should reflect the new value.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text("//registry.example.com/:tokenHelper=/old/path/helper\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Verify initial mapping
+                entry_id = "registry.example.com::tokenHelper"
+                assert npmrc._mapping[entry_id] == "/old/path/helper"
+
+                # Update the entry
+                new_entry = NPMRC.URLEntry.from_values(
+                    "registry.example.com", "tokenHelper", "/new/path/helper"
+                )
+                npmrc.add(new_entry)
+
+                # Verify mapping was updated
+                assert npmrc._mapping[entry_id] == "/new/path/helper"
+
+    def test_npmrc_add_update_multiple_entries(self):
+        """Updating one entry doesn't affect others in _lines.
+
+        Verifies that when multiple tokenHelper entries exist and one is updated,
+        only the matching entry is replaced while others are preserved.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "//registry.a.com/:tokenHelper=/old/path/helper\n"
+                "//registry.b.com/:tokenHelper=/other/path/helper\n"
+            )
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Verify initial state
+                assert len(npmrc._lines) == 2
+                entry_a = npmrc._lines[0]
+                assert isinstance(entry_a, NPMRC.URLEntry)
+                entry_b = npmrc._lines[1]
+                assert isinstance(entry_b, NPMRC.URLEntry)
+                assert entry_a._domain == "registry.a.com"
+                assert entry_b._domain == "registry.b.com"
+
+                # Update only registry.a.com
+                new_entry_a = NPMRC.URLEntry.from_values(
+                    "registry.a.com", "tokenHelper", "/new/path/helper"
+                )
+                result = npmrc.add(new_entry_a)
+
+                # Verify update was successful
+                assert result is True
+
+                # Verify _lines structure: updated a, unchanged b
+                assert len(npmrc._lines) == 2
+                assert npmrc._lines[0] is new_entry_a
+                assert npmrc._lines[0]._value == "/new/path/helper"
+                assert npmrc._lines[1] is entry_b  # Unchanged
+                assert npmrc._lines[1]._value == "/other/path/helper"
+
     def test_npmrc_remove_entry(self):
         """Remove an entry from NPMRC."""
         with TemporaryDirectory() as tmpdir:
