@@ -24,7 +24,36 @@ def _get_username():
     return getpass.getuser()
 
 
+def _sync_keyring_backend_env():
+    """Allow CLOUDSMITH_KEYRING_BACKEND to alias PYTHON_KEYRING_BACKEND."""
+    alias_value = os.environ.get("CLOUDSMITH_KEYRING_BACKEND")
+    if alias_value and "PYTHON_KEYRING_BACKEND" not in os.environ:
+        os.environ["PYTHON_KEYRING_BACKEND"] = alias_value
+
+
+def _sync_keyring_property_env():
+    """Allow CLOUDSMITH_KEYRING_KEY to alias KEYRING_PROPERTY_KEYRING_KEY."""
+    alias_value = os.environ.get("CLOUDSMITH_KEYRING_KEY")
+    if alias_value and "KEYRING_PROPERTY_KEYRING_KEY" not in os.environ:
+        os.environ["KEYRING_PROPERTY_KEYRING_KEY"] = alias_value
+
+
+def _prepare_keyring_backend():
+    """Resolve env var aliases and apply them to the keyring backend.
+
+    keyrings.cryptfile and keyrings.alt override KeyringBackend.__init__
+    without calling super(), so KEYRING_PROPERTY_* env vars (e.g. the
+    keyring_key password for those encrypted file backends) never reach
+    them through the library's own documented mechanism. Apply them here
+    instead, once the backend has been resolved.
+    """
+    _sync_keyring_backend_env()
+    _sync_keyring_property_env()
+    keyring.get_keyring().set_properties_from_env()
+
+
 def _get_value(key):
+    _prepare_keyring_backend()
     username = _get_username()
     try:
         return keyring.get_password(key, username)
@@ -33,6 +62,7 @@ def _get_value(key):
 
 
 def _set_value(key, value):
+    _prepare_keyring_backend()
     username = _get_username()
     keyring.set_password(key, username, value)
 
@@ -112,6 +142,7 @@ def store_sso_tokens(api_host, access_token, refresh_token):
 
 
 def _delete_value(key):
+    _prepare_keyring_backend()
     username = _get_username()
     try:
         keyring.delete_password(key, username)
