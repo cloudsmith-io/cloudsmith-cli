@@ -116,6 +116,11 @@ def install_cmd(
 
     HELPER is the name of the credential helper to install (e.g. ``docker``, ``npm``).
 
+    Important for NPM/pnpm: The tokenHelper directive is only honored in the
+    user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm/npm
+    security restriction. The absolute path to the launcher is automatically
+    calculated and configured.
+
     Examples:
 
     \b

@@ -50,13 +50,11 @@ class TestURLEntry:
     def test_urlentry_parse_with_leading_whitespace(self):
         """Parse entry with leading whitespace."""
         entry = NPMRC.URLEntry("  //registry.example.com/:tokenHelper=value")
-        # Note: there's a bug in the original code at line 46 that calculates _leading
-        # incorrectly. It computes entry[:len(stripped_entry)-len(entry)] which gives
-        # the entire entry string instead of just the whitespace.
-        # This test documents current behavior, not ideal behavior.
+        assert entry._leading == "  "
         assert entry._domain == "registry.example.com"
         assert entry._key == "tokenHelper"
         assert entry._value == "value"
+        assert str(entry) == "  //registry.example.com/:tokenHelper=value"
 
     def test_urlentry_parse_with_comment_semicolon(self):
         """Parse entry with trailing semicolon comment."""

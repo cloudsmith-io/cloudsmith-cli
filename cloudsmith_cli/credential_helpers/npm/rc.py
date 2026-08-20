@@ -43,7 +43,7 @@ class NPMRC:
             stripped_entry = entry.lstrip()
 
             # track the starting whitespace
-            self._leading = entry[: len(stripped_entry) - len(entry)]
+            self._leading = entry[: len(entry) - len(stripped_entry)]
             if not stripped_entry.startswith("/"):
                 raise ValueError("invalid url, should start with ``//``")
 
