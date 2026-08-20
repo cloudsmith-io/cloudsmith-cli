@@ -463,3 +463,330 @@ class TestAuthKeyConflictError:
         """AuthKeyConflictError preserves message."""
         exc = AuthKeyConflictError("_auth")
         assert exc.args[0] == "_auth"
+
+
+class TestInstallingAndUninstallingWithRealWorldConfigs:
+    """Integration tests with realistic pre-configured .npmrc files."""
+
+    def test_install_appends_line_to_minimal_npmrc(self):
+        """Installing appends tokenHelper line to minimal .npmrc."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text("registry=https://registry.npmjs.org/\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "npm.cloudsmith.io",
+                    "tokenHelper",
+                    "/usr/local/bin/npm-credentials-cloudsmith",
+                )
+                assert npmrc.add(entry) is True
+
+            # Verify file content - check exact lines
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]  # exclude empty
+            assert len(lines) == 2
+            assert lines[0] == "registry=https://registry.npmjs.org/"
+            assert (
+                lines[1]
+                == "//npm.cloudsmith.io/:tokenHelper=/usr/local/bin/npm-credentials-cloudsmith"
+            )
+
+    def test_install_preserves_all_other_lines(self):
+        """Installing preserves all non-related lines in .npmrc."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "legacy-peer-deps=true",
+                "@myorg:registry=https://custom.example.com/",
+                "//custom.example.com/:always-auth=true",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "npm.cloudsmith.io",
+                    "tokenHelper",
+                    "/usr/local/bin/npm-credentials-cloudsmith",
+                )
+                assert npmrc.add(entry) is True
+
+            # Verify all original lines are still there (exact match)
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            for original_line in original_lines:
+                assert original_line in lines
+            assert (
+                "//npm.cloudsmith.io/:tokenHelper=/usr/local/bin/npm-credentials-cloudsmith"
+                in lines
+            )
+
+    def test_uninstall_removes_only_target_line(self):
+        """Uninstalling removes only the target tokenHelper line."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "//npm.cloudsmith.io/:tokenHelper=/usr/local/bin/npm-credentials-cloudsmith",
+                "legacy-peer-deps=true",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "npm.cloudsmith.io",
+                    "tokenHelper",
+                    "/usr/local/bin/npm-credentials-cloudsmith",
+                )
+                assert npmrc.remove(entry) is True
+
+            # Verify only the target line was removed
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            assert "registry=https://registry.npmjs.org/" in lines
+            assert "legacy-peer-deps=true" in lines
+            assert not any("//npm.cloudsmith.io/:tokenHelper" in line for line in lines)
+
+    def test_install_multiple_registries_preserves_order(self):
+        """Installing multiple registries preserves existing order."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "//registry1.example.com/:always-auth=true",
+                "//registry2.example.com/:always-auth=true",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry1 = NPMRC.URLEntry.from_values(
+                    "cloudsmith1.io", "tokenHelper", "/path/to/helper1"
+                )
+                entry2 = NPMRC.URLEntry.from_values(
+                    "cloudsmith2.io", "tokenHelper", "/path/to/helper2"
+                )
+                assert npmrc.add(entry1) is True
+                assert npmrc.add(entry2) is True
+
+            # Verify original lines are in original order, new lines at end
+            lines = [line for line in rc_path.read_text().split("\n") if line]
+            assert lines[0] == "registry=https://registry.npmjs.org/"
+            assert lines[1] == "//registry1.example.com/:always-auth=true"
+            assert lines[2] == "//registry2.example.com/:always-auth=true"
+            assert lines[3] == "//cloudsmith1.io/:tokenHelper=/path/to/helper1"
+            assert lines[4] == "//cloudsmith2.io/:tokenHelper=/path/to/helper2"
+
+    def test_install_then_uninstall_leaves_clean_state(self):
+        """Installing then uninstalling returns file to original state."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "//registry.npmjs.org/:_authToken=secret",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            # Install
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/helper"
+                )
+                assert npmrc.add(entry) is True
+
+            content_after_install = rc_path.read_text()
+            lines_after_install = [
+                line for line in content_after_install.split("\n") if line
+            ]
+            assert "//cloudsmith.io/:tokenHelper=/path/helper" in lines_after_install
+
+            # Uninstall
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/helper"
+                )
+                assert npmrc.remove(entry) is True
+
+            content_after_uninstall = rc_path.read_text()
+            lines_after_uninstall = [
+                line for line in content_after_uninstall.split("\n") if line
+            ]
+            # Verify all original lines are still present (exact match)
+            for original_line in original_lines:
+                assert original_line in lines_after_uninstall
+            # Verify cloudsmith entry was removed
+            assert not any(
+                "//cloudsmith.io/:tokenHelper" in line for line in lines_after_uninstall
+            )
+
+    def test_install_with_scoped_packages(self):
+        """Installing works alongside scoped package registries."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "@myorg:registry=https://custom.example.com/",
+                "@another:registry=https://another.example.com/",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/helper"
+                )
+                assert npmrc.add(entry) is True
+
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            # All scoped registries should still be there
+            assert "@myorg:registry=https://custom.example.com/" in lines
+            assert "@another:registry=https://another.example.com/" in lines
+            assert "//cloudsmith.io/:tokenHelper=/path/helper" in lines
+
+    def test_install_with_commented_lines(self):
+        """Installing preserves commented-out lines."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "# //old.registry.com/:_authToken=disabled",
+                "legacy-peer-deps=true",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/helper"
+                )
+                assert npmrc.add(entry) is True
+
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            # Commented line should be preserved (exact match)
+            assert "# //old.registry.com/:_authToken=disabled" in lines
+            assert "//cloudsmith.io/:tokenHelper=/path/helper" in lines
+
+    def test_uninstall_idempotent(self):
+        """Uninstalling same entry twice is safe (idempotent)."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "//cloudsmith.io/:tokenHelper=/path/helper",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/helper"
+                )
+                # First removal succeeds
+                assert npmrc.remove(entry) is True
+                # Second removal returns False (already removed)
+                assert npmrc.remove(entry) is False
+
+    def test_install_with_complex_registry_config(self):
+        """Installing to complex real-world registry configuration."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "npm_config_loglevel=warn",
+                "@babel:registry=https://registry.npmjs.org/",
+                "@types:registry=https://registry.npmjs.org/",
+                "//registry.npmjs.org/:_authToken=npm_secret_token_here",
+                "always-auth=false",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                cloudsmith_entry = NPMRC.URLEntry.from_values(
+                    "npm.cloudsmith.io",
+                    "tokenHelper",
+                    "/usr/local/bin/npm-credentials-cloudsmith",
+                )
+                assert npmrc.add(cloudsmith_entry) is True
+
+            # Verify after context manager exit
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            # Original auth still there
+            assert "//registry.npmjs.org/:_authToken=npm_secret_token_here" in lines
+            # New entry added
+            assert (
+                "//npm.cloudsmith.io/:tokenHelper=/usr/local/bin/npm-credentials-cloudsmith"
+                in lines
+            )
+            # All original lines preserved
+            for original_line in original_lines:
+                assert original_line in lines
+
+    def test_install_different_helpers_same_domain(self):
+        """Installing different credential helpers to same domain."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text("registry=https://registry.npmjs.org/\n")
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Add tokenHelper for cloudsmith
+                entry1 = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/to/helper1"
+                )
+                assert npmrc.add(entry1) is True
+
+                # Add custom setting for same domain
+                entry2 = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io",
+                    "registryUrl",
+                    "https://cloudsmith.io/npm/myorg/myrepo/",
+                )
+                assert npmrc.add(entry2) is True
+
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            assert "//cloudsmith.io/:tokenHelper=/path/to/helper1" in lines
+            assert (
+                "//cloudsmith.io/:registryUrl=https://cloudsmith.io/npm/myorg/myrepo/"
+                in lines
+            )
+
+    def test_roundtrip_with_leading_whitespace(self):
+        """Roundtrip preserves leading whitespace on entries."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            original_lines = [
+                "registry=https://registry.npmjs.org/",
+                "  //indented.example.com/:_authToken=secret",
+            ]
+            rc_path.write_text("\n".join(original_lines) + "\n")
+
+            # Read and re-write without changes
+            with NPMRC(rc_path, modifiable=True):
+                # Don't modify, just read
+                pass
+
+            content = rc_path.read_text()
+            lines = content.split("\n")
+            # Indentation should be preserved (exact match)
+            assert "  //indented.example.com/:_authToken=secret" in lines
+
+    def test_install_with_empty_lines(self):
+        """Installing handles .npmrc with empty lines gracefully."""
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "registry=https://registry.npmjs.org/\n\nlegacy-peer-deps=true\n\n"
+            )
+
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                entry = NPMRC.URLEntry.from_values(
+                    "cloudsmith.io", "tokenHelper", "/path/helper"
+                )
+                assert npmrc.add(entry) is True
+
+            content = rc_path.read_text()
+            lines = [line for line in content.split("\n") if line]
+            # All non-empty content preserved
+            assert "registry=https://registry.npmjs.org/" in lines
+            assert "legacy-peer-deps=true" in lines
+            assert "//cloudsmith.io/:tokenHelper=/path/helper" in lines
