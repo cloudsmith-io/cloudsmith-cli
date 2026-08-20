@@ -44,7 +44,7 @@ def _get_installer(name: str):
 
     Returns
     -------
-    DockerInstaller
+    BaseInstaller
         An instance of the appropriate installer class.
 
     Raises
@@ -89,7 +89,7 @@ def _get_installer(name: str):
     "--no-discover",
     is_flag=True,
     default=False,
-    help="Disable automatic discovery of custom Docker domains.",
+    help="Disable automatic discovery of custom domains.",
 )
 @click.option(
     "--refresh",
@@ -166,7 +166,7 @@ def install_cmd(
         "warnings": warnings,
     }
     if utils.maybe_print_as_json(opts, data):
-        return
+        sys.exit(ec)
 
     if dry_run:
         click.echo("Dry run — no changes will be made:", err=use_stderr)
