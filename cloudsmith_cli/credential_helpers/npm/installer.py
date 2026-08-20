@@ -31,7 +31,6 @@ def _config_path() -> Path:
 class NPMInstaller:
     LAUNCHER_NAME = "npm-credential-cloudsmith"
     TARGET_CMD = "cloudsmith credential-helper npm"
-    HELPER_VALUE = "cloudsmith"
     DEFAULT_HOST = "npm.cloudsmith.io"
 
     name = "npm"
@@ -64,7 +63,7 @@ class NPMInstaller:
         api_host: str | None = None,
         dry_run: bool = False,
     ) -> list[str]:
-        """Install the NPM crednetial helper.
+        """Install the NPM credential helper.
 
         Writes the launcher binary and registers Cloudsmith registry hosts in
         ``${NPM_CONFIG_USERCONFIG:-~/.npmrc}``.

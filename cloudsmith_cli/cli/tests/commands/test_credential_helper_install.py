@@ -2,7 +2,6 @@
 """Tests for credential-helper install/uninstall/list commands and launchers."""
 
 from __future__ import annotations
-from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 
 import json
 import os
@@ -15,6 +14,7 @@ import click.testing
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
+from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.npm.installer import NPMInstaller
 
 from ....core.credentials.models import CredentialResult
@@ -146,9 +146,64 @@ def test_remove_launcher(format, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_bin_dir_override(tmp_path):
-    """An explicit override is returned verbatim."""
-    assert resolve_bin_dir(str(tmp_path)) == tmp_path
+def test_resolve_bin_dir_override_absolute(tmp_path):
+    """An absolute path override is returned as an absolute path."""
+    absolute_path = tmp_path.resolve()
+    assert resolve_bin_dir(str(absolute_path)) == absolute_path
+
+
+def test_resolve_bin_dir_override_relative_simple(tmp_path, monkeypatch):
+    """A relative path override is resolved to an absolute path.
+
+    If we're in /path/from/root/to and give 'launcher/bin', it returns
+    /path/from/root/to/launcher/bin.
+    """
+    monkeypatch.chdir(tmp_path)
+    relative_override = "launcher/bin"
+    result = resolve_bin_dir(relative_override)
+
+    # Result should be absolute
+    assert result.is_absolute()
+
+    # Result should be correct: cwd / relative_override
+    expected = tmp_path / relative_override
+    assert result == expected
+
+
+def test_resolve_bin_dir_override_relative_parent(tmp_path, monkeypatch):
+    """A relative path with parent directory references is resolved correctly.
+
+    If we're in /path/from/root/to/randomdir and give '../launcher/bin',
+    it returns /path/from/root/to/launcher/bin.
+    """
+    # Create subdirectory structure
+    random_dir = tmp_path / "randomdir"
+    random_dir.mkdir()
+
+    monkeypatch.chdir(random_dir)
+    relative_override = "../launcher/bin"
+    result = resolve_bin_dir(relative_override)
+
+    # Result should be absolute
+    assert result.is_absolute()
+
+    # Result should be correct: (cwd / parent / launcher / bin)
+    expected = tmp_path / "launcher" / "bin"
+    assert result == expected
+
+
+def test_resolve_bin_dir_override_relative_current_dir(tmp_path, monkeypatch):
+    """A relative path starting with './' is resolved correctly."""
+    monkeypatch.chdir(tmp_path)
+    relative_override = "./locally-scoped-dir"
+    result = resolve_bin_dir(relative_override)
+
+    # Result should be absolute
+    assert result.is_absolute()
+
+    # Result should be correct
+    expected = tmp_path / "locally-scoped-dir"
+    assert result == expected
 
 
 @pytest.mark.parametrize(

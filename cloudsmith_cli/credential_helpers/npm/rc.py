@@ -108,9 +108,12 @@ class NPMRC:
         with open(self._path) as f:
             for line in f:
                 if line.lstrip().startswith("//"):
-                    entry = NPMRC.URLEntry(line.rstrip("\n"))
-                    self._lines.append(entry)
-                    self._mapping[entry.id] = entry._value
+                    try:
+                        entry = NPMRC.URLEntry(line.rstrip("\n"))
+                        self._lines.append(entry)
+                        self._mapping[entry.id] = entry._value
+                    except Exception:
+                        self._lines.append(line.rstrip("\n"))
                 else:
                     self._lines.append(line.rstrip("\n"))
 

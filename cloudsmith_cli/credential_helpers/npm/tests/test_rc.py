@@ -153,6 +153,74 @@ class TestNPMRC:
                 assert npmrc._lines[0] == "registry=https://registry.npmjs.org/"
                 assert isinstance(npmrc._lines[1], NPMRC.URLEntry)
 
+    def test_npmrc_parse_ignores_invalid_lines(self):
+        """Parsing gracefully skips invalid URL lines.
+
+        Invalid lines that start with // but don't parse correctly are stored
+        as raw strings and not added to the mapping. This prevents crashes
+        on malformed entries while preserving the original content.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "//registry.npmjs.org/:tokenHelper=npm\n"
+                "// malformed comment line\n"
+                "//missing-domain/\n"
+                "//example.com/:validKey=validValue\n"
+                "//domain.com/noKeyValuePair\n"
+            )
+            # Should parse without raising an exception
+            with NPMRC(rc_path, modifiable=False) as npmrc:
+                # Should have 5 lines total
+                assert len(npmrc._lines) == 5
+
+                # Valid entries should be URLEntry objects
+                assert isinstance(npmrc._lines[0], NPMRC.URLEntry)
+                assert isinstance(npmrc._lines[3], NPMRC.URLEntry)
+
+                # Invalid entries should be stored as strings
+                assert isinstance(npmrc._lines[1], str)
+                assert isinstance(npmrc._lines[2], str)
+                assert isinstance(npmrc._lines[4], str)
+                assert npmrc._lines[1] == "// malformed comment line"
+                assert npmrc._lines[2] == "//missing-domain/"
+                assert npmrc._lines[4] == "//domain.com/noKeyValuePair"
+
+                # Only valid entries should be in mapping
+                assert len(npmrc._mapping) == 2
+                assert "registry.npmjs.org::tokenHelper" in npmrc._mapping
+                assert "example.com::validKey" in npmrc._mapping
+
+    def test_npmrc_parse_user_comment_line(self):
+        """Parsing handles user-entered comment-like lines gracefully.
+
+        This is the specific case from the PR comment where a user mistakenly
+        thought // was for comments (like in other formats) and created a
+        malformed entry "// oh I thought // was for code comments".
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "// oh I thought // was for code comments\n"
+                "//npm.cloudsmith.io/:tokenHelper=/usr/local/bin/npm-cred\n"
+            )
+            # Should not raise ValueError during parsing
+            with NPMRC(rc_path, modifiable=False) as npmrc:
+                assert len(npmrc._lines) == 2
+
+                # First line (malformed) should be stored as string
+                assert isinstance(npmrc._lines[0], str)
+                assert npmrc._lines[0] == "// oh I thought // was for code comments"
+
+                # Second line (valid) should be parsed
+                assert isinstance(npmrc._lines[1], NPMRC.URLEntry)
+                assert npmrc._lines[1]._domain == "npm.cloudsmith.io"
+                assert npmrc._lines[1]._key == "tokenHelper"
+
+                # Only the valid entry should be in mapping
+                assert len(npmrc._mapping) == 1
+                assert "npm.cloudsmith.io::tokenHelper" in npmrc._mapping
+
     def test_npmrc_add_entry(self):
         """Add a new entry to NPMRC."""
         with TemporaryDirectory() as tmpdir:
@@ -228,6 +296,118 @@ class TestNPMRC:
                 )
                 assert npmrc.add(entry) is True
                 assert npmrc.failures == 0
+
+    def test_npmrc_add_entry_preserves_invalid_lines(self):
+        """Adding an entry preserves invalid lines in the file.
+
+        When adding a new entry to a file with invalid lines, those invalid
+        lines should be preserved in their original position and written back
+        to the file unchanged.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "// invalid comment line\n"
+                "//registry.npmjs.org/:tokenHelper=existing\n"
+                "//malformed/missing/content\n"
+            )
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Add a new valid entry
+                new_entry = NPMRC.URLEntry.from_values(
+                    "registry.example.com", "tokenHelper", "new-helper"
+                )
+                assert npmrc.add(new_entry) is True
+
+                # Verify the lines are in order: invalid, valid, invalid, new valid
+                assert len(npmrc._lines) == 4
+                assert isinstance(npmrc._lines[0], str)
+                assert npmrc._lines[0] == "// invalid comment line"
+                assert isinstance(npmrc._lines[1], NPMRC.URLEntry)
+                assert isinstance(npmrc._lines[2], str)
+                assert npmrc._lines[2] == "//malformed/missing/content"
+                assert isinstance(npmrc._lines[3], NPMRC.URLEntry)
+
+            # Verify the file content preserves all lines including invalid ones
+            content = rc_path.read_text()
+            assert "// invalid comment line" in content
+            assert "//registry.npmjs.org/:tokenHelper=existing" in content
+            assert "//malformed/missing/content" in content
+            assert "//registry.example.com/:tokenHelper=new-helper" in content
+
+    def test_npmrc_remove_entry_preserves_invalid_lines(self):
+        """Removing an entry preserves invalid lines in the file.
+
+        When removing a valid entry from a file with invalid lines, those
+        invalid lines should remain in place and be written back unchanged.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "// this is not a valid entry\n"
+                "//registry.example.com/:tokenHelper=helper1\n"
+                "//registry.other.com/:tokenHelper=helper2\n"
+                "//another invalid line without proper format\n"
+            )
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                # Remove the first valid entry
+                entry_to_remove = NPMRC.URLEntry.from_values(
+                    "registry.example.com", "tokenHelper", "helper1"
+                )
+                assert npmrc.remove(entry_to_remove) is True
+
+                # Verify structure: invalid, removed, valid, invalid
+                assert len(npmrc._lines) == 3  # removed one valid entry
+                assert isinstance(npmrc._lines[0], str)
+                assert npmrc._lines[0] == "// this is not a valid entry"
+                assert isinstance(npmrc._lines[1], NPMRC.URLEntry)
+                assert npmrc._lines[1]._domain == "registry.other.com"
+                assert isinstance(npmrc._lines[2], str)
+                assert npmrc._lines[2] == "//another invalid line without proper format"
+
+            # Verify the file content preserves invalid lines
+            content = rc_path.read_text()
+            assert "// this is not a valid entry" in content
+            assert (
+                "//registry.example.com/:tokenHelper=helper1" not in content
+            )  # removed
+            assert "//registry.other.com/:tokenHelper=helper2" in content
+            assert "//another invalid line without proper format" in content
+
+    def test_npmrc_add_and_remove_preserves_invalid_lines_roundtrip(self):
+        """Adding and removing entries in sequence preserves invalid lines.
+
+        This test validates that the file can be modified multiple times
+        while preserving invalid entries throughout the process.
+        """
+        with TemporaryDirectory() as tmpdir:
+            rc_path = Path(tmpdir) / ".npmrc"
+            rc_path.write_text(
+                "// user comment\n//registry.a.com/:tokenHelper=a\n//malformed\n"
+            )
+
+            # First pass: add and remove
+            with NPMRC(rc_path, modifiable=True) as npmrc:
+                new_entry = NPMRC.URLEntry.from_values(
+                    "registry.b.com", "tokenHelper", "b"
+                )
+                npmrc.add(new_entry)
+
+            # Verify file has invalid lines preserved
+            content = rc_path.read_text()
+            assert "// user comment" in content
+            assert "//malformed" in content
+
+            # Second pass: read again and verify structure
+            with NPMRC(rc_path, modifiable=False) as npmrc:
+                assert len(npmrc._lines) == 4  # 2 invalid + 2 valid
+                invalid_count = sum(
+                    1 for line in npmrc._lines if not isinstance(line, NPMRC.URLEntry)
+                )
+                valid_count = sum(
+                    1 for line in npmrc._lines if isinstance(line, NPMRC.URLEntry)
+                )
+                assert invalid_count == 2
+                assert valid_count == 2
 
     def test_npmrc_remove_entry(self):
         """Remove an entry from NPMRC."""

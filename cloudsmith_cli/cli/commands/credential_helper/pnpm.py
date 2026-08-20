@@ -17,7 +17,7 @@ from ...decorators import common_api_auth_options, resolve_credentials
 @click.argument("repo", required=False, default="npm.cloudsmith.io")
 @common_api_auth_options
 @resolve_credentials
-def npm(opts, repo):
+def pnpm(opts, repo):
     """
     Input (arg, optional):
         Server URL as plain text (e.g. "npm.cloudsmith.io")
