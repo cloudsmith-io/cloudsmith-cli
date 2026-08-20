@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added an NPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install npm` installs an `npm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall npm` and `cloudsmith credential-helper list`.
+- Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
 
 ## [1.24.0] - 2026-08-18
 
