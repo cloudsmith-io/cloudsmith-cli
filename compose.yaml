@@ -1,0 +1,5 @@
+services:
+  cli:
+    image: cloudsmith-cli
+    build:
+      context: .
