@@ -5,7 +5,7 @@ from pathlib import Path
 
 from cloudsmith_cli.credential_helpers.backends import BackendKind
 from cloudsmith_cli.credential_helpers.custom_domains import get_format_domains
-from cloudsmith_cli.credential_helpers.generic import InstallError
+from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.launchers import (
     is_on_path,
     remove_launcher,
@@ -182,7 +182,7 @@ class NPMInstaller:
                         )
 
             if rc.failures > 0:
-                raise InstallError(actions)
+                raise PartialInstallError(actions)
             elif not rc.modified:
                 actions.append(f"npmrc already up to date ({config_path})")
 

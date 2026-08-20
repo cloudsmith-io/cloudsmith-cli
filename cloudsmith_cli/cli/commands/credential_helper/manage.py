@@ -12,7 +12,7 @@ import sys
 
 import click
 
-from cloudsmith_cli.credential_helpers.generic import InstallError
+from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.npm.installer import NPMInstaller
 
 from ....credential_helpers.docker.installer import DockerInstaller
@@ -150,7 +150,7 @@ def install_cmd(
         raise click.ClickException(
             f"Failed to install {helper!r} credential helper: {exc}"
         )
-    except InstallError as exc:
+    except PartialInstallError as exc:
         actions = exc.actions
         ec = exc.exit_code
     else:

@@ -20,20 +20,20 @@ _REFUSAL_MESSAGE = (
 )
 
 
-class InstallError(Exception):
-    """Raised when the installation process fails, but scheduled post-install reporting actions still need to be executed."""
+class PartialInstallError(Exception):
+    """Raised when the installation partially fail, but scheduled post-install reporting actions still need to be executed."""
 
     def __init__(self, actions, exit_code=1):
-        self.__actions = actions
-        self.__exit_code = exit_code
+        self._actions = actions
+        self._exit_code = exit_code
 
     @property
     def actions(self):
-        return self.__actions
+        return self._actions
 
     @property
     def exit_code(self):
-        return self.__exit_code
+        return self._exit_code
 
 
 def build_response(credential):
