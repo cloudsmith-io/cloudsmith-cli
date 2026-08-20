@@ -14,7 +14,7 @@ _REFUSAL_MESSAGE = (
 )
 
 
-def get_credentials(server_url, credential=None, api_host=None, org=None):
+def get_npm_credentials(server_url, credential=None, api_host=None, org=None):
     """
     Get credentials for a Cloudsmith NPM registry.
 
@@ -55,7 +55,7 @@ def _get_execute(
     server_url: str, credential=None, api_host=None, org=None
 ) -> tuple[int, str | None, str | None]:
     try:
-        cred = get_credentials(
+        cred = get_npm_credentials(
             server_url, credential=credential, api_host=api_host, org=org
         )
         if not cred:
