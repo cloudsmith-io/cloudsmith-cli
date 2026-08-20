@@ -16,6 +16,7 @@ from ..commands.push import (
     resolve_push_metadata_options,
     upload_files_and_create_package,
     validate_metadata_payload,
+    wait_for_package_sync,
 )
 from ..metadata_common import ResolvedMetadata
 
@@ -1466,3 +1467,54 @@ def test_options_metadata_failure_mode_none_is_noop():
     opts = Options()
     opts.metadata_failure_mode = None
     assert opts.metadata_failure_mode is None
+
+
+def test_wait_for_package_sync_json_mode_prints_status_reason_on_failure(capsys):
+    """Failed sync under JSON output must print the server's status_reason.
+
+    The JSON poll path used to discard status_reason, then crash with
+    UnboundLocalError at ``if reason:`` instead of showing the message.
+    """
+    ctx = click.Context(click.Command("push"))
+    opts = SimpleNamespace(output="json")
+    status_reason = (
+        "A package with name 'eng-13978-repro' already exists. "
+        "This package should be deleted."
+    )
+    failed_status = (
+        False,
+        True,
+        100,
+        "Failed",
+        "Parsing Package Metadata",
+        status_reason,
+    )
+
+    with patch(
+        "cloudsmith_cli.cli.commands.push.get_package_status",
+        return_value=failed_status,
+    ):
+        with pytest.raises(click.exceptions.Exit) as exc_info:
+            wait_for_package_sync(
+                ctx=ctx,
+                opts=opts,
+                owner="bart-demo-org-terraform",
+                repo="eng-13978-cli-repro",
+                slug="eng-13978-repro-100-alpha4tgz",
+                wait_interval=1.0,
+                skip_errors=False,
+                attempts=1,
+            )
+
+    assert exc_info.value.exit_code == 1
+    captured = capsys.readouterr()
+    assert "Package failed to synchronise" in captured.err
+    assert "Parsing Package Metadata" in captured.err
+    assert "Reason given:" in captured.err
+    assert status_reason in captured.err
+
+    # JSON mode must still leave a machine-readable envelope on stdout.
+    envelope = json.loads(captured.out)
+    assert envelope["detail"] == status_reason
+    assert envelope["meta"]["stage"] == "Parsing Package Metadata"
+    assert envelope["meta"]["status"] == "Failed"
