@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 import logging
 import os
 import sys

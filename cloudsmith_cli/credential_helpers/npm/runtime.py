@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 import logging
 
 from ..backends import BackendKind
@@ -64,4 +65,4 @@ def _get_execute(
     except Exception as exc:
         logger.debug("npm credential-helper get failed: %s", exc, exc_info=True)
 
-    return 1, None, None
+    return 1, None, _REFUSAL_MESSAGE

@@ -21,7 +21,7 @@ _REFUSAL_MESSAGE = (
 
 
 class PartialInstallError(Exception):
-    """Raised when the installation partially fail, but scheduled post-install reporting actions still need to be executed."""
+    """Raised when the installation partially fails, but scheduled post-install reporting actions still need to be executed."""
 
     def __init__(self, actions, exit_code=1):
         self._actions = actions

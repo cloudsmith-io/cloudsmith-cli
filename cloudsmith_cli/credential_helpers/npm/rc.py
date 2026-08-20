@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 from pathlib import Path
 
 from typing_extensions import Self
@@ -14,7 +15,12 @@ class NPMRC:
 
         @classmethod
         def from_values(cls, domain: str, key: str, value: str | None = None):
-            return cls(f"//{domain}/:{key}={value}")
+            obj = cls(
+                f"//{domain}/:{key}=" if value is None else f"//{domain}/:{key}={value}"
+            )
+            if value is None:
+                obj._value = None
+            return obj
 
         @property
         def id(self) -> str:
@@ -89,7 +95,7 @@ class NPMRC:
     def __contains__(self, item: str | URLEntry) -> bool:
         if isinstance(item, NPMRC.URLEntry):
             return item.id in self._mapping and (
-                item._value is not None or self._mapping[item.id] == item._value
+                item._value is None or self._mapping[item.id] == item._value
             )
 
         return any(item in line for line in self._lines)
