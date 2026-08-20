@@ -768,26 +768,31 @@ def test_manage_cli_passes_resolved_credential_to_installer(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "installer",
-    [
-        DockerInstaller,
-        NPMInstaller,
-    ],
-)
-def test_path_warning_when_bin_dir_not_on_path(installer, tmp_path, monkeypatch):
+def test_docker_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
     """install returns a WARNING action when target bin_dir is not on PATH."""
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
     bin_dir = tmp_path / "bin"
     monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
 
-    installer = installer()
+    installer = DockerInstaller()
     actions = installer.install(bin_dir=str(bin_dir))
 
     warning_actions = [a for a in actions if a.startswith("WARNING")]
     assert warning_actions, f"Expected a WARNING action, got: {actions}"
     assert any("PATH" in a for a in warning_actions)
+
+
+def test_npm_no_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
+    """install returns a WARNING action when target bin_dir is not on PATH."""
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
+
+    installer = NPMInstaller()
+    actions = installer.install(bin_dir=str(bin_dir))
+
+    warning_actions = [a for a in actions if a.startswith("WARNING")]
+    assert not warning_actions, f"Expected no WARNING action, got: {actions}"
 
 
 # ---------------------------------------------------------------------------

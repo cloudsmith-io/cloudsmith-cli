@@ -8,7 +8,6 @@ from cloudsmith_cli.credential_helpers.backends import BackendKind
 from cloudsmith_cli.credential_helpers.custom_domains import get_format_domains
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.launchers import (
-    is_on_path,
     remove_launcher,
     resolve_bin_dir,
     write_launcher,
@@ -187,11 +186,6 @@ class NPMInstaller:
             elif not rc.modified:
                 actions.append(f"npmrc already up to date ({config_path})")
 
-        if not is_on_path(target_dir):
-            actions.append(
-                f"WARNING: {target_dir} is not on PATH — "
-                "add it to your PATH so pnpm can find npm-credential-cloudsmith"
-            )
         return actions
 
     def uninstall(
