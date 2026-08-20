@@ -444,7 +444,7 @@ def test_npm_installer_status_type_contract(tmp_path: Path, monkeypatch: MonkeyP
     Retained guard: the -F json Path-serialization regression.
     """
     npm_path = tmp_path / ".npm"
-    monkeypatch.setenv("DOCKER_CONFIG", str(npm_path))
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
     bin_dir = tmp_path / "bin"
 
     installer = NPMInstaller()
