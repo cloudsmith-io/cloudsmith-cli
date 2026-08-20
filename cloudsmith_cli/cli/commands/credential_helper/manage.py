@@ -12,6 +12,9 @@ import sys
 
 import click
 
+from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
@@ -27,6 +30,7 @@ from ...decorators import (
 
 _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
+    "pnpm": PNPMInstaller,
 }
 
 
@@ -40,7 +44,7 @@ def _get_installer(name: str):
 
     Returns
     -------
-    DockerInstaller
+    BaseInstaller
         An instance of the appropriate installer class.
 
     Raises
@@ -85,7 +89,7 @@ def _get_installer(name: str):
     "--no-discover",
     is_flag=True,
     default=False,
-    help="Disable automatic discovery of custom Docker domains.",
+    help="Disable automatic discovery of custom domains.",
 )
 @click.option(
     "--refresh",
@@ -110,25 +114,30 @@ def install_cmd(
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``).
+    HELPER is the name of the credential helper to install (e.g. ``docker``, ``pnpm``).
+
+    Important for pnpm: The tokenHelper directive is only honored in the
+    user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
+    security restriction. The absolute path to the launcher is automatically
+    calculated and configured.
 
     Examples:
 
     \b
-        # Install Docker credential helper
-        $ cloudsmith credential-helper install docker
+        # Install credential helper
+        $ cloudsmith credential-helper install HELPER
 
     \b
         # Install with a custom domain
-        $ cloudsmith credential-helper install docker --domain my.registry.example.com
+        $ cloudsmith credential-helper install HELPER --domain my.registry.example.com
 
     \b
         # Preview without making changes
-        $ cloudsmith credential-helper install docker --dry-run
+        $ cloudsmith credential-helper install HELPER --dry-run
 
     \b
         # Disable automatic custom-domain discovery
-        $ cloudsmith credential-helper install docker --no-discover
+        $ cloudsmith credential-helper install HELPER --no-discover
     """
     installer = _get_installer(helper)
     try:
@@ -146,6 +155,11 @@ def install_cmd(
         raise click.ClickException(
             f"Failed to install {helper!r} credential helper: {exc}"
         )
+    except PartialInstallError as exc:
+        actions = exc.actions
+        ec = exc.exit_code
+    else:
+        ec = 0
 
     use_stderr = utils.should_use_stderr(opts)
     warnings = [a for a in actions if a.startswith("WARNING")]
@@ -157,7 +171,7 @@ def install_cmd(
         "warnings": warnings,
     }
     if utils.maybe_print_as_json(opts, data):
-        return
+        sys.exit(ec)
 
     if dry_run:
         click.echo("Dry run — no changes will be made:", err=use_stderr)
@@ -165,6 +179,7 @@ def install_cmd(
         click.echo(f"  {action}" if dry_run else action, err=use_stderr)
     for warning in warnings:
         click.secho(f"  {warning}" if dry_run else warning, err=True, fg="yellow")
+    sys.exit(ec)
 
 
 # ---------------------------------------------------------------------------
