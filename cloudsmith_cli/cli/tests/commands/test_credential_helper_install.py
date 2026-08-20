@@ -2,6 +2,7 @@
 """Tests for credential-helper install/uninstall/list commands and launchers."""
 
 from __future__ import annotations
+from cloudsmith_cli.credential_helpers.generic import InstallError
 
 import json
 import os
@@ -1139,7 +1140,10 @@ def test_npm_install_warn_on_auth_configured(kind, tmp_path: Path, monkeypatch):
     npm_path.write_text(f"//npm.cloudsmith.io/:{kind}=token")
 
     installer = NPMInstaller()
-    actions = installer.install(bin_dir=str(bin_dir), discover=False)
+    with pytest.raises(InstallError) as e:
+        installer.install(bin_dir=str(bin_dir), discover=False)
+    assert e.value.exit_code == 1
+    actions = e.value.actions
 
     # file was untouched
     assert npm_path.read_text() == f"//npm.cloudsmith.io/:{kind}=token"
@@ -1159,9 +1163,13 @@ def test_npm_install_warn_on_auth_configured_partial_write(
     npm_path.write_text(f"//npm.cloudsmith.io/:{kind}=token")
 
     installer = NPMInstaller()
-    actions = installer.install(
-        bin_dir=str(bin_dir), discover=False, domains=("my.registry.example.com",)
-    )
+    with pytest.raises(InstallError) as e:
+        installer.install(
+            bin_dir=str(bin_dir), discover=False, domains=("my.registry.example.com",)
+        )
+
+    assert e.value.exit_code == 1
+    actions = e.value.actions
 
     # file was partially written to
     assert (

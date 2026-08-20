@@ -59,7 +59,12 @@ class NPMRC:
     def modified(self):
         return self._modified
 
+    @property
+    def failures(self):
+        return self._failures
+
     def __init__(self, path: Path, modifiable=False) -> None:
+        self._failures = 0
         self._modifiable = modifiable
         self._modified = False
         self._path: Path = path
@@ -108,12 +113,15 @@ class NPMRC:
             return False
 
         if NPMRC.URLEntry.from_values(entry._domain, "_authToken") in self:
+            self._failures += 1
             raise AuthKeyConflictError("_authToken")
 
         if NPMRC.URLEntry.from_values(entry._domain, "_auth") in self:
+            self._failures += 1
             raise AuthKeyConflictError("_auth")
 
         if NPMRC.URLEntry.from_values(entry._domain, "_password") in self:
+            self._failures += 1
             raise AuthKeyConflictError("_password")
 
         self._mapping[entry.id] = entry._value

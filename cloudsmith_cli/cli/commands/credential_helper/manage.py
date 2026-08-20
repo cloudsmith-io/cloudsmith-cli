@@ -12,6 +12,7 @@ import sys
 
 import click
 
+from cloudsmith_cli.credential_helpers.generic import InstallError
 from cloudsmith_cli.credential_helpers.npm.installer import NPMInstaller
 
 from ....credential_helpers.docker.installer import DockerInstaller
@@ -133,6 +134,7 @@ def install_cmd(
         # Disable automatic custom-domain discovery
         $ cloudsmith credential-helper install docker --no-discover
     """
+    ec = 0
     installer = _get_installer(helper)
     try:
         actions = installer.install(
@@ -149,6 +151,9 @@ def install_cmd(
         raise click.ClickException(
             f"Failed to install {helper!r} credential helper: {exc}"
         )
+    except InstallError as exc:
+        actions = exc.actions
+        ec = exc.exit_code
 
     use_stderr = utils.should_use_stderr(opts)
     warnings = [a for a in actions if a.startswith("WARNING")]
@@ -168,6 +173,7 @@ def install_cmd(
         click.echo(f"  {action}" if dry_run else action, err=use_stderr)
     for warning in warnings:
         click.secho(f"  {warning}" if dry_run else warning, err=True, fg="yellow")
+    sys.exit(ec)
 
 
 # ---------------------------------------------------------------------------

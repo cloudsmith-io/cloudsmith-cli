@@ -5,6 +5,7 @@ from pathlib import Path
 
 from cloudsmith_cli.credential_helpers.backends import BackendKind
 from cloudsmith_cli.credential_helpers.custom_domains import get_format_domains
+from cloudsmith_cli.credential_helpers.generic import InstallError
 from cloudsmith_cli.credential_helpers.launchers import (
     is_on_path,
     remove_launcher,
@@ -155,7 +156,6 @@ class NPMInstaller:
             actions.append(f"wrote launcher {launcher_path}")
 
         with NPMRC(config_path, modifiable=not dry_run) as rc:
-            failures = 0
             for host in hosts:
                 entry = NPMRC.URLEntry.from_values(
                     host, "tokenHelper", str(launcher_path)
@@ -163,7 +163,6 @@ class NPMInstaller:
                 try:
                     added = rc.add(entry)
                 except AuthKeyConflictError as e:
-                    failures += 1
                     if dry_run:
                         actions.append(
                             f"WARNING would not set {entry} in {config_path} as {e} already set"
@@ -182,11 +181,8 @@ class NPMInstaller:
                             f"{entry} already set in {config_path} (no change)"
                         )
 
-            if failures == len(hosts):
-                pass
-            elif failures > 0:
-                # warn with error
-                pass
+            if rc.failures > 0:
+                raise InstallError(actions)
             elif not rc.modified:
                 actions.append(f"npmrc already up to date ({config_path})")
 
