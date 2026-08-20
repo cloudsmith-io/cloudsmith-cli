@@ -1,0 +1,7 @@
+services:
+  cli:
+    image: cloudsmith-io/cloudsmith-cli
+    build:
+      context: .
+      args:
+      - CLOUDSMITH_CLI_VERSION=$(cat VERSION)
