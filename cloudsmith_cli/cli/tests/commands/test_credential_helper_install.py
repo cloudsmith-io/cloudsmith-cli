@@ -280,7 +280,7 @@ def test_npm_installer_dry_run(tmp_path, monkeypatch):
     assert not (bin_dir / "npm-credential-cloudsmith").exists()
     assert not npm_path.exists()
     assert any("would write launcher" in a for a in actions)
-    assert any("npm.cloudsmith.io" in a for a in actions)
+    assert any(a.startswith("would set //npm.cloudsmith.io/") for a in actions)
 
 
 # ---------------------------------------------------------------------------
