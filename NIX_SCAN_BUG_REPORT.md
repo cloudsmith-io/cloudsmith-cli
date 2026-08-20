@@ -28,6 +28,16 @@ resolution short of manual intervention.
 - **Auth:** authenticated as `lskillen` (Lee Skillen) via sandbox routing
   headers (`X-Region`, `X-Internal-User-Api-Key`)
 
+> **Update (cloudsmith-api 2.0.31):** the SDK's `narinfo` field was renamed
+> to `narinfo_file` (CLI flag is now `--narinfo-file`), and the CLI's
+> separate special-casing for the old name was dropped since it now matches
+> the generic `_file`-suffix upload convention natively. That resolved a
+> distinct CLI-side 422 (see "Why this isn't a CLI bug" below) but is
+> unrelated to the "Scanning Package" failure this report is about — the
+> commands below use the flag name current at the time of this report
+> (`--narinfo`); substitute `--narinfo-file` if reproducing against
+> 2.0.31+.
+
 ## Steps to reproduce
 
 ```bash
