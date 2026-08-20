@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
 
+### Fixed
+
+- A failed package-file upload to the pre-signed storage URL (e.g. an expired upload token) now shows the real reason instead of just the generic HTTP status phrase (e.g. "Bad Request"). `upload_file()`/`multi_part_upload_file()` raised their `ApiException` without a `detail`, since that upload goes straight to the storage backend rather than through the Cloudsmith API client that normally populates it from the JSON error body; the detail is now extracted from the `<Message>` of the storage backend's XML error response.
+
 ## [1.24.0] - 2026-08-18
 
 ### Added

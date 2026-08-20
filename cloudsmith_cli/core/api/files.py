@@ -1,6 +1,7 @@
 """API - Files endpoints."""
 
 import os
+import re
 
 import click
 import cloudsmith_api
@@ -14,6 +15,30 @@ from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
 
 CHUNK_SIZE = 1024 * 1024 * 100
+#: Pulls the <Message> text out of an S3 XML error body, e.g.
+#: <Error><Code>ExpiredToken</Code><Message>The provided token has
+#: expired.</Message>...</Error>. A plain regex rather than an XML parser:
+#: this is untrusted response content (from wherever upload_url points), and
+#: we only need one text field out of it, not general-purpose XML parsing
+#: with its XXE/entity-expansion surface.
+_S3_ERROR_MESSAGE_RE = re.compile(rb"<Message>(.*?)</Message>", re.DOTALL)
+
+
+def _s3_error_detail(body):
+    """Extract the <Message> from an S3 XML error body, if there is one.
+
+    upload_file()/multi_part_upload_file() PUT/POST straight to a pre-signed
+    S3 URL, not through the Cloudsmith API client, so their failures arrive
+    as S3's XML error format rather than the JSON body
+    catch_raise_api_exception() parses. Without this, ApiException.detail
+    stayed unset and the CLI only ever showed the generic HTTP status phrase
+    (e.g. "Bad Request") for failures like an expired upload token.
+    """
+    if not body:
+        return None
+
+    match = _S3_ERROR_MESSAGE_RE.search(body)
+    return match.group(1).decode("utf-8", errors="replace") if match else None
 
 
 def get_files_api():
@@ -90,7 +115,10 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
         resp.raise_for_status()
     except requests.RequestException as exc:
         raise ApiException(
-            resp.status_code, headers=exc.response.headers, body=exc.response.content
+            resp.status_code,
+            detail=_s3_error_detail(exc.response.content),
+            headers=exc.response.headers,
+            body=exc.response.content,
         )
 
 
@@ -117,6 +145,7 @@ def multi_part_upload_file(
             except requests.RequestException as exc:
                 raise ApiException(
                     resp.status_code,
+                    detail=_s3_error_detail(exc.response.content),
                     headers=exc.response.headers,
                     body=exc.response.content,
                 )
