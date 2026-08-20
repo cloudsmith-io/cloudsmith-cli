@@ -134,7 +134,6 @@ def install_cmd(
         # Disable automatic custom-domain discovery
         $ cloudsmith credential-helper install docker --no-discover
     """
-    ec = 0
     installer = _get_installer(helper)
     try:
         actions = installer.install(
@@ -154,6 +153,8 @@ def install_cmd(
     except InstallError as exc:
         actions = exc.actions
         ec = exc.exit_code
+    else:
+        ec = 0
 
     use_stderr = utils.should_use_stderr(opts)
     warnings = [a for a in actions if a.startswith("WARNING")]

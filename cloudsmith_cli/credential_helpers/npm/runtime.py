@@ -21,7 +21,7 @@ def get_credentials(server_url, credential=None, api_host=None, org=None):
     and returns credentials if available.
 
     Args:
-        server_url: The Docker registry server URL
+        server_url: The NPM registry server URL
         credential: Pre-resolved CredentialResult from the provider chain
         api_host: Cloudsmith API host URL
         org: Organisation slug whose custom domains to match against
