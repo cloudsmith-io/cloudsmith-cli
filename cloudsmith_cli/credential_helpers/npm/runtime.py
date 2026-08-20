@@ -27,7 +27,7 @@ def get_credentials(server_url, credential=None, api_host=None, org=None):
         org: Organisation slug whose custom domains to match against
 
     Returns:
-        dict: Credentials with 'Username' and 'Secret' keys, or None
+        str: the token in plain text, with no newline at the end
     """
     if not credential or not credential.api_key:
         return None

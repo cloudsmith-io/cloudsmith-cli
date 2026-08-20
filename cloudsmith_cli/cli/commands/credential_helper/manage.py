@@ -114,25 +114,25 @@ def install_cmd(
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``).
+    HELPER is the name of the credential helper to install (e.g. ``docker``, ``npm``).
 
     Examples:
 
     \b
-        # Install Docker credential helper
-        $ cloudsmith credential-helper install docker
+        # Install credential helper
+        $ cloudsmith credential-helper install HELPER
 
     \b
         # Install with a custom domain
-        $ cloudsmith credential-helper install docker --domain my.registry.example.com
+        $ cloudsmith credential-helper install HELPER --domain my.registry.example.com
 
     \b
         # Preview without making changes
-        $ cloudsmith credential-helper install docker --dry-run
+        $ cloudsmith credential-helper install HELPER --dry-run
 
     \b
         # Disable automatic custom-domain discovery
-        $ cloudsmith credential-helper install docker --no-discover
+        $ cloudsmith credential-helper install HELPER --no-discover
     """
     installer = _get_installer(helper)
     try:
