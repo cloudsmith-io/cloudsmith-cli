@@ -7,9 +7,8 @@ credential sources sequentially and returns the first valid result.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from .models import CredentialContext, CredentialResult
-from .provider import CredentialProvider
 from .providers import (
     CLIFlagProvider,
     CredentialsFileProvider,
@@ -17,6 +16,10 @@ from .providers import (
     KeyringProvider,
     OidcProvider,
 )
+
+if TYPE_CHECKING:
+    from .models import CredentialContext, CredentialResult
+    from .provider import CredentialProvider
 
 logger = logging.getLogger(__name__)
 

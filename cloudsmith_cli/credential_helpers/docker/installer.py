@@ -13,12 +13,15 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ...core.cache_utils import merge_json_file
-from ...core.credentials.models import CredentialResult
 from ..backends import BackendKind
 from ..custom_domains import get_format_domains
 from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+
+if TYPE_CHECKING:
+    from ...core.credentials.models import CredentialResult
 
 logger = logging.getLogger(__name__)
 
