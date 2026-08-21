@@ -1,0 +1,27 @@
+name: Container Image Build
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - "**"
+permissions:
+  contents: read
+jobs:
+  image-build:
+    name: Build container image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: |
+          docker build -t cloudsmith-io/cli-dev \
+          --file dev.Dockerfile
+          --build-arg CLOUDSMITH_CLI_VERSION="$(cat VERSION)" \
+          --build-arg VCS_REF="${GITHUB_SHA}" \
+          .
+      - name: Test image
+        run: docker run -t cloudsmith-io/cli-dev --help
