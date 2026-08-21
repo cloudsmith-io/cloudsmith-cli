@@ -626,8 +626,6 @@ def initialise_mcp(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
-        # The mcp dependency costs ~1s to import. Import it here so that
-        # only the mcp commands pay that cost.
         from ..core.mcp import server
 
         opts = kwargs.get("opts")
