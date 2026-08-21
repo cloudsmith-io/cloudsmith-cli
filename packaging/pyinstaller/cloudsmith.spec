@@ -24,9 +24,6 @@ hiddenimports += collect_submodules(
     "mcp",
     filter=lambda name: name != "mcp.cli" and not name.startswith("mcp.cli."),
 )
-# Command modules load lazily via cli/commands/registry.py, so the static
-# import graph from entry.py no longer reaches them. Collect the whole
-# package; the Analysis excludes drop the test packages.
 hiddenimports += collect_submodules("cloudsmith_cli")
 hiddenimports += collect_submodules("keyring.backends")
 hiddenimports += collect_submodules("keyrings.cryptfile")
