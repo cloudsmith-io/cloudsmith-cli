@@ -20,10 +20,10 @@ def modules_loaded_by_cli_import():
     )
     result = subprocess.run(
         [sys.executable, "-c", code],
-        check=True,
         capture_output=True,
         text=True,
     )
+    assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
 
