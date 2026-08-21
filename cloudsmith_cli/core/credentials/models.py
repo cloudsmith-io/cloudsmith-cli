@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-# requests costs ~30ms to import and is only used in annotations here.
 if TYPE_CHECKING:
     import requests
 

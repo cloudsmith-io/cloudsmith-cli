@@ -41,8 +41,6 @@ class GitHubActionsDetector(EnvironmentDetector):
         separator = "&" if "?" in request_url else "?"
         url = f"{request_url}{separator}audience={quote(audience, safe='')}"
 
-        # The session module pulls in requests (~30ms). Import it here
-        # so that only a detector match pays that cost.
         from ....session import create_requests_session as create_session
 
         session = self.context.session or create_session()
