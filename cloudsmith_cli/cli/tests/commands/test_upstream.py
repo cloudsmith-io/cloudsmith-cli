@@ -159,3 +159,69 @@ def test_upstream_commands(
     assert result.exit_code == 0
     result_data = json.loads(result.output)["data"]
     assert not result_data  # We should have no upstreams at this point
+
+
+@pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+def test_alpine_upstream_ls_pretty_rsa_columns(
+    runner, organization, tmp_repository, tmp_path
+):
+    """Pretty-output ls for alpine must render all four RSA columns with correct headers and values.
+
+    Alpine is the only format with RSA verification fields (rsa_key_inline, rsa_key_url,
+    rsa_verification, rsa_verification_status). These are appended to the common column set
+    inside print_upstreams(), so a regression in the branching logic or header list would
+    silently drop or misalign them. This test catches that by asserting against the rendered
+    table text rather than JSON output.
+    """
+    rsa_key_url = "https://www.cloudsmith.io"
+    upstream_config = {
+        "name": "cli-test-upstream-alpine-rsa",
+        "upstream_url": "https://www.cloudsmith.io",
+        "rsa_key_url": rsa_key_url,
+    }
+
+    upstream_config_file = tmp_path / "cli-test-upstream-alpine-rsa.json"
+    upstream_config_file.write_text(json.dumps(upstream_config))
+
+    org_repo = f"{organization}/{tmp_repository['slug']}"
+
+    # Create the upstream and capture its slug_perm for later cleanup
+    create_result = runner.invoke(
+        upstream,
+        args=["alpine", "create", org_repo, str(upstream_config_file), "-F", "json"],
+        catch_exceptions=False,
+    )
+    assert create_result.exit_code == 0
+    slug_perm = json.loads(create_result.output)["data"]["slug_perm"]
+
+    try:
+        # Run ls with default pretty output — the path under test
+        result = runner.invoke(
+            upstream,
+            args=["alpine", "ls", org_repo],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0
+
+        # All four RSA column headers must appear in the table header row
+        assert "RSA Key Inline" in result.output
+        assert "RSA Key URL" in result.output
+        assert (
+            "RSA Verification Status" in result.output
+        )  # most specific; covers "RSA Verification" too
+        assert "RSA Verification" in result.output
+
+        # The rsa_key_url value we set must appear in the data row
+        assert rsa_key_url in result.output
+
+        # Common non-RSA headers must still be present (guard against over-trimming)
+        assert "Name" in result.output
+        assert "Upstream Url" in result.output
+        assert "Verify SSL" in result.output
+
+    finally:
+        runner.invoke(
+            upstream,
+            args=["alpine", "delete", f"{org_repo}/{slug_perm}", "-y"],
+            catch_exceptions=False,
+        )
