@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
 
+### Changed
+
+- The API host is now normalised, so a loosely-written value works. The CLI removes surrounding whitespace and trailing slashes, and adds the `https` scheme when the value gives none. `api.cloudsmith.io`, `//api.cloudsmith.io/` and ` https://api.cloudsmith.io/ ` all resolve to `https://api.cloudsmith.io`. This applies to `--api-host`, `CLOUDSMITH_API_HOST` and the `api_host` config key, and it keeps the keyring token key stable between `cloudsmith auth` and `cloudsmith logout`. The allow-list check on `api_host` values from a directory-relative config file runs against the normalised value, so a scheme-less Cloudsmith host is no longer rejected. If your `api_host` had a trailing slash, the keyring key changes and you must run `cloudsmith auth` again.
+
 ## [1.24.0] - 2026-08-18
 
 ### Added
