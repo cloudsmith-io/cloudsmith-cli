@@ -25,22 +25,21 @@ def print_repositories(opts, data, page_info=None, show_list_info=True, page_all
         "Owner / Repository (Identifier)",
     ]
 
-    rows = []
-    for repo in sorted(data, key=itemgetter("namespace", "slug")):
-        rows.append(
-            [
-                click.style(repo["name"], fg="cyan"),
-                click.style(repo["repository_type_str"], fg="yellow"),
-                click.style(str(repo["package_count"]), fg="blue"),
-                click.style(str(repo["package_group_count"]), fg="blue"),
-                click.style(str(repo["num_downloads"]), fg="blue"),
-                click.style(str(repo["size_str"]), fg="blue"),
-                "{owner_slug}/{slug}".format(
-                    owner_slug=click.style(repo["namespace"], fg="magenta"),
-                    slug=click.style(repo["slug"], fg="green"),
-                ),
-            ]
-        )
+    rows = [
+        [
+            click.style(repo["name"], fg="cyan"),
+            click.style(repo["repository_type_str"], fg="yellow"),
+            click.style(str(repo["package_count"]), fg="blue"),
+            click.style(str(repo["package_group_count"]), fg="blue"),
+            click.style(str(repo["num_downloads"]), fg="blue"),
+            click.style(str(repo["size_str"]), fg="blue"),
+            "{owner_slug}/{slug}".format(
+                owner_slug=click.style(repo["namespace"], fg="magenta"),
+                slug=click.style(repo["slug"], fg="green"),
+            ),
+        ]
+        for repo in sorted(data, key=itemgetter("namespace", "slug"))
+    ]
 
     if data:
         click.echo()

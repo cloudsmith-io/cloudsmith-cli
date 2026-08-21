@@ -334,22 +334,20 @@ def _resolve_all_files_items(
             f"Output path '{output_dir}' exists but is not a directory."
         )
 
-    items = []
-    for f in sub_files:
-        items.append(
-            {
-                "filename": f["filename"],
-                "url": f["cdn_url"],
-                "output_path": _safe_join(output_dir, f["filename"]),
-                "tag": f.get("tag", "file"),
-                "is_primary": f.get("is_primary", False),
-                "size": f.get("size", 0),
-                "package_name": pkg_name,
-                "package_version": pkg_version,
-                "status": None,
-            }
-        )
-    return items
+    return [
+        {
+            "filename": f["filename"],
+            "url": f["cdn_url"],
+            "output_path": _safe_join(output_dir, f["filename"]),
+            "tag": f.get("tag", "file"),
+            "is_primary": f.get("is_primary", False),
+            "size": f.get("size", 0),
+            "package_name": pkg_name,
+            "package_version": pkg_version,
+            "status": None,
+        }
+        for f in sub_files
+    ]
 
 
 def _resolve_single_file_item(
