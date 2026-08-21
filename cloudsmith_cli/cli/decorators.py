@@ -314,8 +314,7 @@ def initialise_session(f):
     @click.option(
         "--api-host",
         envvar="CLOUDSMITH_API_HOST",
-        help="The API host to connect to. If you do not give a scheme, "
-        "the CLI uses https.",
+        help="The API host to connect to",
     )
     @click.option(
         "--api-proxy",
