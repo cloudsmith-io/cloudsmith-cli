@@ -170,7 +170,6 @@ banned-module-level-imports = [
 'cloudsmith_cli/core/api/*' = ["TID253"]
 'cloudsmith_cli/core/credentials/oidc/exchange.py' = ["TID253"]
 'cloudsmith_cli/core/download.py' = ["TID253"]
-'cloudsmith_cli/core/keyring.py' = ["TID253"]
 'cloudsmith_cli/core/mcp/*' = ["TID253"]
 'cloudsmith_cli/core/rest.py' = ["TID253"]
 'cloudsmith_cli/core/session.py' = ["TID253"]

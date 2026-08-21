@@ -2,9 +2,6 @@ import getpass
 import os
 from datetime import datetime, timedelta, timezone
 
-import keyring
-from keyring.errors import KeyringError
-
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 
 
@@ -47,12 +44,17 @@ def _prepare_keyring_backend():
     them through the library's own documented mechanism. Apply them here
     instead, once the backend has been resolved.
     """
+    import keyring
+
     _sync_keyring_backend_env()
     _sync_keyring_property_env()
     keyring.get_keyring().set_properties_from_env()
 
 
 def _get_value(key):
+    import keyring
+    from keyring.errors import KeyringError
+
     _prepare_keyring_backend()
     username = _get_username()
     try:
@@ -62,6 +64,8 @@ def _get_value(key):
 
 
 def _set_value(key, value):
+    import keyring
+
     _prepare_keyring_backend()
     username = _get_username()
     keyring.set_password(key, username, value)
@@ -142,6 +146,9 @@ def store_sso_tokens(api_host, access_token, refresh_token):
 
 
 def _delete_value(key):
+    import keyring
+    from keyring.errors import KeyringError
+
     _prepare_keyring_backend()
     username = _get_username()
     try:
@@ -178,6 +185,8 @@ OIDC_TOKEN_KEY = "cloudsmith_cli-oidc_token-{api_host}-{org}-{service_slug}"
 
 def store_oidc_token(api_host, org, service_slug, token_data):
     """Store OIDC token in keyring if enabled."""
+    from keyring.errors import KeyringError
+
     if not should_use_keyring():
         return False
 
