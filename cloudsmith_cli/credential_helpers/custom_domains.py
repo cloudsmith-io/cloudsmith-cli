@@ -302,8 +302,6 @@ def get_custom_domains(
 
     logger.debug("Fetching custom domains from API for %s", org)
 
-    # The API modules pull in the cloudsmith_api SDK (~70ms). Import them
-    # here so that a cache hit skips that cost.
     from ..core.api.exceptions import ApiException
     from ..core.api.init import initialise_api
     from ..core.api.orgs import list_custom_domains
