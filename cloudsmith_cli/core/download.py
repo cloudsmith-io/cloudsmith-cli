@@ -12,7 +12,7 @@ from rich.table import Table
 from . import ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
-from .rest import create_requests_session
+from .session import create_requests_session
 
 
 def resolve_auth(

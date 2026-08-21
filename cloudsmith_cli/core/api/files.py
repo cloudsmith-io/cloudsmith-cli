@@ -8,7 +8,7 @@ import requests
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from .. import ratelimits
-from ..rest import create_requests_session
+from ..session import create_requests_session
 from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client

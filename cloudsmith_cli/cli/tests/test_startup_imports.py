@@ -9,7 +9,7 @@ import json
 import subprocess
 import sys
 
-HEAVY_PREFIXES = ("mcp", "httpx")
+HEAVY_PREFIXES = ("mcp", "httpx", "cloudsmith_api", "requests")
 
 
 def modules_loaded_by_cli_import():
