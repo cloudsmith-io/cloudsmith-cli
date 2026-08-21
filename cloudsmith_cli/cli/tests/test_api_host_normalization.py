@@ -46,6 +46,12 @@ class TestOptionsApiHost:
         opts.api_host = None
         assert opts.api_host is None
 
+    def test_blank_value_keeps_the_current_host(self):
+        opts = Options()
+        opts.api_host = "https://api.internal.example"
+        opts.api_host = "   "
+        assert opts.api_host == "https://api.internal.example"
+
 
 class TestGuardWithNormalizedHost:
     def test_untrusted_host_without_scheme_still_raises(self, tmp_path, monkeypatch):

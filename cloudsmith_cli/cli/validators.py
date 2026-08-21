@@ -93,14 +93,15 @@ def normalize_api_host(value):
     """Normalise a user-supplied API host into a canonical URL.
 
     Removes surrounding whitespace and trailing slashes. Adds the https
-    scheme when the value does not give one.
+    scheme when the value does not give one. Returns None for a blank value,
+    so a blank value does not replace a host that is already set.
     """
     if not isinstance(value, str):
         return value
 
     host = value.strip()
     if not host:
-        return host
+        return None
 
     if not API_HOST_SCHEME_RE.match(host):
         host = f"{DEFAULT_API_HOST_SCHEME}://{host.lstrip('/')}"

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- The API host is now normalised, so a loosely-written value works. The CLI removes surrounding whitespace and trailing slashes, and adds the `https` scheme when the value gives none. `api.cloudsmith.io`, `//api.cloudsmith.io/` and ` https://api.cloudsmith.io/ ` all resolve to `https://api.cloudsmith.io`. This applies to `--api-host`, `CLOUDSMITH_API_HOST` and the `api_host` config key, and it keeps the keyring token key stable between `cloudsmith auth` and `cloudsmith logout`. The allow-list check on `api_host` values from a directory-relative config file runs against the normalised value, so a scheme-less Cloudsmith host is no longer rejected.
+- The API host is now normalised, so a loosely-written value works. The CLI removes surrounding whitespace and trailing slashes, and adds the `https` scheme when the value gives none. `api.cloudsmith.io`, `//api.cloudsmith.io/` and ` https://api.cloudsmith.io/ ` all resolve to `https://api.cloudsmith.io`. This applies to `--api-host`, `CLOUDSMITH_API_HOST` and the `api_host` config key, and it keeps the keyring token key stable between `cloudsmith auth` and `cloudsmith logout`. The allow-list check on `api_host` values from a directory-relative config file runs against the normalised value, so a scheme-less Cloudsmith host is no longer rejected. If your `api_host` had a trailing slash, the keyring key changes and you must run `cloudsmith auth` again.
 
 ## [1.24.0] - 2026-08-18
 
