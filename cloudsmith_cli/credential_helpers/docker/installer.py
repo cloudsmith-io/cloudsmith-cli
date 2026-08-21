@@ -217,10 +217,10 @@ class DockerInstaller:
 
         changed = merge_json_file(config_path, mutate)
         if changed:
-            for host in hosts:
-                actions.append(
-                    f"set credHelpers[{host!r}]={self.HELPER_VALUE!r} in {config_path}"
-                )
+            actions.extend(
+                f"set credHelpers[{host!r}]={self.HELPER_VALUE!r} in {config_path}"
+                for host in hosts
+            )
         else:
             actions.append(f"config.json already up to date ({config_path})")
 

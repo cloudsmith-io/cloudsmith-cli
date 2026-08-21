@@ -146,8 +146,8 @@ show_missing = true
 directory = "reports/coverage"
 
 [tool.ruff.lint]
-extend-select = ["FA", "TC", "TID253"]
-ignore = ["TRY002", "BLE001"]
+extend-select = ["C4", "FA", "PERF", "TC", "TID253"]
+ignore = ["TRY002", "BLE001", "PERF203"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 # These modules dominate CLI startup time. Import them inside functions,

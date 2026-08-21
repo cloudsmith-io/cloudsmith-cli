@@ -22,7 +22,7 @@ def make_table(headers=None, rows=None):
     assert all(len(row) == len(headers) for row in rows)
 
     plain_headers = [strip_ansi(str(v)) for v in headers]
-    plain_rows = [row for row in [strip_ansi(str(v)) for v in rows]]
+    plain_rows = [strip_ansi(str(v)) for v in rows]
 
     plain_headers = []
     column_widths = []

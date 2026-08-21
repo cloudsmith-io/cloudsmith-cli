@@ -18,13 +18,8 @@ def get_packages_api():
 
 def make_create_payload(**kwargs):
     """Create payload for upload/check-upload operations."""
-    payload = {}
     # Add non-empty arguments
-    for k, v in kwargs.items():
-        if v is not None:
-            payload[k] = v
-
-    return payload
+    return {k: v for k, v in kwargs.items() if v is not None}
 
 
 def create_package(package_format, owner, repo, **kwargs):
@@ -266,7 +261,7 @@ def get_package_formats():
         # Create a dummy instance so we can check if a parameter is required.
         # As with the rest of this function, this is obviously hacky. We'll
         # figure out a way to pull this information in from the API later.
-        dummy_kwargs = {k: "dummy" for k in cls.swagger_types}
+        dummy_kwargs = dict.fromkeys(cls.swagger_types, "dummy")
         instance = cls(**dummy_kwargs)
 
         for k, v in cls.swagger_types.items():
