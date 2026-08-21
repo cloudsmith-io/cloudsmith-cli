@@ -312,7 +312,10 @@ def initialise_session(f):
     """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
     @click.option(
-        "--api-host", envvar="CLOUDSMITH_API_HOST", help="The API host to connect to."
+        "--api-host",
+        envvar="CLOUDSMITH_API_HOST",
+        help="The API host to connect to. If you do not give a scheme, "
+        "the CLI uses https.",
     )
     @click.option(
         "--api-proxy",
