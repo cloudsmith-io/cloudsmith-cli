@@ -87,7 +87,7 @@ def _collect_warnings(keyring_only, config_only):
     "--api-host",
     envvar="CLOUDSMITH_API_HOST",
     default=None,
-    help="The API host to clear keyring tokens for."
+    help="The API host to clear keyring tokens for.",
 )
 @click.option(
     "--keyring-only",
