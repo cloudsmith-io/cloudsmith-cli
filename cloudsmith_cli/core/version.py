@@ -15,7 +15,6 @@ def get_version_info():
 
 def parse_version(version):
     """Get a version string as a VersionInfo object."""
-    # semver costs ~6ms to import and only version comparisons need it.
     import semver
 
     return semver.parse_version_info(version)

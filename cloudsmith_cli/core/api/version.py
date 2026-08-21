@@ -10,7 +10,6 @@ def get_version():
 
 def get_version_info():
     """Get the API version as VersionInfo object."""
-    # semver costs ~6ms to import and only version comparisons need it.
     import semver
 
     return semver.parse_version_info(get_version())
