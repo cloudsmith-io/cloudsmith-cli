@@ -24,6 +24,10 @@ hiddenimports += collect_submodules(
     "mcp",
     filter=lambda name: name != "mcp.cli" and not name.startswith("mcp.cli."),
 )
+# Command modules load lazily via cli/commands/registry.py, so the static
+# import graph from entry.py no longer reaches them. Collect the whole
+# package; the Analysis excludes drop the test packages.
+hiddenimports += collect_submodules("cloudsmith_cli")
 hiddenimports += collect_submodules("keyring.backends")
 hiddenimports += collect_submodules("keyrings.cryptfile")
 hiddenimports += collect_submodules("keyrings.alt")
@@ -56,7 +60,9 @@ a = Analysis(
         "isort",
         "mcp.cli",
         "cloudsmith_cli.cli.tests",
+        "cloudsmith_cli.conftest",
         "cloudsmith_cli.core.tests",
+        "cloudsmith_cli.credential_helpers.pnpm.tests",
         "keyrings.cryptfile.tests",
     ],
 )
