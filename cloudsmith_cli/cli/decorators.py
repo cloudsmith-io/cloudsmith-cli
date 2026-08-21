@@ -355,8 +355,6 @@ def initialise_session(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
-        # The session module pulls in requests (~30ms). Import it here so
-        # that commands without a session skip that cost.
         from ..core.session import create_requests_session as _create_session
 
         opts = config.get_or_create_options(ctx)
@@ -580,8 +578,6 @@ def initialise_api(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
-        # The cloudsmith_api SDK costs ~70ms to import. Import it here so
-        # that only the commands that call the API pay that cost.
         from ..core.api.init import initialise_api as _initialise_api
 
         opts = config.get_or_create_options(ctx)

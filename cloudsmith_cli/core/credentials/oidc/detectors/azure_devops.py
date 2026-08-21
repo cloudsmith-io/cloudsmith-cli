@@ -45,8 +45,6 @@ class AzureDevOpsDetector(EnvironmentDetector):
         separator = "&" if "?" in request_uri else "?"
         url = f"{request_uri}{separator}api-version={API_VERSION}"
 
-        # The session module pulls in requests (~30ms). Import it here
-        # so that only a detector match pays that cost.
         from ....session import create_requests_session as create_session
 
         session = self.context.session or create_session()
