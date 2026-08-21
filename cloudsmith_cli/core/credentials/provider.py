@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from .models import CredentialContext, CredentialResult
+if TYPE_CHECKING:
+    from .models import CredentialContext, CredentialResult
 
 
 class CredentialProvider(ABC):
