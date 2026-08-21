@@ -12,10 +12,10 @@ import sys
 HEAVY_PREFIXES = ("mcp", "httpx", "cloudsmith_api", "requests")
 
 
-def modules_loaded_by_cli_import():
+def modules_loaded_by_import(module_name="cloudsmith_cli.cli.commands.main"):
     code = (
         "import json, sys\n"
-        "import cloudsmith_cli.cli.commands.main\n"
+        f"import {module_name}\n"
         "print(json.dumps(sorted(sys.modules)))\n"
     )
     result = subprocess.run(
@@ -27,14 +27,16 @@ def modules_loaded_by_cli_import():
     return json.loads(result.stdout)
 
 
-def test_cli_import_does_not_load_heavy_modules():
-    modules = modules_loaded_by_cli_import()
-    heavy = [
+def heavy_modules_in(modules):
+    return [
         name
         for name in modules
         if any(name == p or name.startswith(p + ".") for p in HEAVY_PREFIXES)
     ]
-    assert heavy == []
+
+
+def test_cli_import_does_not_load_heavy_modules():
+    assert heavy_modules_in(modules_loaded_by_import()) == []
 
 
 def test_cli_import_does_not_load_command_modules():
@@ -42,7 +44,12 @@ def test_cli_import_does_not_load_command_modules():
     allowed = {package + "main", package + "registry"}
     loaded = [
         name
-        for name in modules_loaded_by_cli_import()
+        for name in modules_loaded_by_import()
         if name.startswith(package) and name not in allowed
     ]
     assert loaded == []
+
+
+def test_docker_helper_import_does_not_load_heavy_modules():
+    modules = modules_loaded_by_import("cloudsmith_cli.credential_helpers.docker")
+    assert heavy_modules_in(modules) == []
