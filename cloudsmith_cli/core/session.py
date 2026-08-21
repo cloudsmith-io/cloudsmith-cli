@@ -4,8 +4,14 @@ import sys
 import time
 
 import requests
+import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# Every insecure request (-S/--without-api-ssl-verify) flows through a
+# session from this module, so the warning filter applies here instead of
+# the package __init__, which must stay free of the urllib3 import.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class RetryWithCallback(Retry):

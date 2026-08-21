@@ -7,8 +7,6 @@ from datetime import date, datetime
 
 import click
 from click_spinner import spinner
-from rich.console import Console
-from rich.table import Table
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
@@ -74,6 +72,11 @@ def pretty_print_table(headers, rows, title=None):
 
 def rich_print_table(headers, rows, title=None, show_lines=False):
     """Rich table from headers and rows."""
+    # rich costs ~35ms to import. Import it here so that only the
+    # commands that render a rich table pay that cost.
+    from rich.console import Console
+    from rich.table import Table
+
     console = Console()
     table = Table(title=title, show_lines=show_lines)
 
