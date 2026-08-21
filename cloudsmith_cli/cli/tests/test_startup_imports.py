@@ -15,7 +15,7 @@ HEAVY_PREFIXES = ("mcp", "httpx")
 def modules_loaded_by_cli_import():
     code = (
         "import json, sys\n"
-        "import cloudsmith_cli.cli.commands\n"
+        "import cloudsmith_cli.cli.commands.main\n"
         "print(json.dumps(sorted(sys.modules)))\n"
     )
     result = subprocess.run(
@@ -35,3 +35,14 @@ def test_cli_import_does_not_load_heavy_modules():
         if any(name == p or name.startswith(p + ".") for p in HEAVY_PREFIXES)
     ]
     assert heavy == []
+
+
+def test_cli_import_does_not_load_command_modules():
+    package = "cloudsmith_cli.cli.commands."
+    allowed = {package + "main", package + "registry"}
+    loaded = [
+        name
+        for name in modules_loaded_by_cli_import()
+        if name.startswith(package) and name not in allowed
+    ]
+    assert loaded == []
