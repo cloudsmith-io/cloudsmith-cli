@@ -16,7 +16,6 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from ..core.mcp import server
 from ..core.rest import create_requests_session as _create_session
 from . import config, utils
 
@@ -629,6 +628,10 @@ def initialise_mcp(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
+        # The mcp dependency costs ~1s to import. Import it here so that
+        # only the mcp commands pay that cost.
+        from ..core.mcp import server
+
         opts = kwargs.get("opts")
 
         all_tools = kwargs.pop("all_tools")
