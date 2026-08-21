@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING
 import click
 import json5
 
-# The mcp dependency costs ~1s to import. The runtime import happens in the
-# initialise_mcp decorator; these names are only used in annotations.
 if TYPE_CHECKING:
     from ...core.mcp import server
     from ...core.mcp.data import OpenAPITool
