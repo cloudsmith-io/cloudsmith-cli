@@ -40,9 +40,11 @@ def _check_extra_keyring_backends(failed: list) -> None:
     import keyring.backend
 
     discovered = [type(b).__module__ for b in keyring.backend.get_all_keyring()]
-    for module_prefix in ("keyrings.cryptfile", "keyrings.alt"):
-        if not any(name.startswith(module_prefix) for name in discovered):
-            failed.append(f"{module_prefix}: not discovered via entry points")
+    failed.extend(
+        f"{module_prefix}: not discovered via entry points"
+        for module_prefix in ("keyrings.cryptfile", "keyrings.alt")
+        if not any(name.startswith(module_prefix) for name in discovered)
+    )
 
 
 def _selftest() -> int:
