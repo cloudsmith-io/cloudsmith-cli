@@ -106,8 +106,7 @@ class TestGetToken:
             session = boto3.Session(
                 aws_access_key_id="test", aws_secret_access_key="test"
             )
-            with mock.patch.object(detector, "_session", session):
-                with mock.patch.object(
+            with mock.patch.object(detector, "_session", session), mock.patch.object(
                     session, "client", return_value=fake_sts
                 ) as client:
                     assert detector.get_token() == "jwt"
