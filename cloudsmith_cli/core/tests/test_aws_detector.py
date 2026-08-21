@@ -106,11 +106,11 @@ class TestGetToken:
             session = boto3.Session(
                 aws_access_key_id="test", aws_secret_access_key="test"
             )
-            with mock.patch.object(detector, "_session", session):
-                with mock.patch.object(
-                    session, "client", return_value=fake_sts
-                ) as client:
-                    assert detector.get_token() == "jwt"
+            with (
+                mock.patch.object(detector, "_session", session),
+                mock.patch.object(session, "client", return_value=fake_sts) as client,
+            ):
+                assert detector.get_token() == "jwt"
         (service_name,), call_kwargs = client.call_args
         assert service_name == "sts"
         return call_kwargs["region_name"]

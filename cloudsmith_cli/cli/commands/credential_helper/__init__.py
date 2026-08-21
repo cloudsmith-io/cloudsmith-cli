@@ -9,6 +9,7 @@ that follow their respective credential helper protocols.
 import click
 
 from ..main import main
+from .cargo import cargo as cargo_cmd
 from .docker import docker as docker_cmd
 from .generic import generic as generic_cmd
 from .manage import install_cmd, list_cmd, uninstall_cmd
@@ -45,5 +46,6 @@ credential_helper.add_command(generic_cmd, name="generic")
 credential_helper.add_command(install_cmd, name="install")
 credential_helper.add_command(uninstall_cmd, name="uninstall")
 credential_helper.add_command(list_cmd, name="list")
+credential_helper.add_command(cargo_cmd, name="cargo")
 
 main.add_command(credential_helper, name="credential-helper")

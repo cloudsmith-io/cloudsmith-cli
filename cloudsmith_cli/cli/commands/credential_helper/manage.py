@@ -14,6 +14,7 @@ import click
 
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
@@ -31,6 +32,7 @@ from ...decorators import (
 _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
     "pnpm": PNPMInstaller,
+    "cargo": CargoInstaller,
 }
 
 
