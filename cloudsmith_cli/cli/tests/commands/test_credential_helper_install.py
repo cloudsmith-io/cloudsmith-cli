@@ -810,7 +810,7 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
         ]
 
     with patch(
-        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+        "cloudsmith_cli.core.api.orgs.list_custom_domains",
         _fake_list,
     ):
         result = get_custom_domains(
