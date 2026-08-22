@@ -38,6 +38,40 @@ def _sync_keyring_property_env():
         os.environ["KEYRING_PROPERTY_KEYRING_KEY"] = alias_value
 
 
+def _expand_path(value):
+    return os.path.expanduser(os.path.expandvars(value))
+
+
+def _sync_keyring_file_path_env():
+    """Allow CLOUDSMITH_KEYRING_FILE_PATH to alias KEYRING_PROPERTY_FILE_PATH."""
+    alias_value = os.environ.get("CLOUDSMITH_KEYRING_FILE_PATH")
+    if alias_value and "KEYRING_PROPERTY_FILE_PATH" not in os.environ:
+        os.environ["KEYRING_PROPERTY_FILE_PATH"] = _expand_path(alias_value)
+
+
+def _apply_keyring_file_location(backend):
+    """Set the storage file location before other properties apply.
+
+    The cryptfile keyring_key setter opens the storage file at
+    assignment time. Set the file location first, so the backend opens
+    the correct file. A file path env var takes precedence over
+    CLOUDSMITH_KEYRING_DIR. With the directory, the backend keeps its
+    default filename. The function ignores backends without a storage
+    file.
+    """
+    file_path = os.environ.get("KEYRING_PROPERTY_FILE_PATH")
+    if file_path:
+        backend.file_path = file_path
+        return
+    dir_value = os.environ.get("CLOUDSMITH_KEYRING_DIR")
+    if not dir_value:
+        return
+    filename = getattr(backend, "filename", None)
+    if not filename:
+        return
+    backend.file_path = os.path.join(_expand_path(dir_value), filename)
+
+
 def _prepare_keyring_backend():
     """Resolve env var aliases and apply them to the keyring backend.
 
@@ -49,7 +83,10 @@ def _prepare_keyring_backend():
     """
     _sync_keyring_backend_env()
     _sync_keyring_property_env()
-    keyring.get_keyring().set_properties_from_env()
+    _sync_keyring_file_path_env()
+    backend = keyring.get_keyring()
+    _apply_keyring_file_location(backend)
+    backend.set_properties_from_env()
 
 
 def _get_value(key):
