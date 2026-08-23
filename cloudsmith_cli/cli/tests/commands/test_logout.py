@@ -18,10 +18,11 @@ def runner():
 
 @pytest.fixture
 def mock_no_keyring_env():
-    """Ensure CLOUDSMITH_NO_KEYRING and CLOUDSMITH_API_KEY are not set."""
+    """Ensure CLOUDSMITH_NO_KEYRING, CLOUDSMITH_API_KEY and CLOUDSMITH_PROFILE are not set."""
     env = os.environ.copy()
     env.pop("CLOUDSMITH_NO_KEYRING", None)
     env.pop("CLOUDSMITH_API_KEY", None)
+    env.pop("CLOUDSMITH_PROFILE", None)
     with patch.dict(os.environ, env, clear=True):
         yield
 
@@ -49,7 +50,7 @@ class TestLogoutCommand:
 
         assert result.exit_code == 0
         mock_creds.clear_api_key.assert_called_once_with(CREDS_PATH)
-        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST)
+        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST, profile=None)
         assert "Removed credentials from:" in result.output
         assert "Removed SSO tokens from system keyring" in result.output
 

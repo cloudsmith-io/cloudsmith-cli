@@ -1,13 +1,15 @@
 import getpass
+import importlib
 import os
 from datetime import datetime, timedelta, timezone
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, Mock, patch
 
 import keyring
 import pytest
 from freezegun import freeze_time
 from keyring.errors import KeyringError
 
+from .. import keyring as core_keyring
 from ..keyring import (
     delete_sso_tokens,
     get_access_token,
@@ -233,6 +235,305 @@ class TestKeyring:
 
         assert result is False
         mock_set_password.assert_not_called()
+
+
+class TestProfileScopedKeys:
+    """Tests for profile-scoped keyring service names."""
+
+    api_host = "https://example.com"
+
+    def test_store_access_token_with_profile(self, mock_get_user, mock_set_password):
+        store_access_token(self.api_host, "access_token", profile="staging")
+
+        mock_set_password.assert_called_once_with(
+            "cloudsmith_cli-access_token-https://example.com-profile-staging",
+            "test_user",
+            "access_token",
+        )
+
+    def test_store_access_token_with_default_profile_uses_legacy_key(
+        self, mock_get_user, mock_set_password
+    ):
+        store_access_token(self.api_host, "access_token", profile="default")
+
+        mock_set_password.assert_called_once_with(
+            "cloudsmith_cli-access_token-https://example.com",
+            "test_user",
+            "access_token",
+        )
+
+    def test_get_access_token_with_profile(self, mock_get_user, mock_get_password):
+        mock_get_password.return_value = "access_token"
+
+        assert get_access_token(self.api_host, profile="staging") == "access_token"
+        mock_get_password.assert_called_once_with(
+            "cloudsmith_cli-access_token-https://example.com-profile-staging",
+            "test_user",
+        )
+
+    def test_get_refresh_token_with_profile(self, mock_get_user, mock_get_password):
+        mock_get_password.return_value = "refresh_token"
+
+        assert get_refresh_token(self.api_host, profile="staging") == "refresh_token"
+        mock_get_password.assert_called_once_with(
+            "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
+            "test_user",
+        )
+
+    @freeze_time("2024-06-01 10:00:00")
+    def test_store_sso_tokens_with_profile(self, mock_get_user, mock_set_password):
+        env = os.environ.copy()
+        env.pop("CLOUDSMITH_NO_KEYRING", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = store_sso_tokens(
+                self.api_host, "access_token", "refresh_token", profile="staging"
+            )
+
+        assert result is True
+        assert mock_set_password.call_count == 3
+        mock_set_password.assert_any_call(
+            "cloudsmith_cli-access_token-https://example.com-profile-staging",
+            "test_user",
+            "access_token",
+        )
+        mock_set_password.assert_any_call(
+            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
+            "-profile-staging",
+            "test_user",
+            ANY,
+        )
+        mock_set_password.assert_any_call(
+            "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
+            "test_user",
+            "refresh_token",
+        )
+
+    def test_has_sso_tokens_with_profile(self, mock_get_user, mock_get_password):
+        mock_get_password.return_value = "some_token"
+
+        assert has_sso_tokens(self.api_host, profile="staging") is True
+        first_key = mock_get_password.call_args_list[0].args[0]
+        assert first_key == (
+            "cloudsmith_cli-access_token-https://example.com-profile-staging"
+        )
+
+    def test_delete_sso_tokens_with_profile_removes_legacy_entries(
+        self, mock_get_user, mock_delete_password
+    ):
+        assert delete_sso_tokens(self.api_host, profile="staging") is True
+
+        deleted_keys = [call.args[0] for call in mock_delete_password.call_args_list]
+        assert deleted_keys == [
+            "cloudsmith_cli-access_token-https://example.com-profile-staging",
+            "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
+            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
+            "-profile-staging",
+            "cloudsmith_cli-access_token-https://example.com",
+            "cloudsmith_cli-refresh_token-https://example.com",
+            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
+        ]
+
+    def test_delete_sso_tokens_without_legacy_keeps_unscoped_entries(
+        self, mock_get_user, mock_delete_password
+    ):
+        assert (
+            delete_sso_tokens(self.api_host, profile="staging", include_legacy=False)
+            is True
+        )
+
+        deleted_keys = [call.args[0] for call in mock_delete_password.call_args_list]
+        assert deleted_keys == [
+            "cloudsmith_cli-access_token-https://example.com-profile-staging",
+            "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
+            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
+            "-profile-staging",
+        ]
+
+    def test_get_access_token_with_profile_falls_back_to_legacy_key(
+        self, mock_get_user, mock_get_password
+    ):
+        mock_get_password.side_effect = [None, "legacy_token"]
+
+        assert get_access_token(self.api_host, profile="staging") == "legacy_token"
+        requested_keys = [call.args[0] for call in mock_get_password.call_args_list]
+        assert requested_keys == [
+            "cloudsmith_cli-access_token-https://example.com-profile-staging",
+            "cloudsmith_cli-access_token-https://example.com",
+        ]
+
+    def test_get_access_token_with_default_profile_does_not_fall_back(
+        self, mock_get_user, mock_get_password
+    ):
+        mock_get_password.return_value = None
+
+        assert get_access_token(self.api_host, profile="default") is None
+        mock_get_password.assert_called_once_with(
+            "cloudsmith_cli-access_token-https://example.com", "test_user"
+        )
+
+    def test_get_refresh_token_with_profile_falls_back_to_legacy_key(
+        self, mock_get_user, mock_get_password
+    ):
+        mock_get_password.side_effect = [None, "legacy_refresh"]
+
+        assert get_refresh_token(self.api_host, profile="staging") == "legacy_refresh"
+        requested_keys = [call.args[0] for call in mock_get_password.call_args_list]
+        assert requested_keys == [
+            "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
+            "cloudsmith_cli-refresh_token-https://example.com",
+        ]
+
+    @freeze_time("2024-06-01 10:00:00")
+    def test_should_refresh_access_token_with_profile(
+        self, mock_get_user, mock_get_password
+    ):
+        mock_get_password.return_value = (
+            datetime.now(tz=timezone.utc) - timedelta(minutes=31)
+        ).isoformat()
+
+        assert should_refresh_access_token(self.api_host, profile="staging")
+        mock_get_password.assert_called_once_with(
+            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
+            "-profile-staging",
+            "test_user",
+        )
+
+
+def test_macos_keychain_imports_on_every_platform():
+    """The binary build imports every bundled module on Linux."""
+    module = importlib.import_module("cloudsmith_cli.core.macos_keychain")
+    result = module.update_generic_password(
+        "cloudsmith_cli-import-check", "nobody", "value"
+    )
+    assert result is False
+
+
+class FakeMacosBackend:
+    pass
+
+
+FakeMacosBackend.__module__ = "keyring.backends.macOS"
+
+
+class FakeChainerBackend:
+    def __init__(self, backends):
+        self.backends = backends
+
+
+class TestUpdateKeychainItemInPlace:
+    """Tests for the in-place update path that keeps the access control list."""
+
+    api_host = "https://example.com"
+
+    def test_set_value_skips_set_password_when_update_succeeds(
+        self, mock_get_user, mock_set_password
+    ):
+        with patch.object(
+            core_keyring, "_update_keychain_item_in_place", return_value=True
+        ):
+            store_access_token(self.api_host, "access_token")
+        mock_set_password.assert_not_called()
+
+    def test_set_value_falls_back_when_update_fails(
+        self, mock_get_user, mock_set_password
+    ):
+        with patch.object(
+            core_keyring, "_update_keychain_item_in_place", return_value=False
+        ):
+            store_access_token(self.api_host, "access_token")
+        mock_set_password.assert_called_once_with(
+            "cloudsmith_cli-access_token-https://example.com",
+            "test_user",
+            "access_token",
+        )
+
+    def test_update_returns_false_off_macos(self, mock_get_keyring):
+        importer = Mock()
+        with (
+            patch("sys.platform", "linux"),
+            patch.object(core_keyring, "_import_macos_keychain", importer),
+        ):
+            result = core_keyring._update_keychain_item_in_place(
+                "service", "user", "value"
+            )
+        assert result is False
+        importer.assert_not_called()
+
+    def test_update_returns_false_for_non_macos_backend(self, mock_get_keyring):
+        importer = Mock()
+        with (
+            patch("sys.platform", "darwin"),
+            patch.object(core_keyring, "_import_macos_keychain", importer),
+        ):
+            result = core_keyring._update_keychain_item_in_place(
+                "service", "user", "value"
+            )
+        assert result is False
+        importer.assert_not_called()
+
+    def test_update_uses_macos_module_for_macos_backend(self, mock_get_keyring):
+        mock_get_keyring.return_value = FakeMacosBackend()
+        macos_module = Mock()
+        macos_module.update_generic_password.return_value = True
+        with (
+            patch("sys.platform", "darwin"),
+            patch.object(
+                core_keyring, "_import_macos_keychain", return_value=macos_module
+            ),
+        ):
+            result = core_keyring._update_keychain_item_in_place(
+                "service", "user", "value"
+            )
+        assert result is True
+        macos_module.update_generic_password.assert_called_once_with(
+            "service", "user", "value"
+        )
+
+    def test_update_uses_macos_module_when_chainer_delegates_to_macos(
+        self, mock_get_keyring
+    ):
+        mock_get_keyring.return_value = FakeChainerBackend([FakeMacosBackend(), Mock()])
+        macos_module = Mock()
+        macos_module.update_generic_password.return_value = True
+        with (
+            patch("sys.platform", "darwin"),
+            patch.object(
+                core_keyring, "_import_macos_keychain", return_value=macos_module
+            ),
+        ):
+            result = core_keyring._update_keychain_item_in_place(
+                "service", "user", "value"
+            )
+        assert result is True
+        macos_module.update_generic_password.assert_called_once_with(
+            "service", "user", "value"
+        )
+
+    def test_update_returns_false_when_chainer_prefers_other_backend(
+        self, mock_get_keyring
+    ):
+        mock_get_keyring.return_value = FakeChainerBackend([Mock(), FakeMacosBackend()])
+        importer = Mock()
+        with (
+            patch("sys.platform", "darwin"),
+            patch.object(core_keyring, "_import_macos_keychain", importer),
+        ):
+            result = core_keyring._update_keychain_item_in_place(
+                "service", "user", "value"
+            )
+        assert result is False
+        importer.assert_not_called()
+
+    def test_update_returns_false_when_module_unavailable(self, mock_get_keyring):
+        mock_get_keyring.return_value = FakeMacosBackend()
+        with (
+            patch("sys.platform", "darwin"),
+            patch.object(core_keyring, "_import_macos_keychain", return_value=None),
+        ):
+            result = core_keyring._update_keychain_item_in_place(
+                "service", "user", "value"
+            )
+        assert result is False
 
 
 class TestShouldUseKeyring:
