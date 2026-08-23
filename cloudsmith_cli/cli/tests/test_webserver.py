@@ -1,10 +1,13 @@
 """Tests for the webserver module."""
 
+import contextlib
 from http.server import HTTPServer
 from unittest.mock import MagicMock, PropertyMock, patch
 
+import click
 import pytest
 
+from ...core.api.exceptions import ApiException
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 
 
@@ -163,3 +166,181 @@ class TestAuthenticationWebRequestHandlerKeyring:
                 mock_handler.server_instance.sso_access_token
                 == "sso_token_for_direct_use"
             )
+
+
+class TestAuthenticationWebRequestHandlerResponse:
+    """Tests for how responses are written."""
+
+    def test_content_length_is_sent(self):
+        """Verify a length is sent so the client can render before the socket closes."""
+        with patch.object(
+            AuthenticationWebRequestHandler, "__init__", lambda *args, **kwargs: None
+        ):
+            handler = AuthenticationWebRequestHandler.__new__(
+                AuthenticationWebRequestHandler
+            )
+            handler.wfile = MagicMock()
+
+            with (
+                patch.object(handler, "send_response"),
+                patch.object(handler, "send_header") as mock_send_header,
+                patch.object(handler, "end_headers"),
+            ):
+                handler._return_response(message="hello")
+
+                headers = dict(call.args for call in mock_send_header.call_args_list)
+                assert headers["Content-Length"] == "5"
+                assert handler.responded is True
+
+
+class TestAuthenticationWebRequestHandlerTwoFactor:
+    """Tests for the 2FA prompt retry behaviour."""
+
+    @pytest.fixture
+    def two_factor_handler(self):
+        """Create a handler that receives a two-factor token from the IDP."""
+        with patch.object(
+            AuthenticationWebRequestHandler, "__init__", lambda *args, **kwargs: None
+        ):
+            handler = AuthenticationWebRequestHandler.__new__(
+                AuthenticationWebRequestHandler
+            )
+            handler.server_instance = MagicMock()
+            handler.refresh_api_on_success = False
+            handler.session = MagicMock()
+            handler.debug = False
+            handler.responded = False
+            return handler
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _patched(handler, exchange_side_effect, prompt_side_effect):
+        """Patch the 2FA collaborators, recording call order on one manager mock."""
+        manager = MagicMock()
+        with (
+            patch(
+                "cloudsmith_cli.cli.webserver.exchange_2fa_token",
+                side_effect=exchange_side_effect,
+            ) as mock_exchange,
+            patch("click.prompt", side_effect=prompt_side_effect) as mock_prompt,
+            patch("cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=True),
+            patch.object(handler, "_return_success_response") as mock_success,
+            patch.object(handler, "_return_error_response") as mock_error,
+            patch.object(handler, "_return_two_factor_response") as mock_two_factor,
+            patch.object(
+                AuthenticationWebRequestHandler,
+                "query_data",
+                new_callable=PropertyMock,
+            ) as mock_query,
+            patch.object(
+                AuthenticationWebRequestHandler,
+                "api_host",
+                new_callable=PropertyMock,
+            ) as mock_host,
+        ):
+            mock_query.return_value = {"two_factor_token": "two_factor_token_123"}
+            mock_host.return_value = "https://api.cloudsmith.io"
+            # The real method sets this via _return_response; the mock replaces it.
+            mock_two_factor.side_effect = lambda: setattr(handler, "responded", True)
+            manager.attach_mock(mock_two_factor, "two_factor_page")
+            manager.attach_mock(mock_prompt, "prompt")
+            manager.attach_mock(mock_exchange, "exchange")
+            manager.attach_mock(mock_success, "success_page")
+            manager.attach_mock(mock_error, "error_page")
+            yield manager
+
+    def test_browser_told_to_return_to_terminal_before_prompt(self, two_factor_handler):
+        """Verify the browser gets a page before the terminal blocks on the prompt."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[("access_token_123", "refresh_token_123")],
+            prompt_side_effect=["123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            called = [name for name, _, _ in manager.mock_calls]
+            assert called.index("two_factor_page") < called.index("prompt")
+
+    def test_no_second_response_after_two_factor_page(self, two_factor_handler):
+        """Verify the completed request is not written to a second time."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[("access_token_123", "refresh_token_123")],
+            prompt_side_effect=["123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            manager.success_page.assert_not_called()
+            manager.error_page.assert_not_called()
+
+    def test_no_error_page_when_exchange_fails_after_response(self, two_factor_handler):
+        """Verify a failed exchange raises without writing a second response."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=ApiException(500),
+            prompt_side_effect=["123456"],
+        ) as manager:
+            with pytest.raises(ApiException):
+                two_factor_handler.do_GET()
+
+            manager.error_page.assert_not_called()
+
+    def test_invalid_code_prompts_again(self, two_factor_handler):
+        """Verify a rejected 2FA code prompts again instead of ending the command."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[
+                ApiException(401),
+                ("access_token_123", "refresh_token_123"),
+            ],
+            prompt_side_effect=["000000", "123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            assert manager.prompt.call_count == 2
+            assert manager.exchange.call_count == 2
+            assert (
+                two_factor_handler.server_instance.sso_access_token
+                == "access_token_123"
+            )
+
+    def test_prompts_are_unlimited(self, two_factor_handler):
+        """Verify rejections keep prompting rather than stopping at a limit."""
+        rejections = 25
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[ApiException(401)] * rejections
+            + [("access_token_123", "refresh_token_123")],
+            prompt_side_effect=["000000"] * rejections + ["123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            assert manager.prompt.call_count == rejections + 1
+            assert (
+                two_factor_handler.server_instance.sso_access_token
+                == "access_token_123"
+            )
+
+    def test_user_can_abort_the_prompt(self, two_factor_handler):
+        """Verify Ctrl-C at the prompt ends the command."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=ApiException(401),
+            prompt_side_effect=click.exceptions.Abort,
+        ) as manager:
+            with pytest.raises(click.exceptions.Abort):
+                two_factor_handler.do_GET()
+
+            manager.error_page.assert_not_called()
+
+    def test_server_error_does_not_retry(self, two_factor_handler):
+        """Verify a server-side failure raises without another prompt."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=ApiException(500),
+            prompt_side_effect=["123456"],
+        ) as manager:
+            with pytest.raises(ApiException):
+                two_factor_handler.do_GET()
+
+            assert manager.prompt.call_count == 1

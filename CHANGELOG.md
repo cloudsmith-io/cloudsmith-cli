@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
 
+### Fixed
+
+- `cloudsmith auth` now prompts again, for as long as you want, when the API rejects a 2FA token. A mistyped code ended the command, and the whole browser-based SAML exchange had to be repeated to get a new prompt. Press Ctrl-C to give up. Failures that a new code cannot fix, such as a server error, still end the command immediately.
+- SAML authentication errors now report what the API said, not just the HTTP status. `get_idp_url`, `exchange_2fa_token` and `refresh_access_token` discarded the `detail` field from the error body, so a failure rendered as `401 - Unauthorized` with the explanation left unread. This matters most at the 2FA prompt, where the detail is what separates a mistyped code from an expired session.
+- `cloudsmith auth` now tells you where the 2FA prompt is. The browser showed a blank page while the terminal waited for a code, and the terminal gave no warning that a code was needed. The browser now gets a page that sends you back to the terminal, and the terminal explains that the organization requires two-factor authentication before it prompts. Responses also carry a `Content-Length` header, without which the browser could not render the page until the request closed — that is, until after the prompt was answered.
+
 ## [1.24.0] - 2026-08-18
 
 ### Added
