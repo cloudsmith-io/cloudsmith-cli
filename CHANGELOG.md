@@ -7,21 +7,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-08-24
+
 ### Added
 
-- `CLOUDSMITH_KEYRING_FILE_PATH` is now accepted as an alias for `KEYRING_PROPERTY_FILE_PATH`, setting the exact file the bundled `keyrings.cryptfile`/`keyrings.alt` file backends store tokens in. If both are set, `KEYRING_PROPERTY_FILE_PATH` takes precedence. `~` and environment variables in the value are expanded.
-- `CLOUDSMITH_KEYRING_DIR` points the bundled file-based keyring backends at a directory; each backend keeps its default filename. Previously the only way to relocate these files was `XDG_DATA_HOME` (or the platform equivalent), which moves data for every XDG-aware application. A file path variable (`CLOUDSMITH_KEYRING_FILE_PATH` or `KEYRING_PROPERTY_FILE_PATH`) takes precedence over the directory. `~` and environment variables in the value are expanded.
-- Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
-
-### Fixed
-
-- `cloudsmith auth` now prompts again, for as long as you want, when the API rejects a 2FA token. A mistyped code ended the command, and the whole browser-based SAML exchange had to be repeated to get a new prompt. Press Ctrl-C to give up. Failures that a new code cannot fix, such as a server error, still end the command immediately.
-- SAML authentication errors now report what the API said, not just the HTTP status. `get_idp_url`, `exchange_2fa_token` and `refresh_access_token` discarded the `detail` field from the error body, so a failure rendered as `401 - Unauthorized` with the explanation left unread. This matters most at the 2FA prompt, where the detail is what separates a mistyped code from an expired session.
-- `cloudsmith auth` now tells you where the 2FA prompt is. The browser showed a blank page while the terminal waited for a code, and the terminal gave no warning that a code was needed. The browser now gets a page that sends you back to the terminal, and the terminal explains that the organization requires two-factor authentication before it prompts. Responses also carry a `Content-Length` header, without which the browser could not render the page until the request closed — that is, until after the prompt was answered.
+- Added Nix package and upstream support. Use `cloudsmith push nix` to upload Nix packages and `cloudsmith upstream nix` to manage Nix channel upstreams.
+- Added a pnpm credential helper. `cloudsmith credential-helper install pnpm` registers `pnpm-credential-cloudsmith` in the user-level `.npmrc`, using existing CLI credentials for Cloudsmith registries. It supports custom-domain discovery, additional `--domain` values, `--no-discover`, `--dry-run`, listing, and uninstalling.
+- Added `CLOUDSMITH_KEYRING_FILE_PATH` and `CLOUDSMITH_KEYRING_DIR` to relocate tokens stored by the bundled file-based keyring backends. An explicit file path takes precedence over the directory, and `KEYRING_PROPERTY_FILE_PATH` takes precedence over its Cloudsmith alias.
 
 ### Changed
 
-- The API host is now normalised, so a loosely-written value works. The CLI removes surrounding whitespace and trailing slashes, and adds the `https` scheme when the value gives none. `api.cloudsmith.io`, `//api.cloudsmith.io/` and ` https://api.cloudsmith.io/ ` all resolve to `https://api.cloudsmith.io`. This applies to `--api-host`, `CLOUDSMITH_API_HOST` and the `api_host` config key, and it keeps the keyring token key stable between `cloudsmith auth` and `cloudsmith logout`. The allow-list check on `api_host` values from a directory-relative config file runs against the normalised value, so a scheme-less Cloudsmith host is no longer rejected. If your `api_host` had a trailing slash, the keyring key changes and you must run `cloudsmith auth` again.
+- API hosts supplied by `--api-host`, `CLOUDSMITH_API_HOST`, or `api_host` are now normalised by trimming whitespace and trailing slashes and adding `https://` when no scheme is present. If a previously configured host ended in a slash, run `cloudsmith auth` again because its keyring key has changed.
+- Non-MCP commands now start faster by loading the MCP dependency only when an `mcp` command runs.
+
+### Fixed
+
+- Failed package synchronisation in JSON output mode now returns a machine-readable error containing the API's reason, status, and stage.
+- `cloudsmith entitlements list` now shows pagination details in human-readable output and correctly distinguishes the visible page from results retrieved with `--page-all`.
+- SAML authentication now directs users from the browser to the terminal for 2FA, retries rejected codes until cancelled, and includes API error details when authentication fails.
 
 ## [1.24.0] - 2026-08-18
 
