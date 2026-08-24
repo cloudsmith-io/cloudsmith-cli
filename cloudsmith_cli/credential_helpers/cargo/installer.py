@@ -23,40 +23,38 @@ from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_laun
 logger = logging.getLogger(__name__)
 
 
-def _docker_config_path() -> Path:
-    """Return the path to the Docker client configuration file.
+def _cargo_config_path() -> Path:
+    """Return the path to the Cargo client configuration file.
 
-    Respects the ``DOCKER_CONFIG`` environment variable; otherwise returns
-    the platform default ``~/.docker/config.json``.
+    Respects the ``CARGO_HOME`` environment variable; otherwise returns
+    the platform default ``~/.cargo/credentials.toml``.
     """
-    docker_config_env = os.environ.get("DOCKER_CONFIG")
-    if docker_config_env:
-        return Path(docker_config_env) / "config.json"
-    return Path.home() / ".docker" / "config.json"
+    cargo_home = os.environ.get("CARGO_HOME", Path.home() / ".cargo")
+    return Path(cargo_home) / "credentials.toml"
 
 
-class DockerInstaller:
-    """Manages installation of the Docker credential helper for Cloudsmith.
+class CargoInstaller:
+    """Manages installation of the Cargo credential helper for Cloudsmith.
 
     This installer writes a ``docker-credential-cloudsmith`` launcher binary
-    and patches ``~/.docker/config.json`` to route the configured registry
+    and patches ``~/.cargo/credentials.toml`` to route the configured registry
     hosts through the Cloudsmith credential helper.
 
     Usage::
 
-        installer = DockerInstaller()
+        installer = CargoInstaller()
         actions = installer.install(domains=["my-registry.example.com"])
         for action in actions:
             print(action)
     """
 
-    LAUNCHER_NAME = "docker-credential-cloudsmith"
-    TARGET_CMD = "cloudsmith credential-helper docker"
+    LAUNCHER_NAME = "cargo-credential-cloudsmith"
+    TARGET_CMD = "cloudsmith credential-helper cargo"
     HELPER_VALUE = "cloudsmith"
-    DEFAULT_HOST = "docker.cloudsmith.io"
+    DEFAULT_HOST = "cargo.cloudsmith.io"
 
-    name = "docker"
-    summary = "Docker credential helper for Cloudsmith registries"
+    name = "cargo"
+    summary = "Cargo credential helper for Cloudsmith registries"
 
     @classmethod
     def _resolve_target_cmd(cls) -> str:
@@ -70,7 +68,7 @@ class DockerInstaller:
         is quoted so a directory containing spaces still execs correctly.
         """
         if getattr(sys, "frozen", False):
-            return f'"{sys.executable}" credential-helper docker'
+            return f'"{sys.executable}" credential-helper cargo'
         return cls.TARGET_CMD
 
     def install(
@@ -88,7 +86,7 @@ class DockerInstaller:
         """Install the Docker credential helper.
 
         Writes the launcher binary and registers Cloudsmith registry hosts in
-        ``~/.docker/config.json``.
+        ``~/.cargo/credentials.toml``.
 
         Parameters
         ----------
@@ -97,7 +95,7 @@ class DockerInstaller:
             :func:`resolve_bin_dir` auto-detection.
         domains:
             Additional registry hostnames to configure (in addition to the
-            default ``docker.cloudsmith.io``).
+            default ``cargo.cloudsmith.io``).
         discover:
             When ``True`` (default), attempt to auto-discover Docker custom
             domains via the Cloudsmith API.  Discovery is best-effort and never
@@ -122,7 +120,7 @@ class DockerInstaller:
             *dry_run* is ``True``).
         """
         target_dir = resolve_bin_dir(bin_dir)
-        config_path = _docker_config_path()
+        config_path = _cargo_config_path()
 
         actions: list[str] = []
 
@@ -145,7 +143,7 @@ class DockerInstaller:
                 try:
                     discovered = get_format_domains(
                         org,
-                        BackendKind.DOCKER,
+                        BackendKind.CARGO,
                         credential=credential,
                         api_host=api_host,
                         refresh=refresh,
@@ -192,7 +190,9 @@ class DockerInstaller:
                 launcher_path = target_dir / self.LAUNCHER_NAME
             actions.append(f"would write launcher {launcher_path}")
 
-            would_change = merge_config_file(config_path, mutate, dry_run=True)
+            would_change = merge_config_file(
+                config_path, mutate, dry_run=True, format="toml"
+            )
             for host in hosts:
                 if would_change:
                     actions.append(
@@ -212,19 +212,19 @@ class DockerInstaller:
         )
         actions.append(f"wrote launcher {launcher_path}")
 
-        changed = merge_config_file(config_path, mutate)
+        changed = merge_config_file(config_path, mutate, format="toml")
         if changed:
             for host in hosts:
                 actions.append(
                     f"set credHelpers[{host!r}]={self.HELPER_VALUE!r} in {config_path}"
                 )
         else:
-            actions.append(f"config.json already up to date ({config_path})")
+            actions.append(f"credentials.toml already up to date ({config_path})")
 
         if not is_on_path(target_dir):
             actions.append(
                 f"WARNING: {target_dir} is not on PATH — "
-                "add it to your PATH so Docker can find docker-credential-cloudsmith"
+                "add it to your PATH so Cargo can find cargo-credential-cloudsmith"
             )
 
         return actions
@@ -232,10 +232,10 @@ class DockerInstaller:
     def uninstall(
         self, *, bin_dir: str | None = None, dry_run: bool = False
     ) -> list[str]:
-        """Uninstall the Docker credential helper.
+        """Uninstall the Cargo credential helper.
 
         Removes the launcher binary and strips Cloudsmith-managed entries from
-        ``~/.docker/config.json``.
+        ``~/.cargo/credentials.toml``.
 
         Parameters
         ----------
@@ -253,7 +253,7 @@ class DockerInstaller:
             Human-readable descriptions of actions taken (or planned).
         """
         target_dir = resolve_bin_dir(bin_dir)
-        config_path = _docker_config_path()
+        config_path = _cargo_config_path()
 
         def mutate(config: dict) -> None:
             helpers = config.get("credHelpers")
@@ -297,7 +297,7 @@ class DockerInstaller:
         else:
             actions.append(f"launcher not found at {launcher_path} (nothing to remove)")
 
-        changed = merge_config_file(config_path, mutate)
+        changed = merge_config_file(config_path, mutate, format="toml")
         if changed:
             actions.append(
                 f"removed credHelpers entries with value"
@@ -320,7 +320,7 @@ class DockerInstaller:
                 The :class:`~pathlib.Path` of the launcher if it exists,
                 else ``None``.
             ``"hosts"``
-                List of hostnames in ``config.json``'s ``credHelpers`` block
+                List of hostnames in ``credentials.toml``'s ``credHelpers`` block
                 whose value equals ``"cloudsmith"``.
         """
         target_dir = resolve_bin_dir()
@@ -332,7 +332,7 @@ class DockerInstaller:
         if launcher_path is not None and not launcher_path.exists():
             launcher_path = None
 
-        config_path = _docker_config_path()
+        config_path = _cargo_config_path()
         hosts: list[str] = []
         if config_path.exists():
             try:

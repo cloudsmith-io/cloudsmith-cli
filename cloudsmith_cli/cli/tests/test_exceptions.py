@@ -8,7 +8,6 @@ from cloudsmith_cli.cli.exceptions import get_401_error_hint
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.credentials.models import CredentialResult
 
-
 API_KEY_HINT = (
     "This usually means your API key is invalid, expired, or lacks access to this "
     "resource - check your credentials and try again."

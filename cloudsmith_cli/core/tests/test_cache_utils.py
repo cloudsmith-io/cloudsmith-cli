@@ -7,7 +7,7 @@ import json
 import os
 import stat
 
-from cloudsmith_cli.core.cache_utils import atomic_write_json, merge_json_file
+from cloudsmith_cli.core.cache_utils import atomic_write_json, merge_config_file
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -58,7 +58,7 @@ class TestAtomicWriteJson:
 
 
 # ---------------------------------------------------------------------------
-# merge_json_file
+# merge_config_file
 # ---------------------------------------------------------------------------
 
 
@@ -83,7 +83,7 @@ class TestMergeJsonFileForeignKeyPreservation:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(initial, f)
 
-        changed = merge_json_file(
+        changed = merge_config_file(
             path,
             _add_cred_helper("docker.cloudsmith.io"),
         )
@@ -104,7 +104,7 @@ class TestMergeJsonFileForeignKeyPreservation:
         def noop(data: dict) -> None:
             data["new_key"] = 3
 
-        merge_json_file(path, noop)
+        merge_config_file(path, noop)
         text = _read_text(path)
         assert text.index('"zzz"') < text.index('"aaa"'), "Key order must be preserved"
 
@@ -114,7 +114,7 @@ class TestMergeJsonFileCreatesMissingFile:
 
     def test_creates_file_when_missing(self, tmp_path):
         path = str(tmp_path / "subdir" / "config.json")
-        changed = merge_json_file(path, _add_cred_helper("docker.cloudsmith.io"))
+        changed = merge_config_file(path, _add_cred_helper("docker.cloudsmith.io"))
         assert changed is True
         assert os.path.exists(path)
         result = _read_json(path)
@@ -123,18 +123,18 @@ class TestMergeJsonFileCreatesMissingFile:
     def test_creates_parent_directory(self, tmp_path):
         path = str(tmp_path / "missing_dir" / "config.json")
         assert not os.path.exists(os.path.dirname(path))
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         assert os.path.isdir(os.path.dirname(path))
 
     def test_parent_dir_permissions(self, tmp_path):
         path = str(tmp_path / "newdir" / "config.json")
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         parent_perms = _perms(os.path.dirname(path))
         assert parent_perms == 0o700
 
     def test_file_permissions_after_create(self, tmp_path):
         path = str(tmp_path / "newdir" / "config.json")
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         assert _perms(path) == 0o600
 
 
@@ -147,7 +147,7 @@ class TestMergeJsonFileBackup:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(initial, f)
 
-        merge_json_file(path, _add_cred_helper("docker.cloudsmith.io"))
+        merge_config_file(path, _add_cred_helper("docker.cloudsmith.io"))
 
         bak_path = path + ".bak"
         assert os.path.exists(bak_path), ".bak file should exist after a change"
@@ -155,7 +155,7 @@ class TestMergeJsonFileBackup:
 
     def test_no_backup_when_file_missing(self, tmp_path):
         path = str(tmp_path / "config.json")
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         assert not os.path.exists(path + ".bak")
 
     def test_no_backup_when_no_change(self, tmp_path):
@@ -166,7 +166,7 @@ class TestMergeJsonFileBackup:
         def noop_already_set(data: dict) -> None:
             data.setdefault("credHelpers", {})["x"] = "cloudsmith"
 
-        changed = merge_json_file(path, noop_already_set)
+        changed = merge_config_file(path, noop_already_set)
         assert changed is False
         assert not os.path.exists(path + ".bak")
 
@@ -177,7 +177,7 @@ class TestMergeJsonFileBackup:
             json.dump({"auths": {}}, f)
         os.chmod(path, 0o644)
 
-        merge_json_file(path, _add_cred_helper("docker.cloudsmith.io"))
+        merge_config_file(path, _add_cred_helper("docker.cloudsmith.io"))
 
         bak_path = path + ".bak"
         assert os.path.exists(bak_path), ".bak must be created"
@@ -193,10 +193,10 @@ class TestMergeJsonFileIdempotent:
         path = str(tmp_path / "config.json")
         mutate = _add_cred_helper("docker.cloudsmith.io")
 
-        first = merge_json_file(path, mutate)
+        first = merge_config_file(path, mutate)
         assert first is True
 
-        second = merge_json_file(path, mutate)
+        second = merge_config_file(path, mutate)
         assert second is False
 
     def test_idempotent_no_overwrite_bak(self, tmp_path):
@@ -206,12 +206,12 @@ class TestMergeJsonFileIdempotent:
             json.dump(initial, f)
 
         mutate = _add_cred_helper("docker.cloudsmith.io")
-        merge_json_file(path, mutate)  # first: changes file, writes .bak
+        merge_config_file(path, mutate)  # first: changes file, writes .bak
 
         bak_path = path + ".bak"
         bak_mtime_after_first = os.path.getmtime(bak_path)
 
-        merge_json_file(path, mutate)  # second: no change
+        merge_config_file(path, mutate)  # second: no change
 
         bak_mtime_after_second = os.path.getmtime(bak_path)
         assert bak_mtime_after_first == bak_mtime_after_second, (
@@ -227,7 +227,7 @@ class TestMergeJsonFileDryRun:
         with open(path, "w", encoding="utf-8") as f:
             json.dump({}, f)
 
-        result = merge_json_file(path, _add_cred_helper("x"), dry_run=True)
+        result = merge_config_file(path, _add_cred_helper("x"), dry_run=True)
         assert result is True
 
     def test_dry_run_file_unchanged(self, tmp_path):
@@ -238,7 +238,7 @@ class TestMergeJsonFileDryRun:
             f.write(json.dumps({"existing": True}, indent=2) + "\n")
         original_text = _read_text(path)
 
-        merge_json_file(path, _add_cred_helper("x"), dry_run=True)
+        merge_config_file(path, _add_cred_helper("x"), dry_run=True)
 
         assert _read_text(path) == original_text, "dry_run must not modify the file"
 
@@ -247,7 +247,7 @@ class TestMergeJsonFileDryRun:
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"existing": True}, f)
 
-        merge_json_file(path, _add_cred_helper("x"), dry_run=True)
+        merge_config_file(path, _add_cred_helper("x"), dry_run=True)
         assert not os.path.exists(path + ".bak")
 
     def test_dry_run_returns_false_when_no_change(self, tmp_path):
@@ -259,12 +259,12 @@ class TestMergeJsonFileDryRun:
         def already_set(data: dict) -> None:
             data.setdefault("credHelpers", {})["x"] = "cloudsmith"
 
-        result = merge_json_file(path, already_set, dry_run=True)
+        result = merge_config_file(path, already_set, dry_run=True)
         assert result is False
 
     def test_dry_run_missing_file_no_creation(self, tmp_path):
         path = str(tmp_path / "ghost" / "config.json")
-        result = merge_json_file(path, _add_cred_helper("x"), dry_run=True)
+        result = merge_config_file(path, _add_cred_helper("x"), dry_run=True)
         assert result is True
         assert not os.path.exists(path)
         assert not os.path.exists(os.path.dirname(path))
@@ -278,7 +278,7 @@ class TestMergeJsonFileMalformedInput:
         with open(path, "w", encoding="utf-8") as f:
             f.write("not json")
 
-        changed = merge_json_file(path, _add_cred_helper("docker.cloudsmith.io"))
+        changed = merge_config_file(path, _add_cred_helper("docker.cloudsmith.io"))
         assert changed is True
         result = _read_json(path)
         assert result == {"credHelpers": {"docker.cloudsmith.io": "cloudsmith"}}
@@ -288,7 +288,7 @@ class TestMergeJsonFileMalformedInput:
         with open(path, "w", encoding="utf-8"):
             pass  # touch / create empty file
 
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         result = _read_json(path)
         assert "credHelpers" in result
 
@@ -297,7 +297,7 @@ class TestMergeJsonFileMalformedInput:
         with open(path, "w", encoding="utf-8") as f:
             json.dump([1, 2, 3], f)
 
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         result = _read_json(path)
         assert isinstance(result, dict)
         assert "credHelpers" in result
@@ -308,7 +308,7 @@ class TestMergeJsonFileStableSerialization:
 
     def test_output_format(self, tmp_path):
         path = str(tmp_path / "config.json")
-        merge_json_file(path, _add_cred_helper("docker.cloudsmith.io"))
+        merge_config_file(path, _add_cred_helper("docker.cloudsmith.io"))
         text = _read_text(path)
         expected = json.dumps(
             {"credHelpers": {"docker.cloudsmith.io": "cloudsmith"}},
@@ -319,7 +319,7 @@ class TestMergeJsonFileStableSerialization:
 
     def test_trailing_newline(self, tmp_path):
         path = str(tmp_path / "config.json")
-        merge_json_file(path, _add_cred_helper("x"))
+        merge_config_file(path, _add_cred_helper("x"))
         text = _read_text(path)
         assert text.endswith("\n")
 
@@ -330,7 +330,7 @@ class TestMergeJsonFileStableSerialization:
         mutate = _add_cred_helper(unicode_host)
 
         # First call: file is created (content changes → True)
-        first = merge_json_file(path, mutate)
+        first = merge_config_file(path, mutate)
         assert first is True
 
         # The written file must contain the raw Unicode character
@@ -347,7 +347,7 @@ class TestMergeJsonFileStableSerialization:
             os.path.getmtime(bak_path) if os.path.exists(bak_path) else None
         )
 
-        second = merge_json_file(path, mutate)
+        second = merge_config_file(path, mutate)
         assert second is False
 
         # .bak must not have been touched on the no-op call
@@ -364,12 +364,12 @@ class TestMergeJsonFileReturnValue:
 
     def test_returns_true_on_actual_write(self, tmp_path):
         path = str(tmp_path / "config.json")
-        result = merge_json_file(path, _add_cred_helper("x"))
+        result = merge_config_file(path, _add_cred_helper("x"))
         assert result is True
 
     def test_returns_false_on_no_change(self, tmp_path):
         path = str(tmp_path / "config.json")
         mutate = _add_cred_helper("x")
-        merge_json_file(path, mutate)
-        result = merge_json_file(path, mutate)
+        merge_config_file(path, mutate)
+        result = merge_config_file(path, mutate)
         assert result is False
