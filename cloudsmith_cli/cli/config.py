@@ -341,7 +341,7 @@ class Options:  # pylint: disable=too-many-public-methods
     @api_host.setter
     def api_host(self, value):
         """Set value for API host."""
-        self._set_option("api_host", value)
+        self._set_option("api_host", validators.normalize_api_host(value))
 
     @property
     def api_key(self):
