@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `CLOUDSMITH_KEYRING_FILE_PATH` is now accepted as an alias for `KEYRING_PROPERTY_FILE_PATH`, setting the exact file the bundled `keyrings.cryptfile`/`keyrings.alt` file backends store tokens in. If both are set, `KEYRING_PROPERTY_FILE_PATH` takes precedence. `~` and environment variables in the value are expanded.
+- `CLOUDSMITH_KEYRING_DIR` points the bundled file-based keyring backends at a directory; each backend keeps its default filename. Previously the only way to relocate these files was `XDG_DATA_HOME` (or the platform equivalent), which moves data for every XDG-aware application. A file path variable (`CLOUDSMITH_KEYRING_FILE_PATH` or `KEYRING_PROPERTY_FILE_PATH`) takes precedence over the directory. `~` and environment variables in the value are expanded.
 - Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
 
 ## [1.24.0] - 2026-08-18
