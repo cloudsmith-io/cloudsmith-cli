@@ -192,6 +192,27 @@ class TestAuthenticationWebRequestHandlerResponse:
                 assert headers["Content-Length"] == "5"
                 assert handler.responded is True
 
+    def test_none_message_defaults_to_empty_body(self):
+        """Verify a None response message does not crash response writing."""
+        with patch.object(
+            AuthenticationWebRequestHandler, "__init__", lambda *args, **kwargs: None
+        ):
+            handler = AuthenticationWebRequestHandler.__new__(
+                AuthenticationWebRequestHandler
+            )
+            handler.wfile = MagicMock()
+
+            with (
+                patch.object(handler, "send_response"),
+                patch.object(handler, "send_header") as mock_send_header,
+                patch.object(handler, "end_headers"),
+            ):
+                handler._return_response()
+
+                headers = dict(call.args for call in mock_send_header.call_args_list)
+                assert headers["Content-Length"] == "0"
+                handler.wfile.write.assert_called_once_with(b"")
+
 
 class TestAuthenticationWebRequestHandlerTwoFactor:
     """Tests for the 2FA prompt retry behaviour."""
@@ -326,7 +347,7 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
         with self._patched(
             two_factor_handler,
             exchange_side_effect=ApiException(401),
-            prompt_side_effect=click.exceptions.Abort,
+            prompt_side_effect=click.exceptions.Abort(),
         ) as manager:
             with pytest.raises(click.exceptions.Abort):
                 two_factor_handler.do_GET()

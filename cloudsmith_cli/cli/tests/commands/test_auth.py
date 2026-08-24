@@ -1,10 +1,12 @@
 """Tests for the auth command."""
 
+import json
 import webbrowser
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from ....core.api.exceptions import ApiException
 from ...commands.auth import authenticate
 from ...commands.main import main
 from .conftest import MockToken
@@ -385,3 +387,32 @@ class TestRequestApiKeyFlag:
 
         assert result.exit_code != 0
         assert "Failed to retrieve API token" in result.output
+
+
+class TestAuthFailureOutputModes:
+    """Tests for auth error routing in default and JSON modes."""
+
+    def test_json_mode_writes_error_json_to_stdout(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify auth failures in -F json emit only JSON on stdout."""
+        mock_auth_server.return_value.handle_request.side_effect = ApiException(
+            422, detail="Invalid input."
+        )
+
+        result = runner.invoke(
+            main,
+            ["auth", "--owner", "testorg", "-F", "json"],
+            catch_exceptions=False,
+        )
+
+        payload = json.loads(result.stdout)
+        assert payload["detail"] == "Invalid input."
+        assert payload["meta"]["code"] == 422
+        assert "Beginning authentication for the testorg org" in result.stderr
+        assert "Beginning authentication for the testorg org" not in result.stdout

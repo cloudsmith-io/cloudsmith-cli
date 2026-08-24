@@ -156,7 +156,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         while True:
             totp_token = click.prompt(
-                "Please enter your 2FA token", hide_input=True, type=str, err=True
+                "Please enter your 2FA code", hide_input=True, type=str, err=True
             )
 
             try:
@@ -168,13 +168,13 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                     raise
 
                 click.secho(
-                    f"\nThat 2FA token was rejected ({exc}). Please try again.",
+                    f"\nThat 2FA code was rejected ({exc}). Please try again.",
                     fg="red",
                     err=True,
                 )
 
     def _return_response(self, status=200, message=None):
-        body = message.encode("utf-8")
+        body = (message or "").encode("utf-8")
 
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
