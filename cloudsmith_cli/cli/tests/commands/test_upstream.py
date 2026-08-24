@@ -16,7 +16,15 @@ def test_upstream_commands(
         "name": f"cli-test-upstream-{upstream_format}",
         # This obviously isn't an upstream url and will not work on the server,
         # but we aren't testing the server.
-        "upstream_url": "https://www.cloudsmith.io",
+        #
+        # nix is the exception: the server validates that a nix upstream_url
+        # points at a real channel under https://channels.nixos.org/, so it
+        # needs a URL that passes that check rather than the generic placeholder.
+        "upstream_url": (
+            "https://channels.nixos.org/nixos-25.05"
+            if upstream_format == "nix"
+            else "https://www.cloudsmith.io"
+        ),
         # distro_version is only required for rpm and will be ignored for other formats.
         "distro_version": "fedora/35",
         # distro_versions is only required for deb and will be ignored for other formats.
