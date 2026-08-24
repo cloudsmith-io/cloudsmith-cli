@@ -1490,21 +1490,23 @@ def test_wait_for_package_sync_json_mode_prints_status_reason_on_failure(capsys)
         status_reason,
     )
 
-    with patch(
-        "cloudsmith_cli.cli.commands.push.get_package_status",
-        return_value=failed_status,
+    with (
+        patch(
+            "cloudsmith_cli.cli.commands.push.get_package_status",
+            return_value=failed_status,
+        ),
+        pytest.raises(click.exceptions.Exit) as exc_info,
     ):
-        with pytest.raises(click.exceptions.Exit) as exc_info:
-            wait_for_package_sync(
-                ctx=ctx,
-                opts=opts,
-                owner="bart-demo-org-terraform",
-                repo="eng-13978-cli-repro",
-                slug="eng-13978-repro-100-alpha4tgz",
-                wait_interval=1.0,
-                skip_errors=False,
-                attempts=1,
-            )
+        wait_for_package_sync(
+            ctx=ctx,
+            opts=opts,
+            owner="bart-demo-org-terraform",
+            repo="eng-13978-cli-repro",
+            slug="eng-13978-repro-100-alpha4tgz",
+            wait_interval=1.0,
+            skip_errors=False,
+            attempts=1,
+        )
 
     assert exc_info.value.exit_code == 1
     captured = capsys.readouterr()
