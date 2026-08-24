@@ -32,6 +32,9 @@ def credential_helper():
         # Install pnpm credential helper
         $ cloudsmith credential-helper install pnpm
 
+        # Install cargo credential helper
+        $ cloudsmith credential-helper install cargo
+
         # Test Docker credential helper directly
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker
 
