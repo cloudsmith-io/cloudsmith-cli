@@ -16,7 +16,6 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from ..core.mcp import server
 from ..core.rest import create_requests_session as _create_session
 from . import config, utils
 
@@ -312,7 +311,9 @@ def initialise_session(f):
     """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
     @click.option(
-        "--api-host", envvar="CLOUDSMITH_API_HOST", help="The API host to connect to."
+        "--api-host",
+        envvar="CLOUDSMITH_API_HOST",
+        help="The API host to connect to",
     )
     @click.option(
         "--api-proxy",
@@ -627,6 +628,8 @@ def initialise_mcp(f):
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
+        from ..core.mcp import server
+
         opts = kwargs.get("opts")
 
         all_tools = kwargs.pop("all_tools")

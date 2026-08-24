@@ -115,7 +115,9 @@ def list_entitlements(ctx, opts, owner_repo, page, page_size, show_tokens, page_
 
     click.secho("OK", fg="green", err=use_stderr)
 
-    print_entitlements(opts=opts, data=entitlements_, page_info=page_info)
+    print_entitlements(
+        opts=opts, data=entitlements_, page_info=page_info, page_all=page_all
+    )
 
 
 @entitlements.command(name="list", aliases=["ls"])
@@ -126,7 +128,7 @@ def list_(*args, **kwargs):  # pylint: disable=missing-docstring
     return list_entitlements(*args, **kwargs)
 
 
-def print_entitlements(opts, data, page_info=None, show_list_info=True):
+def print_entitlements(opts, data, page_info=None, show_list_info=True, page_all=False):
     """Print entitlements as a table or output in another format."""
     if utils.maybe_print_as_json(opts, data, page_info):
         return
@@ -163,11 +165,16 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True):
 
     num_results = len(data)
     list_suffix = "entitlement%s" % ("s" if num_results != 1 else "")
-    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if page_all else page_info,
+        suffix=f"{list_suffix} retrieved" if page_all else f"{list_suffix} visible",
+        page_all=page_all,
+    )
 
 
 def print_entitlements_with_restrictions(
-    opts, data, page_info=None, show_list_info=True
+    opts, data, page_info=None, show_list_info=True, page_all=False
 ):
     # pylint: disable=too-many-locals
     """Print entitlements (with restrictions) as a table or output in another format."""
@@ -276,7 +283,12 @@ def print_entitlements_with_restrictions(
 
     num_results = len(data)
     list_suffix = "entitlement%s" % ("s" if num_results != 1 else "")
-    utils.pretty_print_list_info(num_results=num_results, suffix=list_suffix)
+    utils.pretty_print_list_info(
+        num_results=num_results,
+        page_info=None if page_all else page_info,
+        suffix=f"{list_suffix} retrieved" if page_all else f"{list_suffix} visible",
+        page_all=page_all,
+    )
 
 
 @entitlements.command(aliases=["new"])
