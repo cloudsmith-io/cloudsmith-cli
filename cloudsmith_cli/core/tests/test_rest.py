@@ -29,7 +29,7 @@ class TestRestClient:
         # happened elsewhere. But just in case this test is ever run in isolation...
         initialise_api()
 
-        client = RestClient()
+        client = RestClient(backoff_factor=0)
 
         method = "GET"
         url = "https://test.site"

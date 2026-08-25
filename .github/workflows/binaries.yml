@@ -18,6 +18,9 @@ on:
       CLOUDSMITH_API_KEY:
         description: Read-only API key for the online smoketests
         required: false
+  push:
+    branches:
+      - master
   pull_request:
     paths:
       - cloudsmith_cli/**
@@ -77,12 +80,31 @@ jobs:
           persist-credentials: false
 
       - id: gen
-        run: echo "include=$(jq -c . .github/scripts/binaries-matrix.json)" >> "$GITHUB_OUTPUT"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            MATRIX=$(
+              jq -c '{
+                include: [
+                  .include[]
+                  | select(
+                      .name == "linux-x86_64-gnu"
+                      or .name == "macos-arm64"
+                      or .name == "windows-x86_64"
+                    )
+                ]
+              }' .github/scripts/binaries-matrix.json
+            )
+          else
+            MATRIX=$(jq -c . .github/scripts/binaries-matrix.json)
+          fi
+          echo "include=${MATRIX}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: matrix
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix: ${{ fromJson(needs.matrix.outputs.include) }}
     runs-on: ${{ matrix.build_runner }}
     timeout-minutes: 45
@@ -207,7 +229,7 @@ jobs:
   test:
     needs: [matrix, build]
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix: ${{ fromJson(needs.matrix.outputs.include) }}
     runs-on: ${{ matrix.test_runner }}
     timeout-minutes: 25

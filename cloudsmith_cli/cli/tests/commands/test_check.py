@@ -5,8 +5,9 @@ import pytest
 from ....cli.commands.check import check
 from ....cli.tests.utils import random_str
 
+FAKE_API_HOST = "https://api.example.com"
 
-@pytest.mark.usefixtures("set_api_host_env_var")
+
 class TestCheckServiceCommand:
     @pytest.mark.parametrize(
         "service_version,api_binding_version",
@@ -17,9 +18,10 @@ class TestCheckServiceCommand:
         ],
     )
     def test_check_service_command_output(
-        self, runner, api_host, service_version, api_binding_version
+        self, runner, monkeypatch, service_version, api_binding_version
     ):
         """Unit test the command output given different combinations of service/binding version."""
+        monkeypatch.setenv("CLOUDSMITH_API_HOST", FAKE_API_HOST)
         service_status = random_str()
 
         with (
@@ -39,7 +41,7 @@ class TestCheckServiceCommand:
 
         assert output[0] == "Retrieving service status ... OK"
         assert output[1] == ""
-        assert output[2] == f"The service endpoint is: {api_host}"
+        assert output[2] == f"The service endpoint is: {FAKE_API_HOST}"
         assert output[3] == f"The service status is:   {service_status}"
         assert (
             output[4]
@@ -52,6 +54,8 @@ class TestCheckServiceCommand:
             else "The API library used by this CLI tool seems to be up-to-date."
         )
 
+    @pytest.mark.integration
+    @pytest.mark.usefixtures("set_api_host_env_var")
     def test_check_service_command(self, runner, api_host):
         """Integration test the `cloudsmith check service` command (actually hit the API)."""
         result = runner.invoke(check, args="service", catch_exceptions=False)

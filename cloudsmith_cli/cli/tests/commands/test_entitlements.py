@@ -7,6 +7,7 @@ from ...config import Options
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.integration
 def test_entitlements_list_with_show_all(runner, organization, tmp_repository):
     """Test listing entitlements with --show-all flag."""
     org_repo = f"{organization}/{tmp_repository['slug']}"

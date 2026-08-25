@@ -17,10 +17,11 @@ concurrency:
 
 jobs:
   pytest:
-    name: Run tests (Python ${{ matrix.python-version }})
+    name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
 
@@ -42,12 +43,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --group dev --python ${{ matrix.python-version }}
 
+      - name: Run pytest with coverage
+        if: matrix.python-version == '3.12'
+        run: >-
+          uv run pytest
+          -m "not integration"
+          --cov=cloudsmith_cli
+          --junitxml=./reports/pytest.xml
+
       - name: Run pytest
-        env:
-          PYTEST_CLOUDSMITH_API_KEY: ${{ secrets.PYTEST_CLOUDSMITH_API_KEY }}
-          PYTEST_CLOUDSMITH_API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
-          PYTEST_CLOUDSMITH_ORGANIZATION: ${{ vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
-        run: uv run pytest --junitxml=./reports/pytest.xml
+        if: matrix.python-version != '3.12'
+        run: uv run pytest -m "not integration" --junitxml=./reports/pytest.xml
 
       - name: Upload test results
         if: always()
@@ -56,3 +62,63 @@ jobs:
           name: test-results-${{ matrix.python-version }}
           path: ./reports/pytest.xml
           retention-days: 30
+          if-no-files-found: error
+
+  integration:
+    name: Live integration tests (Python 3.12)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check integration credentials
+        id: credentials
+        env:
+          API_KEY: ${{ secrets.PYTEST_CLOUDSMITH_API_KEY }}
+          API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
+          ORGANIZATION: ${{ vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
+        run: |
+          if [ -n "${API_KEY}" ] && [ -n "${API_HOST}" ] && [ -n "${ORGANIZATION}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping live integration tests because credentials are unavailable."
+          fi
+
+      - if: steps.credentials.outputs.available == 'true'
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        if: steps.credentials.outputs.available == 'true'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        if: steps.credentials.outputs.available == 'true'
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        if: steps.credentials.outputs.available == 'true'
+        run: uv sync --locked --group dev --python 3.12
+
+      - name: Run live integration tests
+        if: steps.credentials.outputs.available == 'true'
+        env:
+          PYTEST_CLOUDSMITH_API_KEY: ${{ secrets.PYTEST_CLOUDSMITH_API_KEY }}
+          PYTEST_CLOUDSMITH_API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
+          PYTEST_CLOUDSMITH_ORGANIZATION: ${{ vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
+          PYTEST_CLOUDSMITH_USERNAME: ${{ secrets.PYTEST_CLOUDSMITH_USERNAME }}
+          PYTEST_CLOUDSMITH_PASSWORD: ${{ secrets.PYTEST_CLOUDSMITH_PASSWORD }}
+        run: uv run pytest -m integration --junitxml=./reports/pytest.xml
+
+      - name: Upload test results
+        if: always() && steps.credentials.outputs.available == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-integration-3.12
+          path: ./reports/pytest.xml
+          retention-days: 30
+          if-no-files-found: error

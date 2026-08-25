@@ -74,6 +74,7 @@ def assert_output_is_equal_to_repo_config(output, organisation, repo_config_file
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.integration
 def test_repos_commands(runner, organization, tmp_path):
     """Test CRUD operations for repositories."""
 

@@ -18,7 +18,7 @@ Python `>=3.10` is required (CI tests 3.10–3.14).
 ## Common commands
 
 - Run the CLI locally: `cloudsmith ...` (console_script) or `python -m cloudsmith_cli ...`.
-- Run tests: `pytest` (configured via `pyproject.toml` `[tool.pytest.ini_options]` — adds `--cov=cloudsmith_cli`).
+- Run tests: `pytest`. Run with coverage: `pytest --cov=cloudsmith_cli`.
 - Run a single test: `pytest cloudsmith_cli/cli/tests/test_push.py::TestClass::test_name` or by node id / `-k <expr>`.
 - Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `black .`, `isort .`, `flake8 --config=.flake8`, `pylint --rcfile=.pylintrc <path>`, `pyupgrade --py310-plus <files>`.
 - Release: `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
