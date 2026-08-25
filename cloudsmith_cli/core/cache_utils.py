@@ -6,8 +6,10 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _atomic_write_text(dest: str, text: str, *, mode: int = 0o600) -> None:

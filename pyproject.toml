@@ -146,6 +146,7 @@ show_missing = true
 directory = "reports/coverage"
 
 [tool.ruff.lint]
+extend-select = ["FA", "TC"]
 ignore = ["TRY002", "BLE001"]
 
 [tool.ruff.lint.per-file-ignores]
