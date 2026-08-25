@@ -3,10 +3,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, patch
 
-import keyring
 import pytest
 from freezegun import freeze_time
-from keyring.errors import KeyringError
 from keyrings.cryptfile.cryptfile import CryptFileKeyring
 
 from ..keyring import (
@@ -32,24 +30,32 @@ def mock_get_user():
 
 @pytest.fixture
 def mock_get_password():
+    import keyring
+
     with patch.object(keyring, "get_password") as get_password_mock:
         yield get_password_mock
 
 
 @pytest.fixture
 def mock_set_password():
+    import keyring
+
     with patch.object(keyring, "set_password") as set_password_mock:
         yield set_password_mock
 
 
 @pytest.fixture
 def mock_delete_password():
+    import keyring
+
     with patch.object(keyring, "delete_password") as delete_password_mock:
         yield delete_password_mock
 
 
 @pytest.fixture(autouse=True)
 def mock_get_keyring():
+    import keyring
+
     with patch.object(keyring, "get_keyring") as get_keyring_mock:
         yield get_keyring_mock
 
@@ -75,6 +81,8 @@ class TestKeyring:
         )
 
     def test_get_access_token_when_error_raised(self, mock_get_user, mock_get_password):
+        from keyring.errors import KeyringError
+
         mock_get_password.side_effect = KeyringError("A keyring error occurred")
 
         assert get_access_token(self.api_host) is None
@@ -110,6 +118,8 @@ class TestKeyring:
     def test_get_refresh_attempted_at_when_keyring_error_raised(
         self, mock_get_user, mock_get_password
     ):
+        from keyring.errors import KeyringError
+
         mock_get_password.side_effect = KeyringError("A keyring error occurred")
 
         assert get_refresh_attempted_at(self.api_host) is None
@@ -189,6 +199,8 @@ class TestKeyring:
     def test_get_refresh_token_when_error_raised(
         self, mock_get_user, mock_get_password
     ):
+        from keyring.errors import KeyringError
+
         mock_get_password.side_effect = KeyringError("A keyring error occurred")
 
         assert get_refresh_token(self.api_host) is None
@@ -536,6 +548,8 @@ class TestKeyringFileRelocation:
         return env
 
     def _roundtrip_token(self, backend, env):
+        import keyring
+
         with (
             patch.dict(os.environ, env, clear=True),
             patch.object(keyring, "set_password", side_effect=backend.set_password),
@@ -575,6 +589,8 @@ class TestKeyringFileRelocation:
 class TestDeleteSsoTokens:
     """Tests for the delete_sso_tokens and has_sso_tokens functions."""
 
+    from keyring.errors import KeyringError
+
     api_host = "https://example.com"
 
     def test_delete_sso_tokens(self, mock_get_user, mock_delete_password):
@@ -584,6 +600,8 @@ class TestDeleteSsoTokens:
     def test_delete_sso_tokens_handles_keyring_error(
         self, mock_get_user, mock_delete_password
     ):
+        from keyring.errors import KeyringError
+
         mock_delete_password.side_effect = KeyringError("err")
         assert delete_sso_tokens(self.api_host) is False
 

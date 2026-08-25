@@ -518,6 +518,7 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3e/7c/c0e827e54989dc5031b95ceb6727997ea97b3bb5f22b9482dafa282f6798/cloudsmith_api-2.0.31.tar.gz", hash = "sha256:768888677ca6570dde5ea1b9b3254401786a1e4c2842c170ce715e1796306c91", size = 727667, upload-time = "2026-08-20T12:37:10.543Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6b/15/a5bcf3f2baeb403acb3dde53a7175bb9c06fc6d9844d324bf27f9f913cca/cloudsmith_api-2.0.31-py2.py3-none-any.whl", hash = "sha256:f6d8bd2889e5b58b06a81f2980911bae589631161fd2b4524cae346de0d72d4e", size = 1394274, upload-time = "2026-08-20T12:37:09.237Z" },
+    { url = "https://files.pythonhosted.org/packages/76/84/e05f7fa12ed1a69b4877d9d77733864db746d33f356a8fcb92a3203e92a2/cloudsmith_api-2.0.31-py3-none-any.whl", hash = "sha256:958b0971de2a06d312bac71fece99e98ce9610edd95e2141304d75faa146a431", size = 1178628, upload-time = "2026-08-25T10:36:13.481Z" },
 ]
 
 [[package]]
@@ -540,6 +541,7 @@ dependencies = [
     { name = "requests-toolbelt" },
     { name = "rich" },
     { name = "semver" },
+    { name = "tomlkit" },
     { name = "urllib3" },
 ]
 
@@ -596,6 +598,7 @@ requires-dist = [
     { name = "requests-toolbelt", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "semver", specifier = ">=2.7.9" },
+    { name = "tomlkit", specifier = ">=0.15.0" },
     { name = "urllib3", specifier = ">=2.5" },
 ]
 provides-extras = ["aws", "all"]

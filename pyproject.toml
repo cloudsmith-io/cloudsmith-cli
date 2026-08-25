@@ -58,6 +58,7 @@ dependencies = [
     "rich>=13.0.0",
     "semver>=2.7.9",
     "urllib3>=2.5",
+    "tomlkit>=0.15.0",
 ]
 
 [project.optional-dependencies]
