@@ -255,7 +255,7 @@ def test_get_custom_domains_status_matrix(
 ):
     """get_custom_domains() caches or not based on HTTP status."""
     if status == 500:
-        monkeypatch.setattr("cloudsmith_cli.core.rest.time.sleep", lambda _: None)
+        monkeypatch.setattr("time.sleep", lambda _: None)
 
     # redirect per-test (autouse fixture already set module-level path)
     monkeypatch.setattr(
@@ -326,7 +326,7 @@ def test_get_custom_domains_strict_raises_on_failure(
     not render a typo'd org or an unreachable API as "no custom domains".
     """
     if status == 500:
-        monkeypatch.setattr("cloudsmith_cli.core.rest.time.sleep", lambda _: None)
+        monkeypatch.setattr("time.sleep", lambda _: None)
 
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
