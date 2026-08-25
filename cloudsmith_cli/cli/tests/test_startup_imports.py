@@ -30,6 +30,7 @@ def modules_loaded_by_import(module_name="cloudsmith_cli.cli.commands.main"):
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
