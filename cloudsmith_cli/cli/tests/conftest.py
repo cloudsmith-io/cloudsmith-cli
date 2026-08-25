@@ -3,10 +3,10 @@ import os
 import click.testing
 import pytest
 
-from ..config import OPTIONS
 from ...core.api.init import initialise_api
 from ...core.api.repos import create_repo, delete_repo
 from ...core.credentials.models import CredentialResult
+from ..config import OPTIONS
 from .utils import random_str
 
 

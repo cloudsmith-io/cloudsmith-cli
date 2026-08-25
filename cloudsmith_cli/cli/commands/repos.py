@@ -316,6 +316,33 @@ REGENERATE_WARNING = (
 )
 
 
+class SecretFile(click.File):
+    """A ``click.File`` that also records the literal value it was given.
+
+    ``click.File`` builds a brand new stream object for ``-`` every time it
+    converts a value, so the stdin-conflict checks in ``gpg upload`` cannot
+    be made by comparing the returned stream against
+    ``click.get_text_stream("stdin")``: that identity happens to hold under
+    ``CliRunner`` but never holds in a real process, which would leave the
+    checks silently inert exactly where they matter. Recording the raw
+    value instead makes them exact in both.
+    """
+
+    #: Key under which the raw values are stashed on the click context.
+    META_KEY = "cloudsmith_cli.secret_file_sources"
+
+    def convert(self, value, param, ctx):
+        stream = super().convert(value, param, ctx)
+        if ctx is not None and param is not None and isinstance(value, str):
+            ctx.meta.setdefault(self.META_KEY, {})[param.name] = value
+        return stream
+
+
+def secret_file_is_stdin(ctx, param_name):
+    """Check whether a secret file parameter was given as '-' (i.e. stdin)."""
+    return ctx.meta.get(SecretFile.META_KEY, {}).get(param_name) == "-"
+
+
 def gpg_error_summaries(action, repo, reasons):
     """Build single-line error messages for a GPG command, keyed by status."""
     return {
@@ -432,7 +459,7 @@ def gpg_get(ctx, opts, owner_repo):
 @click.option(
     "--private-key-file",
     "private_key_file",
-    type=click.File("r"),
+    type=SecretFile("r"),
     required=True,
     help="Path to a file containing the armored GPG private key to upload. "
     "Use '-' to read from stdin; in that case --passphrase-file must be a "
@@ -441,7 +468,7 @@ def gpg_get(ctx, opts, owner_repo):
 @click.option(
     "--passphrase-file",
     "passphrase_file",
-    type=click.File("r"),
+    type=SecretFile("r"),
     required=False,
     default=None,
     help="Path to a file containing the GPG private key's passphrase. If "
@@ -490,9 +517,8 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
             param_hint="--debug",
         )
 
-    stdin = click.get_text_stream("stdin")
-    private_key_from_stdin = private_key_file is stdin
-    passphrase_from_stdin = passphrase_file is stdin
+    private_key_from_stdin = secret_file_is_stdin(ctx, "private_key_file")
+    passphrase_from_stdin = secret_file_is_stdin(ctx, "passphrase_file")
     if private_key_from_stdin and (passphrase_file is None or passphrase_from_stdin):
         raise click.BadParameter(
             "Must be a file path (not '-') when --private-key-file is '-'.",
