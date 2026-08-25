@@ -9,7 +9,11 @@ from cloudsmith_cli.core.api.exceptions import ApiException
 from .conftest import MockToken
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
+@pytest.fixture(autouse=True)
+def set_fake_api_host(monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_API_HOST", "https://api.example.com")
+
+
 class TestListTokensCommand:
     def test_list_tokens_success(self, runner):
         """Test successful listing of tokens."""
@@ -53,7 +57,6 @@ class TestListTokensCommand:
         )
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
 class TestRefreshTokenCommand:
     """Test suite for the 'tokens refresh' command."""
 
@@ -113,7 +116,6 @@ class TestRefreshTokenCommand:
         )
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
 class TestRequestApiKeyFunction:
     """Test suite for the request_api_key helper function."""
 

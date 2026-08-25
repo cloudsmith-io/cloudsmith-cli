@@ -234,6 +234,11 @@ def _cache_dir(tmp_path, monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_retry_sleep(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+
 @pytest.mark.parametrize(
     "status,expect_domains,expect_cached",
     [

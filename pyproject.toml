@@ -111,8 +111,12 @@ namespaces = false
 cloudsmith_cli = ["data/*", "templates/*"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=cloudsmith_cli"
+addopts = "--strict-markers"
 norecursedirs = ["bin", ".git", ".venv"]
+testpaths = ["cloudsmith_cli"]
+markers = [
+    "integration: tests that call the live Cloudsmith service",
+]
 
 [tool.coverage.run]
 branch = true

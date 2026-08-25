@@ -2,6 +2,7 @@
   "include": [
     {
       "name": "linux-x86_64-gnu",
+      "pr": true,
       "build_runner": "ubuntu-24.04",
       "mode": "glibc",
       "build_image": "almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
@@ -42,6 +43,7 @@
     },
     {
       "name": "macos-arm64",
+      "pr": true,
       "build_runner": "macos-14",
       "mode": "native",
       "build_image": "",
@@ -62,6 +64,7 @@
     },
     {
       "name": "windows-x86_64",
+      "pr": true,
       "build_runner": "windows-2025",
       "mode": "native",
       "build_image": "",
