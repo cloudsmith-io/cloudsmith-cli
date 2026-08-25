@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 
-from ....cli.saml import refresh_access_token
 from ....core import keyring
 from ..models import CredentialContext, CredentialResult
 from ..provider import CredentialProvider
@@ -34,6 +33,8 @@ class KeyringProvider(CredentialProvider):
                         "Session unavailable; skipping token refresh, using existing token"
                     )
                 else:
+                    from ....cli.saml import refresh_access_token
+
                     refresh_token = keyring.get_refresh_token(api_host)
                     new_access_token, new_refresh_token = refresh_access_token(
                         api_host,

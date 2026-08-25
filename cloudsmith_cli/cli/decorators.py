@@ -9,14 +9,12 @@ from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
 
-from ..core.api.init import initialise_api as _initialise_api
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
 from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from ..core.rest import create_requests_session as _create_session
 from . import config, utils
 
 
@@ -357,6 +355,8 @@ def initialise_session(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
+        from ..core.session import create_requests_session as _create_session
+
         opts = config.get_or_create_options(ctx)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
         proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_api_proxy_suffixes"))
@@ -578,6 +578,8 @@ def initialise_api(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
+        from ..core.api.init import initialise_api as _initialise_api
+
         opts = config.get_or_create_options(ctx)
         opts.rate_limit = _pop_boolean_flag(kwargs, "without_rate_limit", invert=True)
         opts.rate_limit_warning = kwargs.pop("rate_limit_warning")

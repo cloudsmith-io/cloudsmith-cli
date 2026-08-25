@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-import requests
+if TYPE_CHECKING:
+    import requests
 
 
 @dataclass
