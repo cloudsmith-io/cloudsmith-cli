@@ -146,8 +146,34 @@ show_missing = true
 directory = "reports/coverage"
 
 [tool.ruff.lint]
-extend-select = ["FA", "TC"]
+extend-select = ["FA", "TC", "TID253"]
 ignore = ["TRY002", "BLE001"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# These modules dominate CLI startup time. Import them inside functions,
+# or add the file to the allowlist below when a module is itself loaded
+# lazily (see cli/commands/registry.py and cli/tests/test_startup_imports.py).
+banned-module-level-imports = [
+    "cloudsmith_api",
+    "httpx",
+    "keyring",
+    "mcp",
+    "requests",
+    "rich",
+    "semver",
+    "urllib3",
+]
 
 [tool.ruff.lint.per-file-ignores]
 '__init__.py' = ["F401"]
+# Lazy leaves: modules that are only imported when their command or code
+# path runs, so module-level imports of heavy modules are free at startup.
+'cloudsmith_cli/cli/commands/*' = ["TID253"]
+'cloudsmith_cli/cli/saml.py' = ["TID253"]
+'cloudsmith_cli/conftest.py' = ["TID253"]
+'cloudsmith_cli/core/api/*' = ["TID253"]
+'cloudsmith_cli/core/credentials/oidc/exchange.py' = ["TID253"]
+'cloudsmith_cli/core/download.py' = ["TID253"]
+'cloudsmith_cli/core/mcp/*' = ["TID253"]
+'cloudsmith_cli/core/rest.py' = ["TID253"]
+'cloudsmith_cli/core/session.py' = ["TID253"]
