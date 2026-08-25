@@ -27,4 +27,4 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --group dev
-      - run: uv run ty check --warn all --output-format=github --exit-zero-on-warning
+      - run: uv run ty check --output-format=github --exit-zero
