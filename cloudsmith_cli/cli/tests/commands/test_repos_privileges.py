@@ -167,6 +167,7 @@ class TestPrivilegesList:
 class TestPrivilegesSet:
     @httpretty.activate(allow_net_connect=False)
     def test_grants_to_several_targets_in_one_call(self, runner):
+        register_list([])
         register_write(httpretty.PATCH)
 
         result = runner.invoke(
@@ -204,6 +205,7 @@ class TestPrivilegesSet:
 
     @httpretty.activate(allow_net_connect=False)
     def test_privilege_is_case_insensitive_and_echoed_in_api_casing(self, runner):
+        register_list([])
         register_write(httpretty.PATCH)
 
         result = runner.invoke(
@@ -220,6 +222,140 @@ class TestPrivilegesSet:
             {"privilege": "Admin", "team": "eng"}
         ]
         assert "Granting Admin" in result.output
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_lowering_an_existing_privilege_asks_first(self, runner):
+        """The endpoint sets a level in either direction, so this can revoke."""
+        register_list([{"privilege": "Admin", "team": "eng"}])
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "read"],
+            input="y\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert (
+            f"Lower team eng from Admin to Read on {REPO} in the {OWNER} namespace?"
+            in result.output
+        )
+        assert last_request_body()["privileges"] == [
+            {"privilege": "Read", "team": "eng"}
+        ]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_declining_the_lowering_writes_nothing(self, runner):
+        register_list([{"privilege": "Admin", "team": "eng"}])
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "read"],
+            input="n\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert httpretty.last_request().method == "GET"
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_raising_an_existing_privilege_never_asks(self, runner):
+        register_list([{"privilege": "Read", "team": "eng"}])
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "admin"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Lower" not in result.output
+        assert last_request_body()["privileges"] == [
+            {"privilege": "Admin", "team": "eng"}
+        ]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_setting_the_same_level_never_asks(self, runner):
+        register_list([{"privilege": "Write", "team": "eng"}])
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "write"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Lower" not in result.output
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_only_the_lowered_targets_are_named(self, runner):
+        register_list(
+            [
+                {"privilege": "Admin", "team": "eng"},
+                {"privilege": "Read", "user": "alice"},
+            ]
+        )
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [
+                OWNER_REPO,
+                "--team",
+                "eng",
+                "--user",
+                "alice",
+                "--service",
+                "ci",
+                "--privilege",
+                "write",
+            ],
+            input="y\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Lower team eng from Admin to Write" in result.output
+        assert "alice" not in result.output.split("namespace?")[0]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_yes_skips_the_lowering_prompt(self, runner):
+        register_list([{"privilege": "Admin", "team": "eng"}])
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "read", "-y"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Lower" not in result.output
+        assert last_request_body()["privileges"] == [
+            {"privilege": "Read", "team": "eng"}
+        ]
 
     def test_rejects_an_unknown_privilege(self, runner):
         result = runner.invoke(
@@ -259,6 +395,7 @@ class TestPrivilegesSet:
 
     @httpretty.activate(allow_net_connect=False)
     def test_api_rejection_is_one_sentence(self, runner):
+        register_list([])
         register_write(
             httpretty.PATCH,
             status=422,
@@ -290,6 +427,7 @@ class TestPrivilegesSet:
 
     @httpretty.activate(allow_net_connect=False)
     def test_other_statuses_keep_the_status_code(self, runner):
+        register_list([])
         register_write(
             httpretty.PATCH,
             status=403,
@@ -310,6 +448,7 @@ class TestPrivilegesSet:
 
     @httpretty.activate(allow_net_connect=False)
     def test_a_leading_acronym_keeps_its_casing(self, runner):
+        register_list([])
         register_write(
             httpretty.PATCH,
             status=422,
@@ -329,6 +468,7 @@ class TestPrivilegesSet:
     @httpretty.activate(allow_net_connect=False)
     def test_a_422_without_fields_keeps_the_status_code(self, runner):
         """`detail` falls back to the status description, which reads badly."""
+        register_list([])
         register_write(httpretty.PATCH, status=422, body={})
 
         result = runner.invoke(
@@ -345,6 +485,7 @@ class TestPrivilegesSet:
 
     @httpretty.activate(allow_net_connect=False)
     def test_summarised_error_in_json_mode(self, runner):
+        register_list([])
         register_write(
             httpretty.PATCH,
             status=422,

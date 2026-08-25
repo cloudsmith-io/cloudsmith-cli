@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `cloudsmith repos privileges` for managing explicit repository access from the terminal. `list` shows the teams, users and service accounts that were granted access explicitly; `set` grants or raises access for any number of them and leaves everyone else untouched; `revoke` takes access away from the ones named, skipping any that had none; and `replace` makes a JSON file (or stdin) the complete truth for the repository. `revoke` and `replace` ask for confirmation first unless `-y` is passed.
+- Added `cloudsmith repos privileges` for managing explicit repository access from the terminal. `list` shows the teams, users and service accounts that were granted access explicitly; `set` grants access to any number of them and leaves everyone else untouched, asking first if it would lower access someone already has; `revoke` takes access away from the ones named, skipping any that had none; and `replace` makes a JSON file (or stdin) the complete truth for the repository. `revoke` and `replace` ask for confirmation first unless `-y` is passed.
 
 ## [1.25.0] - 2026-08-24
 
