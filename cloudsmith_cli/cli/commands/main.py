@@ -6,6 +6,7 @@ from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
 from .. import command, decorators, utils
+from .registry import LAZY_ALIASES, LAZY_COMMANDS
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
@@ -28,6 +29,8 @@ def print_version(opts):
 
 @click.group(
     cls=command.AliasGroup,
+    lazy_commands=LAZY_COMMANDS,
+    lazy_aliases=LAZY_ALIASES,
     context_settings=CONTEXT_SETTINGS,
     invoke_without_command=True,
     help="""\b
