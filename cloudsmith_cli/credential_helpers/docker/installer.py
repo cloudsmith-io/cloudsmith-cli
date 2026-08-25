@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...core.cache_utils import merge_json_file
+from ...core.cache_utils import merge_config_file
 from ..backends import BackendKind
 from ..custom_domains import get_format_domains
 from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
@@ -195,7 +195,7 @@ class DockerInstaller:
                 launcher_path = target_dir / self.LAUNCHER_NAME
             actions.append(f"would write launcher {launcher_path}")
 
-            would_change = merge_json_file(config_path, mutate, dry_run=True)
+            would_change = merge_config_file(config_path, mutate, dry_run=True)
             for host in hosts:
                 if would_change:
                     actions.append(
@@ -215,7 +215,7 @@ class DockerInstaller:
         )
         actions.append(f"wrote launcher {launcher_path}")
 
-        changed = merge_json_file(config_path, mutate)
+        changed = merge_config_file(config_path, mutate)
         if changed:
             actions.extend(
                 f"set credHelpers[{host!r}]={self.HELPER_VALUE!r} in {config_path}"
@@ -283,7 +283,7 @@ class DockerInstaller:
                     f"launcher not found at {launcher_path} (nothing to remove)"
                 )
 
-            would_change = merge_json_file(config_path, mutate, dry_run=True)
+            would_change = merge_config_file(config_path, mutate, dry_run=True)
             if would_change:
                 actions.append(
                     f"would remove credHelpers entries with value"
@@ -300,7 +300,7 @@ class DockerInstaller:
         else:
             actions.append(f"launcher not found at {launcher_path} (nothing to remove)")
 
-        changed = merge_json_file(config_path, mutate)
+        changed = merge_config_file(config_path, mutate)
         if changed:
             actions.append(
                 f"removed credHelpers entries with value"
