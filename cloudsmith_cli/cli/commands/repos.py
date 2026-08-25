@@ -351,6 +351,48 @@ def gpg_error_summaries(action, repo, reasons):
     }
 
 
+def gpg_dry_run(ctx, opts, action, reasons, owner, repo, note=None, err=False):
+    """Report what a mutating GPG command would do, without doing it.
+
+    Reads the key that's in place first: that proves the credential can
+    reach the repository and names the fingerprint the real run would
+    replace, so a mistyped repository or an expired token fails here rather
+    than on the attempt itself.
+    """
+    context_msg = f"Failed to {action} the repository GPG key!"
+    with (
+        handle_api_exceptions(
+            ctx,
+            opts=opts,
+            context_msg=context_msg,
+            error_summaries=gpg_error_summaries(action, repo, reasons),
+        ),
+        maybe_spinner(opts),
+    ):
+        current = api.list_repo_gpg_key(owner, repo)
+
+    if utils.maybe_print_as_json(
+        opts,
+        {
+            "dry_run": True,
+            "action": action,
+            "namespace": owner,
+            "repository": repo,
+            "current_fingerprint": current.get("fingerprint"),
+        },
+    ):
+        return
+
+    click.secho(
+        f"Would {action} the GPG key for {click.style(repo, bold=True)} in the "
+        f"{click.style(owner, bold=True)} namespace, replacing "
+        f"{current.get('fingerprint') or '(none)'}"
+        f"{f' ({note})' if note else ''}. Nothing sent - this was a dry run.",
+        fg="yellow",
+        err=err,
+    )
+
+
 def stdin_is_a_terminal():
     """Check whether stdin is attached to a terminal."""
     return click.get_text_stream("stdin").isatty()
@@ -484,8 +526,8 @@ def gpg_get(ctx, opts, owner_repo):
     "dry_run",
     default=False,
     is_flag=True,
-    help="Validate the inputs and show what would be uploaded, without "
-    "changing the repository's key.",
+    help="Check the inputs and the key currently in place, and show what "
+    "would be uploaded, without changing the repository's key.",
 )
 @click.pass_context
 def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run):
@@ -500,8 +542,8 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
     The private key material is always read from a file (or stdin via '-'),
     never accepted as a plain command-line argument.
 
-    Use -n/--dry-run to validate the key and passphrase inputs without
-    changing the repository's key.
+    Use -n/--dry-run to check the key and passphrase inputs, and the key
+    currently in place, without changing anything.
 
     Full CLI example:
 
@@ -537,6 +579,16 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
             gpg_passphrase = gpg_passphrase[:-2]
         elif gpg_passphrase.endswith(("\r", "\n")):
             gpg_passphrase = gpg_passphrase[:-1]
+        passphrase_note = "with the passphrase from --passphrase-file"
+    elif dry_run:
+        # Nothing is being sent, so there's no reason to make anyone type a
+        # real secret. Say which source the real run would use instead.
+        gpg_passphrase = ""
+        passphrase_note = (
+            "you'd be asked for the passphrase"
+            if stdin_is_a_terminal()
+            else "with no passphrase"
+        )
     elif stdin_is_a_terminal():
         gpg_passphrase = click.prompt(
             "GPG passphrase (leave blank if the key has none)",
@@ -545,32 +597,24 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
             show_default=False,
             err=use_stderr,
         )
+        passphrase_note = "with the passphrase you were asked for"
     else:
         # Nothing to prompt: an unattended run would block on a question
         # nobody can answer, so take the key to be unencrypted instead.
         gpg_passphrase = ""
+        passphrase_note = "with no passphrase"
     if gpg_passphrase == "":
         gpg_passphrase = None
 
     if dry_run:
-        if utils.maybe_print_as_json(
+        gpg_dry_run(
+            ctx,
             opts,
-            {
-                "dry_run": True,
-                "action": "upload",
-                "namespace": owner,
-                "repository": repo,
-                "passphrase_supplied": gpg_passphrase is not None,
-            },
-        ):
-            return
-
-        click.secho(
-            f"Would upload the GPG key for {click.style(repo, bold=True)} in the "
-            f"{click.style(owner, bold=True)} namespace "
-            f"({'with' if gpg_passphrase is not None else 'without'} a passphrase). "
-            "Nothing sent - this was a dry run.",
-            fg="yellow",
+            "set",
+            GPG_WRITE_ERROR_REASONS,
+            owner,
+            repo,
+            note=passphrase_note,
             err=use_stderr,
         )
         return
@@ -625,7 +669,7 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
     "dry_run",
     default=False,
     is_flag=True,
-    help="Show what would be regenerated, without changing the repository's key.",
+    help="Show which key would be replaced, without changing the repository's key.",
 )
 @click.pass_context
 def gpg_regenerate(ctx, opts, owner_repo, yes, dry_run):
@@ -653,22 +697,13 @@ def gpg_regenerate(ctx, opts, owner_repo, yes, dry_run):
     use_stderr = utils.should_use_stderr(opts)
 
     if dry_run:
-        if utils.maybe_print_as_json(
+        gpg_dry_run(
+            ctx,
             opts,
-            {
-                "dry_run": True,
-                "action": "regenerate",
-                "namespace": owner,
-                "repository": repo,
-            },
-        ):
-            return
-
-        click.secho(
-            f"Would regenerate the GPG key for {click.style(repo, bold=True)} in "
-            f"the {click.style(owner, bold=True)} namespace. Nothing sent - this "
-            "was a dry run.",
-            fg="yellow",
+            "regenerate",
+            GPG_WRITE_ERROR_REASONS,
+            owner,
+            repo,
             err=use_stderr,
         )
         return

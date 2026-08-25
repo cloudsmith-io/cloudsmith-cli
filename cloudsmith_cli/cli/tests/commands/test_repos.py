@@ -641,10 +641,12 @@ class TestReposGpgUpload:
         document = json.loads(result.stdout)
         assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
 
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
-    def test_dry_run_validates_inputs_but_sends_nothing(
-        self, mock_create, runner, tmp_path
+    def test_dry_run_names_the_key_it_would_replace(
+        self, mock_create, mock_list, runner, tmp_path
     ):
+        mock_list.return_value = dict(_GPG_KEY)
         key_file = tmp_path / "key.asc"
         key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
         passphrase_file = tmp_path / "pass.txt"
@@ -665,9 +667,65 @@ class TestReposGpgUpload:
         )
 
         assert result.exit_code == 0, result.output
-        assert "Would upload the GPG key" in result.output
-        assert "with a passphrase" in result.output
+        assert "Would set the GPG key" in result.output
+        assert _GPG_KEY["fingerprint"] in result.output
+        assert "--passphrase-file" in result.output
         assert "hunter2" not in result.output
+        mock_list.assert_called_once_with("my-org", "my-repo")
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_dry_run_reports_an_unreachable_repository(
+        self, mock_create, mock_list, runner, tmp_path
+    ):
+        """A mistyped repository or a stale token fails here, not on the real run."""
+        mock_list.side_effect = ApiException(status=404, detail="Not found.")
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--dry-run",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 404
+        assert "Could not set GPG key for my-repo: not found." in result.output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_dry_run_never_asks_for_a_passphrase(
+        self, mock_create, mock_list, _is_tty, runner, tmp_path
+    ):
+        """Nothing is sent, so nobody should have to type a real secret."""
+        mock_list.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--dry-run",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "GPG passphrase" not in result.output
+        assert "you'd be asked for the passphrase" in result.output
         mock_create.assert_not_called()
 
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
@@ -693,8 +751,10 @@ class TestReposGpgUpload:
         assert "private key file is empty" in result.output
         mock_create.assert_not_called()
 
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
-    def test_dry_run_json_output(self, mock_create, runner, tmp_path):
+    def test_dry_run_json_output(self, mock_create, mock_list, runner, tmp_path):
+        mock_list.return_value = dict(_GPG_KEY)
         key_file = tmp_path / "key.asc"
         key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
 
@@ -709,7 +769,6 @@ class TestReposGpgUpload:
                 "-F",
                 "json",
             ),
-            input="\n",
             catch_exceptions=False,
         )
 
@@ -717,10 +776,10 @@ class TestReposGpgUpload:
         document = json.loads(result.stdout)
         assert document["data"] == {
             "dry_run": True,
-            "action": "upload",
+            "action": "set",
             "namespace": "my-org",
             "repository": "my-repo",
-            "passphrase_supplied": False,
+            "current_fingerprint": _GPG_KEY["fingerprint"],
         }
         mock_create.assert_not_called()
 
@@ -787,8 +846,13 @@ class TestReposGpgRegenerate:
         assert "-y/--yes" in result.output
         mock_regenerate.assert_not_called()
 
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
     @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
-    def test_dry_run_sends_nothing(self, mock_regenerate, runner):
+    def test_dry_run_names_the_key_it_would_replace(
+        self, mock_regenerate, mock_list, runner
+    ):
+        mock_list.return_value = dict(_GPG_KEY)
+
         result = runner.invoke(
             main,
             gpg_command_args("regenerate", "my-org/my-repo", "--dry-run"),
@@ -797,10 +861,32 @@ class TestReposGpgRegenerate:
 
         assert result.exit_code == 0, result.output
         assert "Would regenerate the GPG key" in result.output
+        assert _GPG_KEY["fingerprint"] in result.output
+        mock_list.assert_called_once_with("my-org", "my-repo")
         mock_regenerate.assert_not_called()
 
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
     @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
-    def test_dry_run_json_output(self, mock_regenerate, runner):
+    def test_dry_run_reports_an_unreachable_repository(
+        self, mock_regenerate, mock_list, runner
+    ):
+        mock_list.side_effect = ApiException(status=404, detail="Not found.")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "--dry-run"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 404
+        assert "Could not regenerate GPG key for my-repo: not found." in result.output
+        mock_regenerate.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_dry_run_json_output(self, mock_regenerate, mock_list, runner):
+        mock_list.return_value = dict(_GPG_KEY)
+
         result = runner.invoke(
             main,
             gpg_command_args("regenerate", "my-org/my-repo", "--dry-run", "-F", "json"),
@@ -814,6 +900,7 @@ class TestReposGpgRegenerate:
             "action": "regenerate",
             "namespace": "my-org",
             "repository": "my-repo",
+            "current_fingerprint": _GPG_KEY["fingerprint"],
         }
         mock_regenerate.assert_not_called()
 
