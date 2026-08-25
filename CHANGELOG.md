@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Credential helper lookups against custom domains are now faster. The domain cache file is read once per process instead of on every request, and read-only lookups no longer create the cache directory.
+
 ## [1.25.0] - 2026-08-24
 
 ### Added
