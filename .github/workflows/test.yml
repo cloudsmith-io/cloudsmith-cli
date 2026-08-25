@@ -71,10 +71,8 @@ jobs:
           API_KEY: ${{ secrets.PYTEST_CLOUDSMITH_API_KEY }}
           API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
           ORGANIZATION: ${{ vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
-          USER_NAME: ${{ secrets.PYTEST_CLOUDSMITH_USERNAME }}
-          PASSWORD: ${{ secrets.PYTEST_CLOUDSMITH_PASSWORD }}
         run: |
-          if [ -n "${API_KEY}" ] && [ -n "${API_HOST}" ] && [ -n "${ORGANIZATION}" ] && [ -n "${USER_NAME}" ] && [ -n "${PASSWORD}" ]; then
+          if [ -n "${API_KEY}" ] && [ -n "${API_HOST}" ] && [ -n "${ORGANIZATION}" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"

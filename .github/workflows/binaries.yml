@@ -94,7 +94,7 @@ jobs:
         run: |
           MATRIX=$(
             jq -c --arg event_name "${EVENT_NAME}" \
-              '{include: [.include[] | select($event_name != "pull_request" or .pr)]}' \
+              '{include: [.include[] | select($event_name != "pull_request" or .pr) | del(.pr)]}' \
               .github/scripts/binaries-matrix.json
           )
           test "$(echo "${MATRIX}" | jq '.include | length')" -gt 0
