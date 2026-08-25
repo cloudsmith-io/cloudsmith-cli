@@ -60,7 +60,7 @@ class TestLogoutCommand:
         result = runner.invoke(logout, ["--api-host", " api.example.com/ "])
 
         assert result.exit_code == 0
-        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST)
+        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST, profile=None)
 
     def test_dry_run(self, runner, mock_deps):
         mock_creds, mock_keyring = mock_deps

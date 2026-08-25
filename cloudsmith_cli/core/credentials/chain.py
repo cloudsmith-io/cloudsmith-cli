@@ -9,14 +9,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .providers import (
-    CLIFlagProvider,
-    CredentialsFileProvider,
-    EnvVarProvider,
-    KeyringProvider,
-    OidcProvider,
-)
-
 if TYPE_CHECKING:
     from .models import CredentialContext, CredentialResult
     from .provider import CredentialProvider
@@ -35,6 +27,14 @@ class CredentialProviderChain:
         if providers is not None:
             self.providers = providers
         else:
+            from .providers import (
+                CLIFlagProvider,
+                CredentialsFileProvider,
+                EnvVarProvider,
+                KeyringProvider,
+                OidcProvider,
+            )
+
             self.providers = [
                 CLIFlagProvider(),
                 EnvVarProvider(),
