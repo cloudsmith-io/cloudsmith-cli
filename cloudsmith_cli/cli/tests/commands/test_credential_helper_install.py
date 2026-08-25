@@ -8,11 +8,11 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import click.testing
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
@@ -29,6 +29,9 @@ from ....credential_helpers.launchers import (
     resolve_bin_dir,
     write_launcher,
 )
+
+if TYPE_CHECKING:
+    from _pytest.monkeypatch import MonkeyPatch
 
 # ---------------------------------------------------------------------------
 # Fixtures
