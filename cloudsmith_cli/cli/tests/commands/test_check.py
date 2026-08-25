@@ -4,8 +4,7 @@ import pytest
 
 from ....cli.commands.check import check
 from ....cli.tests.utils import random_str
-
-FAKE_API_HOST = "https://api.example.com"
+from .conftest import FAKE_API_HOST
 
 
 class TestCheckServiceCommand:
@@ -17,11 +16,11 @@ class TestCheckServiceCommand:
             ("1.0.0", "2.0.0"),
         ],
     )
+    @pytest.mark.usefixtures("set_fake_api_host_env_var")
     def test_check_service_command_output(
-        self, runner, monkeypatch, service_version, api_binding_version
+        self, runner, service_version, api_binding_version
     ):
         """Unit test the command output given different combinations of service/binding version."""
-        monkeypatch.setenv("CLOUDSMITH_API_HOST", FAKE_API_HOST)
         service_status = random_str()
 
         with (

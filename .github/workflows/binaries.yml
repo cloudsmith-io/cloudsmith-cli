@@ -21,6 +21,15 @@ on:
   push:
     branches:
       - master
+    paths:
+      - cloudsmith_cli/**
+      - packaging/**
+      - Dockerfile
+      - pyproject.toml
+      - uv.lock
+      - .github/scripts/**
+      - .github/workflows/binaries.yml
+      - .github/workflows/release.yml
   pull_request:
     paths:
       - cloudsmith_cli/**
@@ -83,22 +92,12 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${EVENT_NAME}" = "pull_request" ]; then
-            MATRIX=$(
-              jq -c '{
-                include: [
-                  .include[]
-                  | select(
-                      .name == "linux-x86_64-gnu"
-                      or .name == "macos-arm64"
-                      or .name == "windows-x86_64"
-                    )
-                ]
-              }' .github/scripts/binaries-matrix.json
-            )
-          else
-            MATRIX=$(jq -c . .github/scripts/binaries-matrix.json)
-          fi
+          MATRIX=$(
+            jq -c --arg event_name "${EVENT_NAME}" \
+              '{include: [.include[] | select($event_name != "pull_request" or .pr)]}' \
+              .github/scripts/binaries-matrix.json
+          )
+          test "$(echo "${MATRIX}" | jq '.include | length')" -gt 0
           echo "include=${MATRIX}" >> "$GITHUB_OUTPUT"
 
   build:

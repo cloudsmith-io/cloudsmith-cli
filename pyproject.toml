@@ -110,6 +110,7 @@ namespaces = false
 cloudsmith_cli = ["data/*", "templates/*"]
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers"
 norecursedirs = ["bin", ".git", ".venv"]
 testpaths = ["cloudsmith_cli"]
 markers = [
