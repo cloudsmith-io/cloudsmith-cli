@@ -1,7 +1,5 @@
 """Core version utilities."""
 
-import semver
-
 from . import utils
 
 
@@ -17,4 +15,6 @@ def get_version_info():
 
 def parse_version(version):
     """Get a version string as a VersionInfo object."""
+    import semver
+
     return semver.parse_version_info(version)
