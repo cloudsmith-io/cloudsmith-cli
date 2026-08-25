@@ -99,7 +99,8 @@ def get_credentials(index_url, credential=None, api_host=None, org=None):
         org: Organisation slug whose custom domains to match against
 
     Returns:
-        str: The token Cargo sends as its ``Authorization`` header, or None
+        str: The complete value Cargo sends as its ``Authorization`` header,
+            or None
     """
     if not credential or not credential.api_key:
         return None
@@ -109,7 +110,18 @@ def get_credentials(index_url, credential=None, api_host=None, org=None):
     ):
         return None
 
-    return credential.api_key
+    return _authorization_value(credential)
+
+
+def _authorization_value(credential) -> str:
+    """Return the complete HTTP Authorization value for *credential*.
+
+    Cargo forwards the credential provider's ``token`` field verbatim as the
+    Authorization header. Cloudsmith API credentials use the ``token`` scheme,
+    while SSO credentials use ``Bearer``.
+    """
+    scheme = "Bearer" if credential.auth_type == "bearer" else "token"
+    return f"{scheme} {credential.api_key}"
 
 
 def _handle_get(request, credential, api_host, org) -> dict:
@@ -137,7 +149,7 @@ def _handle_get(request, credential, api_host, org) -> dict:
     return _ok(
         {
             "kind": "get",
-            "token": credential.api_key,
+            "token": _authorization_value(credential),
             # A Cloudsmith token is organisation-wide and not scoped to the
             # read/publish/yank/owners operation, so it is cacheable for the
             # session and across operations.

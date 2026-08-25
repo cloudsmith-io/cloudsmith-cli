@@ -114,7 +114,7 @@ def test_get_returns_token_for_cloudsmith_registry(credential):
     assert messages[1] == {
         "Ok": {
             "kind": "get",
-            "token": "k_abc",
+            "token": "token k_abc",
             "cache": "session",
             "operation_independent": True,
         }
@@ -127,7 +127,7 @@ def test_get_serves_every_operation(operation, credential):
     request = _request(operation=operation, name="sample", vers="0.1.0")
     _, _, messages = _session(request, credential=credential)
 
-    assert messages[1]["Ok"]["token"] == "k_abc"
+    assert messages[1]["Ok"]["token"] == "token k_abc"
 
 
 def test_get_uses_the_cargo_backend_kind_for_custom_domains(credential):
@@ -149,8 +149,22 @@ def test_get_uses_the_cargo_backend_kind_for_custom_domains(credential):
 def test_index_url_keeps_its_sparse_prefix_out_of_the_host_match(credential):
     """Cargo's `sparse+` prefix and the repo path don't defeat the host check."""
     assert (
-        get_credentials(CLOUDSMITH_INDEX, credential=credential, org="acme") == "k_abc"
+        get_credentials(CLOUDSMITH_INDEX, credential=credential, org="acme")
+        == "token k_abc"
     )
+
+
+def test_get_returns_bearer_scheme_for_sso_credential():
+    """An SSO credential is returned with the Bearer authorization scheme."""
+    credential = CredentialResult(
+        api_key="jwt_token",
+        source_name="keyring",
+        auth_type="bearer",
+    )
+
+    _, _, messages = _session(_request(), credential=credential)
+
+    assert messages[1]["Ok"]["token"] == "Bearer jwt_token"
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +261,7 @@ def test_malformed_request_lines_are_answered_not_crashed(line, credential):
     assert (code, stderr) == (0, None)
     assert messages[1]["Err"]["kind"] == "other"
     # The following well-formed request is still served.
-    assert messages[2]["Ok"]["token"] == "k_abc"
+    assert messages[2]["Ok"]["token"] == "token k_abc"
 
 
 def test_blank_lines_are_skipped(credential):
@@ -322,7 +336,7 @@ def test_cli_speaks_the_protocol_on_stdin_and_stdout(runner):
     messages = [json.loads(line) for line in result.stdout.splitlines()]
     assert result.exit_code == 0
     assert messages[0] == hello()
-    assert messages[1]["Ok"]["token"] == "k_abc"
+    assert messages[1]["Ok"]["token"] == "token k_abc"
 
 
 def test_cli_accepts_the_cargo_plugin_flag_and_extra_provider_args(runner):
@@ -336,7 +350,7 @@ def test_cli_accepts_the_cargo_plugin_flag_and_extra_provider_args(runner):
 
     messages = [json.loads(line) for line in result.stdout.splitlines()]
     assert result.exit_code == 0
-    assert messages[1]["Ok"]["token"] == "k_abc"
+    assert messages[1]["Ok"]["token"] == "token k_abc"
 
 
 def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
