@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ....core.api.exceptions import ApiException
 from ...commands.list_ import repos as list_repos
 from ...commands.main import main
 from ...commands.repos import create, delete, get, update
@@ -360,9 +361,10 @@ class TestReposGpgUpload:
         document = json.loads(result.stdout)
         assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
 
+    @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
     def test_prompts_for_passphrase_when_no_file_given(
-        self, mock_create, runner, tmp_path
+        self, mock_create, _is_tty, runner, tmp_path
     ):
         mock_create.return_value = dict(_GPG_KEY)
 
@@ -421,12 +423,13 @@ class TestReposGpgUpload:
         assert result.exit_code == 0, result.output
         assert mock_create.call_args.kwargs["gpg_passphrase"] == expected
 
+    @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
     @pytest.mark.parametrize(
         "passphrase", [" leading-space", "trailing-space ", " \t "]
     )
     def test_prompt_preserves_passphrase_whitespace(
-        self, mock_create, runner, tmp_path, passphrase
+        self, mock_create, _is_tty, runner, tmp_path, passphrase
     ):
         mock_create.return_value = dict(_GPG_KEY)
         key_file = tmp_path / "key.asc"
@@ -584,6 +587,143 @@ class TestReposGpgUpload:
         assert "private key file is empty" in result.output
         mock_create.assert_not_called()
 
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_no_terminal_means_no_passphrase_rather_than_a_stall(
+        self, mock_create, runner, tmp_path
+    ):
+        """An unattended run uploads an unencrypted key instead of blocking."""
+        mock_create.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload", "my-org/my-repo", "--private-key-file", str(key_file)
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "GPG passphrase" not in result.output
+        mock_create.assert_called_once_with(
+            "my-org",
+            "my-repo",
+            gpg_private_key=_FAKE_GPG_KEY_MATERIAL,
+            gpg_passphrase=None,
+        )
+
+    @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_passphrase_prompt_keeps_out_of_json_output(
+        self, mock_create, _is_tty, runner, tmp_path
+    ):
+        """stdout must stay a single parseable document when JSON is asked for."""
+        mock_create.return_value = dict(_GPG_KEY)
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "-F",
+                "json",
+            ),
+            input="\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        document = json.loads(result.stdout)
+        assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_dry_run_validates_inputs_but_sends_nothing(
+        self, mock_create, runner, tmp_path
+    ):
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+        passphrase_file = tmp_path / "pass.txt"
+        passphrase_file.write_text("hunter2\n")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--passphrase-file",
+                str(passphrase_file),
+                "--dry-run",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Would upload the GPG key" in result.output
+        assert "with a passphrase" in result.output
+        assert "hunter2" not in result.output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_dry_run_still_rejects_an_empty_key_file(
+        self, mock_create, runner, tmp_path
+    ):
+        key_file = tmp_path / "key.asc"
+        key_file.write_text("   \n")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--dry-run",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "private key file is empty" in result.output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_dry_run_json_output(self, mock_create, runner, tmp_path):
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--dry-run",
+                "-F",
+                "json",
+            ),
+            input="\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        document = json.loads(result.stdout)
+        assert document["data"] == {
+            "dry_run": True,
+            "action": "upload",
+            "namespace": "my-org",
+            "repository": "my-repo",
+            "passphrase_supplied": False,
+        }
+        mock_create.assert_not_called()
+
     def test_private_key_flag_not_accepted(self, runner):
         """Key material must never be a plain CLI value (shell-history/process-list leak)."""
         result = runner.invoke(
@@ -597,17 +737,84 @@ class TestReposGpgUpload:
 
 
 class TestReposGpgRegenerate:
+    @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
     @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
-    def test_prompts_for_confirmation_and_declines(self, mock_regenerate, runner):
+    def test_typed_confirmation_regenerates(self, mock_regenerate, _is_tty, runner):
+        new_key = dict(_GPG_KEY, fingerprint="9999FFFF8888EEEE7777DDDD6666CCCC5555BBBB")
+        mock_regenerate.return_value = new_key
+
         result = runner.invoke(
             main,
             gpg_command_args("regenerate", "my-org/my-repo"),
-            input="N",
+            input="regenerate\n",
             catch_exceptions=False,
         )
 
         assert result.exit_code == 0, result.output
-        assert "OK, phew! Close call. :-)" in result.output
+        assert "irrevocable" in result.output
+        assert "Type 'regenerate' to confirm" in result.output
+        mock_regenerate.assert_called_once_with("my-org", "my-repo")
+        assert new_key["fingerprint"] in result.output
+
+    @pytest.mark.parametrize("answer", ["", "n", "REGENERATE", "regen"])
+    @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_anything_but_the_word_declines(
+        self, mock_regenerate, _is_tty, runner, answer
+    ):
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo"),
+            input=f"{answer}\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Not confirmed. No changes made." in result.output
+        mock_regenerate.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_fails_fast_without_a_terminal(self, mock_regenerate, runner):
+        """An unattended run must fail, not block on a question nobody can answer."""
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo"),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "stdin is not a terminal" in result.output
+        assert "-y/--yes" in result.output
+        mock_regenerate.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_dry_run_sends_nothing(self, mock_regenerate, runner):
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "--dry-run"),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Would regenerate the GPG key" in result.output
+        mock_regenerate.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_dry_run_json_output(self, mock_regenerate, runner):
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "--dry-run", "-F", "json"),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        document = json.loads(result.stdout)
+        assert document["data"] == {
+            "dry_run": True,
+            "action": "regenerate",
+            "namespace": "my-org",
+            "repository": "my-repo",
+        }
         mock_regenerate.assert_not_called()
 
     @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
@@ -639,3 +846,101 @@ class TestReposGpgRegenerate:
         document = json.loads(result.stdout)
         assert document["data"]["fingerprint"] == _GPG_KEY["fingerprint"]
         assert result.stdout.startswith("{\n    ")
+
+
+class TestReposGpgErrorVoice:
+    """The failures a person can act on read as one plain sentence."""
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    def test_get_not_found(self, mock_list, runner):
+        mock_list.side_effect = ApiException(status=404, detail="Not found.")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("get", "my-org/my-repo"),
+            catch_exceptions=False,
+        )
+
+        # AliasGroup.main runs click with standalone_mode=False, so the status
+        # comes back as the command's return value rather than an exit code.
+        assert result.return_value == 404
+        assert "Could not get GPG key for my-repo: not found." in result.output
+        assert "status: 404" not in result.output
+
+    @pytest.mark.parametrize(
+        ("status", "expected"),
+        [
+            (400, "Could not set GPG key for my-repo: the provided key is not valid."),
+            (
+                402,
+                "Could not set GPG key for my-repo: custom GPG keys require a paid "
+                "plan.",
+            ),
+            (404, "Could not set GPG key for my-repo: not found."),
+        ],
+    )
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_upload_failures(self, mock_create, runner, tmp_path, status, expected):
+        mock_create.side_effect = ApiException(status=status, detail="Whatever.")
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload", "my-org/my-repo", "--private-key-file", str(key_file)
+            ),
+            input="\n",
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == status
+        assert expected in result.output
+        assert "Whatever." not in result.output
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_regenerate_failure(self, mock_regenerate, runner):
+        mock_regenerate.side_effect = ApiException(
+            status=402, detail="Custom GPG keys are not active; upgrade your account!"
+        )
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "-y"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 402
+        assert (
+            "Could not regenerate GPG key for my-repo: custom GPG keys require a "
+            "paid plan." in result.output
+        )
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    def test_unmapped_status_keeps_the_standard_rendering(self, mock_list, runner):
+        mock_list.side_effect = ApiException(status=500, detail="Boom.")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("get", "my-org/my-repo"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 500
+        assert "Failed to get the repository GPG key!" in result.output
+        assert "Detail: Boom." in result.output
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    def test_json_output_keeps_the_full_error_envelope(self, mock_list, runner):
+        mock_list.side_effect = ApiException(status=404, detail="Not found.")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("get", "my-org/my-repo", "-F", "json"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 404
+        document = json.loads(result.stdout)
+        assert document["detail"] == "Not found."
+        assert document["meta"]["code"] == 404

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `cloudsmith repos gpg` for managing the GPG key a repository signs its package indexes with. `get` shows the active key and its armored public block, `upload` installs a key you supply, and `regenerate` replaces the current key with a freshly generated Cloudsmith one. Key material and passphrases are only ever read from a file, stdin, or a hidden prompt, never from a command-line value, and `--debug` is refused on `upload` so the request body can't be logged. Both mutating subcommands accept `-n/--dry-run`, and `regenerate` asks you to type `regenerate` to confirm - with no terminal attached it fails instead of blocking, so pass `-y/--yes` for unattended runs. There's no `delete` subcommand because the API has no way to remove a repository's key.
+
 ## [1.25.0] - 2026-08-24
 
 ### Added

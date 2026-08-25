@@ -298,6 +298,69 @@ def print_gpg_key(gpg_key):
     click.echo()
 
 
+#: Reasons for the API failures a person can actually act on, keyed by
+#: status. Anything not listed here keeps the standard error rendering.
+GPG_READ_ERROR_REASONS = {404: "not found"}
+GPG_WRITE_ERROR_REASONS = {
+    400: "the provided key is not valid",
+    402: "custom GPG keys require a paid plan",
+    404: "not found",
+}
+
+REGENERATE_CONFIRMATION_WORD = "regenerate"
+
+REGENERATE_WARNING = (
+    "Regenerating a repository's GPG key is irrevocable. The old key is discarded\n"
+    "and every consumer verifying against its fingerprint will need to fetch and\n"
+    "trust the new one before their next install succeeds."
+)
+
+
+def gpg_error_summaries(action, repo, reasons):
+    """Build single-line error messages for a GPG command, keyed by status."""
+    return {
+        status: f"Could not {action} GPG key for {repo}: {reason}."
+        for status, reason in reasons.items()
+    }
+
+
+def stdin_is_a_terminal():
+    """Check whether stdin is attached to a terminal."""
+    return click.get_text_stream("stdin").isatty()
+
+
+def confirm_regenerate(err=False):
+    """Ask for typed confirmation before regenerating a repository's GPG key.
+
+    Returns True only if the exact confirmation word was typed. Raises a
+    usage error when there's no terminal to ask, so an unattended run fails
+    fast instead of blocking on a question nobody can answer.
+    """
+    if not stdin_is_a_terminal():
+        raise click.UsageError(
+            "Refusing to regenerate the GPG key without confirmation: stdin is "
+            "not a terminal. Pass -y/--yes to confirm non-interactively."
+        )
+
+    click.echo(err=err)
+    click.echo(REGENERATE_WARNING, err=err)
+    click.echo(err=err)
+
+    answer = click.prompt(
+        f"Type '{REGENERATE_CONFIRMATION_WORD}' to confirm",
+        default="",
+        show_default=False,
+        err=err,
+    )
+
+    if answer.strip() == REGENERATE_CONFIRMATION_WORD:
+        return True
+
+    click.echo(err=err)
+    click.secho("Not confirmed. No changes made.", fg="yellow", err=err)
+    return False
+
+
 @repositories.group(cls=command.AliasGroup, name="gpg", aliases=[])
 @click.pass_context
 def gpg(ctx):  # pylint: disable=unused-argument
@@ -340,7 +403,12 @@ def gpg_get(ctx, opts, owner_repo):
 
     context_msg = "Failed to get the repository GPG key!"
     with (
-        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        handle_api_exceptions(
+            ctx,
+            opts=opts,
+            context_msg=context_msg,
+            error_summaries=gpg_error_summaries("get", repo, GPG_READ_ERROR_REASONS),
+        ),
         maybe_spinner(opts),
     ):
         gpg_key = api.list_repo_gpg_key(owner, repo)
@@ -383,8 +451,17 @@ def gpg_get(ctx, opts, owner_repo):
     "never accepted as a plain command-line value, to avoid leaking it "
     "into shell history or the process list.",
 )
+@click.option(
+    "-n",
+    "--dry-run",
+    "dry_run",
+    default=False,
+    is_flag=True,
+    help="Validate the inputs and show what would be uploaded, without "
+    "changing the repository's key.",
+)
 @click.pass_context
-def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
+def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run):
     """
     Set (upload) the active GPG signing key for a repository.
 
@@ -395,6 +472,9 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
 
     The private key material is always read from a file (or stdin via '-'),
     never accepted as a plain command-line argument.
+
+    Use -n/--dry-run to validate the key and passphrase inputs without
+    changing the repository's key.
 
     Full CLI example:
 
@@ -431,15 +511,43 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
             gpg_passphrase = gpg_passphrase[:-2]
         elif gpg_passphrase.endswith(("\r", "\n")):
             gpg_passphrase = gpg_passphrase[:-1]
-    else:
+    elif stdin_is_a_terminal():
         gpg_passphrase = click.prompt(
             "GPG passphrase (leave blank if the key has none)",
             hide_input=True,
             default="",
             show_default=False,
+            err=use_stderr,
         )
+    else:
+        # Nothing to prompt: an unattended run would block on a question
+        # nobody can answer, so take the key to be unencrypted instead.
+        gpg_passphrase = ""
     if gpg_passphrase == "":
         gpg_passphrase = None
+
+    if dry_run:
+        if utils.maybe_print_as_json(
+            opts,
+            {
+                "dry_run": True,
+                "action": "upload",
+                "namespace": owner,
+                "repository": repo,
+                "passphrase_supplied": gpg_passphrase is not None,
+            },
+        ):
+            return
+
+        click.secho(
+            f"Would upload the GPG key for {click.style(repo, bold=True)} in the "
+            f"{click.style(owner, bold=True)} namespace "
+            f"({'with' if gpg_passphrase is not None else 'without'} a passphrase). "
+            "Nothing sent - this was a dry run.",
+            fg="yellow",
+            err=use_stderr,
+        )
+        return
 
     click.echo(
         f"Uploading GPG key for {click.style(repo, bold=True)} in the "
@@ -450,7 +558,12 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
 
     context_msg = "Failed to set the repository GPG key!"
     with (
-        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        handle_api_exceptions(
+            ctx,
+            opts=opts,
+            context_msg=context_msg,
+            error_summaries=gpg_error_summaries("set", repo, GPG_WRITE_ERROR_REASONS),
+        ),
         maybe_spinner(opts),
     ):
         gpg_key = api.create_repo_gpg_key(
@@ -480,8 +593,16 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file):
     is_flag=True,
     help="Assume yes as default answer to questions (this is dangerous!)",
 )
+@click.option(
+    "-n",
+    "--dry-run",
+    "dry_run",
+    default=False,
+    is_flag=True,
+    help="Show what would be regenerated, without changing the repository's key.",
+)
 @click.pass_context
-def gpg_regenerate(ctx, opts, owner_repo, yes):
+def gpg_regenerate(ctx, opts, owner_repo, yes, dry_run):
     """
     Regenerate the GPG signing key for a repository.
 
@@ -494,6 +615,10 @@ def gpg_regenerate(ctx, opts, owner_repo, yes):
     one; consumers relying on the old key's fingerprint will need to pick up
     the new one. There is no way to undo this from the CLI.
 
+    Because of that, the command asks you to type 'regenerate' to confirm.
+    Unattended runs never block on that question: with no terminal attached
+    the command fails unless -y/--yes was passed.
+
     Full CLI example:
 
       $ cloudsmith repos gpg regenerate your-org/your-repo
@@ -501,18 +626,42 @@ def gpg_regenerate(ctx, opts, owner_repo, yes):
     owner, repo = owner_repo
     use_stderr = utils.should_use_stderr(opts)
 
-    prompt = (
-        f"regenerate the GPG key for {click.style(repo, bold=True)} in the "
-        f"{click.style(owner, bold=True)} namespace"
-    )
-    if not utils.confirm_operation(prompt, assume_yes=yes, err=use_stderr):
+    if dry_run:
+        if utils.maybe_print_as_json(
+            opts,
+            {
+                "dry_run": True,
+                "action": "regenerate",
+                "namespace": owner,
+                "repository": repo,
+            },
+        ):
+            return
+
+        click.secho(
+            f"Would regenerate the GPG key for {click.style(repo, bold=True)} in "
+            f"the {click.style(owner, bold=True)} namespace. Nothing sent - this "
+            "was a dry run.",
+            fg="yellow",
+            err=use_stderr,
+        )
+        return
+
+    if not yes and not confirm_regenerate(err=use_stderr):
         return
 
     click.echo("Regenerating GPG key ... ", nl=False, err=use_stderr)
 
     context_msg = "Failed to regenerate the repository GPG key!"
     with (
-        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        handle_api_exceptions(
+            ctx,
+            opts=opts,
+            context_msg=context_msg,
+            error_summaries=gpg_error_summaries(
+                "regenerate", repo, GPG_WRITE_ERROR_REASONS
+            ),
+        ),
         maybe_spinner(opts),
     ):
         gpg_key = api.regenerate_repo_gpg_key(owner, repo)
