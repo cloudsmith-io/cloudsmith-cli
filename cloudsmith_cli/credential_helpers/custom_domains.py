@@ -19,9 +19,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..cli.config import get_default_config_path
-from ..core.api.exceptions import ApiException
-from ..core.api.init import initialise_api
-from ..core.api.orgs import list_custom_domains
 from ..core.cache_utils import atomic_write_json
 from ..core.credentials.models import CredentialResult
 from .default_domains import DomainType, domain_type_from_server
@@ -304,6 +301,10 @@ def get_custom_domains(
         return cached
 
     logger.debug("Fetching custom domains from API for %s", org)
+
+    from ..core.api.exceptions import ApiException
+    from ..core.api.init import initialise_api
+    from ..core.api.orgs import list_custom_domains
 
     if configure_api:
         initialise_api(host=api_host, credential=credential)

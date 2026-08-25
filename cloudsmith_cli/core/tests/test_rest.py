@@ -2,7 +2,8 @@ import httpretty
 import pytest
 
 from ..api.init import initialise_api
-from ..rest import RestClient, create_requests_session
+from ..rest import RestClient
+from ..session import create_requests_session
 
 
 @pytest.fixture(autouse=True)

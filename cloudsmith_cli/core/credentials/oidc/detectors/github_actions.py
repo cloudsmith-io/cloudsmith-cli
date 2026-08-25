@@ -15,7 +15,6 @@ from __future__ import annotations
 import os
 from urllib.parse import quote
 
-from ....rest import create_requests_session as create_session
 from .base import EnvironmentDetector
 
 DEFAULT_AUDIENCE = "cloudsmith"
@@ -41,6 +40,8 @@ class GitHubActionsDetector(EnvironmentDetector):
         audience = self.context.oidc_audience or DEFAULT_AUDIENCE
         separator = "&" if "?" in request_url else "?"
         url = f"{request_url}{separator}audience={quote(audience, safe='')}"
+
+        from ....session import create_requests_session as create_session
 
         session = self.context.session or create_session()
         try:
