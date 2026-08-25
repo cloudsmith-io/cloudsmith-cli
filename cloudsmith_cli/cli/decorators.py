@@ -22,9 +22,10 @@ from . import config, utils
 
 def report_retry(seconds, context=None):
     if context == "retry-after":
-        click.echo()
+        click.echo(err=True)
         click.echo(
-            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... "
+            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
+            err=True,
         )
 
 
