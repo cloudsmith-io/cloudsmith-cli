@@ -18,7 +18,8 @@ Python `>=3.10` is required (CI tests 3.10–3.14).
 ## Common commands
 
 - Run the CLI locally: `cloudsmith ...` (console_script) or `python -m cloudsmith_cli ...`.
-- Run tests: `pytest` (configured via `pyproject.toml` `[tool.pytest.ini_options]` — adds `--cov=cloudsmith_cli`).
+- Run the unit tests: `pytest -m "not integration"`. Run with coverage: `pytest --cov=cloudsmith_cli`.
+- Run the live-service tests: `pytest -m integration` (requires the `PYTEST_CLOUDSMITH_*` environment variables). Mark each test that calls the live Cloudsmith service with `@pytest.mark.integration`.
 - Run a single test: `pytest cloudsmith_cli/cli/tests/test_push.py::TestClass::test_name` or by node id / `-k <expr>`.
 - Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `black .`, `isort .`, `flake8 --config=.flake8`, `pylint --rcfile=.pylintrc <path>`, `pyupgrade --py310-plus <files>`.
 - Release: `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
@@ -30,7 +31,7 @@ The CLI is a Click app that wraps the auto-generated `cloudsmith-api` Python SDK
 ### Layered layout
 
 - `cloudsmith_cli/cli/` — Click commands, decorators, output formatting, validators, config-file parsing, SAML browser-callback webserver. API **call sites** belong in `core/api/*`; commands invoke those wrappers rather than calling the SDK directly. (A few commands — `login`, `logout`, `check` — do import `cloudsmith_api` for `Configuration` defaults or exception classes; that's fine, but new request code should go through `core/api/*`.)
-  - `cli/commands/main.py` defines the top-level `main` Click group (`cls=AliasGroup`). Every other command module imports `main` and registers itself with `@main.command(...)` or `@main.group(...)`. `cli/commands/__init__.py` imports every module so registration happens on import.
+  - `cli/commands/main.py` defines the top-level `main` Click group (`cls=AliasGroup`). Every other command module imports `main` and registers itself with `@main.command(...)` or `@main.group(...)`. Command modules are imported lazily: `cli/commands/registry.py` maps each command name (and alias) to its module, and `AliasGroup` imports the module on first use. When you add, rename or alias a top-level command, update the registry; `cli/tests/test_lazy_commands.py` fails on drift.
   - `cli/command.py` provides `AliasGroup` (DYM + alias support) and JSON-aware Click exception formatting — Click errors are serialized to JSON when `-F json|pretty_json` is in effect (checked from both Click context and `sys.argv`).
   - `cli/decorators.py` is the seam between CLI and API: `@common_cli_config_options`, `@common_cli_output_options`, `@common_api_auth_options`, and `@initialise_api` (which calls `core.api.init.initialise_api` to configure the `cloudsmith_api` SDK with key/host/proxy/SSL/retry/SAML token). `@initialise_mcp` wires up the MCP server.
   - `cli/config.py` reads `config.ini` and `credentials.ini` via `click-configfile`. Search path: cwd, `click.get_app_dir("cloudsmith")`, `~/.cloudsmith`. Profiles use `[profile:NAME]` sections.
@@ -59,7 +60,7 @@ Three auth paths feed `core.api.init.initialise_api`:
 
 ## Tests
 
-Tests live alongside code: `cloudsmith_cli/cli/tests/` and `cloudsmith_cli/core/tests/`. The CLI tests use Click's `CliRunner`; API tests stub HTTP with `httpretty` and freeze time with `freezegun`. `bin/` and `.venv/` are excluded from pytest discovery (`norecursedirs` in `setup.cfg`).
+Tests live alongside code: `cloudsmith_cli/cli/tests/` and `cloudsmith_cli/core/tests/`. The CLI tests use Click's `CliRunner`; API tests stub HTTP with `httpretty` and freeze time with `freezegun`. `bin/` and `.venv/` are excluded from pytest discovery (`norecursedirs` in `pyproject.toml`). Tests that call the live Cloudsmith service carry the `integration` marker.
 
 ## Style notes specific to this repo
 

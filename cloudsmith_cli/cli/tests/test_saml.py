@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-import requests
 
 from ...core.api.exceptions import ApiException
 from ..saml import exchange_2fa_token, get_idp_url, refresh_access_token
@@ -15,6 +14,8 @@ def mock_response():
 
 @pytest.fixture
 def mock_session():
+    import requests
+
     session = MagicMock(spec=requests.sessions.Session)
     return session
 
@@ -38,6 +39,8 @@ class TestSaml:
         )
 
     def test_get_idp_url_with_request_error(self, mock_response, mock_session):
+        import requests
+
         mock_session.get.return_value = mock_response
         mock_response.status_code = 500
         mock_response.headers = {"foo": "bar"}
@@ -55,6 +58,48 @@ class TestSaml:
             mock_session.get.assert_called_once_with(
                 f"{self.api_host}/orgs/test_org/saml/?{self.query_params}", timeout=30
             )
+
+    def test_error_carries_the_api_detail(self, mock_response, mock_session):
+        import requests
+
+        """Verify the API's own explanation reaches the message the user reads."""
+        mock_session.post.return_value = mock_response
+        mock_response.status_code = 401
+        mock_response.headers = {}
+        mock_response.content = b'{"detail": "Your session has expired."}'
+        mock_response.json.return_value = {"detail": "Your session has expired."}
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            "An error occurred", response=mock_response
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            exchange_2fa_token(
+                self.api_host, "two_factor_token", "123456", session=mock_session
+            )
+
+        assert exc_info.value.detail == "Your session has expired."
+        assert str(exc_info.value) == "401 - Your session has expired."
+
+    def test_error_without_json_body_still_raises(self, mock_response, mock_session):
+        import requests
+
+        """Verify a non-JSON error body falls back to the status description."""
+        mock_session.post.return_value = mock_response
+        mock_response.status_code = 502
+        mock_response.headers = {}
+        mock_response.content = b"<html>Bad Gateway</html>"
+        mock_response.json.side_effect = ValueError("no json")
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            "An error occurred", response=mock_response
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            exchange_2fa_token(
+                self.api_host, "two_factor_token", "123456", session=mock_session
+            )
+
+        assert exc_info.value.detail is None
+        assert str(exc_info.value) == "502 - Bad Gateway"
 
     def test_exchange_2fa_token(self, mock_response, mock_session):
         mock_session.post.return_value = mock_response
@@ -80,6 +125,8 @@ class TestSaml:
         )
 
     def test_exchange_2fa_token_with_request_error(self, mock_response, mock_session):
+        import requests
+
         mock_session.post.return_value = mock_response
         mock_response.status_code = 500
         mock_response.headers = {"foo": "bar"}
@@ -133,6 +180,8 @@ class TestSaml:
         )
 
     def test_refresh_access_token_with_request_error(self, mock_response, mock_session):
+        import requests
+
         mock_session.post.return_value = mock_response
         mock_response.status_code = 500
         mock_response.headers = {"foo": "bar"}

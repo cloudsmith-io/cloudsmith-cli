@@ -54,6 +54,14 @@ class TestLogoutCommand:
         assert "Removed credentials from:" in result.output
         assert "Removed SSO tokens from system keyring" in result.output
 
+    def test_misconfigured_api_host_is_normalized(self, runner, mock_deps):
+        _, mock_keyring = mock_deps
+
+        result = runner.invoke(logout, ["--api-host", " api.example.com/ "])
+
+        assert result.exit_code == 0
+        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST)
+
     def test_dry_run(self, runner, mock_deps):
         mock_creds, mock_keyring = mock_deps
 

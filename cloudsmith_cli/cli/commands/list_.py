@@ -239,20 +239,19 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
         return
 
     headers = ["Name", "Version", "Status", "Owner / Repository (Identifier)"]
-    rows = []
-    for package in sorted(packages_, key=itemgetter("namespace", "slug")):
-        rows.append(
-            [
-                click.style(_get_package_name(package), fg="cyan"),
-                click.style(_get_package_version(package), fg="yellow"),
-                click.style(_get_package_status(package), fg="blue"),
-                "{owner_slug}/{repo_slug}/{slug}".format(
-                    owner_slug=click.style(package["namespace"], fg="magenta"),
-                    repo_slug=click.style(package["repository"], fg="magenta"),
-                    slug=click.style(package["slug"], fg="green"),
-                ),
-            ]
-        )
+    rows = [
+        [
+            click.style(_get_package_name(package), fg="cyan"),
+            click.style(_get_package_version(package), fg="yellow"),
+            click.style(_get_package_status(package), fg="blue"),
+            "{owner_slug}/{repo_slug}/{slug}".format(
+                owner_slug=click.style(package["namespace"], fg="magenta"),
+                repo_slug=click.style(package["repository"], fg="magenta"),
+                slug=click.style(package["slug"], fg="green"),
+            ),
+        ]
+        for package in sorted(packages_, key=itemgetter("namespace", "slug"))
+    ]
 
     if packages_:
         click.echo()

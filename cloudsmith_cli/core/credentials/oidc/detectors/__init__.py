@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from .aws import AWSDetector
 from .azure_devops import AzureDevOpsDetector
-from .base import EnvironmentDetector
 from .bitbucket_pipelines import BitbucketPipelinesDetector
 from .circleci import CircleCIDetector
 from .generic import GenericDetector
@@ -18,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from ... import CredentialContext
+    from .base import EnvironmentDetector
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,13 @@
 import pytest
 
+FAKE_API_HOST = "https://api.example.com"
+
+
+@pytest.fixture()
+def set_fake_api_host_env_var(monkeypatch):
+    """Set CLOUDSMITH_API_HOST to a host that no test can reach."""
+    monkeypatch.setenv("CLOUDSMITH_API_HOST", FAKE_API_HOST)
+
 
 class MockToken:
     """Mock Token object with the properties needed for testing."""

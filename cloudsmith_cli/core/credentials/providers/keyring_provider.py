@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 
-from ....cli.saml import refresh_access_token
 from ....core import keyring
 from ...api.exceptions import ApiException
 from ..models import CredentialContext, CredentialResult

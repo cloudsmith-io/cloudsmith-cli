@@ -2,7 +2,6 @@
 
 import json
 
-import cloudsmith_api
 import httpretty
 import httpretty.core
 import pytest
@@ -564,6 +563,8 @@ class TestValidateMetadata:
 class TestAuthHeaders:
     @staticmethod
     def _override_config(monkeypatch, *, api_key=None, headers=None):
+        import cloudsmith_api
+
         cfg = cloudsmith_api.Configuration()
         cfg.api_key = api_key if api_key is not None else cfg.api_key
         cfg.headers = headers if headers is not None else cfg.headers

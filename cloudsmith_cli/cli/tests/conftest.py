@@ -67,12 +67,12 @@ def api_host():
 
 
 @pytest.fixture()
-def set_api_host_env_var(api_host):
+def set_api_host_env_var(api_host, monkeypatch):
     """Set the CLOUDSMITH_API_HOST environment variable."""
-    os.environ["CLOUDSMITH_API_HOST"] = api_host
+    monkeypatch.setenv("CLOUDSMITH_API_HOST", api_host)
 
 
 @pytest.fixture()
-def set_api_key_env_var(api_key):
+def set_api_key_env_var(api_key, monkeypatch):
     """Set the CLOUDSMITH_API_KEY environment variable."""
-    os.environ["CLOUDSMITH_API_KEY"] = api_key
+    monkeypatch.setenv("CLOUDSMITH_API_KEY", api_key)

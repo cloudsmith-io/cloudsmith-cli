@@ -4,10 +4,9 @@ import os
 from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, Mock, patch
 
-import keyring
 import pytest
 from freezegun import freeze_time
-from keyring.errors import KeyringError
+from keyrings.cryptfile.cryptfile import CryptFileKeyring
 
 from .. import keyring as core_keyring
 from ..keyring import (
@@ -33,24 +32,32 @@ def mock_get_user():
 
 @pytest.fixture
 def mock_get_password():
+    import keyring
+
     with patch.object(keyring, "get_password") as get_password_mock:
         yield get_password_mock
 
 
 @pytest.fixture
 def mock_set_password():
+    import keyring
+
     with patch.object(keyring, "set_password") as set_password_mock:
         yield set_password_mock
 
 
 @pytest.fixture
 def mock_delete_password():
+    import keyring
+
     with patch.object(keyring, "delete_password") as delete_password_mock:
         yield delete_password_mock
 
 
 @pytest.fixture(autouse=True)
 def mock_get_keyring():
+    import keyring
+
     with patch.object(keyring, "get_keyring") as get_keyring_mock:
         yield get_keyring_mock
 
@@ -76,6 +83,8 @@ class TestKeyring:
         )
 
     def test_get_access_token_when_error_raised(self, mock_get_user, mock_get_password):
+        from keyring.errors import KeyringError
+
         mock_get_password.side_effect = KeyringError("A keyring error occurred")
 
         assert get_access_token(self.api_host) is None
@@ -111,6 +120,8 @@ class TestKeyring:
     def test_get_refresh_attempted_at_when_keyring_error_raised(
         self, mock_get_user, mock_get_password
     ):
+        from keyring.errors import KeyringError
+
         mock_get_password.side_effect = KeyringError("A keyring error occurred")
 
         assert get_refresh_attempted_at(self.api_host) is None
@@ -190,6 +201,8 @@ class TestKeyring:
     def test_get_refresh_token_when_error_raised(
         self, mock_get_user, mock_get_password
     ):
+        from keyring.errors import KeyringError
+
         mock_get_password.side_effect = KeyringError("A keyring error occurred")
 
         assert get_refresh_token(self.api_host) is None
@@ -649,8 +662,235 @@ class TestKeyringPropertyAlias:
         mock_get_keyring.return_value.set_properties_from_env.assert_called_once()
 
 
+class TestKeyringFilePathAlias:
+    """Tests for CLOUDSMITH_KEYRING_FILE_PATH aliasing KEYRING_PROPERTY_FILE_PATH."""
+
+    api_host = "https://example.com"
+
+    def test_sets_keyring_property_when_unset(self, mock_get_user, mock_get_password):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "/secure/path/keyring.cfg"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert (
+                os.environ["KEYRING_PROPERTY_FILE_PATH"] == "/secure/path/keyring.cfg"
+            )
+
+    def test_does_not_override_existing_keyring_property(
+        self, mock_get_user, mock_get_password
+    ):
+        env = os.environ.copy()
+        env["KEYRING_PROPERTY_FILE_PATH"] = "/native/path/keyring.cfg"
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "/alias/path/keyring.cfg"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert (
+                os.environ["KEYRING_PROPERTY_FILE_PATH"] == "/native/path/keyring.cfg"
+            )
+
+    def test_no_op_when_alias_not_set(self, mock_get_user, mock_get_password):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env.pop("CLOUDSMITH_KEYRING_FILE_PATH", None)
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert "KEYRING_PROPERTY_FILE_PATH" not in os.environ
+
+    def test_expands_user_and_env_vars(self, mock_get_user, mock_get_password):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["KEYRING_STORE_ROOT"] = "/secure"
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "$KEYRING_STORE_ROOT/keyring.cfg"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert os.environ["KEYRING_PROPERTY_FILE_PATH"] == "/secure/keyring.cfg"
+
+    def test_expands_home_directory(self, mock_get_user, mock_get_password):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "~/keyring.cfg"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert os.environ["KEYRING_PROPERTY_FILE_PATH"] == os.path.expanduser(
+                "~/keyring.cfg"
+            )
+
+    def test_expands_home_inside_env_var_value(self, mock_get_user, mock_get_password):
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["KEYRING_STORE_ROOT"] = "~"
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "$KEYRING_STORE_ROOT/keyring.cfg"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert os.environ["KEYRING_PROPERTY_FILE_PATH"] == os.path.expanduser(
+                "~/keyring.cfg"
+            )
+
+
+class TestKeyringDirEnv:
+    """Tests for CLOUDSMITH_KEYRING_DIR redirecting file-backed backends."""
+
+    api_host = "https://example.com"
+
+    def test_sets_backend_file_path(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        backend.filename = "cryptfile_pass.cfg"
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == os.path.join(
+                "/secure/dir", "cryptfile_pass.cfg"
+            )
+
+    def test_native_file_path_wins_over_dir(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        backend.filename = "cryptfile_pass.cfg"
+        env = os.environ.copy()
+        env["KEYRING_PROPERTY_FILE_PATH"] = "/native/path/keyring.cfg"
+        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == "/native/path/keyring.cfg"
+
+    def test_alias_file_path_wins_over_dir(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        backend.filename = "cryptfile_pass.cfg"
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "/alias/path/keyring.cfg"
+        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == "/alias/path/keyring.cfg"
+
+    def test_no_op_for_backends_without_filename(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        del backend.filename
+        backend.file_path = "untouched"
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == "untouched"
+
+    def test_no_op_when_dir_not_set(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        backend.filename = "cryptfile_pass.cfg"
+        backend.file_path = "untouched"
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env.pop("CLOUDSMITH_KEYRING_DIR", None)
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == "untouched"
+
+    def test_expands_user_and_env_vars(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        backend.filename = "keyring_pass.cfg"
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["KEYRING_STORE_ROOT"] = "/secure"
+        env["CLOUDSMITH_KEYRING_DIR"] = "$KEYRING_STORE_ROOT/store"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == os.path.join(
+                "/secure/store", "keyring_pass.cfg"
+            )
+
+    def test_expands_home_directory(
+        self, mock_get_user, mock_get_password, mock_get_keyring
+    ):
+        backend = mock_get_keyring.return_value
+        backend.filename = "keyring_pass.cfg"
+        env = os.environ.copy()
+        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
+        env["CLOUDSMITH_KEYRING_DIR"] = "~/store"
+        with patch.dict(os.environ, env, clear=True):
+            get_access_token(self.api_host)
+            assert backend.file_path == os.path.join(
+                os.path.expanduser("~/store"), "keyring_pass.cfg"
+            )
+
+
+class TestKeyringFileRelocation:
+    """Tests for file relocation with a real cryptfile backend."""
+
+    api_host = "https://example.com"
+
+    @staticmethod
+    def _relocation_env(tmp_path):
+        env = os.environ.copy()
+        for var in (
+            "KEYRING_PROPERTY_FILE_PATH",
+            "KEYRING_PROPERTY_KEYRING_KEY",
+            "CLOUDSMITH_KEYRING_FILE_PATH",
+            "CLOUDSMITH_KEYRING_DIR",
+            "CLOUDSMITH_KEYRING_KEY",
+        ):
+            env.pop(var, None)
+        env["XDG_DATA_HOME"] = str(tmp_path / "default")
+        env["CLOUDSMITH_KEYRING_KEY"] = "test-password"
+        return env
+
+    def _roundtrip_token(self, backend, env):
+        import keyring
+
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch.object(keyring, "set_password", side_effect=backend.set_password),
+            patch.object(keyring, "get_password", side_effect=backend.get_password),
+        ):
+            store_access_token(self.api_host, "token-value")
+            assert get_access_token(self.api_host) == "token-value"
+
+    def test_dir_relocates_storage_before_unlock(
+        self, tmp_path, mock_get_user, mock_get_keyring
+    ):
+        backend = CryptFileKeyring()
+        mock_get_keyring.return_value = backend
+        env = self._relocation_env(tmp_path)
+        env["CLOUDSMITH_KEYRING_DIR"] = str(tmp_path / "secure")
+
+        self._roundtrip_token(backend, env)
+
+        assert (tmp_path / "secure" / backend.filename).is_file()
+        assert not (tmp_path / "default").exists()
+
+    def test_file_path_alias_relocates_storage_before_unlock(
+        self, tmp_path, mock_get_user, mock_get_keyring
+    ):
+        backend = CryptFileKeyring()
+        mock_get_keyring.return_value = backend
+        target = tmp_path / "secure" / "tokens.cfg"
+        env = self._relocation_env(tmp_path)
+        env["CLOUDSMITH_KEYRING_FILE_PATH"] = str(target)
+
+        self._roundtrip_token(backend, env)
+
+        assert target.is_file()
+        assert not (tmp_path / "default").exists()
+
+
 class TestDeleteSsoTokens:
     """Tests for the delete_sso_tokens and has_sso_tokens functions."""
+
+    from keyring.errors import KeyringError
 
     api_host = "https://example.com"
 
@@ -661,6 +901,8 @@ class TestDeleteSsoTokens:
     def test_delete_sso_tokens_handles_keyring_error(
         self, mock_get_user, mock_delete_password
     ):
+        from keyring.errors import KeyringError
+
         mock_delete_password.side_effect = KeyringError("err")
         assert delete_sso_tokens(self.api_host) is False
 

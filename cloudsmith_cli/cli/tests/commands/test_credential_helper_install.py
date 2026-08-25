@@ -8,11 +8,11 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import click.testing
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
@@ -29,6 +29,9 @@ from ....credential_helpers.launchers import (
     resolve_bin_dir,
     write_launcher,
 )
+
+if TYPE_CHECKING:
+    from _pytest.monkeypatch import MonkeyPatch
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -810,7 +813,7 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
         ]
 
     with patch(
-        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+        "cloudsmith_cli.core.api.orgs.list_custom_domains",
         _fake_list,
     ):
         result = get_custom_domains(

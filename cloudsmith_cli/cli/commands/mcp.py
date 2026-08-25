@@ -1,17 +1,22 @@
 """Main command/entrypoint."""
 
+from __future__ import annotations
+
 import json
 import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 import json5
 
-from ...core.mcp import server
-from ...core.mcp.data import OpenAPITool
+if TYPE_CHECKING:
+    from ...core.mcp import server
+    from ...core.mcp.data import OpenAPITool
+
 from .. import command, decorators, utils
 from .main import main
 

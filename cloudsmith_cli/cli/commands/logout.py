@@ -7,7 +7,7 @@ import click
 import cloudsmith_api
 
 from ...core import keyring
-from .. import decorators, utils
+from .. import decorators, utils, validators
 from ..config import CredentialsReader
 from .main import main
 
@@ -117,8 +117,11 @@ def logout(ctx, opts, api_host, keyring_only, config_only, dry_run):
             "--keyring-only and --config-only are mutually exclusive."
         )
 
-    if api_host is None:
-        api_host = opts.api_host or cloudsmith_api.Configuration().host
+    api_host = (
+        validators.normalize_api_host(api_host)
+        or opts.api_host
+        or cloudsmith_api.Configuration().host
+    )
 
     use_stderr = utils.should_use_stderr(opts)
 

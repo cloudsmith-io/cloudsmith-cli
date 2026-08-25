@@ -507,7 +507,7 @@ wheels = [
 
 [[package]]
 name = "cloudsmith-api"
-version = "2.0.29"
+version = "2.0.31"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -515,9 +515,10 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/17/72/9daab7a05f38c9bce89d51a94f1235cf2f8a641dd254eadb5f0a682a0d2a/cloudsmith_api-2.0.29.tar.gz", hash = "sha256:57771b2c7cfe681d685273dfcfd214dd36c2775d9fc080122b40b4d6c404c452", size = 667775, upload-time = "2026-07-15T13:33:51.588Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/7c/c0e827e54989dc5031b95ceb6727997ea97b3bb5f22b9482dafa282f6798/cloudsmith_api-2.0.31.tar.gz", hash = "sha256:768888677ca6570dde5ea1b9b3254401786a1e4c2842c170ce715e1796306c91", size = 727667, upload-time = "2026-08-20T12:37:10.543Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/7c/37f20207d34c42d0109786c504f0efe12328f8d64dc47f120eac5e90d1cb/cloudsmith_api-2.0.29-py2.py3-none-any.whl", hash = "sha256:db3cc74f5bfa96dd773c30251d681622405d5a0aa05bcead527e02cb9d744035", size = 1302309, upload-time = "2026-07-15T13:33:50.259Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/15/a5bcf3f2baeb403acb3dde53a7175bb9c06fc6d9844d324bf27f9f913cca/cloudsmith_api-2.0.31-py2.py3-none-any.whl", hash = "sha256:f6d8bd2889e5b58b06a81f2980911bae589631161fd2b4524cae346de0d72d4e", size = 1394274, upload-time = "2026-08-20T12:37:09.237Z" },
+    { url = "https://files.pythonhosted.org/packages/76/84/e05f7fa12ed1a69b4877d9d77733864db746d33f356a8fcb92a3203e92a2/cloudsmith_api-2.0.31-py3-none-any.whl", hash = "sha256:958b0971de2a06d312bac71fece99e98ce9610edd95e2141304d75faa146a431", size = 1178628, upload-time = "2026-08-25T10:36:13.481Z" },
 ]
 
 [[package]]
@@ -540,6 +541,7 @@ dependencies = [
     { name = "requests-toolbelt" },
     { name = "rich" },
     { name = "semver" },
+    { name = "tomlkit" },
     { name = "urllib3" },
 ]
 
@@ -584,7 +586,7 @@ requires-dist = [
     { name = "click-configfile", specifier = ">=0.2.3" },
     { name = "click-didyoumean", specifier = ">=0.0.3" },
     { name = "click-spinner", specifier = ">=0.1.7" },
-    { name = "cloudsmith-api", specifier = ">=2.0.29,<3.0" },
+    { name = "cloudsmith-api", specifier = ">=2.0.31,<3.0" },
     { name = "json5", specifier = ">=0.9.0" },
     { name = "keyring", specifier = ">=25.4.1" },
     { name = "keyrings-alt", specifier = ">=5.0.2" },
@@ -596,6 +598,7 @@ requires-dist = [
     { name = "requests-toolbelt", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "semver", specifier = ">=2.7.9" },
+    { name = "tomlkit", specifier = ">=0.15.0" },
     { name = "urllib3", specifier = ">=2.5" },
 ]
 provides-extras = ["aws", "all"]

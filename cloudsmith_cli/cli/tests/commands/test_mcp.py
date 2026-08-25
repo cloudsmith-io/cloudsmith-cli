@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import cloudsmith_api
 import pytest
 
 from ....cli.commands.mcp import (
@@ -291,6 +290,8 @@ class TestMCPServerDynamicToolGeneration:
             }
         }
 
+        import cloudsmith_api
+
         # Create API config
         api_config = cloudsmith_api.Configuration()
         api_config.host = "https://api.cloudsmith.io"
@@ -348,6 +349,8 @@ class TestMCPServerDynamicToolGeneration:
                 },
             }
         }
+
+        import cloudsmith_api
 
         api_config = cloudsmith_api.Configuration()
         api_config.host = "https://api.cloudsmith.io"

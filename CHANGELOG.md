@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-08-24
+
 ### Added
 
-- Added an PNPM credential helper for Cloudsmith registries. `cloudsmith credential-helper install pnpm` installs an `pnpm-credential-cloudsmith` launcher binary and registers it in `~/.npmrc`, so npm authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `npm login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall pnpm` and `cloudsmith credential-helper list`.
+- Added a Cargo credential provider for Cloudsmith registries. `cloudsmith credential-helper install cargo` installs a `cargo-credential-cloudsmith` launcher binary and registers it in `$CARGO_HOME/config.toml`, so Cargo authenticates to Cloudsmith registries automatically using your existing CLI credentials — no `cargo login` and no token in `credentials.toml`. `cloudsmith credential-helper cargo` speaks Cargo's [credential provider protocol](https://doc.rust-lang.org/cargo/reference/credential-provider-protocol.html): a newline-delimited JSON exchange that answers `get` with the resolved token, and answers a registry that is not a Cloudsmith one with `url-not-supported` so Cargo falls through to the next configured provider — registering globally cannot break authentication to crates.io. The provider is appended to `registry.global-credential-providers` (keeping `cargo:token` as the fallback) and pinned on any `[registries.*]` entry whose index points at a known Cloudsmith Cargo host. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall cargo` and `cloudsmith credential-helper list`.
+- Added Nix package and upstream support. Use `cloudsmith push nix` to upload Nix packages and `cloudsmith upstream nix` to manage Nix channel upstreams.
+- Added a pnpm credential helper. `cloudsmith credential-helper install pnpm` registers `pnpm-credential-cloudsmith` in the user-level `.npmrc`, using existing CLI credentials for Cloudsmith registries. It supports custom-domain discovery, additional `--domain` values, `--no-discover`, `--dry-run`, listing, and uninstalling.
+- Added `CLOUDSMITH_KEYRING_FILE_PATH` and `CLOUDSMITH_KEYRING_DIR` to relocate tokens stored by the bundled file-based keyring backends. An explicit file path takes precedence over the directory, and `KEYRING_PROPERTY_FILE_PATH` takes precedence over its Cloudsmith alias.
+
+### Changed
+
+- API hosts supplied by `--api-host`, `CLOUDSMITH_API_HOST`, or `api_host` are now normalised by trimming whitespace and trailing slashes and adding `https://` when no scheme is present. If a previously configured host ended in a slash, run `cloudsmith auth` again because its keyring key has changed.
+- Non-MCP commands now start faster by loading the MCP dependency only when an `mcp` command runs.
+
+### Fixed
+
+- Failed package synchronisation in JSON output mode now returns a machine-readable error containing the API's reason, status, and stage.
+- `cloudsmith entitlements list` now shows pagination details in human-readable output and correctly distinguishes the visible page from results retrieved with `--page-all`.
+- SAML authentication now directs users from the browser to the terminal for 2FA, retries rejected codes until cancelled, and includes API error details when authentication fails.
 
 ## [1.24.0] - 2026-08-18
 
