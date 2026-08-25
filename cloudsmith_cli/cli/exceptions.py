@@ -11,9 +11,23 @@ from ..core.api.exceptions import ApiException
 
 @contextlib.contextmanager
 def handle_api_exceptions(
-    ctx, opts, context_msg=None, nl=False, exit_on_error=True, reraise_on_error=False
+    ctx,
+    opts,
+    context_msg=None,
+    nl=False,
+    exit_on_error=True,
+    reraise_on_error=False,
+    summarise_error=None,
 ):
-    """Context manager that handles API exceptions."""
+    """Context manager that handles API exceptions.
+
+    ``summarise_error`` is an optional callable taking ``(exc, detail,
+    fields)`` and returning a single sentence to show instead of the default
+    context/detail/field block, or ``None`` to keep the default. Commands use
+    it where the API's field-indexed errors read poorly next to the rest of
+    their output; returning ``None`` for statuses they don't recognise keeps
+    the status code visible where it still matters.
+    """
     # flake8: ignore=C901
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
@@ -26,11 +40,12 @@ def handle_api_exceptions(
         context_msg = context_msg or "Failed to perform operation!"
         detail, fields = get_details(exc)
         hint = get_error_hint(ctx, opts, exc)
+        summary = summarise_error(exc, detail, fields) if summarise_error else None
 
         if is_json_output:
             # Construct JSON error object
             error_data = {
-                "detail": detail or exc.status_description,
+                "detail": summary or detail or exc.status_description,
                 "help": {
                     "context": context_msg,
                     "hint": hint,
@@ -68,13 +83,16 @@ def handle_api_exceptions(
             else:
                 click.secho("ERROR", fg="red", err=use_stderr)
 
-            click.secho(
-                f"{context_msg} (status: {exc.status} - {exc.status_description})",
-                fg="red",
-                err=use_stderr,
-            )
+            if summary:
+                click.secho(summary, fg="red", err=use_stderr)
+            else:
+                click.secho(
+                    f"{context_msg} (status: {exc.status} - {exc.status_description})",
+                    fg="red",
+                    err=use_stderr,
+                )
 
-            if detail or fields:
+            if not summary and (detail or fields):
                 click.echo(err=use_stderr)
 
                 if detail:
