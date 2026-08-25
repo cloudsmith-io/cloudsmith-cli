@@ -42,7 +42,7 @@ def get_pnpm_credentials(server_url, credential=None, api_host=None, org=None):
     ):
         return None
 
-    return credential.api_key
+    return "Bearer " + credential.api_key
 
 
 def execute(
