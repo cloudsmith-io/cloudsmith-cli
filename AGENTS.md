@@ -21,6 +21,7 @@ Python `>=3.10` is required (CI tests 3.10–3.14).
 - Run the unit tests: `pytest -m "not integration"`. Run with coverage: `pytest --cov=cloudsmith_cli`.
 - Run the live-service tests: `pytest -m integration` (requires the `PYTEST_CLOUDSMITH_*` environment variables). Mark each test that calls the live Cloudsmith service with `@pytest.mark.integration`.
 - Run a single test: `pytest cloudsmith_cli/cli/tests/test_push.py::TestClass::test_name` or by node id / `-k <expr>`.
+- Run the credential-helper benchmarks: `pytest benchmarks/ --codspeed`. CI runs them on CodSpeed via `.github/workflows/codspeed.yml`; the default `pytest` run does not collect them.
 - Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `black .`, `isort .`, `flake8 --config=.flake8`, `pylint --rcfile=.pylintrc <path>`, `pyupgrade --py310-plus <files>`.
 - Release: `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
 

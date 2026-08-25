@@ -76,6 +76,7 @@ dev = [
     "boto3[crt]>=1.26.0",
     "pre-commit",
     "pylint",
+    "pytest-codspeed",
     "pytest-cov",
     "freezegun",
     "ty",
