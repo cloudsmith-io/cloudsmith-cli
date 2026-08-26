@@ -35,6 +35,7 @@ class AuthenticationWebServer(HTTPServer):
         self.debug = kwargs.get("debug", False)
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
+        self.profile = kwargs.get("profile")
         self.sso_access_token = None
         self.exception = None
 
@@ -138,6 +139,11 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         """Get the API host from the server instance."""
         return self.server_instance.api_host if self.server_instance else None
 
+    @property
+    def profile(self):
+        """Get the profile from the server instance."""
+        return self.server_instance.profile if self.server_instance else None
+
     def _prompt_and_exchange_2fa_token(self, two_factor_token):
         """Prompt for a 2FA code, and prompt again while the API rejects it."""
         click.echo(err=True)
@@ -229,6 +235,24 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
     def query_data(self):
         return dict(parse_qsl(self.url.query))
 
+    def _store_authentication_result(self, access_token, refresh_token):
+        # Store the access token on the server instance so it can be
+        # passed directly to initialise_api(), avoiding a keyring
+        # roundtrip (critical when CLOUDSMITH_NO_KEYRING is set).
+        if self.server_instance:
+            self.server_instance.sso_access_token = access_token
+
+        if not store_sso_tokens(
+            self.api_host, access_token, refresh_token, profile=self.profile
+        ):
+            click.echo(
+                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                err=True,
+            )
+
+        if self.refresh_api_on_success and self.server_instance:
+            self.server_instance.refresh_api_config_after_auth()
+
     def do_GET(self):
         access_token = self.query_data.get("access_token")
         refresh_token = self.query_data.get("refresh_token")
@@ -244,21 +268,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if access_token:
-                # Store the access token on the server instance so it can be
-                # passed directly to initialise_api(), avoiding a keyring
-                # roundtrip (critical when CLOUDSMITH_NO_KEYRING is set).
-                if self.server_instance:
-                    self.server_instance.sso_access_token = access_token
-
-                if not store_sso_tokens(self.api_host, access_token, refresh_token):
-                    click.echo(
-                        "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                        err=True,
-                    )
-
-                if self.refresh_api_on_success and self.server_instance:
-                    self.server_instance.refresh_api_config_after_auth()
-
+                self._store_authentication_result(access_token, refresh_token)
                 self._return_success_response()
                 return
 
@@ -272,19 +282,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                     two_factor_token
                 )
 
-                # Store the access token on the server instance (same as above)
-                if self.server_instance:
-                    self.server_instance.sso_access_token = access_token
-
-                if not store_sso_tokens(self.api_host, access_token, refresh_token):
-                    click.echo(
-                        "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                        err=True,
-                    )
-
-                if self.refresh_api_on_success and self.server_instance:
-                    self.server_instance.refresh_api_config_after_auth()
-
+                self._store_authentication_result(access_token, refresh_token)
                 click.secho("\nAuthentication complete", fg="green", err=True)
                 return
         except Exception:

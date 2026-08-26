@@ -178,3 +178,4 @@ banned-module-level-imports = [
 'cloudsmith_cli/core/mcp/*' = ["TID253"]
 'cloudsmith_cli/core/rest.py' = ["TID253"]
 'cloudsmith_cli/core/session.py' = ["TID253"]
+'cloudsmith_cli/core/sso.py' = ["TID253"]
