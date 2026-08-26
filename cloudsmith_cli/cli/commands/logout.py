@@ -33,8 +33,13 @@ def _clear_credentials(dry_run, use_stderr):
     return {"action": action, "files": list(creds_files)}
 
 
-def _clear_keyring(api_host, dry_run, use_stderr):
-    """Clear SSO tokens from keyring. Returns result dict."""
+def _clear_keyring(api_host, dry_run, use_stderr, profile=None):
+    """Clear SSO tokens from keyring. Returns result dict.
+
+    Remove the profile's own entries. The legacy unscoped entries hold
+    the default profile's session, so remove them only when the profile
+    has no entries of its own.
+    """
     if not keyring.should_use_keyring():
         click.secho(
             "Keyring is disabled (CLOUDSMITH_NO_KEYRING is set).",
@@ -43,7 +48,7 @@ def _clear_keyring(api_host, dry_run, use_stderr):
         )
         return {"action": "disabled"}
 
-    if not keyring.has_sso_tokens(api_host):
+    if not keyring.has_sso_tokens(api_host, profile=profile):
         click.echo("No SSO tokens found in system keyring.", err=use_stderr)
         return {"action": "not_found"}
 
@@ -51,7 +56,9 @@ def _clear_keyring(api_host, dry_run, use_stderr):
         click.echo("Would remove SSO tokens from system keyring.", err=use_stderr)
         return {"action": "would_remove"}
 
-    deleted = keyring.delete_sso_tokens(api_host)
+    deleted = keyring.delete_sso_tokens(api_host, profile=profile, include_legacy=False)
+    if not deleted:
+        deleted = keyring.delete_sso_tokens(api_host)
     action = "removed" if deleted else "failed"
     msg = f"{'Removed' if deleted else 'Failed to remove'} SSO tokens from system keyring."
     click.secho(msg, fg=None if deleted else "red", err=use_stderr)
@@ -131,7 +138,7 @@ def logout(ctx, opts, api_host, keyring_only, config_only, dry_run):
         else {"action": "skipped", "files": []}
     )
     keyring_result = (
-        _clear_keyring(api_host, dry_run, use_stderr)
+        _clear_keyring(api_host, dry_run, use_stderr, profile=ctx.meta.get("profile"))
         if not config_only
         else {"action": "skipped"}
     )

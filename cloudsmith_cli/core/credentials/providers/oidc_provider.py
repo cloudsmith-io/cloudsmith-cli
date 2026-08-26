@@ -54,6 +54,7 @@ class OidcProvider(CredentialProvider):
                 api_key=cached,
                 source_name="oidc",
                 source_detail=f"OIDC [cached] (org: {org}, service: {service_slug})",
+                auth_type="bearer",
             )
 
         from ..oidc.detectors import detect_environment
@@ -112,4 +113,5 @@ class OidcProvider(CredentialProvider):
             api_key=cloudsmith_token,
             source_name="oidc",
             source_detail=f"OIDC via {detector.name} (org: {org}, service: {service_slug})",
+            auth_type="bearer",
         )
