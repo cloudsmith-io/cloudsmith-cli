@@ -5,6 +5,7 @@ import pytest
 
 from ...core.api.init import initialise_api
 from ...core.api.repos import create_repo, delete_repo
+from ...core.credentials.models import CredentialResult
 from .utils import random_str
 
 
@@ -12,7 +13,7 @@ def _get_env_var_or_skip(key):
     """Return the environment variable value if set, otherwise skip the test."""
     value = os.environ.get(key)
     if not value:
-        pytest.skip("%s not provided" % key)
+        pytest.skip(f"{key} not provided")
     return value
 
 
@@ -51,7 +52,9 @@ def organization():
 @pytest.fixture()
 def tmp_repository(organization, api_host, api_key):
     """Yield a temporary repository."""
-    initialise_api(host=api_host, key=api_key)
+    initialise_api(
+        host=api_host, credential=CredentialResult(api_key=api_key, source_name="test")
+    )
     repo_data = create_repo(organization, {"name": random_str()})
     yield repo_data
     delete_repo(organization, repo_data["slug"])
@@ -64,12 +67,12 @@ def api_host():
 
 
 @pytest.fixture()
-def set_api_host_env_var(api_host):
+def set_api_host_env_var(api_host, monkeypatch):
     """Set the CLOUDSMITH_API_HOST environment variable."""
-    os.environ["CLOUDSMITH_API_HOST"] = api_host
+    monkeypatch.setenv("CLOUDSMITH_API_HOST", api_host)
 
 
 @pytest.fixture()
-def set_api_key_env_var(api_key):
+def set_api_key_env_var(api_key, monkeypatch):
     """Set the CLOUDSMITH_API_KEY environment variable."""
-    os.environ["CLOUDSMITH_API_KEY"] = api_key
+    monkeypatch.setenv("CLOUDSMITH_API_KEY", api_key)

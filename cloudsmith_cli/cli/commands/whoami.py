@@ -1,14 +1,11 @@
 """CLI/Commands - Retrieve authentication status."""
 
-import os
-
 import click
 
 from ...core import keyring
 from ...core.api.exceptions import ApiException
 from ...core.api.user import get_token_metadata, get_user_brief
 from .. import decorators, utils
-from ..config import CredentialsReader
 from ..exceptions import handle_api_exceptions
 from .main import main
 
@@ -26,26 +23,17 @@ def _get_active_method(api_config):
 def _get_api_key_source(opts):
     """Determine where the API key was loaded from.
 
-    Checks in priority order matching actual resolution:
-    CLI --api-key flag > CLOUDSMITH_API_KEY env var > credentials.ini.
+    Uses the credential provider chain result attached by initialise_api.
     """
-    if not opts.api_key:
-        return {"configured": False, "source": None, "source_key": None}
+    credential = getattr(opts, "credential", None)
+    if credential and credential.auth_type == "api_key":
+        return {
+            "configured": True,
+            "source": credential.source_detail or credential.source_name,
+            "source_key": credential.source_name,
+        }
 
-    env_key = os.environ.get("CLOUDSMITH_API_KEY")
-
-    # If env var is set but differs from the resolved key, CLI flag won
-    if env_key and opts.api_key != env_key:
-        source, key = "CLI --api-key flag", "cli_flag"
-    elif env_key:
-        suffix = env_key[-4:]
-        source, key = f"CLOUDSMITH_API_KEY env var (ends with ...{suffix})", "env_var"
-    elif creds := CredentialsReader.find_existing_files():
-        source, key = f"credentials.ini ({creds[0]})", "credentials_file"
-    else:
-        source, key = "CLI --api-key flag", "cli_flag"
-
-    return {"configured": True, "source": source, "source_key": key}
+    return {"configured": False, "source": None, "source_key": None}
 
 
 def _get_sso_status(api_host):
@@ -120,7 +108,12 @@ def _print_verbose_text(data):
                 click.echo(f"  Source: {ak['source']}")
             click.echo("  Note: SSO token is being used instead")
     elif active == "api_key":
-        click.secho("Authentication Method: API Key", fg="cyan", bold=True)
+        if ak.get("source_key") == "oidc":
+            click.secho(
+                "Authentication Method: OIDC Auto-Discovery", fg="cyan", bold=True
+            )
+        else:
+            click.secho("Authentication Method: API Key", fg="cyan", bold=True)
         for label, field in [
             ("Source", "source"),
             ("Token Slug", "slug"),
@@ -162,9 +155,11 @@ def whoami(ctx, opts):
     )
 
     context_msg = "Failed to retrieve your authentication status!"
-    with handle_api_exceptions(ctx, opts=opts, context_msg=context_msg):
-        with utils.maybe_spinner(opts):
-            is_auth, username, email, name = get_user_brief()
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        utils.maybe_spinner(opts),
+    ):
+        is_auth, username, email, name = get_user_brief()
     click.secho("OK", fg="green", err=use_stderr)
 
     data = {
@@ -179,12 +174,14 @@ def whoami(ctx, opts):
         data["auth"] = _get_verbose_auth_data(opts, api_host)
 
     if utils.maybe_print_as_json(opts, data):
+        if not is_auth:
+            ctx.exit(1)
         return
 
     if not is_auth:
         click.echo("You are authenticated as:")
         click.secho("Nobody (i.e. anonymous user)", fg="yellow")
-        return
+        ctx.exit(1)
 
     if opts.verbose:
         _print_verbose_text(data)

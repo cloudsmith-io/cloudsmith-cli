@@ -3,23 +3,21 @@
 import fnmatch
 import hashlib
 import os
-from typing import Dict, List, Optional, Tuple
 
 import click
-import cloudsmith_api
 import requests
 from rich.console import Console
 from rich.table import Table
 
-from . import keyring, ratelimits, utils
+from . import ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
-from .rest import create_requests_session
+from .session import create_requests_session
 
 
 def resolve_auth(
-    opts, api_key_opt: Optional[str] = None
-) -> Tuple[requests.Session, Dict[str, str], str]:
+    opts, api_key_opt: str | None = None
+) -> tuple[requests.Session, dict[str, str], str]:
     """
     Resolve authentication method and create session with appropriate headers.
 
@@ -37,26 +35,19 @@ def resolve_auth(
     headers = {}
     auth_source = "none"
 
-    # Follow the same authentication logic as the API initialization
-    # Priority: explicit --api-key > SSO token > configured API key
+    credential = getattr(opts, "credential", None)
 
-    # Only attempt keyring operations if keyring is enabled
-    config = cloudsmith_api.Configuration()
-    access_token = keyring.get_access_token(config.host)
-    api_key = api_key_opt or getattr(opts, "api_key", None)
-
-    if api_key:
-        # Prioritize API key (from --api-key option or CLOUDSMITH_API_KEY env var) over SSO
-        headers["X-Api-Key"] = api_key
+    if api_key_opt:
+        headers["X-Api-Key"] = api_key_opt
         auth_source = "api-key"
-    elif access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
-        auth_source = "sso"
+    elif credential:
+        headers = credential.auth_headers()
+        auth_source = "sso" if credential.auth_type == "bearer" else "api-key"
 
     return session, headers, auth_source
 
 
-def _matches_tag_filter(pkg: Dict, tag_filter: str) -> bool:
+def _matches_tag_filter(pkg: dict, tag_filter: str) -> bool:
     """
     Check if a package matches the tag filter.
 
@@ -84,13 +75,13 @@ def _search_packages(
     repo: str,
     name: str,
     *,
-    version: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    arch_filter: Optional[str] = None,
-    tag_filter: Optional[str] = None,
-    filename_filter: Optional[str] = None,
-) -> List[Dict]:
+    version: str | None = None,
+    format_filter: str | None = None,
+    os_filter: str | None = None,
+    arch_filter: str | None = None,
+    tag_filter: str | None = None,
+    filename_filter: str | None = None,
+) -> list[dict]:
     """
     Search for packages matching criteria, returning all matches.
 
@@ -159,9 +150,12 @@ def _search_packages(
         if tag_filter and not _matches_tag_filter(pkg, tag_filter):
             continue
         # Apply filename filter (glob patterns are client-side only)
-        if filename_filter and any(c in filename_filter for c in "*?["):
-            if not fnmatch.fnmatch(pkg.get("filename", ""), filename_filter):
-                continue
+        if (
+            filename_filter
+            and any(c in filename_filter for c in "*?[")
+            and not fnmatch.fnmatch(pkg.get("filename", ""), filename_filter)
+        ):
+            continue
         filtered_packages.append(pkg)
 
     return filtered_packages
@@ -172,13 +166,13 @@ def resolve_all_packages(
     repo: str,
     name: str,
     *,
-    version: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    arch_filter: Optional[str] = None,
-    tag_filter: Optional[str] = None,
-    filename_filter: Optional[str] = None,
-) -> List[Dict]:
+    version: str | None = None,
+    format_filter: str | None = None,
+    os_filter: str | None = None,
+    arch_filter: str | None = None,
+    tag_filter: str | None = None,
+    filename_filter: str | None = None,
+) -> list[dict]:
     """
     Find all packages matching the criteria.
 
@@ -224,14 +218,14 @@ def resolve_package(
     repo: str,
     name: str,
     *,
-    version: Optional[str] = None,
-    format_filter: Optional[str] = None,
-    os_filter: Optional[str] = None,
-    arch_filter: Optional[str] = None,
-    tag_filter: Optional[str] = None,
-    filename_filter: Optional[str] = None,
+    version: str | None = None,
+    format_filter: str | None = None,
+    os_filter: str | None = None,
+    arch_filter: str | None = None,
+    tag_filter: str | None = None,
+    filename_filter: str | None = None,
     yes: bool = False,
-) -> Dict:
+) -> dict:
     """
     Find a single package matching the criteria, handling multiple matches.
 
@@ -295,7 +289,7 @@ def resolve_package(
     return best_package
 
 
-def _display_multiple_packages(packages: List[Dict]) -> None:
+def _display_multiple_packages(packages: list[dict]) -> None:
     """Display a table of multiple matching packages."""
     click.echo("Multiple packages found:")
     click.echo()
@@ -319,7 +313,7 @@ def _display_multiple_packages(packages: List[Dict]) -> None:
     click.echo()
 
 
-def get_download_url(package: Dict) -> str:
+def get_download_url(package: dict) -> str:
     """
     Get the download URL for a package.
 
@@ -346,7 +340,7 @@ def get_download_url(package: Dict) -> str:
     return download_url
 
 
-def get_package_files(package: Dict) -> List[Dict]:
+def get_package_files(package: dict) -> list[dict]:
     """
     Get all downloadable files associated with a package.
 
@@ -381,15 +375,14 @@ def get_package_files(package: Dict) -> List[Dict]:
         ]
 
     # Filter to only downloadable files with CDN URLs
-    downloadable_files = []
-    for file_info in files:
-        if file_info.get("is_downloadable") and file_info.get("cdn_url"):
-            downloadable_files.append(file_info)
+    return [
+        file_info
+        for file_info in files
+        if file_info.get("is_downloadable") and file_info.get("cdn_url")
+    ]
 
-    return downloadable_files
 
-
-def get_package_detail(owner: str, repo: str, identifier: str) -> Dict:
+def get_package_detail(owner: str, repo: str, identifier: str) -> dict:
     """
     Get detailed package information including download URLs.
 
@@ -412,12 +405,12 @@ def get_package_detail(owner: str, repo: str, identifier: str) -> Dict:
     return data.to_dict()
 
 
-def stream_download(  # noqa: C901
+def stream_download(
     url: str,
     outfile: str,
     session: requests.Session,
     *,
-    headers: Optional[Dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
     overwrite: bool = False,
     quiet: bool = False,
 ) -> None:
@@ -479,7 +472,7 @@ def stream_download(  # noqa: C901
             f"Failed to download package: HTTP {e.response.status_code}"
         )
     except requests.exceptions.RequestException as e:
-        raise click.ClickException(f"Failed to download package: {str(e)}")
+        raise click.ClickException(f"Failed to download package: {e!s}")
 
     # Get content length for progress bar
     total_size = int(response.headers.get("content-length", 0))
@@ -522,7 +515,7 @@ def stream_download(  # noqa: C901
             click.secho("⚠ Checksum mismatch", fg="yellow", err=True)
 
 
-def _select_best_package(packages: List[Dict]) -> Dict:
+def _select_best_package(packages: list[dict]) -> dict:
     """Select the best package from multiple matches."""
 
     # Sort by version (desc) then by upload date (desc)
@@ -546,7 +539,7 @@ def _select_best_package(packages: List[Dict]) -> Dict:
 
         return (tuple(version_parts), uploaded_at)
 
-    return sorted(packages, key=sort_key, reverse=True)[0]
+    return max(packages, key=sort_key)
 
 
 def _format_size(size_bytes: int) -> str:
@@ -584,7 +577,7 @@ def _verify_checksum(filepath: str, expected: str) -> bool:
 
         # Try SHA1
         if len(expected) == 40:
-            sha1_hash = hashlib.sha1()
+            sha1_hash = hashlib.sha1(usedforsecurity=False)
             with open(filepath, "rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
                     sha1_hash.update(chunk)

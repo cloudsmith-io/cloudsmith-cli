@@ -2,13 +2,13 @@
 
 # pylint: disable=protected-access  # Testing private functions is acceptable in tests
 
-import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 import click
 
 from cloudsmith_cli.core import download
+from cloudsmith_cli.core.credentials.models import CredentialResult
 
 
 class TestResolveAuth(unittest.TestCase):
@@ -19,14 +19,16 @@ class TestResolveAuth(unittest.TestCase):
         self.mock_opts.debug = False
         self.mock_opts.rate_limit = True
         self.mock_opts.error_retry_cb = None
-        self.mock_opts.api_key = None
+        self.mock_opts.credential = None
 
     @patch("cloudsmith_cli.core.download.create_requests_session")
-    def test_resolve_auth_api_key_from_opts(self, mock_create_session):
-        """Test auth resolution with API key from opts."""
+    def test_resolve_auth_api_key_credential(self, mock_create_session):
+        """Test auth resolution with an API key from the credential chain."""
         mock_session = Mock()
         mock_create_session.return_value = mock_session
-        self.mock_opts.api_key = "test-api-key"
+        self.mock_opts.credential = CredentialResult(
+            api_key="test-api-key", source_name="env_var"
+        )
 
         session, headers, auth_source = download.resolve_auth(self.mock_opts)
 
@@ -35,11 +37,26 @@ class TestResolveAuth(unittest.TestCase):
         self.assertEqual(auth_source, "api-key")
 
     @patch("cloudsmith_cli.core.download.create_requests_session")
+    def test_resolve_auth_sso_credential(self, mock_create_session):
+        """Test that an SSO session resolved by the chain uses a bearer header."""
+        mock_create_session.return_value = Mock()
+        self.mock_opts.credential = CredentialResult(
+            api_key="sso-token", source_name="keyring", auth_type="bearer"
+        )
+
+        _session, headers, auth_source = download.resolve_auth(self.mock_opts)
+
+        self.assertEqual(headers, {"Authorization": "Bearer sso-token"})
+        self.assertEqual(auth_source, "sso")
+
+    @patch("cloudsmith_cli.core.download.create_requests_session")
     def test_resolve_auth_api_key_override(self, mock_create_session):
         """Test auth resolution with API key override."""
         mock_session = Mock()
         mock_create_session.return_value = mock_session
-        self.mock_opts.api_key = "config-key"
+        self.mock_opts.credential = CredentialResult(
+            api_key="chain-key", source_name="keyring", auth_type="bearer"
+        )
 
         _session, headers, auth_source = download.resolve_auth(
             self.mock_opts, api_key_opt="override-key"
@@ -47,6 +64,16 @@ class TestResolveAuth(unittest.TestCase):
 
         self.assertEqual(headers, {"X-Api-Key": "override-key"})
         self.assertEqual(auth_source, "api-key")
+
+    @patch("cloudsmith_cli.core.download.create_requests_session")
+    def test_resolve_auth_no_credentials(self, mock_create_session):
+        """Test auth resolution when the chain resolved nothing."""
+        mock_create_session.return_value = Mock()
+
+        _session, headers, auth_source = download.resolve_auth(self.mock_opts)
+
+        self.assertEqual(headers, {})
+        self.assertEqual(auth_source, "none")
 
 
 class TestResolvePackage(unittest.TestCase):
@@ -296,7 +323,6 @@ class TestStreamDownload(unittest.TestCase):
 
     def setUp(self):
         self.session = Mock()
-        self.temp_dir = tempfile.mkdtemp()
 
     @patch("os.path.exists")
     def test_stream_download_file_exists_no_overwrite(self, mock_exists):

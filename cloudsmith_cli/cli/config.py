@@ -3,6 +3,7 @@
 import os
 import re
 import threading
+from typing import ClassVar
 
 import click
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
@@ -22,18 +23,17 @@ class ConfigParam(Param):
     def parse(self, text):
         if text:
             text = text.strip()
-        if self.type.name == "boolean":
-            if not text:
-                return None
+        if self.type.name == "boolean" and not text:
+            return None
         return super().parse(text)
 
     def get_error_hint(self, ctx):
         if self.ctx:
-            files = []
-            for path in self.ctx.config_searchpath:
-                for filename in self.ctx.config_files:
-                    files.append(os.path.join(path, filename))
-            files = " or ".join(files)
+            files = " or ".join(
+                os.path.join(path, filename)
+                for path in self.ctx.config_searchpath
+                for filename in self.ctx.config_files
+            )
             msg = f"{self.name} in {files}"
         else:
             msg = f"{self.name} in a config file"
@@ -66,6 +66,14 @@ class ConfigSchema:
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
+        oidc_audience = ConfigParam(name="oidc_audience", type=str)
+        org = ConfigParam(name="org", type=str)
+        organization = ConfigParam(name="organization", type=str)
+        oidc_org = ConfigParam(name="oidc_org", type=str)
+        oidc_service_slug = ConfigParam(name="oidc_service_slug", type=str)
+        oidc_detector_order = ConfigParam(name="oidc_detector_order", type=str)
+        oidc_disabled_detectors = ConfigParam(name="oidc_disabled_detectors", type=str)
+        metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -75,10 +83,10 @@ class ConfigSchema:
 class ConfigReader(ConfigFileReader):
     """Reader for standard configuration."""
 
-    config_files = ["config.ini"]
+    config_files: ClassVar = ["config.ini"]
     config_name = "standard"
-    config_searchpath = list(_CFG_SEARCH_PATHS)
-    config_section_schemas = [ConfigSchema.Default, ConfigSchema.Profile]
+    config_searchpath: ClassVar = list(_CFG_SEARCH_PATHS)
+    config_section_schemas: ClassVar = [ConfigSchema.Default, ConfigSchema.Profile]
 
     @classmethod
     def select_config_schema_for(cls, section_name):
@@ -150,6 +158,30 @@ class ConfigReader(ConfigFileReader):
         return False
 
     @classmethod
+    def read_relative_config_value(cls, key, profile=None):
+        """Read `key` as loaded from directory-relative (untrusted) configs only.
+
+        Loads via the normal machinery but through a reader narrowed to the
+        relative search paths/files (e.g. the current working directory);
+        absolute/user-level paths and any explicit ``--config-file`` are
+        excluded. The value is parsed and quote-stripped exactly as a real run
+        would. Returns None when the key is absent or empty.
+        """
+        relative_searchpath = [p for p in cls.config_searchpath if not os.path.isabs(p)]
+        relative_files = [f for f in cls.config_files if not os.path.isabs(f)]
+        if not relative_searchpath or not relative_files:
+            return None
+
+        relative_reader = type(
+            "RelativeConfigReader",
+            (cls,),
+            {"config_searchpath": relative_searchpath, "config_files": relative_files},
+        )
+        probe = Options()
+        relative_reader.load_config(probe, profile=profile)
+        return probe.opts.get(key)
+
+    @classmethod
     def load_config(cls, opts, path=None, profile=None):
         """Load a configuration file into an options object."""
         if path and os.path.exists(path):
@@ -163,7 +195,7 @@ class ConfigReader(ConfigFileReader):
         cls._load_values_into_opts(opts, values)
 
         if profile and profile != "default":
-            values = config.get("profile:%s" % profile, {})
+            values = config.get(f"profile:{profile}", {})
             cls._load_values_into_opts(opts, values)
 
         return values
@@ -174,9 +206,9 @@ class ConfigReader(ConfigFileReader):
             if v is None:
                 continue
             if isinstance(v, str):
-                if v.startswith('"') or v.startswith("'"):
+                if v.startswith(('"', "'")):
                     v = v[1:]
-                if v.endswith('"') or v.endswith("'"):
+                if v.endswith(('"', "'")):
                     v = v[:-1]
                 if not v:
                     continue
@@ -203,10 +235,13 @@ class CredentialsSchema:
 class CredentialsReader(ConfigReader):
     """Reader for credentials configuration."""
 
-    config_files = ["credentials.ini"]
+    config_files: ClassVar = ["credentials.ini"]
     config_name = "credentials"
-    config_searchpath = list(_CFG_SEARCH_PATHS)
-    config_section_schemas = [CredentialsSchema.Default, CredentialsSchema.Profile]
+    config_searchpath: ClassVar = list(_CFG_SEARCH_PATHS)
+    config_section_schemas: ClassVar = [
+        CredentialsSchema.Default,
+        CredentialsSchema.Profile,
+    ]
 
     @classmethod
     def find_existing_files(cls):
@@ -247,7 +282,7 @@ class CredentialsReader(ConfigReader):
         cls._set_api_key(path, api_key)
 
 
-class Options:
+class Options:  # pylint: disable=too-many-public-methods
     """Options object that holds config for the application."""
 
     def __init__(self, *args, **kwargs):
@@ -306,7 +341,7 @@ class Options:
     @api_host.setter
     def api_host(self, value):
         """Set value for API host."""
-        self._set_option("api_host", value)
+        self._set_option("api_host", validators.normalize_api_host(value))
 
     @property
     def api_key(self):
@@ -317,6 +352,33 @@ class Options:
     def api_key(self, value):
         """Set value for API key."""
         self._set_option("api_key", value)
+
+    @property
+    def api_key_from_flag(self):
+        """Get API key set explicitly via --api-key CLI flag."""
+        return self._get_option("api_key_from_flag")
+
+    @api_key_from_flag.setter
+    def api_key_from_flag(self, value):
+        self._set_option("api_key_from_flag", value, allow_clear=True)
+
+    @property
+    def api_key_from_env(self):
+        """Get API key from CLOUDSMITH_API_KEY environment variable."""
+        return self._get_option("api_key_from_env")
+
+    @api_key_from_env.setter
+    def api_key_from_env(self, value):
+        self._set_option("api_key_from_env", value, allow_clear=True)
+
+    @property
+    def api_key_from_file(self):
+        """Get API key loaded from credentials.ini."""
+        return self._get_option("api_key_from_file")
+
+    @api_key_from_file.setter
+    def api_key_from_file(self, value):
+        self._set_option("api_key_from_file", value, allow_clear=True)
 
     @property
     def api_proxy(self):
@@ -415,6 +477,108 @@ class Options:
         tool_groups = [group.strip() for group in value.split(",")]
 
         self._set_option("mcp_allowed_tool_groups", tool_groups)
+
+    @property
+    def oidc_audience(self):
+        """Get value for OIDC audience."""
+        return self._get_option("oidc_audience")
+
+    @oidc_audience.setter
+    def oidc_audience(self, value):
+        """Set value for OIDC audience."""
+        self._set_option("oidc_audience", value)
+
+    @property
+    def org(self):
+        """Get value for the Cloudsmith organisation slug."""
+        return self._get_option("org")
+
+    @org.setter
+    def org(self, value):
+        """Set value for the Cloudsmith organisation slug."""
+        if isinstance(value, str):
+            value = value.strip() or None
+        self._set_option("org", value)
+
+    @property
+    def organization(self):
+        """Get the organisation slug, spelled in full."""
+        return self.org
+
+    @organization.setter
+    def organization(self, value):
+        """Set the organisation slug, spelled in full."""
+        self.org = value
+
+    @property
+    def oidc_org(self):
+        """Get the organisation slug under its original OIDC-era name."""
+        return self.org
+
+    @oidc_org.setter
+    def oidc_org(self, value):
+        """Set the organisation slug under its original OIDC-era name."""
+        self.org = value
+
+    @property
+    def oidc_service_slug(self):
+        """Get value for OIDC service slug."""
+        return self._get_option("oidc_service_slug")
+
+    @oidc_service_slug.setter
+    def oidc_service_slug(self, value):
+        """Set value for OIDC service slug."""
+        self._set_option("oidc_service_slug", value)
+
+    @property
+    def oidc_discovery_disabled(self):
+        """Get value for OIDC discovery disabled flag."""
+        return self._get_option("oidc_discovery_disabled", default=False)
+
+    @oidc_discovery_disabled.setter
+    def oidc_discovery_disabled(self, value):
+        """Set value for OIDC discovery disabled flag."""
+        self._set_option(
+            "oidc_discovery_disabled", bool(value) if value is not None else False
+        )
+
+    @property
+    def oidc_detector_order(self):
+        """Get value for the OIDC detector evaluation order."""
+        return self._get_option("oidc_detector_order")
+
+    @oidc_detector_order.setter
+    def oidc_detector_order(self, value):
+        """Set value for the OIDC detector evaluation order."""
+        self._set_option("oidc_detector_order", value)
+
+    @property
+    def oidc_disabled_detectors(self):
+        """Get the comma-separated OIDC detector ids disabled via config."""
+        return self._get_option("oidc_disabled_detectors")
+
+    @oidc_disabled_detectors.setter
+    def oidc_disabled_detectors(self, value):
+        """Set the comma-separated OIDC detector ids disabled via config."""
+        self._set_option("oidc_disabled_detectors", value)
+
+    @property
+    def metadata_failure_mode(self):
+        """Get value for push-time metadata failure mode."""
+        return self._get_option("metadata_failure_mode")
+
+    @metadata_failure_mode.setter
+    def metadata_failure_mode(self, value):
+        """Set value for push-time metadata failure mode."""
+        if value is None:
+            return
+        normalised = str(value).strip().lower()
+        if normalised not in {"error", "warn", "0"}:
+            raise click.UsageError(
+                f"Invalid metadata_failure_mode {value!r}. "
+                "Expected one of: 'error', 'warn', '0'."
+            )
+        self._set_option("metadata_failure_mode", normalised)
 
     @property
     def output(self):

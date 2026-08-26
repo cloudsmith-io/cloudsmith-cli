@@ -5,8 +5,176 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-
 ## [Unreleased]
+
+### Added
+
+- Added `cloudsmith repos privileges` for managing explicit repository access from the terminal. `list` shows the teams, users and service accounts that were granted access explicitly; `set` grants access to any number of them and leaves everyone else untouched, asking first if it would lower access someone already has; `revoke` takes access away from the ones named, skipping any that had none; and `replace` makes a JSON file (or stdin) the complete truth for the repository. `revoke` and `replace` ask for confirmation first unless `-y` is passed.
+
+### Changed
+
+- `cloudsmith copy` now prints `Copied: owner/repo/slug (slug_perm)` after a successful copy and includes `slug_perm` in `-F json` output, matching `push`.
+
+## [1.25.0] - 2026-08-24
+
+### Added
+
+- Added a Cargo credential provider for Cloudsmith registries. `cloudsmith credential-helper install cargo` installs a `cargo-credential-cloudsmith` launcher binary and registers it in `$CARGO_HOME/config.toml`, so Cargo authenticates to Cloudsmith registries automatically using your existing CLI credentials — no `cargo login` and no token in `credentials.toml`. `cloudsmith credential-helper cargo` speaks Cargo's [credential provider protocol](https://doc.rust-lang.org/cargo/reference/credential-provider-protocol.html): a newline-delimited JSON exchange that answers `get` with the resolved token, and answers a registry that is not a Cloudsmith one with `url-not-supported` so Cargo falls through to the next configured provider — registering globally cannot break authentication to crates.io. The provider is appended to `registry.global-credential-providers` (keeping `cargo:token` as the fallback) and pinned on any `[registries.*]` entry whose index points at a known Cloudsmith Cargo host. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall cargo` and `cloudsmith credential-helper list`.
+- Added Nix package and upstream support. Use `cloudsmith push nix` to upload Nix packages and `cloudsmith upstream nix` to manage Nix channel upstreams.
+- Added a pnpm credential helper. `cloudsmith credential-helper install pnpm` registers `pnpm-credential-cloudsmith` in the user-level `.npmrc`, using existing CLI credentials for Cloudsmith registries. It supports custom-domain discovery, additional `--domain` values, `--no-discover`, `--dry-run`, listing, and uninstalling.
+- Added `CLOUDSMITH_KEYRING_FILE_PATH` and `CLOUDSMITH_KEYRING_DIR` to relocate tokens stored by the bundled file-based keyring backends. An explicit file path takes precedence over the directory, and `KEYRING_PROPERTY_FILE_PATH` takes precedence over its Cloudsmith alias.
+
+### Changed
+
+- API hosts supplied by `--api-host`, `CLOUDSMITH_API_HOST`, or `api_host` are now normalised by trimming whitespace and trailing slashes and adding `https://` when no scheme is present. If a previously configured host ended in a slash, run `cloudsmith auth` again because its keyring key has changed.
+- Non-MCP commands now start faster by loading the MCP dependency only when an `mcp` command runs.
+
+### Fixed
+
+- Failed package synchronisation in JSON output mode now returns a machine-readable error containing the API's reason, status, and stage.
+- `cloudsmith entitlements list` now shows pagination details in human-readable output and correctly distinguishes the visible page from results retrieved with `--page-all`.
+- SAML authentication now directs users from the browser to the terminal for 2FA, retries rejected codes until cancelled, and includes API error details when authentication fails.
+
+## [1.24.0] - 2026-08-18
+
+### Added
+
+- `CLOUDSMITH_KEYRING_BACKEND` is now accepted as an alias for `PYTHON_KEYRING_BACKEND`. If both are set, `PYTHON_KEYRING_BACKEND` takes precedence.
+- `CLOUDSMITH_KEYRING_KEY` is now accepted as an alias for `KEYRING_PROPERTY_KEYRING_KEY`, letting the bundled `keyrings.cryptfile`/`keyrings.alt` encrypted backends be unlocked non-interactively (e.g. in headless containers) without an interactive `getpass()` prompt. If both are set, `KEYRING_PROPERTY_KEYRING_KEY` takes precedence. Note: both bundled backends override `KeyringBackend.__init__` without calling `super().__init__()`, so `keyring`'s own automatic `KEYRING_PROPERTY_*` handling never runs for them — we apply it ourselves after resolving the backend.
+- `cloudsmith auth --no-browser` skips the automatic browser launch and prints the SAML IDP URL to open manually, for shells where launching a browser is unwanted or unreliable.
+
+### Fixed
+
+- `cloudsmith auth` no longer fails when it can't launch a browser. `webbrowser.open()` raises `webbrowser.Error` where no runnable browser is found (Cygwin, headless shells) and returns `False` on other launch failures; neither outcome was handled, so the command either crashed or silently waited on a callback the user had no way to trigger. Either outcome now prints the IDP URL with instructions to open it manually, and authentication continues against the same local callback.
+- `python -m cloudsmith_cli` now exits non-zero when a command fails. `AliasGroup.main` runs click with `standalone_mode=False` so click returns the exit code from `ctx.exit()` rather than raising `SystemExit`, and the module entrypoint discarded that return value — so a failed push, or an unauthorised request, exited 0. The `cloudsmith` console script and the standalone binaries already wrapped `main()` in `sys.exit()` and were unaffected.
+- The hint shown for a 401 when a credential is set no longer claims the cause is a missing permission. A 401 does not tell the CLI whether the credential is invalid, expired, or simply has no access to the resource, so the hint now names those possibilities and asks the user to check their credentials, instead of contradicting the `401 - Unauthorized` status it accompanies.
+- The AWS OIDC detector now resolves the AWS region for its STS client with the AWS CLI precedence: explicit session region, `AWS_REGION`, `AWS_DEFAULT_REGION`, the shared config file, then EC2 instance metadata. botocore's own session resolution does not read `AWS_REGION` and never consults instance metadata, so on hosts that configure the region only through those sources the client targeted the legacy global STS endpoint instead of the regional one.
+- `--debug` now prints the CLI's debug log records to stderr; previously the flag was recorded but no log handler was installed, so the records went nowhere. The flag is also honoured when set on the group (`cloudsmith -d <command>`) or through the config file, where the subcommand's own flag default used to overwrite it.
+
+### Changed
+
+- The minimum supported `click` version is now 8.2.
+
+## [1.23.0] - 2026-08-14
+
+### Added
+
+- The packaged binary now bundles `keyrings.cryptfile` and `keyrings.alt`, encrypted/file-based `keyring` backends, so a host with no OS keyring (e.g. a headless Linux container) can still persist SSO/OIDC tokens via `PYTHON_KEYRING_BACKEND`.
+
+## [1.22.0] - 2026-08-11
+
+### Added
+
+- `cloudsmith push deb` now derives a Debian source package's members from its `.dsc`, so `cloudsmith push deb <owner>/<repo>/<distro>/<release> foo_1.0-1.dsc` is enough where `--sources-file` and `--changes-file` previously had to be worked out by hand (and their suffixes vary: `.orig.tar.gz`, `.orig.tar.bz2`, `.debian.tar.xz`, `.diff.gz`, ...). The `Checksums-Sha256:` or `Files:` field of the `.dsc` is read — plain or OpenPGP-clearsigned — and the upstream/native source archive becomes `--sources-file` while the Debian packaging archive becomes `--changes-file`, for the `1.0`, `2.0`, `3.0 (native)` and `3.0 (quilt)` source formats. `--dsc-file` names a `.dsc` other than `PACKAGE_FILE`, and an explicit `--sources-file` or `--changes-file` still wins for its own field. A detached upstream signature (`*.orig.tar.*.asc`) is skipped with a warning, since the deb package format has no field to carry it; a multi-component source package (`*.orig-<component>.tar.*`) is rejected outright, because leaving a component behind would upload incomplete source.
+- `cloudsmith domains list` lists the hosts Cloudsmith can authenticate as a versioned JSON document: `{"version": 1, "domains": [{"host": ..., "format": ..., "type": ..., "domain_type": ..., "org": ..., "repository": ..., "primary": ..., "created_at": ...}]}`. The built-in list can be replaced by a `[domains]` section in a trusted `config.ini` — each entry maps a hostname to the format it serves, or to `download`/`upload` — for dedicated deployments. An organisation's own custom domains are listed ahead of the built-in hosts, and a custom domain that is disabled or not yet validated is left out entirely, since it serves nothing. `--format` and `--repo` narrow the list to the hosts usable for a package format or repository, most-preferred first, and `--domain-type` to those with one purpose: `download`, `upload`, `api` or `native_api`.
+- The Cloudsmith organisation is now named by `--org`, with `--organization` and `--oidc-org` accepted as aliases for the same option, and `org`, `organization` or `oidc_org` accepted in `config.ini`. `--oidc-org` named the setting after the first feature that wanted it; it is read by custom-domain discovery as well as OIDC token exchange, so it is now named after what it is. The `CLOUDSMITH_ORG` environment variable is unchanged, and `credential-helper install` no longer has a separate `--org` of its own.
+
+### Fixed
+
+- Logging in via SSO no longer leaves a previously loaded API key attached to later requests. `initialise_api()` reset request headers on every call but never cleared the underlying API key, which `Configuration.set_default()` makes sticky across calls — so a session that had read an API key from `credentials.ini` could carry both an `Authorization: Bearer` header and a stale `X-Api-Key` after SSO login, with the API able to authenticate as the pre-login identity while the CLI reported a successful login.
+- `cloudsmith credential-helper install docker --dry-run` no longer makes a live API call or overwrites the on-disk custom-domain cache. Custom-domain discovery ran before the dry-run short-circuit, so a dry run had the same side effects as a real install; discovery is now skipped under `--dry-run` and reported as such in the planned actions.
+
+## [1.21.0] - 2026-08-03
+
+### Added
+
+- `cloudsmith credential-helper generic` resolves a credential through the full provider chain (API key, `credentials.ini`, system keyring, OIDC) and emits it as a versioned JSON document — `{"version": 1, "username": "token", "password": "<token>"}` — for tools that shell out to the CLI rather than importing it. It takes no arguments: a Cloudsmith token is organisation-wide, so the host it will be used against does not change which credential resolves. Errors exit non-zero with a message on stderr and never emit a partial document.
+
+## [1.20.2] - 2026-07-31
+
+### Fixed
+
+- Files larger than 100MB now upload correctly when authenticated via SSO or OIDC. The multi-part upload read its credentials from `opts.api_key`, which is only populated by `--api-key`, `CLOUDSMITH_API_KEY` or `credentials.ini` — so with an SSO session or OIDC auto-discovery it was empty, the auth header was dropped, and the part upload failed with a misleading `404 - Not Found` ("this usually means the user/org is wrong or not visible") even though every preceding API call had succeeded. Credentials are now taken from the resolved credential chain, with SSO access tokens sent as a bearer `Authorization` header and API keys/OIDC tokens as `X-Api-Key`.
+- `cloudsmith download` now authenticates with OIDC credentials. It resolved its own auth from `opts.api_key` plus a direct keyring read, which between them cover neither OIDC auto-discovery nor any future credential source, so downloads from a private repository in an OIDC-authenticated pipeline were attempted anonymously. It now uses the same resolved credential as every other command.
+- The hint shown on a `401 - Unauthorized` now reflects how the session actually authenticated. It branched on `opts.api_key`, so an OIDC-authenticated session was told "You don't have an API key or access token set" despite being authenticated, and an SSO session whose token had expired could be told to check its permissions instead of to re-run `cloudsmith auth`.
+
+## [1.20.1] - 2026-07-30
+
+### Fixed
+
+- Standalone binaries again propagate CLI exit codes. In 1.20.0 the frozen entry point discarded the command's return value, so API failures exited 0 — for example `cloudsmith whoami` with an invalid API key reported success — breaking scripted authentication checks. Installs from PyPI (pip) were unaffected.
+
+## [1.20.0] - 2026-07-30
+
+### Added
+
+- Standalone, self-contained CLI binaries built with PyInstaller for Linux (x86_64/aarch64, glibc and musl), macOS (arm64/x86_64) and Windows (x86_64). Each release attaches the per-platform archives and SHA256 checksums to the GitHub release and pushes them to Cloudsmith. The binaries bundle Python and all native dependencies, so no Python installation is required.
+- Linux binary archives are GPG-signed. Each `cloudsmith-<version>-linux-*.tar.gz` ships a detached `.sig` alongside it, verifiable with `gpg --verify` against the published Cloudsmith CLI signing key.
+- Released binaries are tagged on Cloudsmith by platform — `os`, `arch`, `libc` (Linux), the full target, and a type tag (`standalone-binary`/`signature`) — so CI/CD can select the right artifact via the package query API, for example `version:1.20.0 AND tag:standalone-binary AND tag:linux AND tag:x86_64 AND tag:musl`.
+- Each release publishes a per-target install manifest (`cloudsmith-cli-manifest-<target>`) to Cloudsmith alongside the binaries, recording the archive name, download URL and SHA256 checksum, so install scripts can resolve and verify the correct binary via `.../raw/names/cloudsmith-cli-manifest-<target>/versions/{<version>|latest}/manifest.txt`.
+
+### Changed
+
+- **`cloudsmith whoami` now exits with code 1 when not authenticated** (and 0 when authenticated), across all output formats, so scripts and CI pipelines can check authentication status without parsing the output. The command's output itself is unchanged.
+- The Homebrew tap (`cloudsmith-io/cloudsmith-cli`) now installs the standalone binary instead of the Python zipapp, so `python@3.10` is no longer a dependency — existing installs transition transparently via `brew upgrade cloudsmith-cli` (the orphaned `python@3.10` can be removed with `brew autoremove`), and `brew install cloudsmith-io/cloudsmith-cli/cloudsmith` now works as a shorter alias.
+- The official Docker image now ships the standalone musl binary on a plain Alpine base instead of the Python zipapp — the image no longer contains a Python runtime.
+- The Docker image now carries standard OCI labels (`org.opencontainers.image.*`: source, version, revision, licenses); the Docker Hub image additionally publishes the conventional floating tags (`latest`, major, and major.minor).
+- Packaging migrated to `pyproject.toml` + `uv` (`setup.py`/`setup.cfg` retired); builds now use `uv build` with a committed `uv.lock`. This does not change how the CLI is installed from PyPI.
+
+### Removed
+
+- The multi-platform PEX zipapp (`cloudsmith.pyz`) is no longer built or published; the standalone per-platform binaries replace it. Anything that consumed `cloudsmith.pyz` from GitHub releases or the Cloudsmith raw repository (for example `cloudsmith-cli-action` with `executable: true`) must switch to the new binary archives.
+
+### Security
+
+- Stricter acceptance of API hosts and proxies. When `api_host` or `api_proxy` comes from a directory-relative `config.ini` (one found in the current working directory), the host must now match an allow-listed suffix — `api_host` allows `*.cloudsmith.io`/`*.cloudsmith.com` by default, `api_proxy` has no default and is rejected — preventing a checked-in config from redirecting credentials to an attacker-controlled endpoint. Values from CLI flags, environment variables, user-level config or an explicit `--config-file` are unaffected; additional trusted suffixes can be supplied via the `CLOUDSMITH_ALLOWED_API_HOST_SUFFIXES`/`CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES` environment variables.
+
+## [1.19.0] - 2026-06-11
+
+### Added
+
+- Added a Docker credential helper for Cloudsmith registries. `cloudsmith credential-helper install docker` installs a `docker-credential-cloudsmith` launcher binary and registers it in `~/.docker/config.json`, so Docker authenticates to Cloudsmith registries automatically using your existing CLI credentials — no manual `docker login` required. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall docker` and `cloudsmith credential-helper list`.
+- Added Bitbucket Pipelines to OIDC credential auto-discovery. When a pipeline step sets `oidc: true`, the CLI reads the OIDC token from the `BITBUCKET_STEP_OIDC_TOKEN` environment variable and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added CircleCI to OIDC credential auto-discovery. When running in CircleCI, the CLI reads the OIDC token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added Azure DevOps to OIDC credential auto-discovery. When running in an Azure DevOps pipeline, the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN` and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added GitHub Actions to OIDC credential auto-discovery. When running in GitHub Actions (with `id-token: write` permission), the CLI fetches an OIDC token from the Actions runtime endpoint and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added a generic fallback to OIDC credential auto-discovery. When no dedicated environment is detected, the CLI reads an OIDC token from the `CLOUDSMITH_OIDC_TOKEN` environment variable (useful for Jenkins or any custom CI/CD) and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added GitLab CI to OIDC credential auto-discovery. When running in GitLab CI/CD, the CLI reads the OIDC token from the `CLOUDSMITH_OIDC_TOKEN` environment variable (configured via `id_tokens` in `.gitlab-ci.yml`) and exchanges it for a Cloudsmith access token. Works out of the box with no extra dependencies.
+- Added controls for OIDC detector selection. Set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip a specific detector (only the literal `true` disables), or use `--oidc-detector-order` (env var `CLOUDSMITH_OIDC_DETECTOR_ORDER`) with a comma-separated list of detector ids to override which detectors are considered and the order they are tried in. When both are set, disable flags take precedence over the order list. Both controls can also be set in `config.ini` via the `oidc_detector_order` and `oidc_disabled_detectors` keys (the latter additive with the `*_DISABLED` env vars). Unknown ids in the order, or controls that leave no detector enabled, are surfaced as a warning. Detector ids: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
+
+### Fixed
+
+- The official Docker image now runs as a dedicated non-root `cloudsmith` user (uid 1000) instead of root.
+- The PyJWT dependency now declares the `crypto` extra (`PyJWT[crypto]`), fixing zipapp (`.pyz`) builds that previously shipped without cryptography wheels and failed at startup on macOS.
+
+### Security
+
+- Upgraded vulnerable dependencies — `mcp` 1.9.1 → 1.27.2 plus transitive upgrades (`urllib3`, `requests`, `starlette`, `python-multipart`, `python-dotenv`, `idna`, `pygments`, `pytest`) — resolving all open Dependabot alerts.
+
+
+## [1.18.0] - 2026-06-09
+
+### Added
+
+- OIDC credential auto-discovery for CI/CD. When `CLOUDSMITH_ORG` and `CLOUDSMITH_SERVICE_SLUG` are set, the CLI auto-detects a supported cloud environment, obtains a vendor OIDC token, and exchanges it for a short-lived Cloudsmith API token — no static API key required. Initial support is for AWS (install the extra with `pip install cloudsmith-cli[aws]`). Tunable via `--oidc-org`, `--oidc-service-slug`, `--oidc-audience`, and `--oidc-discovery-disabled` (and matching `CLOUDSMITH_OIDC_*` env vars). The detector skips itself silently when its dependencies are not installed.
+- `cloudsmith mcp configure` now supports Claude Code as a client (`--client claude-code`), registering the Cloudsmith MCP server in `~/.claude.json`.
+
+### Changed
+
+- Authentication now resolves credentials through an explicit, predictable provider chain: CLI flag → environment variable → credentials file → keyring → OIDC. This separates the previously combined credential sources and makes precedence deterministic.
+
+### Fixed
+
+- `metadata list` filters (`--source-kind`, `--classification`) now send the enum name the v2 API expects instead of an integer, fixing an HTTP 400 on every filtered list. Valid source kinds: `unknown, system, upstream, custom, third_party`; classifications: `unknown, intrinsic, security, provenance, sbom, generic`.
+
+## [1.17.0] - 2026-05-18
+
+### Added
+
+- Added `metadata` command group for managing arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
+  - `metadata add`: Attach a new metadata entry to a package. Accepts inline `--content` or `--file` (with `-` for stdin), a required `--content-type`, and an optional `--source-identity`.
+  - `metadata list`: List metadata entries for a package, or fetch a single entry by slug. Supports filtering by `--source-kind` and `--classification`, with pagination flags.
+  - `metadata update`: Replace content or source identity on an existing entry. Content type is immutable after creation.
+  - `metadata remove`: Remove a metadata entry from a package. Supports `-y` to skip the confirmation prompt.
+  - Supports `--output-format json | pretty_json` for programmatic usage.
+- Added push-time metadata flags to every `cloudsmith push <format>` subcommand. Metadata is validated locally and against the API before any file upload, then attached to the package immediately after creation.
+  - `--metadata-content-file PATH`: Path to a JSON file containing the metadata content. Use `-` for stdin.
+  - `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
+  - `--metadata-content-type MIME`: MIME type of the metadata payload. Required when content is provided.
+  - `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+  - `--on-metadata-failure [error|warn]`: Per-push override for how validation/attach failures are handled. `error` (default) aborts the push; `warn` downgrades to a warning and uploads the package anyway. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key for the current push.
+  - Failures abort the push by default with the HTTP status as the exit code. Downgrade failures to a warning (and emit a copy-paste `cloudsmith metadata add` retry hint) via any of: the `--on-metadata-failure warn` CLI flag, `CLOUDSMITH_METADATA_FAILURE_MODE=warn` (or `0`) env var, or the new `metadata_failure_mode` key in `config.ini`. Precedence: CLI flag → env var → config key → `error` default.
+  - Push JSON output now includes a `metadata_attachment` field on success and error envelopes.
 
 ## [1.16.0] - 2026-03-24
 

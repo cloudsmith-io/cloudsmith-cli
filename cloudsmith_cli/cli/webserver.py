@@ -1,5 +1,4 @@
 import html
-import os
 import socket
 from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -7,40 +6,24 @@ from urllib.parse import parse_qsl, unquote, urlparse
 
 import click
 
+from .. import templates
 from ..core.api.exceptions import ApiException
 from ..core.api.init import initialise_api
+from ..core.credentials.models import CredentialResult
 from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
+
+REJECTED_TWO_FACTOR_STATUSES = frozenset({400, 401, 403, 422})
 
 
 def get_template_path(template_name):
     """Get the absolute path to a template file."""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_dir, "templates", template_name)
+    return templates.template_path(template_name)
 
 
 def render_template(template_name, **context):
-    """
-    Render a template with the given context.
-
-    Args:
-        template_name: Name of the template file
-        context: Dictionary of variables to replace in the template
-
-    Returns:
-        Rendered HTML content
-    """
-    template_path = get_template_path(template_name)
-
-    with open(template_path, encoding="utf-8") as file:
-        content = file.read()
-
-    # Replace placeholders with context values
-    for key, value in context.items():
-        placeholder = f"<!-- {key.upper()}_PLACEHOLDER -->"
-        content = content.replace(placeholder, value if value else "")
-
-    return content
+    """Render a template with the given context (see :func:`cloudsmith_cli.templates.render`)."""
+    return templates.render(template_name, **context)
 
 
 class AuthenticationWebServer(HTTPServer):
@@ -79,7 +62,15 @@ class AuthenticationWebServer(HTTPServer):
             user_agent=getattr(self.api_opts, "user_agent", None),
             headers=getattr(self.api_opts, "headers", None),
             rate_limit=getattr(self.api_opts, "rate_limit", True),
-            access_token=self.sso_access_token,
+            credential=(
+                CredentialResult(
+                    api_key=self.sso_access_token,
+                    source_name="sso",
+                    auth_type="bearer",
+                )
+                if self.sso_access_token
+                else None
+            ),
         )
 
     def finish_request(self, request, client_address):
@@ -129,6 +120,10 @@ class AuthenticationWebServer(HTTPServer):
 
 
 class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
+    # Set once a response is written, so a later failure doesn't write a
+    # second one onto a request the browser already considers finished.
+    responded = False
+
     def __init__(self, request, client_address, server, **kwargs):
         self.owner = kwargs.get("owner")
         self.debug = kwargs.get("debug", False)
@@ -143,15 +138,62 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         """Get the API host from the server instance."""
         return self.server_instance.api_host if self.server_instance else None
 
+    def _prompt_and_exchange_2fa_token(self, two_factor_token):
+        """Prompt for a 2FA code, and prompt again while the API rejects it."""
+        click.echo(err=True)
+        click.secho(
+            "Your organization requires two-factor authentication.",
+            fg="yellow",
+            bold=True,
+            err=True,
+        )
+        click.echo(
+            "Enter the code from your authenticator app to finish signing in.",
+            err=True,
+        )
+
+        click.echo("Press Ctrl-C to give up.", err=True)
+
+        while True:
+            totp_token = click.prompt(
+                "Please enter your 2FA code", hide_input=True, type=str, err=True
+            )
+
+            try:
+                return exchange_2fa_token(
+                    self.api_host, two_factor_token, totp_token, session=self.session
+                )
+            except ApiException as exc:
+                if exc.status not in REJECTED_TWO_FACTOR_STATUSES:
+                    raise
+
+                click.secho(
+                    f"\nThat 2FA code was rejected ({exc}). Please try again.",
+                    fg="red",
+                    err=True,
+                )
+
     def _return_response(self, status=200, message=None):
+        body = (message or "").encode("utf-8")
+
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        # Without a length the client can only detect the end of the body when
+        # the connection closes, which is after do_GET returns. The 2FA page is
+        # sent before a blocking prompt, so it must be readable straight away.
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
 
-        self.wfile.write(message.encode("utf-8"))
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.responded = True
 
     def _return_success_response(self):
         html_content = render_template("auth_success.html")
+        self._return_response(message=html_content)
+
+    def _return_two_factor_response(self):
+        html_content = render_template("auth_two_factor.html")
         self._return_response(message=html_content)
 
     def _return_error_response(self, error_message=None):
@@ -221,12 +263,13 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 return
 
             if two_factor_token:
-                totp_token = click.prompt(
-                    "Please enter your 2FA token", hide_input=True, type=str, err=True
-                )
+                # Answer the browser before prompting. The prompt blocks, so a
+                # request left open until then shows the user a blank page with
+                # no sign that the terminal is waiting on them.
+                self._return_two_factor_response()
 
-                access_token, refresh_token = exchange_2fa_token(
-                    self.api_host, two_factor_token, totp_token, session=self.session
+                access_token, refresh_token = self._prompt_and_exchange_2fa_token(
+                    two_factor_token
                 )
 
                 # Store the access token on the server instance (same as above)
@@ -243,11 +286,11 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                     self.server_instance.refresh_api_config_after_auth()
 
                 click.secho("\nAuthentication complete", fg="green", err=True)
-                self._return_success_response()
                 return
-        except Exception as exc:
-            self._return_error_response()
-            raise exc
+        except Exception:
+            if not self.responded:
+                self._return_error_response()
+            raise
 
         click.secho("\nNo valid authentication parameters received", fg="red", err=True)
         self._return_error_response()

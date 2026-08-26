@@ -25,6 +25,17 @@ class ApiException(Exception):
         self.body = body
         self.fields = fields or {}
 
+    def __str__(self) -> str:
+        """Render the status and whatever the API said about it.
+
+        ``Exception`` is initialised with no arguments, so without this the
+        default rendering is the empty string, and every caller interpolating
+        one - ``f"...: {exc}"`` - produced a message that stopped dead at the
+        colon, reporting that something failed but never what. The status
+        description stands in when the API sends no detail of its own.
+        """
+        return f"{self.status} - {self.detail or self.status_description}"
+
 
 @contextlib.contextmanager
 def catch_raise_api_exception():

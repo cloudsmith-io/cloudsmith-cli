@@ -59,29 +59,38 @@ def copy(
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
-        "Copying %(slug)s package from %(source)s to %(dest)s ... "
-        % {
-            "slug": click.style(slug, bold=True),
-            "source": click.style(source, bold=True),
-            "dest": click.style(destination, bold=True),
-        },
+        f"Copying {click.style(slug, bold=True)} package from {click.style(source, bold=True)} to {click.style(destination, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
 
     context_msg = "Failed to copy package!"
-    with handle_api_exceptions(
-        ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+    with (
+        handle_api_exceptions(
+            ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
+        ),
+        maybe_spinner(opts),
     ):
-        with maybe_spinner(opts):
-            _, new_slug = copy_package(
-                owner=owner, repo=source, identifier=slug, destination=destination
-            )
+        slug_perm, new_slug = copy_package(
+            owner=owner, repo=source, identifier=slug, destination=destination
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
 
+    click.echo(
+        "Copied: {owner}/{repo}/{slug} ({slug_perm})".format(
+            owner=click.style(owner, fg="magenta"),
+            repo=click.style(destination, fg="magenta"),
+            slug=click.style(new_slug, fg="green"),
+            slug_perm=click.style(slug_perm, bold=True),
+        ),
+        err=use_stderr,
+    )
+
     if no_wait_for_sync:
-        utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})
+        utils.maybe_print_status_json(
+            opts, {"slug": new_slug, "slug_perm": slug_perm, "status": "OK"}
+        )
         return
 
     wait_for_package_sync(
@@ -95,4 +104,6 @@ def copy(
         attempts=sync_attempts,
     )
 
-    utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})
+    utils.maybe_print_status_json(
+        opts, {"slug": new_slug, "slug_perm": slug_perm, "status": "OK"}
+    )

@@ -1,9 +1,6 @@
 import getpass
 import os
-from datetime import datetime, timedelta
-
-import keyring
-from keyring.errors import KeyringError
+from datetime import datetime, timedelta, timezone
 
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 
@@ -24,7 +21,78 @@ def _get_username():
     return getpass.getuser()
 
 
+def _sync_keyring_backend_env():
+    """Allow CLOUDSMITH_KEYRING_BACKEND to alias PYTHON_KEYRING_BACKEND."""
+    alias_value = os.environ.get("CLOUDSMITH_KEYRING_BACKEND")
+    if alias_value and "PYTHON_KEYRING_BACKEND" not in os.environ:
+        os.environ["PYTHON_KEYRING_BACKEND"] = alias_value
+
+
+def _sync_keyring_property_env():
+    """Allow CLOUDSMITH_KEYRING_KEY to alias KEYRING_PROPERTY_KEYRING_KEY."""
+    alias_value = os.environ.get("CLOUDSMITH_KEYRING_KEY")
+    if alias_value and "KEYRING_PROPERTY_KEYRING_KEY" not in os.environ:
+        os.environ["KEYRING_PROPERTY_KEYRING_KEY"] = alias_value
+
+
+def _expand_path(value):
+    return os.path.expanduser(os.path.expandvars(value))
+
+
+def _sync_keyring_file_path_env():
+    """Allow CLOUDSMITH_KEYRING_FILE_PATH to alias KEYRING_PROPERTY_FILE_PATH."""
+    alias_value = os.environ.get("CLOUDSMITH_KEYRING_FILE_PATH")
+    if alias_value and "KEYRING_PROPERTY_FILE_PATH" not in os.environ:
+        os.environ["KEYRING_PROPERTY_FILE_PATH"] = _expand_path(alias_value)
+
+
+def _apply_keyring_file_location(backend):
+    """Set the storage file location before other properties apply.
+
+    The cryptfile keyring_key setter opens the storage file at
+    assignment time. Set the file location first, so the backend opens
+    the correct file. A file path env var takes precedence over
+    CLOUDSMITH_KEYRING_DIR. With the directory, the backend keeps its
+    default filename. The function ignores backends without a storage
+    file.
+    """
+    file_path = os.environ.get("KEYRING_PROPERTY_FILE_PATH")
+    if file_path:
+        backend.file_path = file_path
+        return
+    dir_value = os.environ.get("CLOUDSMITH_KEYRING_DIR")
+    if not dir_value:
+        return
+    filename = getattr(backend, "filename", None)
+    if not filename:
+        return
+    backend.file_path = os.path.join(_expand_path(dir_value), filename)
+
+
+def _prepare_keyring_backend():
+    """Resolve env var aliases and apply them to the keyring backend.
+
+    keyrings.cryptfile and keyrings.alt override KeyringBackend.__init__
+    without calling super(), so KEYRING_PROPERTY_* env vars (e.g. the
+    keyring_key password for those encrypted file backends) never reach
+    them through the library's own documented mechanism. Apply them here
+    instead, once the backend has been resolved.
+    """
+    import keyring
+
+    _sync_keyring_backend_env()
+    _sync_keyring_property_env()
+    _sync_keyring_file_path_env()
+    backend = keyring.get_keyring()
+    _apply_keyring_file_location(backend)
+    backend.set_properties_from_env()
+
+
 def _get_value(key):
+    import keyring
+    from keyring.errors import KeyringError
+
+    _prepare_keyring_backend()
     username = _get_username()
     try:
         return keyring.get_password(key, username)
@@ -33,6 +101,9 @@ def _get_value(key):
 
 
 def _set_value(key, value):
+    import keyring
+
+    _prepare_keyring_backend()
     username = _get_username()
     keyring.set_password(key, username, value)
 
@@ -51,7 +122,7 @@ def get_access_token(api_host):
 
 def update_refresh_attempted_at(api_host, refresh_time=None):
     if refresh_time is None:
-        refresh_time = datetime.utcnow()
+        refresh_time = datetime.now(tz=timezone.utc)
 
     refresh_attempted_at_value = refresh_time.isoformat()
 
@@ -79,7 +150,9 @@ def should_refresh_access_token(api_host):
     token_refreshed_at = get_refresh_attempted_at(api_host)
 
     if token_refreshed_at:
-        return token_refreshed_at < (datetime.utcnow() - timedelta(minutes=30))
+        return token_refreshed_at < (
+            datetime.now(tz=timezone.utc) - timedelta(minutes=30)
+        )
 
     return True
 
@@ -110,6 +183,10 @@ def store_sso_tokens(api_host, access_token, refresh_token):
 
 
 def _delete_value(key):
+    import keyring
+    from keyring.errors import KeyringError
+
+    _prepare_keyring_backend()
     username = _get_username()
     try:
         keyring.delete_password(key, username)
@@ -138,3 +215,36 @@ def delete_sso_tokens(api_host):
     """Delete all SSO tokens from the keyring for the given host."""
     results = [_delete_value(key) for key in _sso_keys(api_host)]
     return any(results)
+
+
+OIDC_TOKEN_KEY = "cloudsmith_cli-oidc_token-{api_host}-{org}-{service_slug}"
+
+
+def store_oidc_token(api_host, org, service_slug, token_data):
+    """Store OIDC token in keyring if enabled."""
+    from keyring.errors import KeyringError
+
+    if not should_use_keyring():
+        return False
+
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    try:
+        _set_value(key, token_data)
+        return True
+    except KeyringError:
+        return False
+
+
+def get_oidc_token(api_host, org, service_slug):
+    """Retrieve OIDC token from keyring."""
+    if not should_use_keyring():
+        return None
+
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    return _get_value(key)
+
+
+def delete_oidc_token(api_host, org, service_slug):
+    """Delete OIDC token from keyring."""
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
+    return _delete_value(key)

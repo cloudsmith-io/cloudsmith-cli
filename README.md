@@ -49,6 +49,11 @@ The CLI currently supports the following commands (and sub-commands):
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        Retrieve your API authentication token/key via login.
 - `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
+- `metadata`:             Manage arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
+  - `add`:                  Attach a new metadata entry to a package.
+  - `list`|`ls`:            List metadata entries for a package, or fetch a single entry by slug.
+  - `update`:               Replace content or source identity on an existing metadata entry.
+  - `remove`|`rm`:          Remove a metadata entry from a package.
 - `metrics`:              Metrics and statistics for a repository.
   - `tokens`:               Retrieve bandwidth usage for entitlement tokens.
   - `packages`:             Retrieve package usage for repository.
@@ -136,6 +141,119 @@ Or you can get the latest pre-release version from Cloudsmith:
 pip install --upgrade cloudsmith-cli --extra-index-url=https://dl.cloudsmith.io/public/cloudsmith/cli/python/index/
 ```
 
+### Standalone Binaries
+
+Each release also ships self-contained binaries that bundle Python and all dependencies — no Python installation required. Download the archive for your platform from the [GitHub releases page](https://github.com/cloudsmith-io/cloudsmith-cli/releases) (or the [Cloudsmith CLI repository](https://cloudsmith.io/~cloudsmith/repos/cli/packages/)), verify it against the accompanying `.sha256` file, extract it, and add the extracted `cloudsmith` directory to your `PATH`:
+
+```bash
+tar -xzf cloudsmith-<version>-<target>.tar.gz
+./cloudsmith/cloudsmith --version
+```
+
+Available targets: `linux-x86_64-gnu`, `linux-x86_64-musl`, `linux-aarch64-gnu`, `linux-aarch64-musl`, `macos-arm64`, `macos-x86_64`, and `windows-x86_64` (as a `.zip`).
+
+Standalone binaries include all optional features, including AWS OIDC support.
+
+#### Verifying Linux binaries
+
+The four Linux archives (`linux-x86_64-gnu`, `linux-x86_64-musl`, `linux-aarch64-gnu`, `linux-aarch64-musl`) are GPG-signed with a detached binary signature published alongside each archive as `<archive>.sig`. To verify, import the Cloudsmith CLI release public key (`cloudsmith-cli-release-key.asc`, attached to each GitHub release) and check the signature:
+
+```
+gpg --import cloudsmith-cli-release-key.asc
+gpg --verify cloudsmith-<version>-linux-x86_64-gnu.tar.gz.sig cloudsmith-<version>-linux-x86_64-gnu.tar.gz
+```
+
+A successful verification reports a good signature from the Cloudsmith CLI release key. (The macOS and Windows binaries are not GPG-signed; native signing for those platforms is tracked separately.)
+
+### Optional Dependencies
+
+The CLI supports optional extras for additional functionality:
+
+#### AWS OIDC Support
+
+For AWS environments (ECS, EKS, EC2), install with `aws` extra to enable automatic credential discovery:
+
+```
+pip install cloudsmith-cli[aws]
+```
+
+This installs `boto3[crt]` for AWS credential chain support, STS token generation, and AWS SSO compatibility.
+
+#### All Optional Features
+
+To install all optional dependencies:
+
+```
+pip install cloudsmith-cli[all]
+```
+
+**Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
+
+#### Bitbucket Pipelines OIDC Support
+
+In Bitbucket Pipelines, OIDC credential discovery works out of the box with no extra dependencies. Set `oidc: true` on the pipeline step and the CLI reads the token from the `BITBUCKET_STEP_OIDC_TOKEN` variable that Bitbucket populates. The Cloudsmith OIDC provider must expect the workspace audience that Bitbucket mints (`ari:cloud:bitbucket::workspace/<workspace-uuid>`):
+
+```yaml
+pipelines:
+  default:
+    - step:
+        oidc: true
+        script:
+          - cloudsmith push ...
+```
+
+See the [Bitbucket Pipelines OIDC documentation](https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/).
+
+#### CircleCI OIDC Support
+
+In CircleCI, OIDC credential discovery works out of the box with no extra dependencies — the CLI reads the token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable that CircleCI injects into every job. The Cloudsmith OIDC provider must expect the audience CircleCI mints, which is your CircleCI organization UUID. See the [Cloudsmith CircleCI integration guide](https://docs.cloudsmith.com/integrations/integrating-with-circleci).
+
+#### Azure DevOps OIDC Support
+
+In Azure DevOps Pipelines, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN`. Make sure `SYSTEM_ACCESSTOKEN` is mapped into the step's environment. The Cloudsmith OIDC provider must expect the audience `api://AzureADTokenExchange`, which Azure DevOps always mints (any requested audience is ignored). See the [Cloudsmith Azure DevOps integration guide](https://docs.cloudsmith.com/integrations/integrating-with-azure-devops).
+
+#### GitHub Actions OIDC Support
+
+In GitHub Actions, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the Actions runtime when the workflow requests `id-token: write` permission. See the [Cloudsmith GitHub Actions OIDC guide](https://docs.cloudsmith.com/authentication/setup-cloudsmith-to-authenticate-with-oidc-in-github-actions).
+
+#### GitLab CI OIDC Support
+
+In GitLab CI/CD, OIDC credential discovery works out of the box with no extra dependencies. Configure an [`id_tokens`](https://docs.gitlab.com/ci/cloud_services/) entry in your `.gitlab-ci.yml` with an `aud` of `https://api.cloudsmith.io/openid/<your-org>` and expose it as `CLOUDSMITH_OIDC_TOKEN`, and the CLI will pick it up automatically:
+
+```yaml
+job:
+  id_tokens:
+    CLOUDSMITH_OIDC_TOKEN:
+      aud: https://api.cloudsmith.io/openid/<your-org>
+  script:
+    - cloudsmith push ...
+```
+
+See the [Cloudsmith GitLab CI/CD integration guide](https://docs.cloudsmith.com/integrations/integrating-with-gitlab-cicd).
+
+#### Generic OIDC Support (Jenkins, custom CI/CD)
+
+As a fallback for environments without a dedicated detector (for example Jenkins with the [credentials binding plugin](https://plugins.jenkins.io/credentials-binding/), or any custom CI/CD system), set the `CLOUDSMITH_OIDC_TOKEN` environment variable to an OIDC JWT and the CLI will exchange it for a Cloudsmith access token. This detector runs last, so a dedicated environment is always preferred when present. See the [Cloudsmith Jenkins OIDC guide](https://docs.cloudsmith.com/authentication/setup-jenkins-to-authenticate-to-cloudsmith-using-oidc).
+
+#### Controlling OIDC Detector Selection
+
+By default the CLI tries each detector in a fixed priority order and uses the first that matches. Two controls let you override this when a detector matches an environment you don't want it to (for example, the AWS detector matching ambient instance credentials):
+
+- **Disable a detector** — set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip it entirely. Only the literal value `true` (case-insensitive) disables; anything else leaves the detector enabled. For example, `CLOUDSMITH_OIDC_AWS_DISABLED=true` skips the AWS detector so an explicitly-set `CLOUDSMITH_OIDC_TOKEN` is picked up by the generic detector instead.
+- **Reorder evaluation** — use `--oidc-detector-order` (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) with a comma-separated list of detector ids to control both which detectors are considered and the order they are tried in (first match wins). Ids not listed are skipped; unrecognised ids are ignored with a warning. For example, `--oidc-detector-order=generic,aws` tries the generic detector first and considers only those two.
+
+When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
+
+Both controls can also be set in `config.ini`, under `[default]` or a profile section:
+
+```ini
+[default]
+oidc_detector_order = github, aws
+oidc_disabled_detectors = aws, gitlab
+```
+
+The `--oidc-detector-order` flag (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) overrides the `oidc_detector_order` config value. The `oidc_disabled_detectors` config key is additive with the per-detector `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED` environment variables — a detector disabled by either is skipped.
+
 ## Configuration
 
 There are two configuration files used by the CLI:
@@ -201,12 +319,20 @@ You can authenticate using your organization's SAML provider, if configured, wit
 ```
 cloudsmith auth --owner example
 Beginning authentication for the example org ...
-Opening your organization's SAML IDP URL in your browser: https://example.com/some-saml-idp
+Your organization's SAML IDP URL is: https://example.com/some-saml-idp
 
 Starting webserver to begin authentication ...
 
 Authentication complete
 ```
+
+The CLI opens the IDP URL in your browser automatically. If it can't (for example in Cygwin or a headless shell), it tells you to open the URL above manually and carries on waiting for the callback. Use `--no-browser` to skip the automatic launch entirely:
+
+```
+cloudsmith auth --owner example --no-browser
+```
+
+*Note:* The authentication callback is served on `127.0.0.1:12400`, so the browser you open the URL in must be running on the same machine as the CLI.
 
 #### Getting Your API Key
 
@@ -242,7 +368,13 @@ Although native uploads, i.e. those supported by the native ecosystem of a packa
 For example, if you wanted to upload a Debian package, you can do it in one-step. Assuming you have a package filename **libxml2-2.9.4-2.x86_64.deb**, representing **libxml 2.9.4**, for the **Ubuntu 16.04** distribution (which has a cloudsmith identifier of **ubuntu/xenial**):
 
 ```
-cloudsmith push deb your-account/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
+cloudsmith push deb your-org/your-repo/ubuntu/xenial libxml2-2.9.4-2.x86_64.deb
+```
+
+To upload a Debian *source* package, give it the `.dsc`. The source and Debian packaging archives listed in the `.dsc` are found and uploaded with it:
+
+```
+cloudsmith push deb your-org/your-repo/ubuntu/xenial hello_2.10-3.dsc
 ```
 
 Want to know how to do it with another packaging format? Easy, just ask for help:
@@ -259,39 +391,39 @@ You can download packages from repositories using the `cloudsmith download` comm
 For example, to download a specific package:
 
 ```
-cloudsmith download your-account/your-repo package-name
+cloudsmith download your-org/your-repo package-name
 ```
 
 You can filter by various attributes like version, format, architecture, operating system, and tags:
 
 ```
 # Download a specific version
-cloudsmith download your-account/your-repo package-name --version 1.2.3
+cloudsmith download your-org/your-repo package-name --version 1.2.3
 
 # Filter by format and architecture
-cloudsmith download your-account/your-repo package-name --format deb --arch amd64
+cloudsmith download your-org/your-repo package-name --format deb --arch amd64
 
 # Filter by package tag (e.g., latest, stable, beta)
-cloudsmith download your-account/your-repo package-name --tag latest
+cloudsmith download your-org/your-repo package-name --tag latest
 
 # Combine tag with metadata filters
-cloudsmith download your-account/your-repo package-name --tag stable --format deb --arch arm64
+cloudsmith download your-org/your-repo package-name --tag stable --format deb --arch arm64
 
 # Filter by filename (exact or glob pattern)
-cloudsmith download your-account/your-repo package-name --filename '*.nupkg'
-cloudsmith download your-account/your-repo package-name --filename 'mypackage-1.0.0.snupkg'
+cloudsmith download your-org/your-repo package-name --filename '*.nupkg'
+cloudsmith download your-org/your-repo package-name --filename 'mypackage-1.0.0.snupkg'
 
 # Download all matching packages (when multiple packages share the same name/version)
-cloudsmith download your-account/your-repo package-name --download-all
+cloudsmith download your-org/your-repo package-name --download-all
 
 # Combine --download-all with --filename to download a subset
-cloudsmith download your-account/your-repo package-name --download-all --filename '*.snupkg'
+cloudsmith download your-org/your-repo package-name --download-all --filename '*.snupkg'
 
 # Download all associated files (POM, sources, javadoc, etc.)
-cloudsmith download your-account/your-repo package-name --all-files
+cloudsmith download your-org/your-repo package-name --all-files
 
 # Preview what would be downloaded without actually downloading
-cloudsmith download your-account/your-repo package-name --dry-run
+cloudsmith download your-org/your-repo package-name --dry-run
 ```
 
 For more advanced usage and all available options:
@@ -299,6 +431,125 @@ For more advanced usage and all available options:
 ```
 cloudsmith download --help
 ```
+
+
+## Package Metadata
+
+Arbitrary JSON metadata can be attached to any package — SBOMs, JFrog BuildInfo documents, or custom payloads. Metadata is validated against the declared content type and stays with the package for its lifetime.
+
+Metadata can be attached at push time with `cloudsmith push` (see [Attaching Metadata During Push](#attaching-metadata-during-push)) or managed afterwards with the `cloudsmith metadata` command group.
+
+To attach metadata to an existing package:
+
+```
+cloudsmith metadata add your-org/your-repo/your-pkg \
+  --content-type application/json \
+  --content '{"build_id": "demo-123", "git_sha": "abc123"}'
+```
+
+To attach metadata from a file (use `-` to read from stdin):
+
+```
+cloudsmith metadata add your-org/your-repo/your-pkg \
+  --content-type application/vnd.jfrog.buildinfo+json \
+  --file buildinfo.json
+```
+
+To list all metadata entries on a package, or fetch a single entry by slug:
+
+```
+cloudsmith metadata list your-org/your-repo/your-pkg
+cloudsmith metadata list your-org/your-repo/your-pkg meta-slug-perm
+```
+
+Filter entries by source kind or classification when listing:
+
+```
+cloudsmith metadata list your-org/your-repo/your-pkg --classification sbom
+cloudsmith metadata list your-org/your-repo/your-pkg --source-kind third_party
+```
+
+To replace the content or source identity of an existing entry (content type is fixed after creation):
+
+```
+cloudsmith metadata update your-org/your-repo/your-pkg meta-slug-perm \
+  --content '{"build_id": "demo-124"}'
+```
+
+To remove a metadata entry:
+
+```
+cloudsmith metadata remove your-org/your-repo/your-pkg meta-slug-perm
+```
+
+For all available options:
+
+```
+cloudsmith metadata --help
+```
+
+
+## Attaching Metadata During Push
+
+Every `cloudsmith push <format>` subcommand accepts a set of `--metadata-*` flags. When provided, metadata is validated locally and against the API before any file upload, then attached to the package immediately after creation. This avoids a separate `cloudsmith metadata add` step and prevents malformed metadata from leaving orphan packages behind.
+
+Available flags on every push subcommand:
+
+- `--metadata-content-file PATH`: Path to a JSON file containing the metadata content. Use `-` for stdin.
+- `--metadata-content JSON`: Inline JSON content. Mutually exclusive with `--metadata-content-file`.
+- `--metadata-content-type MIME`: MIME type of the metadata payload (e.g. `application/json`, `application/vnd.jfrog.buildinfo+json`). Required when content is provided.
+- `--metadata-source-identity TEXT`: Identifier indicating where the metadata originated. Defaults to `cloudsmith-cli@<version>`.
+- `--on-metadata-failure [error|warn]`: How to handle push-time metadata failures for this push only. `error` (default) aborts the push so CI/CD surfaces broken SBOM/BuildInfo payloads; `warn` downgrades to a warning and lets the package upload regardless. Overrides `$CLOUDSMITH_METADATA_FAILURE_MODE` and the `metadata_failure_mode` config key.
+
+Push a package with inline metadata:
+
+```
+cloudsmith push raw your-org/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content '{"build_id": "demo-inline", "git_sha": "abc123"}' \
+  --metadata-content-type application/json
+```
+
+Push a package with metadata loaded from a file:
+
+```
+cloudsmith push raw your-org/your-repo payload.txt \
+  --name demo --version 1.0.0 \
+  --metadata-content-file buildinfo.json \
+  --metadata-content-type application/vnd.jfrog.buildinfo+json
+```
+
+### Failure Behavior
+
+By default, push aborts when metadata validation or attachment fails. The HTTP status from the failed request is used as the exit code, so CI pipelines surface broken SBOMs or BuildInfo payloads instead of silently uploading a package without metadata.
+
+To downgrade failures to a warning (the package is still uploaded, and a copy-paste `cloudsmith metadata add` retry hint is printed), use any of the following — listed in order of precedence (highest first):
+
+1. The `--on-metadata-failure warn` CLI flag on `cloudsmith push` (per-push override):
+
+   ```
+   cloudsmith push raw your-org/your-repo payload.txt \
+     --name demo --version 1.0.0 \
+     --metadata-content-file buildinfo.json \
+     --metadata-content-type application/vnd.jfrog.buildinfo+json \
+     --on-metadata-failure warn
+   ```
+
+2. The `CLOUDSMITH_METADATA_FAILURE_MODE` environment variable set to `warn` or `0` (per-shell):
+
+   ```
+   CLOUDSMITH_METADATA_FAILURE_MODE=warn cloudsmith push raw your-org/your-repo payload.txt \
+     --name demo --version 1.0.0 \
+     --metadata-content-file buildinfo.json \
+     --metadata-content-type application/vnd.jfrog.buildinfo+json
+   ```
+
+3. The `metadata_failure_mode` key in `config.ini` set to `error`, `warn`, or `0` (persistent default):
+
+   ```ini
+   [default]
+   metadata_failure_mode = warn
+   ```
 
 
 ## Contributing

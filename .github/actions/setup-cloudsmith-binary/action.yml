@@ -1,0 +1,38 @@
+name: Set up cloudsmith binary
+description: >-
+  Extract the linux-x86_64-gnu cloudsmith binary archive onto the runner and put
+  it on PATH so jobs can dogfood the built CLI.
+
+inputs:
+  version:
+    description: Release version (matches the binaries/cloudsmith-<version>-... archive).
+    required: true
+  add-local-bin:
+    description: Also create ~/.local/bin and add it to PATH (for the docker credential helper launcher).
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        ADD_LOCAL_BIN: ${{ inputs.add-local-bin }}
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        ARCHIVE="binaries/cloudsmith-${VERSION}-linux-x86_64-gnu.tar.gz"
+        test -f "${ARCHIVE}"
+        # Verify the accompanying checksum before extracting onto PATH so a
+        # corrupted or unexpected artifact never gets executed.
+        test -f "${ARCHIVE}.sha256"
+        ( cd binaries && sha256sum -c "$(basename "${ARCHIVE}").sha256" )
+        DEST="${RUNNER_TEMP}/cloudsmith-cli"
+        mkdir -p "${DEST}"
+        tar -xzf "${ARCHIVE}" -C "${DEST}"
+        chmod +x "${DEST}/cloudsmith/cloudsmith"
+        echo "${DEST}/cloudsmith" >> "$GITHUB_PATH"
+        if [ "${ADD_LOCAL_BIN}" = "true" ]; then
+          mkdir -p "${HOME}/.local/bin"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+        fi

@@ -9,9 +9,12 @@ from cloudsmith_cli.core.api.exceptions import ApiException
 from .conftest import MockToken
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
-class TestListTokensCommand:
+@pytest.fixture(autouse=True)
+def set_fake_api_host(monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_API_HOST", "https://api.example.com")
 
+
+class TestListTokensCommand:
     def test_list_tokens_success(self, runner):
         """Test successful listing of tokens."""
         mock_tokens = [
@@ -54,7 +57,6 @@ class TestListTokensCommand:
         )
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
 class TestRefreshTokenCommand:
     """Test suite for the 'tokens refresh' command."""
 
@@ -114,7 +116,6 @@ class TestRefreshTokenCommand:
         )
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
 class TestRequestApiKeyFunction:
     """Test suite for the request_api_key helper function."""
 
@@ -169,13 +170,11 @@ class TestRequestApiKeyFunction:
         duplicate_error.status = 400
         duplicate_error.detail = "User has already created an API key"
 
-        with patch(
-            "cloudsmith_cli.core.api.user.create_user_token_saml"
-        ) as mock_create, patch(
-            "cloudsmith_cli.core.api.user.list_user_tokens"
-        ) as mock_list, patch(
-            "cloudsmith_cli.core.api.user.refresh_user_token"
-        ) as mock_refresh:
+        with (
+            patch("cloudsmith_cli.core.api.user.create_user_token_saml") as mock_create,
+            patch("cloudsmith_cli.core.api.user.list_user_tokens") as mock_list,
+            patch("cloudsmith_cli.core.api.user.refresh_user_token") as mock_refresh,
+        ):
             mock_create.side_effect = duplicate_error
             mock_list.return_value = [existing_token]
             mock_refresh.return_value = new_token

@@ -11,5 +11,5 @@ quote_type = double
 max_line_length = 88
 trim_trailing_whitespace = true
 
-[site.yaml]
+[{*.yaml,*.yml,*.kyaml}]
 indent_size = 2

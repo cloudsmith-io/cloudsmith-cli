@@ -7,8 +7,6 @@ from datetime import date, datetime
 
 import click
 from click_spinner import spinner
-from rich.console import Console
-from rich.table import Table
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
@@ -24,35 +22,16 @@ def make_user_agent(prefix=None):
 def pretty_print_list_info(num_results, page_info=None, suffix="", page_all=False):
     """Print information about list results."""
     if page_all:
-        click.echo(
-            "Results: %(num_results)d %(suffix)s"
-            % {
-                "num_results": num_results,
-                "suffix": suffix,
-            }
-        )
+        click.echo(f"Results: {num_results} {suffix}")
     elif page_info and page_info.page is not None and page_info.page_size is not None:
         start = (page_info.page - 1) * page_info.page_size + 1
         end = min(start + num_results - 1, page_info.count or 0)
         click.echo(
-            "Results: %(start)d-%(end)d (%(count)d) of %(total)d %(suffix)s "
-            "(page: %(page)d/%(pages)d, page size: %(page_size)d)"
-            % {
-                "start": start,
-                "end": end,
-                "count": num_results,
-                "total": page_info.count or 0,
-                "suffix": suffix,
-                "page": page_info.page,
-                "pages": page_info.page_total or 1,
-                "page_size": page_info.page_size,
-            }
+            f"Results: {start}-{end} ({num_results}) of {page_info.count} {suffix} "
+            f"(page: {page_info.page}/{page_info.page_total}, page size: {page_info.page_size})"
         )
     else:
-        click.echo(
-            "Results: %(num_results)d %(suffix)s"
-            % {"num_results": num_results, "suffix": suffix}
-        )
+        click.echo(f"Results: {num_results} {suffix}")
 
 
 def fmt_datetime(value):
@@ -93,6 +72,9 @@ def pretty_print_table(headers, rows, title=None):
 
 def rich_print_table(headers, rows, title=None, show_lines=False):
     """Rich table from headers and rows."""
+    from rich.console import Console
+    from rich.table import Table
+
     console = Console()
     table = Table(title=title, show_lines=show_lines)
 
@@ -127,8 +109,7 @@ def print_rate_limit_info(opts, rate_info):
 
     click.echo(err=True)
     click.secho(
-        "Throttling (rate limited) for: %(throttle)s seconds ... "
-        % {"throttle": click.style(str(rate_info.interval), reverse=True)},
+        f"Throttling (rate limited) for: {click.style(str(rate_info.interval), reverse=True)} seconds ... ",
         err=True,
         reset=False,
     )
@@ -140,7 +121,7 @@ def json_serializer(obj):
     # convert date/datetime objects to strings
     if isinstance(obj, (datetime, date)):
         return fmt_datetime(obj)
-    raise TypeError("Type %s not serializable." % type(obj))
+    raise TypeError(f"Type {type(obj)} not serializable.")
 
 
 def maybe_print_as_json(opts, data, page_info=None):
@@ -173,7 +154,7 @@ def maybe_print_as_json(opts, data, page_info=None):
         else:
             dump = json.dumps(root, sort_keys=True, default=json_serializer)
     except (TypeError, ValueError) as e:
-        click.secho(f"Failed to convert to JSON: {str(e)}", fg="red", err=True)
+        click.secho(f"Failed to convert to JSON: {e!s}", fg="red", err=True)
         return True
 
     click.echo(dump)
@@ -194,18 +175,52 @@ def maybe_truncate_list(data, max_len=5):
     return data
 
 
+def maybe_unstyle_prompt(prompt, err=False):
+    """Strip ANSI styling from a prompt when the target stream is not a TTY.
+
+    As of click 8.4, ``click.prompt``/``click.confirm`` pass the prompt text
+    straight to the (readline-backed) prompt function instead of routing it
+    through ``echo()``. This means click's ``should_strip_ansi`` logic no
+    longer fires for prompt text, so any ANSI codes baked into the prompt via
+    ``click.style(..., bold=True)`` leak raw into non-TTY output (piped
+    output, CI logs, captured streams). Restore the pre-8.4 behaviour by
+    unstyling the prompt ourselves when the destination stream isn't a TTY.
+
+    Applying ``click.unstyle`` to plain text is a harmless no-op.
+    """
+    stream = click.get_text_stream("stderr" if err else "stdout")
+    if not stream.isatty():
+        prompt = click.unstyle(prompt)
+    return prompt
+
+
 def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     """Prompt the user for confirmation for dangerous actions."""
     if assume_yes:
         return True
 
-    prefix = prefix or click.style(
-        "Are you %s certain you want to" % (click.style("absolutely", bold=True))
-    )
+    if prefix is None:
+        prefix = click.style(
+            "Are you {} certain you want to".format(
+                click.style("absolutely", bold=True)
+            )
+        )
 
-    prompt = f"{prefix} {prompt}?"
+    # An explicit empty prefix asks the question on its own, without the
+    # "Are you absolutely certain..." preamble.
+    question = f"{prefix} {prompt}?" if prefix else f"{prompt}?"
+    prompt = maybe_unstyle_prompt(question, err=err)
 
-    if click.confirm(prompt, err=err):
+    answered = click.confirm(prompt, err=err)
+
+    # click.confirm reads input via input() which relies on terminal line
+    # discipline to echo typed characters. In non-TTY contexts (CI logs,
+    # piped stdin, captured output) the answer is invisible next to the
+    # prompt, so echo the resolved value explicitly.
+    if not click.get_text_stream("stdin").isatty():
+        click.echo("y" if answered else "N", err=err)
+
+    if answered:
         return True
 
     click.echo(err=err)

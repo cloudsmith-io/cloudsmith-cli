@@ -1,10 +1,14 @@
 """Tests for the auth command."""
 
+import json
+import webbrowser
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from ....core.api.exceptions import ApiException
 from ...commands.auth import authenticate
+from ...commands.main import main
 from .conftest import MockToken
 
 
@@ -74,14 +78,18 @@ class TestAuthenticateCommand:
         mock_auth_server,
     ):
         """Verify auth command opens browser with IDP URL."""
-        runner.invoke(
+        mock_webbrowser.open.return_value = True
+
+        result = runner.invoke(
             authenticate,
             ["--owner", "testorg"],
             catch_exceptions=False,
         )
 
         # Verify browser was opened
+        assert "Couldn't open a browser automatically" not in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
+        mock_auth_server.return_value.handle_request.assert_called_once()
 
     def test_auth_command_passes_owner_to_webserver(
         self,
@@ -102,6 +110,104 @@ class TestAuthenticateCommand:
         mock_auth_server.assert_called_once()
         call_kwargs = mock_auth_server.call_args.kwargs
         assert call_kwargs.get("owner") == "testorg"
+
+
+class TestBrowserFallback:
+    """Tests for graceful handling of webbrowser.open() failures."""
+
+    def test_webbrowser_error_does_not_crash(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify a webbrowser.Error from webbrowser.open() doesn't crash the command."""
+        mock_webbrowser.open.side_effect = webbrowser.Error("no runnable browser found")
+
+        result = runner.invoke(
+            main,
+            ["authenticate", "--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Couldn't open a browser automatically" in result.output
+        mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
+        mock_auth_server.assert_called_once()
+        mock_auth_server.return_value.handle_request.assert_called_once()
+
+    def test_false_return_from_open_uses_manual_fallback(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify a false return from webbrowser.open() uses the manual fallback."""
+        mock_webbrowser.open.return_value = False
+
+        result = runner.invoke(
+            main,
+            ["auth", "--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Couldn't open a browser automatically" in result.output
+        mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
+        mock_auth_server.return_value.handle_request.assert_called_once()
+
+    def test_generic_exception_from_open_does_not_crash(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify any unexpected exception from webbrowser.open() also degrades gracefully."""
+        mock_webbrowser.open.side_effect = RuntimeError("platform-specific failure")
+
+        result = runner.invoke(
+            main,
+            ["auth", "--owner", "testorg"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Couldn't open a browser automatically" in result.output
+        mock_auth_server.assert_called_once()
+        mock_auth_server.return_value.handle_request.assert_called_once()
+
+
+class TestNoBrowserFlag:
+    """Tests for the --no-browser flag."""
+
+    def test_no_browser_skips_webbrowser_open(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify --no-browser never calls webbrowser.open()."""
+        result = runner.invoke(
+            main,
+            ["auth", "--owner", "testorg", "--no-browser"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        mock_webbrowser.open.assert_not_called()
+        assert "Skipping automatic browser launch" in result.output
+        assert "Opening your organization's SAML IDP URL" not in result.output
+        assert "Your organization's SAML IDP URL is:" in result.output
+        mock_auth_server.assert_called_once()
+        mock_auth_server.return_value.handle_request.assert_called_once()
 
 
 class TestRequestApiKeyFlag:
@@ -281,3 +387,32 @@ class TestRequestApiKeyFlag:
 
         assert result.exit_code != 0
         assert "Failed to retrieve API token" in result.output
+
+
+class TestAuthFailureOutputModes:
+    """Tests for auth error routing in default and JSON modes."""
+
+    def test_json_mode_writes_error_json_to_stdout(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify auth failures in -F json emit only JSON on stdout."""
+        mock_auth_server.return_value.handle_request.side_effect = ApiException(
+            422, detail="Invalid input."
+        )
+
+        result = runner.invoke(
+            main,
+            ["auth", "--owner", "testorg", "-F", "json"],
+            catch_exceptions=False,
+        )
+
+        payload = json.loads(result.stdout)
+        assert payload["detail"] == "Invalid input."
+        assert payload["meta"]["code"] == 422
+        assert "Beginning authentication for the testorg org" in result.stderr
+        assert "Beginning authentication for the testorg org" not in result.stdout

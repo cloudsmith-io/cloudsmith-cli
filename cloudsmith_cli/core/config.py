@@ -52,13 +52,12 @@ def create_config_files(ctx, opts, api_key, force=False):
     has_errors = False
     for config in configs:
         click.echo(
-            "%(name)s config file: %(filepath)s ... "
-            % {
-                "name": click.style(config.reader.config_name.capitalize(), bold=True),
-                "filepath": click.style(
+            "{name} config file: {filepath} ... ".format(
+                name=click.style(config.reader.config_name.capitalize(), bold=True),
+                filepath=click.style(
                     config.reader.get_default_filepath(), fg="magenta"
                 ),
-            },
+            ),
             nl=False,
         )
 
@@ -78,8 +77,9 @@ def create_config_files(ctx, opts, api_key, force=False):
                 click.secho("ERROR", fg="red")
                 click.secho(
                     "The following error occurred while trying to "
-                    "create the file: %(message)s"
-                    % {"message": click.style(error_message, fg="red")}
+                    "create the file: {message}".format(
+                        message=click.style(error_message, fg="red")
+                    )
                 )
             continue
 
@@ -100,8 +100,9 @@ def create_config_files(ctx, opts, api_key, force=False):
                 click.secho("ERROR", fg="red")
                 click.secho(
                     "The following error occurred while trying to "
-                    "update the file: %(message)s"
-                    % {"message": click.style(exc.strerror, fg="red")}
+                    "update the file: {message}".format(
+                        message=click.style(exc.strerror, fg="red")
+                    )
                 )
             continue
 
@@ -117,9 +118,9 @@ def new_config_messaging(has_errors, opts, create, api_key):
         click.secho("Oops, please fix the errors and try again!", fg="red")
         return
 
-    if opts.api_key != api_key:
+    if opts.api_key_from_file != api_key:
         click.echo()
-        if opts.api_key:
+        if opts.api_key_from_file:
             click.secho(
                 "Note: The above API key doesn't match what you have in "
                 "your default credentials config file.",
@@ -133,7 +134,7 @@ def new_config_messaging(has_errors, opts, create, api_key):
             )
             click.secho(
                 "If you need more help please see the documentation: "
-                "%(website)s" % {"website": click.style(get_help_website(), bold=True)}
+                f"{click.style(get_help_website(), bold=True)}"
             )
         click.echo()
 

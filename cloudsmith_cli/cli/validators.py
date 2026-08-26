@@ -1,16 +1,21 @@
 """CLI - Validators."""
 
 import base64
-from datetime import datetime
+import re
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import click
 from click.core import ParameterSource
 
 from .types import ExpandPath
 
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
+PUBLIC_API_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
+DEFAULT_API_HOST_SCHEME = "https"
+API_HOST_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://")
 
 
 class IntOrWildcard(click.ParamType):
@@ -46,7 +51,7 @@ def transform_api_header_authorization(param, value):
 
     value = f"{username.strip()}:{password}"
     value = base64.b64encode(bytes(value.encode()))
-    return "Basic %s" % value.decode("utf-8")
+    return "Basic {}".format(value.decode("utf-8"))
 
 
 API_HEADER_TRANSFORMS["Authorization"] = transform_api_header_authorization
@@ -84,6 +89,68 @@ def validate_api_headers(param, value):
     return headers
 
 
+def normalize_api_host(value):
+    """Normalise a user-supplied API host into a canonical URL.
+
+    Removes surrounding whitespace and trailing slashes. Adds the https
+    scheme when the value does not give one. Returns None for a blank value,
+    so a blank value does not replace a host that is already set.
+    """
+    if not isinstance(value, str):
+        return value
+
+    host = value.strip()
+    if not host:
+        return None
+
+    if not API_HOST_SCHEME_RE.match(host):
+        host = f"{DEFAULT_API_HOST_SCHEME}://{host.lstrip('/')}"
+
+    return host.rstrip("/")
+
+
+def host_matches_suffixes(url, suffixes):
+    """True if url's hostname equals or is a subdomain of one of the suffixes.
+
+    Parsing the hostname (rather than substring-matching the URL) ensures
+    userinfo, port, and path components cannot smuggle a host past the check.
+    """
+    hostname = (urlsplit(url).hostname or "").lower()
+    return bool(hostname) and any(
+        hostname == suffix or hostname.endswith(f".{suffix}") for suffix in suffixes
+    )
+
+
+def is_trusted_api_host(host, extra_suffixes=()):
+    """True if host is an allowed Cloudsmith host (or matches an extra suffix)."""
+    return host_matches_suffixes(host, PUBLIC_API_HOST_SUFFIXES + tuple(extra_suffixes))
+
+
+def validate_untrusted_api_host(host, extra_suffixes=()):
+    """Raise if an api_host from an untrusted config is not an allowed host."""
+    if is_trusted_api_host(host, extra_suffixes):
+        return
+    raise click.UsageError(
+        f'api_host "{host}" is set by a config file in the current directory '
+        "and is not an allowed Cloudsmith host. Allowed hosts must be under "
+        "*.cloudsmith.io or *.cloudsmith.com. To use a custom host, set it via "
+        "--api-host, the CLOUDSMITH_API_HOST environment variable, an explicit "
+        "--config-file, or your user-level config."
+    )
+
+
+def validate_untrusted_api_proxy(proxy, allowed_suffixes=()):
+    """Raise if an api_proxy from an untrusted config is not an allowed proxy."""
+    if host_matches_suffixes(proxy, allowed_suffixes):
+        return
+    raise click.UsageError(
+        f'api_proxy "{proxy}" is set by a config file in the current directory '
+        "and is not an allowed proxy. To use a proxy, set it via --api-proxy, "
+        "the CLOUDSMITH_API_PROXY environment variable, an explicit "
+        "--config-file, or your user-level config."
+    )
+
+
 def validate_slashes(
     param, value, minimum=2, maximum=None, form=None, allow_blank=False
 ):
@@ -93,11 +160,8 @@ def validate_slashes(
     except ValueError:
         value = None
 
-    if value:
-        if len(value) < minimum:
-            value = None
-        elif maximum and len(value) > maximum:
-            value = None
+    if value and len(value) < minimum or maximum and len(value) > maximum:
+        value = None
 
     if not value:
         form = form or "/".join("VALUE" for _ in range(minimum))
@@ -233,8 +297,10 @@ def validate_optional_timestamp(ctx, param, value):
 
     if value:
         try:
-            return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
-                hour=0, minute=0, second=0
+            return (
+                datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+                .replace(tzinfo=timezone.utc)
+                .replace(hour=0, minute=0, second=0)
             )
         except ValueError:
             raise click.BadParameter(

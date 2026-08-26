@@ -18,13 +18,8 @@ def get_packages_api():
 
 def make_create_payload(**kwargs):
     """Create payload for upload/check-upload operations."""
-    payload = {}
     # Add non-empty arguments
-    for k, v in kwargs.items():
-        if v is not None:
-            payload[k] = v
-
-    return payload
+    return {k: v for k, v in kwargs.items() if v is not None}
 
 
 def create_package(package_format, owner, repo, **kwargs):
@@ -32,7 +27,7 @@ def create_package(package_format, owner, repo, **kwargs):
     client = get_packages_api()
 
     with catch_raise_api_exception():
-        upload = getattr(client, "packages_upload_%s_with_http_info" % package_format)
+        upload = getattr(client, f"packages_upload_{package_format}_with_http_info")
 
         data, _, headers = upload(
             owner=owner, repo=repo, data=make_create_payload(**kwargs)
@@ -48,7 +43,7 @@ def validate_create_package(package_format, owner, repo, **kwargs):
 
     with catch_raise_api_exception():
         check = getattr(
-            client, "packages_validate_upload_%s_with_http_info" % package_format
+            client, f"packages_validate_upload_{package_format}_with_http_info"
         )
 
         _, _, headers = check(
@@ -215,6 +210,24 @@ def get_package_tags(owner, repo, identifier):
     return (data.tags, data.tags_immutable)
 
 
+def get_package_slug_perm(owner, repo, identifier):
+    """Resolve a package's permanent slug from owner/repo/identifier.
+
+    Used by metadata commands that address packages by slug_perm.
+    """
+    client = get_packages_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.packages_read_with_http_info(
+            owner=owner, repo=repo, identifier=identifier
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+
+    # pylint: disable=no-member
+    return data.slug_perm
+
+
 def list_packages(owner, repo, **kwargs):
     """List packages for a repository."""
     client = get_packages_api()
@@ -248,7 +261,7 @@ def get_package_formats():
         # Create a dummy instance so we can check if a parameter is required.
         # As with the rest of this function, this is obviously hacky. We'll
         # figure out a way to pull this information in from the API later.
-        dummy_kwargs = {k: "dummy" for k in cls.swagger_types}
+        dummy_kwargs = dict.fromkeys(cls.swagger_types, "dummy")
         instance = cls(**dummy_kwargs)
 
         for k, v in cls.swagger_types.items():

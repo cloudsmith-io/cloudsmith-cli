@@ -8,7 +8,7 @@ import requests
 from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from .. import ratelimits
-from ..rest import create_requests_session
+from ..session import create_requests_session
 from ..utils import calculate_file_md5
 from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
@@ -97,10 +97,11 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
 def multi_part_upload_file(
     opts, upload_url, owner, repo, filepath, callback, upload_id
 ):
+    headers = opts.credential.auth_headers() if opts.credential else {}
+
     with open(filepath, "rb") as f:
         chunk_number = 1
         session = create_requests_session()
-        headers = {"X-Api-Key": opts.api_key}
         while chunk := f.read(CHUNK_SIZE):
             resp = session.put(
                 upload_url,

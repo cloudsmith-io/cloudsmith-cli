@@ -2,7 +2,7 @@ import asyncio
 import copy
 import inspect
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib import parse
 
 import cloudsmith_api
@@ -97,7 +97,7 @@ class CustomFastMCP(FastMCP):
 
         return cleaned_tools
 
-    def _clean_schema(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+    def _clean_schema(self, schema: dict[str, Any]) -> dict[str, Any]:
         """Clean up schema by removing anyOf patterns and other complexities"""
         if not isinstance(schema, dict):
             return schema
@@ -113,7 +113,7 @@ class CustomFastMCP(FastMCP):
 
         return cleaned
 
-    def _clean_property_schema(self, prop_schema: Dict[str, Any]) -> Dict[str, Any]:
+    def _clean_property_schema(self, prop_schema: dict[str, Any]) -> dict[str, Any]:
         """Clean individual property schema"""
         if not isinstance(prop_schema, dict):
             return prop_schema
@@ -180,8 +180,8 @@ class DynamicMCPServer:
         use_toon=True,
         allow_destructive_tools=False,
         debug_mode=False,
-        allowed_tool_groups: Optional[List[str]] = None,
-        allowed_tools: Optional[List[str]] = None,
+        allowed_tool_groups: list[str] | None = None,
+        allowed_tools: list[str] | None = None,
         force_all_tools: bool = False,
     ):
         mcp_kwargs = {"log_level": "ERROR"}
@@ -195,7 +195,7 @@ class DynamicMCPServer:
         self.allowed_tool_groups = set(allowed_tool_groups or [])
         self.allowed_tools = set(allowed_tools or [])
         self.force_all_tools = force_all_tools
-        self.tools: Dict[str, OpenAPITool] = {}
+        self.tools: dict[str, OpenAPITool] = {}
         self.spec = {}
 
     async def load_openapi_spec(self):
@@ -214,7 +214,7 @@ class DynamicMCPServer:
                 self.spec = response.json()
                 await self._generate_tools_from_spec()
 
-    def _get_tool_groups(self, tool_name: str) -> List[str]:
+    def _get_tool_groups(self, tool_name: str) -> list[str]:
         """
         Extract all hierarchical group names from a tool name, excluding action suffixes.
 
@@ -237,11 +237,13 @@ class DynamicMCPServer:
         action_parts_count = 0
         for action_suffix in sorted_suffixes:
             action_suffix_parts = action_suffix.split("_")
-            if len(parts) >= len(action_suffix_parts):
+            if (
+                len(parts) >= len(action_suffix_parts)
                 # Check if the end of the tool name matches this action suffix
-                if parts[-len(action_suffix_parts) :] == action_suffix_parts:
-                    action_parts_count = len(action_suffix_parts)
-                    break
+                and parts[-len(action_suffix_parts) :] == action_suffix_parts
+            ):
+                action_parts_count = len(action_suffix_parts)
+                break
 
         # If no action suffix found, treat the last part as the action
         if action_parts_count == 0:
@@ -363,7 +365,7 @@ class DynamicMCPServer:
                 # Create parameter with default value
                 default = param_schema.get("default", None)
                 annotation_type = (
-                    param_type if default is not None else Optional[param_type]
+                    param_type if default is not None else param_type | None
                 )
 
             sig_params.append(
@@ -411,7 +413,7 @@ class DynamicMCPServer:
         return headers
 
     def _get_request_params(
-        self, url: str, tool: OpenAPITool, arguments: Dict[str, Any]
+        self, url: str, tool: OpenAPITool, arguments: dict[str, Any]
     ):
         """Get params to use for HTTP request based on tool arguments"""
 
@@ -433,12 +435,11 @@ class DynamicMCPServer:
                     continue
 
                 # Validate enum values
-                if "enum" in param_schema:
-                    if value not in param_schema["enum"]:
-                        allowed_values = ", ".join(param_schema["enum"])
-                        raise ValueError(
-                            f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
-                        )
+                if "enum" in param_schema and value not in param_schema["enum"]:
+                    allowed_values = ", ".join(param_schema["enum"])
+                    raise ValueError(
+                        f"Invalid value '{value}' for parameter '{key}'. Allowed values: {allowed_values}"
+                    )
 
                 validated_arguments[key] = value
             else:
@@ -459,7 +460,7 @@ class DynamicMCPServer:
         return url, query_params, body_params
 
     async def _execute_api_call(
-        self, tool: OpenAPITool, arguments: Dict[str, Any]
+        self, tool: OpenAPITool, arguments: dict[str, Any]
     ) -> str:
         """Execute an API call based on tool definition"""
 
@@ -519,13 +520,13 @@ class DynamicMCPServer:
         except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
         except httpx.HTTPError as e:
-            return f"HTTP error: {str(e)}"
+            return f"HTTP error: {e!s}"
         finally:
             await http_client.aclose()
 
     def _extract_parameters_from_schema(
-        self, schema: Dict[str, Any], param_in: str = "body"
-    ) -> Dict[str, Any]:
+        self, schema: dict[str, Any], param_in: str = "body"
+    ) -> dict[str, Any]:
         """Extract individual parameters from a resolved schema object"""
 
         parameters = {}
@@ -549,8 +550,8 @@ class DynamicMCPServer:
         return parameters
 
     def _extract_request_body_parameters(
-        self, request_body: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, request_body: dict[str, Any]
+    ) -> dict[str, Any]:
         """Extract parameters from OpenAPI 3.0 request body with $ref resolution"""
 
         parameters = {}
@@ -574,7 +575,7 @@ class DynamicMCPServer:
 
         return parameters
 
-    def _extract_body_parameter(self, body_param: Dict[str, Any]) -> Dict[str, str]:
+    def _extract_body_parameter(self, body_param: dict[str, Any]) -> dict[str, str]:
         """Extract parameters from Swagger 2.0 body parameter with $ref resolution"""
 
         if "schema" not in body_param:
@@ -589,10 +590,10 @@ class DynamicMCPServer:
         self,
         method: str,
         path: str,
-        operation: Dict[str, Any],
+        operation: dict[str, Any],
         path_parameters: list,
         base_url: str,
-    ) -> Optional[OpenAPITool]:
+    ) -> OpenAPITool | None:
         """Create a tool definition from an OpenAPI operation"""
 
         # Generate operation ID
@@ -677,7 +678,7 @@ class DynamicMCPServer:
         )
 
     def _format_enum_description(
-        self, enum_values: List[str], original_description: str
+        self, enum_values: list[str], original_description: str
     ) -> str:
         """Format enum values for better tool descriptions"""
 
@@ -691,7 +692,7 @@ class DynamicMCPServer:
 
         return f"Allowed values:\n{enum_list}"
 
-    def _resolve_schema_ref(self, ref_string: str) -> Dict[str, Any]:
+    def _resolve_schema_ref(self, ref_string: str) -> dict[str, Any]:
         """
         Resolve a $ref reference to its actual schema definition
 
@@ -721,7 +722,7 @@ class DynamicMCPServer:
 
         return current
 
-    def _resolve_schema(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_schema(self, schema: dict[str, Any]) -> dict[str, Any]:
         """
         Recursively resolve a schema, handling $ref references
         """
@@ -763,17 +764,17 @@ class DynamicMCPServer:
         except asyncio.CancelledError:
             print("Server shutdown requested")
 
-    def list_tools(self) -> Dict[str, OpenAPITool]:
+    def list_tools(self) -> dict[str, OpenAPITool]:
         """Initialize and return list of tools. Useful for debugging"""
         asyncio.run(self.load_openapi_spec())
         return self.tools
 
-    def list_groups(self) -> Dict[str, List[str]]:
+    def list_groups(self) -> dict[str, list[str]]:
         """Initialize and return list of tool groups with their tools. Useful for debugging"""
         asyncio.run(self.load_openapi_spec())
 
         # Build a mapping of group -> list of tools
-        groups: Dict[str, List[str]] = {}
+        groups: dict[str, list[str]] = {}
 
         for tool_name in self.tools:
             tool_groups = self._get_tool_groups(tool_name)

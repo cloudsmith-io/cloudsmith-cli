@@ -26,6 +26,28 @@ def create_configured_session(opts):
     return session
 
 
+def raise_for_api_error(response):
+    """Raise :class:`ApiException` if *response* failed, keeping the API's detail.
+
+    Without the detail the exception renders as bare status text, so a caller
+    reporting it tells the user that something failed but never what.
+    """
+    try:
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        try:
+            body = exc.response.json()
+        except ValueError:
+            body = None
+
+        raise ApiException(
+            response.status_code,
+            detail=body.get("detail") if isinstance(body, dict) else None,
+            headers=exc.response.headers,
+            body=exc.response.content,
+        )
+
+
 def get_idp_url(api_host, owner, session):
     org_saml_url = "{api_host}/orgs/{owner}/saml/?{params}".format(
         api_host=api_host,
@@ -35,27 +57,16 @@ def get_idp_url(api_host, owner, session):
 
     org_saml_response = session.get(org_saml_url, timeout=30)
 
-    try:
-        org_saml_response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ApiException(
-            org_saml_response.status_code,
-            headers=exc.response.headers,
-            body=exc.response.content,
-        )
+    raise_for_api_error(org_saml_response)
 
     return org_saml_response.json().get("redirect_url")
 
 
 def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
     exchange_data = {"two_factor_token": two_factor_token, "totp_token": totp_token}
-    exchange_url = "{api_host}/user/two-factor/".format(api_host=api_host)
+    exchange_url = f"{api_host}/user/two-factor/"
 
-    headers = {
-        "Authorization": "Bearer {two_factor_token}".format(
-            two_factor_token=two_factor_token
-        )
-    }
+    headers = {"Authorization": f"Bearer {two_factor_token}"}
 
     exchange_response = session.post(
         exchange_url,
@@ -64,14 +75,7 @@ def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
         timeout=30,
     )
 
-    try:
-        exchange_response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ApiException(
-            exchange_response.status_code,
-            headers=exc.response.headers,
-            body=exc.response.content,
-        )
+    raise_for_api_error(exchange_response)
 
     exchange_data = exchange_response.json()
     access_token = exchange_data.get("access_token")
@@ -82,11 +86,9 @@ def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
 
 def refresh_access_token(api_host, access_token, refresh_token, session):
     data = {"refresh_token": refresh_token}
-    url = "{api_host}/user/refresh-token/".format(api_host=api_host)
+    url = f"{api_host}/user/refresh-token/"
 
-    headers = {
-        "Authorization": "Bearer {access_token}".format(access_token=access_token)
-    }
+    headers = {"Authorization": f"Bearer {access_token}"}
 
     response = session.post(
         url,
@@ -95,14 +97,7 @@ def refresh_access_token(api_host, access_token, refresh_token, session):
         timeout=30,
     )
 
-    try:
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ApiException(
-            response.status_code,
-            headers=exc.response.headers,
-            body=exc.response.content,
-        )
+    raise_for_api_error(response)
 
     response_data = response.json()
     access_token = response_data.get("access_token")

@@ -1,5 +1,6 @@
 """CLI - Group/Command classes."""
 
+import importlib
 from collections import OrderedDict
 
 import click.exceptions
@@ -24,9 +25,12 @@ def _is_json_output_requested(exception):
         return True
 
     for idx, arg in enumerate(argv):
-        if arg in ("-F", "--output-format") and idx + 1 < len(argv):
-            if argv[idx + 1] in ("json", "pretty_json"):
-                return True
+        if (
+            arg in ("-F", "--output-format")
+            and idx + 1 < len(argv)
+            and argv[idx + 1] in ("json", "pretty_json")
+        ):
+            return True
 
     return False
 
@@ -47,12 +51,25 @@ def _format_click_exception_as_json(exception):
 
 
 class AliasGroup(DYMGroup):
-    """A command group with DYM and alias support."""
+    """A command group with DYM, alias and lazy-subcommand support.
+
+    ``lazy_commands`` maps a command name to the module that registers it.
+    The module is imported on first use, which keeps startup fast because
+    an invocation imports only the module of the invoked command.
+    ``lazy_aliases`` supplies the alias map for those commands up front.
+    """
 
     def __init__(self, *args, **kwargs):
+        lazy_commands = kwargs.pop("lazy_commands", None)
+        lazy_aliases = kwargs.pop("lazy_aliases", None)
         super().__init__(*args, **kwargs)
+        self.lazy_commands = dict(lazy_commands or {})
         self.aliases = OrderedDict()
         self.inverse = {}
+        for name, aliases in (lazy_aliases or {}).items():
+            self.aliases[name] = aliases
+            for alias in aliases:
+                self.inverse[alias] = name
 
     def resolve_command(self, ctx, args):
         try:
@@ -71,7 +88,7 @@ class AliasGroup(DYMGroup):
             raise
 
     def list_commands(self, ctx):
-        commands = super().list_commands(ctx)
+        commands = sorted(set(super().list_commands(ctx)) | set(self.lazy_commands))
 
         if getattr(ctx, "showing_help", False):
             for k, v in enumerate(commands):
@@ -88,16 +105,19 @@ class AliasGroup(DYMGroup):
         return commands
 
     def get_command(self, ctx, cmd_name):
-        if getattr(ctx, "showing_help", False):
-            if "|" in cmd_name:
-                cmd_name = cmd_name.split("|")[0]
+        if getattr(ctx, "showing_help", False) and "|" in cmd_name:
+            cmd_name = cmd_name.split("|")[0]
 
         try:
             cmd_name = self.inverse[cmd_name]
         except KeyError:
             pass
 
-        return super().get_command(ctx, cmd_name)
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is None and cmd_name in self.lazy_commands:
+            importlib.import_module(self.lazy_commands[cmd_name])
+            cmd = super().get_command(ctx, cmd_name)
+        return cmd
 
     def command(self, *args, **kwargs):
         def decorator(f):

@@ -7,23 +7,32 @@ from ..utils import random_str
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.integration
 @pytest.mark.parametrize("upstream_format", UPSTREAM_FORMATS)
 def test_upstream_commands(
     runner, organization, upstream_format, tmp_repository, tmp_path
 ):
     upstream_config = {
         # "name" and "upstream_url" are the only required properties for most formats.
-        "name": "cli-test-upstream-%s" % upstream_format,
+        "name": f"cli-test-upstream-{upstream_format}",
         # This obviously isn't an upstream url and will not work on the server,
         # but we aren't testing the server.
-        "upstream_url": "https://www.cloudsmith.io",
+        #
+        # nix is the exception: the server validates that a nix upstream_url
+        # points at a real channel under https://channels.nixos.org/, so it
+        # needs a URL that passes that check rather than the generic placeholder.
+        "upstream_url": (
+            "https://channels.nixos.org/nixos-25.05"
+            if upstream_format == "nix"
+            else "https://www.cloudsmith.io"
+        ),
         # distro_version is only required for rpm and will be ignored for other formats.
         "distro_version": "fedora/35",
         # distro_versions is only required for deb and will be ignored for other formats.
         "distro_versions": ["ubuntu/xenial"],
     }
 
-    upstream_config_file = tmp_path / ("cli-test-upstream-%s.json" % upstream_format)
+    upstream_config_file = tmp_path / (f"cli-test-upstream-{upstream_format}.json")
     upstream_config_file.write_text(str(json.dumps(upstream_config)))
 
     org_repo = f"{organization}/{tmp_repository['slug']}"
