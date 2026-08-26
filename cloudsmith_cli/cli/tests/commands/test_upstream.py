@@ -171,6 +171,7 @@ def test_upstream_commands(
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.integration
 def test_alpine_upstream_ls_pretty_rsa_columns(
     runner, organization, tmp_repository, tmp_path
 ):
@@ -182,11 +183,14 @@ def test_alpine_upstream_ls_pretty_rsa_columns(
     silently drop or misalign them. This test catches that by asserting against the rendered
     table text rather than JSON output.
     """
-    rsa_key_url = "https://www.cloudsmith.io"
+    upstream_url = "https://www.cloudsmith.io"
+    rsa_key_url = "https://www.cloudsmith.io/alpine-rsa-key.pub"
+    rsa_verification = "Reject Invalid"
     upstream_config = {
         "name": "cli-test-upstream-alpine-rsa",
-        "upstream_url": "https://www.cloudsmith.io",
+        "upstream_url": upstream_url,
         "rsa_key_url": rsa_key_url,
+        "rsa_verification": rsa_verification,
     }
 
     upstream_config_file = tmp_path / "cli-test-upstream-alpine-rsa.json"
@@ -215,13 +219,20 @@ def test_alpine_upstream_ls_pretty_rsa_columns(
         # All four RSA column headers must appear in the table header row
         assert "RSA Key Inline" in result.output
         assert "RSA Key URL" in result.output
-        assert (
-            "RSA Verification Status" in result.output
-        )  # most specific; covers "RSA Verification" too
-        assert "RSA Verification" in result.output
+        # "RSA Verification" is a substring of "RSA Verification Status", so verifying
+        # both distinct headers exist requires counting occurrences, not just membership.
+        assert result.output.count("RSA Verification") == 2
 
-        # The rsa_key_url value we set must appear in the data row
+        # The distinct rsa_key_url value we set must appear in the data row
         assert rsa_key_url in result.output
+
+        # The non-default rsa_verification value we set must appear in the data row
+        assert rsa_verification in result.output
+
+        # rsa_verification_status is server-computed and not settable on create; it
+        # defaults to "Unknown" until the server verifies a package. Assert on that
+        # default to confirm the column renders rather than being blank/dropped.
+        assert "Unknown" in result.output
 
         # Common non-RSA headers must still be present (guard against over-trimming)
         assert "Name" in result.output

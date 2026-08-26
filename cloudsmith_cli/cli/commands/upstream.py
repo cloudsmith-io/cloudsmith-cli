@@ -71,18 +71,19 @@ def print_upstreams(upstreams, upstream_fmt, page_info=None, page_all=False):
             # RSA verification fields are alpine-only
             row.append(
                 click.style(
-                    maybe_truncate_string(str(u.get("rsa_key_inline", "") or "")),
+                    maybe_truncate_string(str(u.get("rsa_key_inline") or "")),
                     fg="yellow",
                 )
             )
-            row.append(click.style(str(u.get("rsa_key_url", "") or ""), fg="yellow"))
-            row.append(
-                click.style(str(u.get("rsa_verification", "") or ""), fg="yellow")
-            )
             row.append(
                 click.style(
-                    str(u.get("rsa_verification_status", "") or ""), fg="yellow"
+                    maybe_truncate_string(str(u.get("rsa_key_url") or "")),
+                    fg="yellow",
                 )
+            )
+            row.append(click.style(str(u.get("rsa_verification") or ""), fg="yellow"))
+            row.append(
+                click.style(str(u.get("rsa_verification_status") or ""), fg="yellow")
             )
 
         if upstream_fmt == "deb":
