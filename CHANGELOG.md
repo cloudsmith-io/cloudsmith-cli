@@ -11,22 +11,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Added `cloudsmith repos gpg` to manage the GPG key that a repository signs its package indexes with. `get` shows the active key and its armored public block. `upload` installs a key you supply. `regenerate` replaces the current key with a new key that Cloudsmith generates. The CLI reads key material and passphrases from a file, stdin, or a hidden prompt, never from a command-line value, and it refuses `--debug` on `upload` so the request body cannot reach the logs. Both `upload` and `regenerate` accept `-n/--dry-run`, which checks your inputs and the key currently in place, names the fingerprint it would replace, and stops before the request. A mistyped repository or a stale credential fails in the dry run instead of the real attempt. `regenerate` asks you to type `regenerate` to confirm. Without a terminal it fails instead of blocking, so pass `-y/--yes` for unattended runs. There is no `delete` subcommand because the API has no way to remove a repository's key.
-- Added `cloudsmith repos privileges` to manage explicit repository access from the terminal. `list` shows the teams, users and service accounts with explicit access. `set` grants access to any number of them and leaves everyone else untouched; it asks first if it would lower access someone already has. `revoke` removes access from the ones you name and skips any that had none. `replace` makes a JSON file (or stdin) the complete truth for the repository. `revoke` and `replace` ask for confirmation unless you pass `-y`.
-- Added a Cargo credential provider for Cloudsmith registries. `cloudsmith credential-helper install cargo` installs a `cargo-credential-cloudsmith` launcher binary and registers it in `$CARGO_HOME/config.toml`. Cargo then authenticates to Cloudsmith registries with your existing CLI credentials, without `cargo login` and without a token stored in `credentials.toml`. The provider speaks Cargo's [credential provider protocol](https://doc.rust-lang.org/cargo/reference/credential-provider-protocol.html), a newline-delimited JSON exchange. It answers `get` with the resolved token, and answers a registry that is not a Cloudsmith one with `url-not-supported`, so Cargo falls through to the next configured provider and authentication to crates.io keeps working. The installer appends the provider to `registry.global-credential-providers`, keeps `cargo:token` as the fallback, and pins it on any `[registries.*]` entry whose index points at a known Cloudsmith Cargo host. The CLI discovers custom Cloudsmith registry domains through the API and caches them locally. Add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall cargo` and `cloudsmith credential-helper list`.
+- `cloudsmith repos gpg`: view, upload, or regenerate the GPG key your repository signs its package indexes with. No more trips to the web app.
+- `cloudsmith repos privileges`: see who has explicit access to a repository, then grant, revoke, or replace it wholesale, all from the terminal.
+- A Cargo credential provider. Run `cloudsmith credential-helper install cargo` once and Cargo authenticates to your Cloudsmith registries with your existing CLI credentials. No `cargo login`, no token on disk, and crates.io is left untouched.
 
 ### Changed
 
-- `cloudsmith copy` now prints `Copied: owner/repo/slug (slug_perm)` after a successful copy and includes `slug_perm` in `-F json` output, matching `push`.
-- The CLI starts faster. It imports command modules only when their command runs, and it imports the Cloudsmith SDK, `requests`, `rich`, `urllib3` and `semver` only when the code path needs them. A custom-domain cache hit no longer imports the SDK at all.
+- The CLI starts noticeably faster. Heavy dependencies now load only when a command needs them.
+- `cloudsmith copy` now tells you exactly what it copied, including the `slug_perm`, just like `push`.
 
 ### Fixed
 
-- On macOS, the keychain no longer asks for permission again after you click "Always Allow". The `keyring` library implements every write as a delete followed by a re-create, which resets the item's access control list. The CLI now updates the stored secret in place with `SecItemUpdate`, so the item and its grants survive every token refresh. This also holds when you run the CLI from more than one install, such as the standalone binary and a Python environment.
-- SSO tokens in the keyring are now scoped per profile. Profiles that target the same API host used to share one set of entries and clobber each other's sessions. The default profile keeps the existing entry names. An existing non-default profile's session moves to its own scoped entries on its first token refresh, without a re-login.
-- When the server definitively rejects an SSO token refresh (HTTP 400, 401, 403 or 422), the CLI now removes the dead tokens and returns the profile to a clean logged-out state with a "run `cloudsmith auth`" message. It used to keep the dead tokens, warn on every refresh attempt, and serve a stale bearer token in between. Transient failures (network errors, 5xx) still retry as before.
-- Retry notices for throttled requests now go to stderr. This keeps stdout clean for machine-readable output.
-- The pnpm credential helper now always prefixes the returned token with `Bearer`. pnpm's own scheme detection failed to add the prefix in some environments, for example Docker containers, and authentication failed there.
+- macOS finally remembers "Always Allow". The CLI now updates keychain items in place instead of recreating them, so the recurring permission prompts stop for good.
+- Every profile now keeps its own SSO session. Profiles that point at the same API host no longer clobber each other.
+- A dead SSO session now cleans itself up and asks you to log in again, instead of nagging you every half hour.
+- Retry notices for throttled requests go to stderr, keeping stdout clean for scripts.
+- The pnpm credential helper now always sends `Bearer`, fixing authentication in Docker containers and other places pnpm's own detection missed.
 
 ## [1.25.0] - 2026-08-24
 
