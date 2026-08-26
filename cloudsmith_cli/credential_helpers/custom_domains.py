@@ -29,6 +29,11 @@ CACHE_TTL_SECONDS = 7 * 24 * 3600
 
 CACHE_FORMAT_VERSION = 2
 
+#: Per-process memo of cache reads, keyed by cache file path and stamped
+#: with the file's mtime. A helper session checks the same org's domains on
+#: every request; the memo replaces the full read with one stat call.
+_domains_memo: dict[Path, tuple[float, list["CustomDomain"]]] = {}
+
 
 @dataclass(frozen=True)
 class CustomDomain:
@@ -56,17 +61,12 @@ class CustomDomain:
 
 def get_cache_dir() -> Path:
     """
-    Get the cache directory for custom domains, creating it where possible.
+    Get the cache directory for custom domains.
 
-    A directory that cannot be created is not an error: every read path then
-    resolves to a miss, and :func:`write_cache` already degrades on ``OSError``.
+    The directory is not created here: only :func:`write_cache` needs it to
+    exist, and the read paths run on every helper invocation.
     """
-    cache_dir = Path(get_default_config_path()) / "custom_domains_cache"
-    try:
-        cache_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    except OSError as exc:
-        logger.debug("Could not create cache directory %s: %s", cache_dir, exc)
-    return cache_dir
+    return Path(get_default_config_path()) / "custom_domains_cache"
 
 
 def get_cache_path(org: str) -> Path:
@@ -94,15 +94,11 @@ def is_cache_valid(cache_path: Path) -> bool:
     Returns:
         bool: True if cache exists and hasn't expired
     """
-    if not cache_path.exists():
-        return False
-
     try:
         mtime = cache_path.stat().st_mtime
-        age = time.time() - mtime
-        return age < CACHE_TTL_SECONDS
     except OSError:
         return False
+    return time.time() - mtime < CACHE_TTL_SECONDS
 
 
 def _repository_slug(raw) -> str | None:
@@ -206,6 +202,36 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     return records
 
 
+def _memoized_read(cache_path: Path) -> list[CustomDomain] | None:
+    """Return the valid cached domains at `cache_path`, or None for a miss.
+
+    One stat call guards the memo: the mtime enforces the TTL and detects a
+    rewrite or a deletion by another process, so a long-lived process cannot
+    serve stale domains.
+    """
+    try:
+        mtime = cache_path.stat().st_mtime
+    except OSError:
+        _domains_memo.pop(cache_path, None)
+        return None
+
+    if time.time() - mtime >= CACHE_TTL_SECONDS:
+        _domains_memo.pop(cache_path, None)
+        return None
+
+    memoized = _domains_memo.get(cache_path)
+    if memoized is not None and memoized[0] == mtime:
+        return memoized[1]
+
+    domains = read_cache(cache_path)
+    if domains is None:
+        _domains_memo.pop(cache_path, None)
+        return None
+
+    _domains_memo[cache_path] = (mtime, domains)
+    return domains
+
+
 def read_all_cached_domains() -> list[CustomDomain]:
     """Return every custom domain in a currently-valid cache entry.
 
@@ -243,6 +269,7 @@ def write_cache(cache_path: Path, domains: list[CustomDomain]) -> None:
         "cached_at": time.time(),
     }
     try:
+        cache_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         atomic_write_json(cache_path, data)
         logger.debug("Wrote %d domains to cache: %s", len(domains), cache_path)
     except OSError as exc:
@@ -261,7 +288,10 @@ def get_custom_domains(
     """
     Fetch custom domains for a Cloudsmith organization.
 
-    Results are cached on the filesystem for 7 days to avoid excessive API calls.
+    Results are cached on the filesystem for 7 days to avoid excessive API
+    calls. Repeated lookups in one process are served from an in-process
+    memo. One stat call guards the memo, so an expired, rewritten or deleted
+    cache file is never served.
 
     Args:
         org: Organization slug
@@ -269,8 +299,8 @@ def get_custom_domains(
             its own auth scheme (X-Api-Key vs Authorization: Bearer)
         api_host: Cloudsmith API host URL (including version). Taken from the SDK
             configuration default when not provided.
-        refresh: When ``True``, skip the cache read and always fetch from the API.
-            The fresh result is still written to the cache.
+        refresh: When ``True``, skip the memo and the cache read and always
+            fetch from the API. The fresh result is still written to both.
         strict: When ``True``, a failed lookup re-raises its ``ApiException``
             instead of degrading to an empty list. Use it for callers that show
             results to a user, which must not render a typo'd org, a missing
@@ -295,10 +325,11 @@ def get_custom_domains(
         ``strict=True`` to fail loudly instead.
     """
     cache_path = get_cache_path(org)
-    cached = None if refresh else read_cache(cache_path)
-    if cached is not None:
-        logger.debug("Using cached custom domains for %s", org)
-        return cached
+    if not refresh:
+        cached = _memoized_read(cache_path)
+        if cached is not None:
+            logger.debug("Using cached custom domains for %s", org)
+            return list(cached)
 
     logger.debug("Fetching custom domains from API for %s", org)
 
@@ -333,6 +364,7 @@ def get_custom_domains(
 
     logger.debug("Fetched %d custom domains for %s", len(records), org)
     write_cache(cache_path, records)
+    _domains_memo.pop(cache_path, None)
     return records
 
 

@@ -2,17 +2,21 @@
 
 import io
 import json
+import os
 import time
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import httpretty
 import httpretty.core
 import pytest
+from freezegun import freeze_time
 
 from ....cli.commands.credential_helper.docker import docker
 from ....core.api.exceptions import ApiException
 from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
+from ....credential_helpers import custom_domains
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.common import is_cloudsmith_domain
 from ....credential_helpers.custom_domains import (
@@ -452,6 +456,7 @@ def test_get_custom_domains_cache_edge(tmp_path, monkeypatch, scenario, expected
             "cached_at": time.time(),
         }
 
+    cache_path.parent.mkdir(parents=True)
     cache_path.write_text(json.dumps(data), encoding="utf-8")
     assert read_cache(cache_path) == expected
 
@@ -464,6 +469,7 @@ def test_cache_that_is_not_utf8_reads_as_a_miss(tmp_path, monkeypatch):
     )
 
     cache_path = get_cache_path("acme")
+    cache_path.parent.mkdir(parents=True)
     cache_path.write_bytes(b"\xff\xfe not utf-8 at all")
 
     assert read_cache(cache_path) is None
@@ -480,6 +486,239 @@ def test_unwritable_config_dir_reads_as_no_cached_domains(tmp_path, monkeypatch)
     )
 
     assert not read_all_cached_domains()
+
+
+# ---------------------------------------------------------------------------
+# 7b. get_custom_domains — per-process memo and read-path filesystem behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_get_custom_domains_reads_the_cache_file_once_per_process(
+    tmp_path, monkeypatch
+):
+    """Repeated lookups serve the memo, not the cache file.
+
+    A Cargo credential-provider session answers many requests, and each
+    request checks the same org's domains.
+    """
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    write_cache(
+        get_cache_path("acme"),
+        [
+            CustomDomain(
+                host="docker.acme.com",
+                backend_kind=6,
+                domain_type=DomainType.NATIVE_API,
+                enabled=True,
+                validated=True,
+                org="acme",
+            )
+        ],
+    )
+
+    reads = []
+    real_read_cache = custom_domains.read_cache
+
+    def counting_read_cache(cache_path):
+        reads.append(cache_path)
+        return real_read_cache(cache_path)
+
+    monkeypatch.setattr(custom_domains, "read_cache", counting_read_cache)
+
+    first = get_custom_domains("acme")
+    second = get_custom_domains("acme")
+
+    assert [d.host for d in first] == ["docker.acme.com"]
+    assert second == first
+    assert len(reads) == 1
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_get_custom_domains_refresh_bypasses_the_memo(tmp_path, monkeypatch):
+    """refresh=True fetches from the API and replaces the memo."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    write_cache(
+        get_cache_path("acme"),
+        [
+            CustomDomain(
+                host="old.acme.com",
+                backend_kind=6,
+                domain_type=DomainType.NATIVE_API,
+                enabled=True,
+                validated=True,
+                org="acme",
+            )
+        ],
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps(
+            [
+                {
+                    "host": "new.acme.com",
+                    "backend_kind": 6,
+                    "domain_type": 1,
+                    "enabled": True,
+                    "validated": True,
+                }
+            ]
+        ),
+        status=200,
+        content_type="application/json",
+    )
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+
+    assert [d.host for d in get_custom_domains("acme")] == ["old.acme.com"]
+
+    refreshed = get_custom_domains(
+        "acme", credential=credential, api_host=API_HOST, refresh=True
+    )
+    assert [d.host for d in refreshed] == ["new.acme.com"]
+    assert len(httpretty.latest_requests()) == 1
+
+    after = get_custom_domains("acme")
+    assert [d.host for d in after] == ["new.acme.com"]
+    assert len(httpretty.latest_requests()) == 1
+
+
+def test_memo_notices_an_external_cache_rewrite(tmp_path, monkeypatch):
+    """A lookup after another process rewrote the cache serves the new data."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    def cache_domain(host):
+        return CustomDomain(
+            host=host,
+            backend_kind=6,
+            domain_type=DomainType.NATIVE_API,
+            enabled=True,
+            validated=True,
+            org="acme",
+        )
+
+    cache_path = get_cache_path("acme")
+    write_cache(cache_path, [cache_domain("old.acme.com")])
+    assert [d.host for d in get_custom_domains("acme")] == ["old.acme.com"]
+
+    write_cache(cache_path, [cache_domain("new.acme.com")])
+    os.utime(cache_path, (time.time() + 1, time.time() + 1))
+
+    assert [d.host for d in get_custom_domains("acme")] == ["new.acme.com"]
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_memo_does_not_outlive_the_cache_ttl(tmp_path, monkeypatch):
+    """A memoized entry expires with the cache file it came from."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    write_cache(
+        get_cache_path("acme"),
+        [
+            CustomDomain(
+                host="docker.acme.com",
+                backend_kind=6,
+                domain_type=DomainType.NATIVE_API,
+                enabled=True,
+                validated=True,
+                org="acme",
+            )
+        ],
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps({"detail": "error"}),
+        status=404,
+        content_type="application/json",
+    )
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+
+    assert len(get_custom_domains("acme")) == 1
+
+    with freeze_time(datetime.now(timezone.utc) + timedelta(days=8)):
+        assert (
+            get_custom_domains("acme", credential=credential, api_host=API_HOST) == []
+        )
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_memo_does_not_outlive_the_cache_file(tmp_path, monkeypatch):
+    """A lookup after the cache file was deleted does not serve the memo."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    cache_path = get_cache_path("acme")
+    write_cache(
+        cache_path,
+        [
+            CustomDomain(
+                host="docker.acme.com",
+                backend_kind=6,
+                domain_type=DomainType.NATIVE_API,
+                enabled=True,
+                validated=True,
+                org="acme",
+            )
+        ],
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps({"detail": "error"}),
+        status=404,
+        content_type="application/json",
+    )
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+
+    assert len(get_custom_domains("acme")) == 1
+
+    cache_path.unlink()
+
+    assert get_custom_domains("acme", credential=credential, api_host=API_HOST) == []
+
+
+def test_read_path_does_not_create_the_cache_directory(tmp_path, monkeypatch):
+    """A lookup that only reads must not create the cache directory."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    assert read_cache(get_cache_path("acme")) is None
+    assert not (tmp_path / "custom_domains_cache").exists()
+
+
+def test_write_cache_creates_the_cache_directory(tmp_path, monkeypatch):
+    """write_cache creates the cache directory when it is absent."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    domain = CustomDomain(
+        host="docker.acme.com",
+        backend_kind=6,
+        domain_type=DomainType.NATIVE_API,
+        enabled=True,
+        validated=True,
+        org="acme",
+    )
+
+    write_cache(get_cache_path("acme"), [domain])
+
+    assert (tmp_path / "custom_domains_cache").is_dir()
+    assert read_cache(get_cache_path("acme")) == [domain]
 
 
 # ---------------------------------------------------------------------------
