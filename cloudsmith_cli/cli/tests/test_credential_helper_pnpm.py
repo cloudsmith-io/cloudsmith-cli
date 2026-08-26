@@ -6,9 +6,9 @@ complete ``Authorization`` header value (no newline) on stdout and exits, and
 pnpm forwards that value verbatim to the registry.  There is no handshake and
 no request stream — everything the runtime does happens in a single call.
 
-The Bearer prefix is applied unconditionally so pnpm never has to guess an
-authentication scheme.  These tests pin that behaviour for both API-key and
-SSO ("bearer") credentials.
+The helper picks the HTTP authorization scheme so pnpm never has to guess:
+Cloudsmith API keys use the ``token`` scheme and SSO/OIDC credentials use
+``Bearer``.  These tests pin that behaviour for both credential kinds.
 """
 
 from __future__ import annotations
@@ -58,24 +58,24 @@ def sso_credential():
 # ---------------------------------------------------------------------------
 
 
-def test_get_returns_bearer_prefixed_token_for_cloudsmith_registry(credential):
-    """A Cloudsmith registry URL yields ``Bearer <token>``.
+def test_get_returns_token_scheme_for_api_key_credential(credential):
+    """A Cloudsmith registry URL yields ``token <api_key>`` for an API-key credential.
 
     Regression guard: pnpm forwards the helper's output verbatim as the
     ``Authorization`` header, so the scheme must come from the helper — not
-    from pnpm.
+    from pnpm.  Cloudsmith API keys authenticate with the ``token`` scheme.
     """
     assert get_pnpm_credentials(CLOUDSMITH_HOST, credential=credential) == (
-        "Bearer k_abc"
+        "token k_abc"
     )
 
 
 def test_get_uses_bearer_scheme_for_sso_credential(sso_credential):
-    """An SSO/OIDC credential is also returned under the ``Bearer`` scheme.
+    """An SSO/OIDC credential is returned under the ``Bearer`` scheme.
 
-    Unlike the Cargo helper (which distinguishes ``token`` from ``Bearer``),
-    pnpm's ``tokenHelper`` is opaque to the caller, so both credential kinds
-    use the same scheme.
+    Mirrors the Cargo helper's scheme selection: ``auth_type == "bearer"``
+    (a JWT from the OIDC exchange or an SSO refresh) means ``Bearer``, and
+    anything else — practically, an API key — means ``token``.
     """
     assert get_pnpm_credentials(CLOUDSMITH_HOST, credential=sso_credential) == (
         "Bearer jwt_token"
@@ -85,7 +85,7 @@ def test_get_uses_bearer_scheme_for_sso_credential(sso_credential):
 def test_get_accepts_a_full_https_url(credential):
     """The URL argument may include the scheme and path — hostname is what matters."""
     url = f"https://{CLOUDSMITH_HOST}/acme/repo/"
-    assert get_pnpm_credentials(url, credential=credential) == "Bearer k_abc"
+    assert get_pnpm_credentials(url, credential=credential) == "token k_abc"
 
 
 def test_get_uses_the_npm_backend_kind_for_custom_domains(credential):
@@ -140,16 +140,16 @@ def test_get_returns_none_when_custom_domain_lookup_rejects(credential):
 # ---------------------------------------------------------------------------
 
 
-def test_execute_returns_bearer_token_for_cloudsmith_registry(credential):
-    """The happy path is exit-0 with the Bearer-prefixed token on stdout, no stderr."""
+def test_execute_returns_token_scheme_for_api_key_credential(credential):
+    """Happy path for an API key: exit-0, ``token <api_key>`` on stdout, no stderr."""
     exit_code, stdout, stderr = execute(CLOUDSMITH_HOST, credential=credential)
 
     assert (exit_code, stderr) == (0, None)
-    assert stdout == "Bearer k_abc"
+    assert stdout == "token k_abc"
 
 
 def test_execute_returns_bearer_for_sso_credential(sso_credential):
-    """SSO credentials share the pnpm-Bearer contract."""
+    """SSO/OIDC credentials use the ``Bearer`` scheme end-to-end through execute()."""
     _, stdout, _ = execute(CLOUDSMITH_HOST, credential=sso_credential)
 
     assert stdout == "Bearer jwt_token"
@@ -188,7 +188,7 @@ def test_execute_degrades_cleanly_on_domain_lookup_failure(credential):
 # ---------------------------------------------------------------------------
 
 
-def test_cli_prints_bearer_token_without_a_trailing_newline(runner):
+def test_cli_prints_token_without_a_trailing_newline(runner):
     """The click shim writes stdin/stdout through — pnpm consumes the whole line
     as a header value, so a trailing newline would poison the request.
     """
@@ -200,7 +200,7 @@ def test_cli_prints_bearer_token_without_a_trailing_newline(runner):
 
     assert result.exit_code == 0
     # No newline: pnpm reads the token as-is into the Authorization header.
-    assert result.stdout == "Bearer k_abc"
+    assert result.stdout == "token k_abc"
 
 
 def test_cli_defaults_to_npm_cloudsmith_io_when_no_repo_argument(runner):
@@ -212,21 +212,28 @@ def test_cli_defaults_to_npm_cloudsmith_io_when_no_repo_argument(runner):
     )
 
     assert result.exit_code == 0
-    assert result.stdout == "Bearer k_abc"
+    assert result.stdout == "token k_abc"
 
 
 def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
     """A missing credential is exit-1 with a refusal on stderr and no token stdout."""
-    result = runner.invoke(
-        pnpm,
-        args=[CLOUDSMITH_HOST],
-        env={"CLOUDSMITH_API_KEY": ""},
-        catch_exceptions=False,
-    )
+    # Patch the provider chain rather than relying on env vars: a developer's
+    # local ~/.cloudsmith/config.ini (or an active profile) can otherwise
+    # resolve a credential and turn this into a false negative.
+    with patch(
+        "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
+        return_value=None,
+    ):
+        result = runner.invoke(
+            pnpm,
+            args=[CLOUDSMITH_HOST],
+            env={"CLOUDSMITH_API_KEY": ""},
+            catch_exceptions=False,
+        )
 
     assert result.exit_code == 1
     # No token must leak on stdout on the refusal path.
-    assert "Bearer" not in result.stdout
+    assert result.stdout == ""
 
 
 def test_cli_exits_non_zero_for_a_foreign_registry(runner):
@@ -238,4 +245,4 @@ def test_cli_exits_non_zero_for_a_foreign_registry(runner):
     )
 
     assert result.exit_code == 1
-    assert "Bearer" not in result.stdout
+    assert "k_abc" not in result.stdout
