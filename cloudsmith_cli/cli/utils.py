@@ -199,11 +199,17 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     if assume_yes:
         return True
 
-    prefix = prefix or click.style(
-        "Are you {} certain you want to".format(click.style("absolutely", bold=True))
-    )
+    if prefix is None:
+        prefix = click.style(
+            "Are you {} certain you want to".format(
+                click.style("absolutely", bold=True)
+            )
+        )
 
-    prompt = maybe_unstyle_prompt(f"{prefix} {prompt}?", err=err)
+    # An explicit empty prefix asks the question on its own, without the
+    # "Are you absolutely certain..." preamble.
+    question = f"{prefix} {prompt}?" if prefix else f"{prompt}?"
+    prompt = maybe_unstyle_prompt(question, err=err)
 
     answered = click.confirm(prompt, err=err)
 
