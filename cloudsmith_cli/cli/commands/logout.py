@@ -34,7 +34,12 @@ def _clear_credentials(dry_run, use_stderr):
 
 
 def _clear_keyring(api_host, dry_run, use_stderr, profile=None):
-    """Clear SSO tokens from keyring. Returns result dict."""
+    """Clear SSO tokens from keyring. Returns result dict.
+
+    Remove the profile's own entries. The legacy unscoped entries hold
+    the default profile's session, so remove them only when the profile
+    has no entries of its own.
+    """
     if not keyring.should_use_keyring():
         click.secho(
             "Keyring is disabled (CLOUDSMITH_NO_KEYRING is set).",
@@ -51,7 +56,9 @@ def _clear_keyring(api_host, dry_run, use_stderr, profile=None):
         click.echo("Would remove SSO tokens from system keyring.", err=use_stderr)
         return {"action": "would_remove"}
 
-    deleted = keyring.delete_sso_tokens(api_host, profile=profile)
+    deleted = keyring.delete_sso_tokens(api_host, profile=profile, include_legacy=False)
+    if not deleted:
+        deleted = keyring.delete_sso_tokens(api_host)
     action = "removed" if deleted else "failed"
     msg = f"{'Removed' if deleted else 'Failed to remove'} SSO tokens from system keyring."
     click.secho(msg, fg=None if deleted else "red", err=use_stderr)

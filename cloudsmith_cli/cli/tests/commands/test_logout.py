@@ -1,6 +1,6 @@
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import click.testing
 import pytest
@@ -50,7 +50,9 @@ class TestLogoutCommand:
 
         assert result.exit_code == 0
         mock_creds.clear_api_key.assert_called_once_with(CREDS_PATH)
-        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST, profile=None)
+        mock_keyring.delete_sso_tokens.assert_called_once_with(
+            HOST, profile=None, include_legacy=False
+        )
         assert "Removed credentials from:" in result.output
         assert "Removed SSO tokens from system keyring" in result.output
 
@@ -60,7 +62,35 @@ class TestLogoutCommand:
         result = runner.invoke(logout, ["--api-host", " api.example.com/ "])
 
         assert result.exit_code == 0
-        mock_keyring.delete_sso_tokens.assert_called_once_with(HOST, profile=None)
+        mock_keyring.delete_sso_tokens.assert_called_once_with(
+            HOST, profile=None, include_legacy=False
+        )
+
+    def test_profile_logout_keeps_legacy_entries(self, runner, mock_deps):
+        """A scoped-profile logout does not touch the unscoped entries."""
+        _, mock_keyring = mock_deps
+        mock_keyring.delete_sso_tokens.return_value = True
+
+        result = runner.invoke(logout, ["--profile", "staging", "--api-host", HOST])
+
+        assert result.exit_code == 0
+        mock_keyring.delete_sso_tokens.assert_called_once_with(
+            HOST, profile="staging", include_legacy=False
+        )
+
+    def test_profile_logout_falls_back_to_legacy_entries(self, runner, mock_deps):
+        """When the profile has no scoped entries, remove the legacy entries."""
+        _, mock_keyring = mock_deps
+        mock_keyring.delete_sso_tokens.side_effect = [False, True]
+
+        result = runner.invoke(logout, ["--profile", "staging", "--api-host", HOST])
+
+        assert result.exit_code == 0
+        assert mock_keyring.delete_sso_tokens.call_args_list == [
+            call(HOST, profile="staging", include_legacy=False),
+            call(HOST),
+        ]
+        assert "Removed SSO tokens from system keyring" in result.output
 
     def test_dry_run(self, runner, mock_deps):
         mock_creds, mock_keyring = mock_deps
