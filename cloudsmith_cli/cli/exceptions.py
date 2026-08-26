@@ -17,15 +17,22 @@ def handle_api_exceptions(
     nl=False,
     exit_on_error=True,
     reraise_on_error=False,
+    error_summaries=None,
     summarise_error=None,
 ):
     """Context manager that handles API exceptions.
 
+    ``error_summaries`` optionally maps an HTTP status to a single-line
+    message that replaces the default context/detail/hint block in
+    human-readable output. Statuses that aren't mapped (and JSON output)
+    keep the standard rendering.
+
     ``summarise_error`` is an optional callable taking ``(exc, detail,
     fields)`` and returning a single sentence to show instead of the default
-    context/detail/field block, or ``None`` to keep the default. Commands use
-    it where the API's field-indexed errors read poorly next to the rest of
-    their output; returning ``None`` for statuses they don't recognise keeps
+    context/detail/field block, or ``None`` to keep the default. Unlike
+    ``error_summaries``, this replaces the JSON ``detail`` too - use it
+    where the API's field-indexed errors read poorly next to the rest of
+    their output; returning ``None`` for statuses it doesn't recognise keeps
     the status code visible where it still matters.
     """
     # flake8: ignore=C901
@@ -83,47 +90,14 @@ def handle_api_exceptions(
             else:
                 click.secho("ERROR", fg="red", err=use_stderr)
 
+            # A command-specific one-liner - from either mechanism - replaces
+            # the generic context/detail/fields/hint block entirely.
+            summary = summary or (error_summaries or {}).get(exc.status)
             if summary:
                 click.secho(summary, fg="red", err=use_stderr)
             else:
-                click.secho(
-                    f"{context_msg} (status: {exc.status} - {exc.status_description})",
-                    fg="red",
-                    err=use_stderr,
-                )
-
-            if not summary and (detail or fields):
-                click.echo(err=use_stderr)
-
-                if detail:
-                    click.secho(
-                        "Detail: {detail}".format(
-                            detail=click.style(detail, fg="red", bold=False)
-                        ),
-                        bold=True,
-                        err=use_stderr,
-                    )
-
-                if fields:
-                    for k, v in fields.items():
-                        field = f"{k.capitalize()} Field"
-
-                        # Flatten list/tuple error messages for text output
-                        if isinstance(v, (list, tuple)):
-                            v = " ".join(v)
-
-                        click.secho(
-                            "{field}: {message}".format(
-                                field=click.style(field, bold=True),
-                                message=click.style(v, fg="red"),
-                            ),
-                            err=use_stderr,
-                        )
-
-            if hint:
-                click.echo(
-                    f"Hint: {click.style(hint, fg='yellow')}",
-                    err=use_stderr,
+                print_error_details(
+                    context_msg, exc, detail, fields, hint, use_stderr=use_stderr
                 )
 
             if opts.verbose and not opts.debug and exc.headers:
@@ -137,6 +111,48 @@ def handle_api_exceptions(
 
         if exit_on_error:
             ctx.exit(exc.status or 1)
+
+
+def print_error_details(context_msg, exc, detail, fields, hint, use_stderr=False):
+    """Print the standard context/detail/fields/hint block for an error."""
+    click.secho(
+        f"{context_msg} (status: {exc.status} - {exc.status_description})",
+        fg="red",
+        err=use_stderr,
+    )
+
+    if detail or fields:
+        click.echo(err=use_stderr)
+
+        if detail:
+            click.secho(
+                "Detail: {detail}".format(
+                    detail=click.style(detail, fg="red", bold=False)
+                ),
+                bold=True,
+                err=use_stderr,
+            )
+
+        for k, v in (fields or {}).items():
+            field = f"{k.capitalize()} Field"
+
+            # Flatten list/tuple error messages for text output
+            if isinstance(v, (list, tuple)):
+                v = " ".join(v)
+
+            click.secho(
+                "{field}: {message}".format(
+                    field=click.style(field, bold=True),
+                    message=click.style(v, fg="red"),
+                ),
+                err=use_stderr,
+            )
+
+    if hint:
+        click.echo(
+            f"Hint: {click.style(hint, fg='yellow')}",
+            err=use_stderr,
+        )
 
 
 def get_details(exc):
