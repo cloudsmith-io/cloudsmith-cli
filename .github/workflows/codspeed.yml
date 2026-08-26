@@ -1,12 +1,8 @@
 name: CodSpeed
 
+# The repository is not connected on codspeed.io yet, so results cannot
+# upload. Restore the push and pull_request triggers after the connection.
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - "**"
   workflow_dispatch:
 
 permissions:
