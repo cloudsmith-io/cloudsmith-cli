@@ -71,14 +71,26 @@ def copy(
         ),
         maybe_spinner(opts),
     ):
-        _, new_slug = copy_package(
+        slug_perm, new_slug = copy_package(
             owner=owner, repo=source, identifier=slug, destination=destination
         )
 
     click.secho("OK", fg="green", err=use_stderr)
 
+    click.echo(
+        "Copied: {owner}/{repo}/{slug} ({slug_perm})".format(
+            owner=click.style(owner, fg="magenta"),
+            repo=click.style(destination, fg="magenta"),
+            slug=click.style(new_slug, fg="green"),
+            slug_perm=click.style(slug_perm, bold=True),
+        ),
+        err=use_stderr,
+    )
+
     if no_wait_for_sync:
-        utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})
+        utils.maybe_print_status_json(
+            opts, {"slug": new_slug, "slug_perm": slug_perm, "status": "OK"}
+        )
         return
 
     wait_for_package_sync(
@@ -92,4 +104,6 @@ def copy(
         attempts=sync_attempts,
     )
 
-    utils.maybe_print_status_json(opts, {"slug": new_slug, "status": "OK"})
+    utils.maybe_print_status_json(
+        opts, {"slug": new_slug, "slug_perm": slug_perm, "status": "OK"}
+    )
