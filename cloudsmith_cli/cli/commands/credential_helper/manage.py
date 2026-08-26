@@ -15,6 +15,10 @@ import click
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+from cloudsmith_cli.credential_helpers.terraform.installer import TerraformInstaller
+from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
+    TerraformrcConflictError,
+)
 
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
@@ -33,6 +37,7 @@ _INSTALLERS: dict[str, type] = {
     "docker": DockerInstaller,
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
+    "terraform": TerraformInstaller,
 }
 
 
@@ -63,6 +68,23 @@ def _get_installer(name: str):
         )
         sys.exit(1)
     return cls()
+
+
+def _terraform_helper_args(ctx, opts) -> tuple[str, ...]:
+    """Build the terraformrc ``args`` list from the resolved org and profile.
+
+    Baking ``--org``/``-P`` into the block means ``terraform init`` works with
+    no environment variables and no hand-edited config. Only values actually
+    supplied are written, so an install without ``--org``/``-P`` leaves
+    ``args = []``.
+    """
+    args: list[str] = []
+    if opts.org:
+        args.extend(["--org", opts.org])
+    profile = ctx.meta.get("profile")
+    if profile:
+        args.extend(["-P", profile])
+    return tuple(args)
 
 
 # ---------------------------------------------------------------------------
@@ -142,17 +164,28 @@ def install_cmd(
         $ cloudsmith credential-helper install HELPER --no-discover
     """
     installer = _get_installer(helper)
+
+    install_kwargs = {
+        "bin_dir": bin_dir,
+        "domains": domains,
+        "dry_run": dry_run,
+        "discover": not no_discover,
+        "refresh": refresh,
+        "org": opts.org,
+        "credential": opts.credential,
+        "api_host": opts.api_host,
+    }
+
+    # Terraform bakes the resolved org/profile into the terraformrc `args` list
+    # so `terraform init` needs neither env vars nor a hand-edited config. The
+    # wrapper forwards these to the CLI ahead of the hostname at call time.
+    if helper == "terraform":
+        install_kwargs["helper_args"] = _terraform_helper_args(ctx, opts)
+
     try:
-        actions = installer.install(
-            bin_dir=bin_dir,
-            domains=domains,
-            dry_run=dry_run,
-            discover=not no_discover,
-            refresh=refresh,
-            org=opts.org,
-            credential=opts.credential,
-            api_host=opts.api_host,
-        )
+        actions = installer.install(**install_kwargs)
+    except TerraformrcConflictError as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to install {helper!r} credential helper: {exc}"

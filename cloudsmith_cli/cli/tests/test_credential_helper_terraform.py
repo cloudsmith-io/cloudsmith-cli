@@ -197,6 +197,35 @@ def test_cli_prints_token_object_for_cloudsmith_host(runner):
     assert json.loads(result.stdout) == {"token": "k_abc"}
 
 
+def test_cli_accepts_terraform_verb_and_hostname(runner):
+    """Terraform's `get <hostname>` convention is accepted (verb + hostname).
+
+    The on-PATH launcher forwards Terraform's arguments verbatim — including
+    the `get` verb — so the command must accept the verb rather than treating
+    it as an unexpected extra positional.
+    """
+    result = runner.invoke(
+        terraform,
+        args=["-k", "k_abc", "get", CLOUDSMITH_HOST],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"token": "k_abc"}
+
+
+def test_cli_rejects_store_verb(runner):
+    """`store <hostname>` is answered with a non-zero exit and no token."""
+    result = runner.invoke(
+        terraform,
+        args=["-k", "k_abc", "store", CLOUDSMITH_HOST],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1
+    assert "k_abc" not in result.stdout
+
+
 def test_cli_reads_hostname_from_stdin_when_no_argument(runner):
     """Omitting the hostname argument falls back to reading it from stdin."""
     result = runner.invoke(
@@ -319,6 +348,31 @@ def test_wrapper_forwards_leading_helper_args_before_the_hostname():
         "credential-helper",
         "terraform",
         "--org=acme",
+        "-P",
+        "ci",
+        CLOUDSMITH_HOST,
+    ]
+
+
+def test_wrapper_forwards_space_separated_option_values():
+    """Space-separated option values (`--org acme`) forward as separate tokens.
+
+    Terraform always appends `<verb> <hostname>` after the configured `args`,
+    so the verb/hostname are the final two tokens regardless of whether options
+    use the `--org=acme` or `--org acme` spelling.
+    """
+    with patch.object(wrapper.subprocess, "run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+        code = wrapper.main(["--org", "acme", "-P", "ci", "get", CLOUDSMITH_HOST])
+
+    assert code == 0
+    called_args = mock_run.call_args.args[0]
+    assert called_args == [
+        "cloudsmith",
+        "credential-helper",
+        "terraform",
+        "--org",
+        "acme",
         "-P",
         "ci",
         CLOUDSMITH_HOST,
