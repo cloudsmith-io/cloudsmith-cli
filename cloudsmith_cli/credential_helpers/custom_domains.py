@@ -29,10 +29,10 @@ CACHE_TTL_SECONDS = 7 * 24 * 3600
 
 CACHE_FORMAT_VERSION = 2
 
-#: Per-process memo of cache reads, keyed by cache file path. A helper
-#: session checks the same org's domains on every request, so the file is
-#: read at most once per process.
-_domains_memo: dict[Path, list["CustomDomain"]] = {}
+#: Per-process memo of cache reads, keyed by cache file path and stamped
+#: with the file's mtime. A helper session checks the same org's domains on
+#: every request; the memo replaces the full read with one stat call.
+_domains_memo: dict[Path, tuple[float, list["CustomDomain"]]] = {}
 
 
 @dataclass(frozen=True)
@@ -202,6 +202,36 @@ def read_cache(cache_path: Path) -> list[CustomDomain] | None:
     return records
 
 
+def _memoized_read(cache_path: Path) -> list[CustomDomain] | None:
+    """Return the valid cached domains at `cache_path`, or None for a miss.
+
+    One stat call guards the memo: the mtime enforces the TTL and detects a
+    rewrite or a deletion by another process, so a long-lived process cannot
+    serve stale domains.
+    """
+    try:
+        mtime = cache_path.stat().st_mtime
+    except OSError:
+        _domains_memo.pop(cache_path, None)
+        return None
+
+    if time.time() - mtime >= CACHE_TTL_SECONDS:
+        _domains_memo.pop(cache_path, None)
+        return None
+
+    memoized = _domains_memo.get(cache_path)
+    if memoized is not None and memoized[0] == mtime:
+        return memoized[1]
+
+    domains = read_cache(cache_path)
+    if domains is None:
+        _domains_memo.pop(cache_path, None)
+        return None
+
+    _domains_memo[cache_path] = (mtime, domains)
+    return domains
+
+
 def read_all_cached_domains() -> list[CustomDomain]:
     """Return every custom domain in a currently-valid cache entry.
 
@@ -259,8 +289,9 @@ def get_custom_domains(
     Fetch custom domains for a Cloudsmith organization.
 
     Results are cached on the filesystem for 7 days to avoid excessive API
-    calls. A process reads the cache file at most once: later lookups are
-    served from an in-process memo.
+    calls. Repeated lookups in one process are served from an in-process
+    memo. One stat call guards the memo, so an expired, rewritten or deleted
+    cache file is never served.
 
     Args:
         org: Organization slug
@@ -295,11 +326,8 @@ def get_custom_domains(
     """
     cache_path = get_cache_path(org)
     if not refresh:
-        cached = _domains_memo.get(cache_path)
-        if cached is None:
-            cached = read_cache(cache_path)
+        cached = _memoized_read(cache_path)
         if cached is not None:
-            _domains_memo[cache_path] = cached
             logger.debug("Using cached custom domains for %s", org)
             return list(cached)
 
@@ -336,8 +364,8 @@ def get_custom_domains(
 
     logger.debug("Fetched %d custom domains for %s", len(records), org)
     write_cache(cache_path, records)
-    _domains_memo[cache_path] = records
-    return list(records)
+    _domains_memo.pop(cache_path, None)
+    return records
 
 
 def get_format_domains(
