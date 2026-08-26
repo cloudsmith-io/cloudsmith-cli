@@ -28,8 +28,8 @@ def docker(opts, operation):
     (get/store/erase/list).
 
     Provides credentials for all Cloudsmith Docker registries: ``*.cloudsmith.io``,
-    ``*.cloudsmith.com``, and any custom domains configured for the organisation
-    (requires an organisation - ``--org``, CLOUDSMITH_ORG or ``org`` in
+    ``*.cloudsmith.com``, and any custom domains configured for the Workspace
+    (requires a Workspace - ``--workspace``, CLOUDSMITH_ORG or ``org`` in
     ``config.ini`` - and a valid API key/token).
 
     Input (stdin):
@@ -51,7 +51,7 @@ def docker(opts, operation):
 
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
+        CLOUDSMITH_ORG:     Workspace slug (required for custom domain support)
     """
     exit_code, stdout, stderr = execute(
         operation,

@@ -1,10 +1,9 @@
 # Copyright 2026 Cloudsmith Ltd
-"""Tests for the organisation option and its accepted spellings.
+"""Tests for the Workspace option and its accepted spellings.
 
-The organisation is named three ways for historical reasons: ``--org`` is the
-name to use, ``--organization`` reads naturally in scripts, and ``--oidc-org``
-is what the option was called when only OIDC token exchange consumed it. All
-three are one option, so a consumer never has to know which era it came from.
+``--workspace`` and ``-w`` use current Cloudsmith terminology. ``--org``,
+``--organization``, and ``--oidc-org`` remain available for compatibility.
+All five flags are one option.
 """
 
 import click
@@ -59,9 +58,11 @@ def test_every_config_spelling_sets_the_one_organisation(config_file, key):
     assert opts.oidc_org == "acme"
 
 
-@pytest.mark.parametrize("flag", ["--org", "--organization", "--oidc-org"])
+@pytest.mark.parametrize(
+    "flag", ["--workspace", "-w", "--org", "--organization", "--oidc-org"]
+)
 def test_every_flag_sets_the_organisation(org_reporting_command, flag):
-    """All three flags are one option, so any of them reaches ``opts.org``."""
+    """Every flag reaches the existing internal ``opts.org`` value."""
     result = click.testing.CliRunner().invoke(org_reporting_command, [flag, "acme"])
 
     assert result.exit_code == 0, result.output
