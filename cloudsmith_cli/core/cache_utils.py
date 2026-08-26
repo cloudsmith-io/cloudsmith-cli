@@ -7,7 +7,12 @@ import json
 import os
 import tempfile
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
+
+import tomlkit
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _atomic_write_text(dest: str, text: str, *, mode: int = 0o600) -> None:
@@ -44,13 +49,14 @@ def atomic_write_json(path: str | os.PathLike, data: Any, *, mode: int = 0o600) 
     _atomic_write_text(dest, json.dumps(data), mode=mode)
 
 
-def merge_json_file(
+def merge_config_file(
     path: str | os.PathLike,
     mutate: Callable[[dict], None],
     *,
     backup: bool = True,
     dry_run: bool = False,
     mode: int = 0o600,
+    format: Literal["json", "toml"] = "json",
 ) -> bool:
     """Read a JSON object file, apply *mutate* in place, and atomically write it back.
 
@@ -69,6 +75,8 @@ def merge_json_file(
         **no** writes (no temp file, no ``.bak``, no replace).
     mode:
         File-permission bits for the written file (default ``0o600``).
+    format:
+        Format to read/write from. (JSON or TOML)
 
     Returns
     -------
@@ -109,14 +117,21 @@ def merge_json_file(
     # 2. Parse → dict (treat missing/empty/non-dict/malformed as {})
     # ------------------------------------------------------------------
     data: dict = {}
+    parsed: dict = {}
     if existing_text:
-        try:
-            parsed = json.loads(existing_text)
-            if isinstance(parsed, dict):
-                data = parsed
-        except (json.JSONDecodeError, ValueError):
-            pass
-
+        match format:
+            case "json":
+                try:
+                    parsed = json.loads(existing_text)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            case "toml":
+                try:
+                    parsed = tomlkit.loads(existing_text)
+                except (tomlkit.exceptions.ParseError, ValueError):
+                    pass
+    if isinstance(parsed, dict) and parsed != {}:
+        data = parsed
     # ------------------------------------------------------------------
     # 3. Mutate in place
     # ------------------------------------------------------------------
@@ -125,7 +140,14 @@ def merge_json_file(
     # ------------------------------------------------------------------
     # 4. Stable serialisation + change detection
     # ------------------------------------------------------------------
-    new_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    new_text = ""
+
+    if format == "json":
+        new_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    elif format == "toml":
+        new_text = tomlkit.dumps(data)
+    else:
+        raise ValueError(f"Unsupported format {format!r}")
 
     if existing_text is not None:
         # Normalise existing content for comparison: if the file already has

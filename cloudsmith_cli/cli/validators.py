@@ -1,6 +1,7 @@
 """CLI - Validators."""
 
 import base64
+import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -13,6 +14,8 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 BAD_API_HEADERS = ("user-agent", "host")
 API_HEADER_TRANSFORMS = {}
 PUBLIC_API_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
+DEFAULT_API_HOST_SCHEME = "https"
+API_HOST_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://")
 
 
 class IntOrWildcard(click.ParamType):
@@ -84,6 +87,26 @@ def validate_api_headers(param, value):
         headers[k] = v
 
     return headers
+
+
+def normalize_api_host(value):
+    """Normalise a user-supplied API host into a canonical URL.
+
+    Removes surrounding whitespace and trailing slashes. Adds the https
+    scheme when the value does not give one. Returns None for a blank value,
+    so a blank value does not replace a host that is already set.
+    """
+    if not isinstance(value, str):
+        return value
+
+    host = value.strip()
+    if not host:
+        return None
+
+    if not API_HOST_SCHEME_RE.match(host):
+        host = f"{DEFAULT_API_HOST_SCHEME}://{host.lstrip('/')}"
+
+    return host.rstrip("/")
 
 
 def host_matches_suffixes(url, suffixes):

@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import os
 
-from ....rest import create_requests_session as create_session
 from .base import EnvironmentDetector
 
 API_VERSION = "7.1"
@@ -45,6 +44,8 @@ class AzureDevOpsDetector(EnvironmentDetector):
         # api-version (HTTP 400), so it must always be supplied.
         separator = "&" if "?" in request_uri else "?"
         url = f"{request_uri}{separator}api-version={API_VERSION}"
+
+        from ....session import create_requests_session as create_session
 
         session = self.context.session or create_session()
         try:

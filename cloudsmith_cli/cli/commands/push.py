@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-lines
 
+import json
 import math
 import os
 import shlex
@@ -694,7 +695,7 @@ def wait_for_package_sync(
             # When using stderr for logs, avoid an interactive progress bar and just poll for status.
             while True:
                 res = get_package_status(owner, repo, slug)
-                ok, failed, _, _, _, _ = res
+                ok, failed, _, status_str, stage_str, reason = res
                 if ok or failed:
                     break
 
@@ -811,6 +812,34 @@ def wait_for_package_sync(
             attempts=attempts,
         )
     else:
+        if use_stderr:
+            # In JSON output mode the human-readable text above went to
+            # stderr, so stdout still needs a machine-readable envelope.
+            # Mirror the shape produced by ``handle_api_exceptions`` so a
+            # sync failure is parseable the same way as an API failure.
+            error_data = {
+                "detail": reason or "Package failed to synchronise.",
+                "help": {
+                    "context": context_msg,
+                    "hint": None,
+                },
+                "meta": {
+                    "status": status_str,
+                    "stage": stage_str or "Unknown",
+                    "seconds": seconds,
+                },
+            }
+
+            metadata_context = getattr(opts, "push_metadata_info", None)
+            if metadata_context is not None:
+                error_data["metadata_attachment"] = metadata_context
+
+            click.echo(
+                json.dumps(
+                    error_data, indent=4 if opts.output == "pretty_json" else None
+                )
+            )
+
         ctx.exit(1)
 
 

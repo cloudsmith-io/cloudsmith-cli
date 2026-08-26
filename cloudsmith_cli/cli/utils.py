@@ -7,8 +7,6 @@ from datetime import date, datetime
 
 import click
 from click_spinner import spinner
-from rich.console import Console
-from rich.table import Table
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
@@ -74,6 +72,9 @@ def pretty_print_table(headers, rows, title=None):
 
 def rich_print_table(headers, rows, title=None, show_lines=False):
     """Rich table from headers and rows."""
+    from rich.console import Console
+    from rich.table import Table
+
     console = Console()
     table = Table(title=title, show_lines=show_lines)
 
@@ -198,11 +199,17 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     if assume_yes:
         return True
 
-    prefix = prefix or click.style(
-        "Are you {} certain you want to".format(click.style("absolutely", bold=True))
-    )
+    if prefix is None:
+        prefix = click.style(
+            "Are you {} certain you want to".format(
+                click.style("absolutely", bold=True)
+            )
+        )
 
-    prompt = maybe_unstyle_prompt(f"{prefix} {prompt}?", err=err)
+    # An explicit empty prefix asks the question on its own, without the
+    # "Are you absolutely certain..." preamble.
+    question = f"{prefix} {prompt}?" if prefix else f"{prompt}?"
+    prompt = maybe_unstyle_prompt(question, err=err)
 
     answered = click.confirm(prompt, err=err)
 

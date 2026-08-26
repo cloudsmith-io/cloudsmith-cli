@@ -20,6 +20,22 @@ _REFUSAL_MESSAGE = (
 )
 
 
+class PartialInstallError(Exception):
+    """Raised when the installation partially fails, but scheduled post-install reporting actions still need to be executed."""
+
+    def __init__(self, actions, exit_code=1):
+        self._actions = actions
+        self._exit_code = exit_code
+
+    @property
+    def actions(self):
+        return self._actions
+
+    @property
+    def exit_code(self):
+        return self._exit_code
+
+
 def build_response(credential):
     """
     Build the versioned credential document.

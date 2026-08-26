@@ -31,6 +31,7 @@ UPSTREAM_FORMATS = [
     "hex",
     "huggingface",
     "maven",
+    "nix",
     "npm",
     "nuget",
     "python",

@@ -2,7 +2,6 @@
 
 import json
 
-import cloudsmith_api
 import httpretty
 import httpretty.core
 import pytest
@@ -30,9 +29,11 @@ def _setup_api(monkeypatch):
     off the same Configuration singleton. Keyring is stubbed so we never touch the
     user's real SSO tokens during a test run.
     """
-    monkeypatch.setattr(keyring, "get_access_token", lambda host: None)
-    monkeypatch.setattr(keyring, "get_refresh_token", lambda host: None)
-    monkeypatch.setattr(keyring, "should_refresh_access_token", lambda host: False)
+    monkeypatch.setattr(keyring, "get_access_token", lambda host, profile=None: None)
+    monkeypatch.setattr(keyring, "get_refresh_token", lambda host, profile=None: None)
+    monkeypatch.setattr(
+        keyring, "should_refresh_access_token", lambda host, profile=None: False
+    )
     monkeypatch.setattr(
         httpretty.core.fakesock.socket,
         "shutdown",
@@ -562,6 +563,8 @@ class TestValidateMetadata:
 class TestAuthHeaders:
     @staticmethod
     def _override_config(monkeypatch, *, api_key=None, headers=None):
+        import cloudsmith_api
+
         cfg = cloudsmith_api.Configuration()
         cfg.api_key = api_key if api_key is not None else cfg.api_key
         cfg.headers = headers if headers is not None else cfg.headers

@@ -12,7 +12,7 @@ from rich.table import Table
 from . import ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
-from .rest import create_requests_session
+from .session import create_requests_session
 
 
 def resolve_auth(
@@ -375,12 +375,11 @@ def get_package_files(package: dict) -> list[dict]:
         ]
 
     # Filter to only downloadable files with CDN URLs
-    downloadable_files = []
-    for file_info in files:
-        if file_info.get("is_downloadable") and file_info.get("cdn_url"):
-            downloadable_files.append(file_info)
-
-    return downloadable_files
+    return [
+        file_info
+        for file_info in files
+        if file_info.get("is_downloadable") and file_info.get("cdn_url")
+    ]
 
 
 def get_package_detail(owner: str, repo: str, identifier: str) -> dict:

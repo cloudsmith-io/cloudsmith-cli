@@ -6,6 +6,7 @@ import pytest
 from ...core.api.init import initialise_api
 from ...core.api.repos import create_repo, delete_repo
 from ...core.credentials.models import CredentialResult
+from ..config import OPTIONS
 from .utils import random_str
 
 
@@ -15,6 +16,17 @@ def _get_env_var_or_skip(key):
     if not value:
         pytest.skip(f"{key} not provided")
     return value
+
+
+@pytest.fixture(autouse=True)
+def reset_cli_options(monkeypatch):
+    """Discard the thread-local Options object between tests.
+
+    ``config.get_or_create_options`` caches the Options object in a
+    thread-local, so state such as ``--debug`` (which is sticky by design)
+    would otherwise leak from one test's CLI invocation into the next.
+    """
+    monkeypatch.delattr(OPTIONS, "value", raising=False)
 
 
 @pytest.fixture()
@@ -67,12 +79,12 @@ def api_host():
 
 
 @pytest.fixture()
-def set_api_host_env_var(api_host):
+def set_api_host_env_var(api_host, monkeypatch):
     """Set the CLOUDSMITH_API_HOST environment variable."""
-    os.environ["CLOUDSMITH_API_HOST"] = api_host
+    monkeypatch.setenv("CLOUDSMITH_API_HOST", api_host)
 
 
 @pytest.fixture()
-def set_api_key_env_var(api_key):
+def set_api_key_env_var(api_key, monkeypatch):
     """Set the CLOUDSMITH_API_KEY environment variable."""
-    os.environ["CLOUDSMITH_API_KEY"] = api_key
+    monkeypatch.setenv("CLOUDSMITH_API_KEY", api_key)

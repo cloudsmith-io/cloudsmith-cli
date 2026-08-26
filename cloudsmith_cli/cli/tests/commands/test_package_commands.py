@@ -12,6 +12,7 @@ from ..utils import random_str
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "filesize",
     [
@@ -88,6 +89,7 @@ def test_push_and_delete_raw_package(
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
+@pytest.mark.integration
 def test_list_packages_with_sort(runner, organization, tmp_repository, tmp_path):
     """Test listing packages with different sort options."""
     org_repo = f"{organization}/{tmp_repository['slug']}"

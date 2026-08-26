@@ -8,10 +8,14 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import click.testing
 import pytest
+
+from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.default_domains import DomainType
@@ -25,6 +29,9 @@ from ....credential_helpers.launchers import (
     resolve_bin_dir,
     write_launcher,
 )
+
+if TYPE_CHECKING:
+    from _pytest.monkeypatch import MonkeyPatch
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -43,21 +50,37 @@ def runner():
 
 
 @pytest.mark.parametrize(
-    "windows,expected_name,expected_content",
+    "windows,format,expected_name,expected_content",
     [
         (
             False,
+            "docker",
             "docker-credential-cloudsmith",
             '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n',
         ),
         (
             True,
+            "docker",
             "docker-credential-cloudsmith.cmd",
             "@echo off\r\ncloudsmith credential-helper docker %*\r\n",
         ),
+        (
+            False,
+            "pnpm",
+            "pnpm-credential-cloudsmith",
+            '#!/bin/sh\nexec cloudsmith credential-helper pnpm "$@"\n',
+        ),
+        (
+            True,
+            "pnpm",
+            "pnpm-credential-cloudsmith.cmd",
+            "@echo off\r\ncloudsmith credential-helper pnpm %*\r\n",
+        ),
     ],
 )
-def test_launcher_filename_and_content(windows, expected_name, expected_content):
+def test_launcher_filename_and_content(
+    windows, format, expected_name, expected_content
+):
     """Per-platform launcher name + body — guards the exact Windows .cmd bytes.
 
     Parameterised on ``windows`` rather than patching ``os.name`` so no
@@ -65,11 +88,11 @@ def test_launcher_filename_and_content(windows, expected_name, expected_content)
     ``NotImplementedError`` on Python < 3.12).
     """
     assert (
-        _launcher_filename("docker-credential-cloudsmith", windows=windows)
+        _launcher_filename(f"{format}-credential-cloudsmith", windows=windows)
         == expected_name
     )
     assert (
-        _launcher_content("cloudsmith credential-helper docker", windows=windows)
+        _launcher_content(f"cloudsmith credential-helper {format}", windows=windows)
         == expected_content
     )
 
@@ -79,30 +102,46 @@ def test_launcher_filename_and_content(windows, expected_name, expected_content)
 # ---------------------------------------------------------------------------
 
 
-def test_write_launcher_writes_executable_script(tmp_path):
+@pytest.mark.parametrize(
+    "format",
+    [
+        "docker",
+        "pnpm",
+    ],
+)
+def test_write_launcher_writes_executable_script(format, tmp_path):
     """write_launcher writes the shim with content + 0o755 on the host platform."""
     dest = write_launcher(
         tmp_path,
-        "docker-credential-cloudsmith",
-        "cloudsmith credential-helper docker",
+        f"{format}-credential-cloudsmith",
+        f"cloudsmith credential-helper {format}",
     )
-    expected = '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n'
+    expected = f'#!/bin/sh\nexec cloudsmith credential-helper {format} "$@"\n'
     assert dest.read_text(encoding="utf-8") == expected
     assert stat.S_IMODE(dest.stat().st_mode) == 0o755
 
 
-def test_remove_launcher(tmp_path):
+@pytest.mark.parametrize(
+    "format",
+    [
+        "docker",
+        "pnpm",
+    ],
+)
+def test_remove_launcher(format, tmp_path):
     """remove_launcher returns True + file gone when present, False when absent."""
     write_launcher(
         tmp_path,
-        "docker-credential-cloudsmith",
-        "cloudsmith credential-helper docker",
+        f"{format}-credential-cloudsmith",
+        f"cloudsmith credential-helper {format}",
     )
-    assert remove_launcher(tmp_path, "docker-credential-cloudsmith") is True
-    assert not (tmp_path / "docker-credential-cloudsmith").exists()
+    launcher = f"{format}-credential-cloudsmith"
+    assert (tmp_path / launcher).exists()
+    assert remove_launcher(tmp_path, launcher) is True
+    assert not (tmp_path / launcher).exists()
 
     # Second call: file is gone now
-    assert remove_launcher(tmp_path, "docker-credential-cloudsmith") is False
+    assert remove_launcher(tmp_path, launcher) is False
 
 
 # ---------------------------------------------------------------------------
@@ -110,9 +149,64 @@ def test_remove_launcher(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_bin_dir_override(tmp_path):
-    """An explicit override is returned verbatim."""
-    assert resolve_bin_dir(str(tmp_path)) == tmp_path
+def test_resolve_bin_dir_override_absolute(tmp_path):
+    """An absolute path override is returned as an absolute path."""
+    absolute_path = tmp_path.resolve()
+    assert resolve_bin_dir(str(absolute_path)) == absolute_path
+
+
+def test_resolve_bin_dir_override_relative_simple(tmp_path, monkeypatch):
+    """A relative path override is resolved to an absolute path.
+
+    If we're in /path/from/root/to and give 'launcher/bin', it returns
+    /path/from/root/to/launcher/bin.
+    """
+    monkeypatch.chdir(tmp_path)
+    relative_override = "launcher/bin"
+    result = resolve_bin_dir(relative_override)
+
+    # Result should be absolute
+    assert result.is_absolute()
+
+    # Result should be correct: cwd / relative_override
+    expected = tmp_path / relative_override
+    assert result == expected
+
+
+def test_resolve_bin_dir_override_relative_parent(tmp_path, monkeypatch):
+    """A relative path with parent directory references is resolved correctly.
+
+    If we're in /path/from/root/to/randomdir and give '../launcher/bin',
+    it returns /path/from/root/to/launcher/bin.
+    """
+    # Create subdirectory structure
+    random_dir = tmp_path / "randomdir"
+    random_dir.mkdir()
+
+    monkeypatch.chdir(random_dir)
+    relative_override = "../launcher/bin"
+    result = resolve_bin_dir(relative_override)
+
+    # Result should be absolute
+    assert result.is_absolute()
+
+    # Result should be correct: (cwd / parent / launcher / bin)
+    expected = tmp_path / "launcher" / "bin"
+    assert result == expected
+
+
+def test_resolve_bin_dir_override_relative_current_dir(tmp_path, monkeypatch):
+    """A relative path starting with './' is resolved correctly."""
+    monkeypatch.chdir(tmp_path)
+    relative_override = "./locally-scoped-dir"
+    result = resolve_bin_dir(relative_override)
+
+    # Result should be absolute
+    assert result.is_absolute()
+
+    # Result should be correct
+    expected = tmp_path / "locally-scoped-dir"
+    assert result == expected
 
 
 @pytest.mark.parametrize(
@@ -190,6 +284,28 @@ def test_docker_installer_install(tmp_path, monkeypatch):
     assert (bin_dir / "docker-credential-cloudsmith").exists()
 
 
+def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
+    """install sets default+extra domains, preserves foreign entries, writes the launcher."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    # Seed a config with foreign data that must be preserved
+    npm_path.write_text("//registry.npmjs.org/:_authToken=abc123")
+
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(bin_dir), domains=("my.registry.example.com",))
+
+    assert (
+        npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123\n"
+        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
+        f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+    )
+    # Launcher written
+    assert (bin_dir / "pnpm-credential-cloudsmith").exists()
+
+
 # ---------------------------------------------------------------------------
 # 6. install --dry-run
 # ---------------------------------------------------------------------------
@@ -208,6 +324,58 @@ def test_docker_installer_dry_run(tmp_path, monkeypatch):
     assert not (docker_dir / "config.json").exists()
     assert any("would write launcher" in a for a in actions)
     assert any("docker.cloudsmith.io" in a for a in actions)
+
+
+def test_pnpm_installer_dry_run(tmp_path, monkeypatch):
+    """dry_run=True: no launcher written, config.json absent, returns planned strings."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    installer = PNPMInstaller()
+    actions = installer.install(bin_dir=str(bin_dir), dry_run=True)
+
+    assert not (bin_dir / "pnpm-credential-cloudsmith").exists()
+    assert not npm_path.exists()
+    assert any("would write launcher" in a for a in actions)
+    assert any(a.startswith("would set //npm.cloudsmith.io/") for a in actions)
+
+
+def test_pnpm_installer_dry_run_updates_existing_tokenhelper(tmp_path, monkeypatch):
+    """dry_run with existing tokenHelper reports update same as adding new entry.
+
+    When re-installing with a different bin_dir, the dry-run should report
+    the update using the same "would set" format as if adding a new entry.
+    """
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    old_bin_dir = tmp_path / "old_bin"
+    new_bin_dir = tmp_path / "new_bin"
+
+    # Seed config with existing tokenHelper entry
+    npm_path.write_text(
+        f"//npm.cloudsmith.io/:tokenHelper={old_bin_dir}/pnpm-credential-cloudsmith\n"
+    )
+
+    # Re-install with different bin_dir in dry-run mode
+    installer = PNPMInstaller()
+    actions = installer.install(
+        bin_dir=str(new_bin_dir), domains=("npm.cloudsmith.io",), dry_run=True
+    )
+
+    # Verify no files were created/modified
+    assert not (new_bin_dir / "pnpm-credential-cloudsmith").exists()
+    assert npm_path.read_text().startswith(
+        f"//npm.cloudsmith.io/:tokenHelper={old_bin_dir}"
+    )
+
+    # Verify dry-run reported the update as a "would set" action
+    # Same format as if it were being added for the first time
+    assert any("would write launcher" in a for a in actions)
+    assert any(a.startswith("would set //npm.cloudsmith.io/") for a in actions)
+    assert any(str(new_bin_dir) in a for a in actions), (
+        "Actions should mention the new bin_dir path"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +398,76 @@ def test_docker_installer_idempotent(tmp_path, monkeypatch):
 
     assert mtime_before == mtime_after
     assert any("already up to date" in a for a in actions)
+
+
+def test_pnpm_installer_idempotent(tmp_path, monkeypatch):
+    """Second install run reports no change (config mtime unchanged, 'already up to date')."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(bin_dir))
+
+    mtime_before = npm_path.stat().st_mtime
+    actions = installer.install(bin_dir=str(bin_dir))
+    mtime_after = npm_path.stat().st_mtime
+
+    assert mtime_before == mtime_after
+    assert any("already up to date" in a for a in actions)
+
+
+def test_pnpm_installer_updates_tokenhelper_with_different_bin_dir(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """Re-installing with a different bin_dir updates the tokenHelper path.
+
+    When an entry with tokenHelper already exists for a domain, calling install
+    again with a different bin_dir should overwrite the old launcher path with
+    the new one. Verifies that only the matching domain entries are updated.
+    """
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    old_bin_dir = tmp_path / "old_bin"
+    new_bin_dir = tmp_path / "new_bin"
+
+    # Seed config with existing tokenHelper entries for domains that will be
+    # re-installed, plus one unrelated entry
+    npm_path.write_text(
+        f"//npm.cloudsmith.io/:tokenHelper={old_bin_dir}/pnpm-credential-cloudsmith\n"
+        f"//my.custom.domain/:tokenHelper={old_bin_dir}/pnpm-credential-cloudsmith\n"
+        "//registry.npmjs.org/:_authToken=abc123"
+    )
+
+    # Re-install with new bin_dir for the same domains that already exist
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(new_bin_dir), domains=("my.custom.domain",))
+
+    content = npm_path.read_text()
+
+    # Verify old paths are replaced with new ones for managed domains
+    assert (
+        f"//npm.cloudsmith.io/:tokenHelper={new_bin_dir}/pnpm-credential-cloudsmith"
+        in content
+    ), "npm.cloudsmith.io should be updated to new_bin_dir"
+
+    assert (
+        f"//my.custom.domain/:tokenHelper={new_bin_dir}/pnpm-credential-cloudsmith"
+        in content
+    ), "my.custom.domain should be updated to new_bin_dir"
+
+    # Verify old bin_dir paths are gone
+    assert f"{old_bin_dir}" not in content, (
+        "All old bin_dir paths should be replaced with new_bin_dir"
+    )
+
+    # Verify non-cloudsmith entries are preserved
+    assert "//registry.npmjs.org/:_authToken=abc123" in content, (
+        "Non-cloudsmith entries should be preserved"
+    )
+
+    # Verify launcher exists in new location
+    assert (new_bin_dir / "pnpm-credential-cloudsmith").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +515,34 @@ def test_docker_installer_uninstall(tmp_path, monkeypatch):
     assert not launcher.exists()
 
 
+def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
+    """uninstall removes only cloudsmith entries (foreign kept) + removes launcher.
+
+    Also verifies --bin-dir: install to custom dir, uninstall with same --bin-dir removes it.
+    """
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    custom_bin_dir = tmp_path / "custom_bin"
+
+    # Install to a custom bin dir
+    installer = PNPMInstaller()
+    npm_path.write_text(
+        "//registry.npmjs.org/:_authToken=abc123\n"
+        f"//npm.cloudsmith.io/:tokenHelper={custom_bin_dir}/pnpm-credential-cloudsmith\n"
+        f"//my.custom.domain/:tokenHelper={custom_bin_dir}/pnpm-credential-cloudsmith"
+    )
+    # Install launcher to custom_bin_dir
+    installer.install(bin_dir=str(custom_bin_dir))
+    launcher = custom_bin_dir / "pnpm-credential-cloudsmith"
+    assert launcher.exists(), "Precondition: launcher must exist after install"
+
+    # Uninstall — removes cloudsmith keys and launcher
+    installer.uninstall(bin_dir=str(custom_bin_dir))
+
+    assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123"
+    assert not launcher.exists()
+
+
 # ---------------------------------------------------------------------------
 # 9. DockerInstaller.status — str-not-Path guard
 # ---------------------------------------------------------------------------
@@ -317,6 +583,44 @@ def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
         f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
     )
     assert launcher.endswith("docker-credential-cloudsmith")
+    assert not isinstance(launcher, Path)
+
+
+def test_pnpm_installer_status_type_contract(tmp_path: Path, monkeypatch: MonkeyPatch):
+    """status()['launcher'] is str when installed and None when not — never a Path.
+
+    Retained guard: the -F json Path-serialization regression.
+    """
+    npm_path = tmp_path / ".npm"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    installer = PNPMInstaller()
+
+    # Before install: launcher is None
+    with patch(
+        "cloudsmith_cli.credential_helpers.pnpm.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        result_before = installer.status()
+
+    assert result_before["launcher"] is None
+    assert not isinstance(result_before["launcher"], Path)
+
+    # After install: launcher is a non-None str
+    installer.install(bin_dir=str(bin_dir))
+    with patch(
+        "cloudsmith_cli.credential_helpers.pnpm.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        result_after = installer.status()
+
+    launcher = result_after["launcher"]
+    assert launcher is not None
+    assert isinstance(launcher, str), (
+        f"status()['launcher'] must be str, got {type(launcher).__name__!r}"
+    )
+    assert launcher.endswith("pnpm-credential-cloudsmith")
     assert not isinstance(launcher, Path)
 
 
@@ -509,7 +813,7 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
         ]
 
     with patch(
-        "cloudsmith_cli.credential_helpers.custom_domains.list_custom_domains",
+        "cloudsmith_cli.core.api.orgs.list_custom_domains",
         _fake_list,
     ):
         result = get_custom_domains(
@@ -549,34 +853,50 @@ def test_manage_cli_unknown_helper_exits_nonzero(runner):
 # ---------------------------------------------------------------------------
 
 
-def test_manage_cli_dry_run_exits_0(runner, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "helper",
+    [
+        "docker",
+        "pnpm",
+    ],
+)
+def test_manage_cli_dry_run_exits_0(helper, runner, tmp_path, monkeypatch):
     """install docker --no-discover --dry-run exits 0."""
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
 
     from ....cli.commands.credential_helper.manage import install_cmd
 
     result = runner.invoke(
         install_cmd,
-        ["docker", "--no-discover", "--dry-run", "--bin-dir", str(tmp_path / "bin")],
+        [helper, "--no-discover", "--dry-run", "--bin-dir", str(tmp_path / "bin")],
     )
 
     assert result.exit_code == 0, result.output
     assert "would" in result.output.lower() or "dry run" in result.output.lower()
 
 
+@pytest.mark.parametrize(
+    "format,installer",
+    [
+        ("docker", DockerInstaller),
+        ("pnpm", PNPMInstaller),
+    ],
+)
 def test_manage_cli_passes_resolved_credential_to_installer(
-    runner, tmp_path, monkeypatch
+    format, installer, runner, tmp_path, monkeypatch
 ):
     """install hands the resolved CredentialResult to the installer intact."""
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
 
     from ....cli.commands.credential_helper.manage import install_cmd
 
-    with patch.object(DockerInstaller, "install", return_value=[]) as mock_install:
+    with patch.object(installer, "install", return_value=[]) as mock_install:
         result = runner.invoke(
             install_cmd,
             [
-                "docker",
+                format,
                 "--no-discover",
                 "--bin-dir",
                 str(tmp_path / "bin"),
@@ -596,10 +916,9 @@ def test_manage_cli_passes_resolved_credential_to_installer(
 # ---------------------------------------------------------------------------
 
 
-def test_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
+def test_docker_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
     """install returns a WARNING action when target bin_dir is not on PATH."""
-    docker_dir = tmp_path / ".docker"
-    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
     bin_dir = tmp_path / "bin"
     monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
 
@@ -611,6 +930,19 @@ def test_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
     assert any("PATH" in a for a in warning_actions)
 
 
+def test_pnpm_no_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
+    """install returns a WARNING action when target bin_dir is not on PATH."""
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", "/usr/bin:/usr/local/bin")
+
+    installer = PNPMInstaller()
+    actions = installer.install(bin_dir=str(bin_dir))
+
+    warning_actions = [a for a in actions if a.startswith("WARNING")]
+    assert not warning_actions, f"Expected no WARNING action, got: {actions}"
+
+
 # ---------------------------------------------------------------------------
 # 15. Unwritable dir → clean ClickException (no raw traceback)
 # ---------------------------------------------------------------------------
@@ -620,9 +952,19 @@ def test_path_warning_when_bin_dir_not_on_path(tmp_path, monkeypatch):
     os.name != "posix" or (hasattr(os, "geteuid") and os.geteuid() == 0),
     reason="permission test only meaningful on POSIX as non-root",
 )
-def test_unwritable_bin_dir_gives_click_exception(runner, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "format",
+    [
+        "docker",
+        "pnpm",
+    ],
+)
+def test_unwritable_bin_dir_gives_click_exception(
+    format, runner, tmp_path, monkeypatch
+):
     """install with an unwritable --bin-dir exits non-zero as ClickException/SystemExit, not raw OSError."""
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
 
     from ....cli.commands.credential_helper.manage import install_cmd
 
@@ -631,7 +973,7 @@ def test_unwritable_bin_dir_gives_click_exception(runner, tmp_path, monkeypatch)
     ro_dir.chmod(0o500)
 
     try:
-        result = runner.invoke(install_cmd, ["docker", "--bin-dir", str(ro_dir)])
+        result = runner.invoke(install_cmd, [format, "--bin-dir", str(ro_dir)])
     finally:
         ro_dir.chmod(0o700)
 
@@ -644,16 +986,6 @@ def test_unwritable_bin_dir_gives_click_exception(runner, tmp_path, monkeypatch)
 # ---------------------------------------------------------------------------
 # 16. -F output format
 # ---------------------------------------------------------------------------
-
-
-_STUB_STATUS = {
-    "launcher": "/some/bin/docker-credential-cloudsmith",
-    "hosts": ["docker.cloudsmith.io"],
-}
-
-
-def _stub_status_fn(_self):
-    return _STUB_STATUS
 
 
 @pytest.mark.parametrize(
@@ -674,6 +1006,20 @@ def _stub_status_fn(_self):
             "docker",
             True,
         ),
+        (
+            "install_cmd",
+            [
+                "pnpm",
+                "--dry-run",
+                "--no-discover",
+                "--bin-dir",
+                "{bin_dir}",
+                "-F",
+                "json",
+            ],
+            "pnpm",
+            True,
+        ),
         # uninstall dry-run with -F json
         (
             "uninstall_cmd",
@@ -681,11 +1027,23 @@ def _stub_status_fn(_self):
             "docker",
             True,
         ),
+        (
+            "uninstall_cmd",
+            ["pnpm", "--dry-run", "-F", "json"],
+            "pnpm",
+            True,
+        ),
         # list with -F json
         (
             "list_cmd",
             ["-F", "json"],
             "docker",
+            False,
+        ),
+        (
+            "list_cmd",
+            ["-F", "json"],
+            "pnpm",
             False,
         ),
     ],
@@ -703,8 +1061,23 @@ def test_output_format_json(
 
     Retained guard: list -F json serialises a launcher path (str), not a Path object.
     """
+
+    def _docker_stub_status_fn(_self):
+        return {
+            "launcher": "/some/bin/docker-credential-cloudsmith",
+            "hosts": ["docker.cloudsmith.io"],
+        }
+
+    def _pnpm_stub_status_fn(_self):
+        return {
+            "launcher": "/some/bin/pnpm-credential-cloudsmith",
+            "hosts": ["npm.cloudsmith.io"],
+        }
+
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-    monkeypatch.setattr(DockerInstaller, "status", _stub_status_fn)
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
+    monkeypatch.setattr(DockerInstaller, "status", _docker_stub_status_fn)
+    monkeypatch.setattr(PNPMInstaller, "status", _pnpm_stub_status_fn)
 
     from ....cli.commands.credential_helper import manage as manage_mod
 
@@ -727,7 +1100,7 @@ def test_output_format_json(
         assert isinstance(data, list)
         entry = next(e for e in data if e["helper"] == expected_helper)
         assert "launcher" in entry
-        assert entry["launcher"] == "/some/bin/docker-credential-cloudsmith"
+        assert entry["launcher"] == f"/some/bin/{expected_helper}-credential-cloudsmith"
         assert "hosts" in entry
     else:
         assert data["helper"] == expected_helper
@@ -737,15 +1110,17 @@ def test_output_format_json(
             assert data["dry_run"] is True
 
 
-def test_output_format_default_shows_human_text(runner, tmp_path, monkeypatch):
+@pytest.mark.parametrize("helper", ["docker", "pnpm"])
+def test_output_format_default_shows_human_text(helper, runner, tmp_path, monkeypatch):
     """Default (no -F) install dry-run shows human-readable text, not raw JSON."""
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
 
     from ....cli.commands.credential_helper.manage import install_cmd
 
     result = runner.invoke(
         install_cmd,
-        ["docker", "--dry-run", "--no-discover", "--bin-dir", str(tmp_path / "bin")],
+        [helper, "--dry-run", "--no-discover", "--bin-dir", str(tmp_path / "bin")],
         catch_exceptions=False,
     )
 
@@ -758,7 +1133,7 @@ def test_output_format_default_shows_human_text(runner, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
+def test_docker_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
     """install coerces a non-dict credHelpers (list) rather than raising TypeError."""
     docker_dir = tmp_path / ".docker"
     docker_dir.mkdir(parents=True)
@@ -780,7 +1155,30 @@ def test_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
     assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
 
 
-def test_uninstall_tolerates_malformed_cred_helpers(tmp_path, monkeypatch):
+def test_pnpm_install_coerces_malformed_cred_helpers(tmp_path: Path, monkeypatch):
+    """install coerces a non-dict credHelpers (list) rather than raising TypeError."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (list instead of dict)
+    npm_path.write_text(
+        "badtext\n//registry.npmjs.org/:_authToken=abc123\nmorebadtext\n"
+    )
+
+    installer = PNPMInstaller()
+    # Must not raise
+    installer.install(bin_dir=str(bin_dir), discover=False)
+
+    assert (
+        npm_path.read_text() == "badtext\n"
+        "//registry.npmjs.org/:_authToken=abc123\n"
+        "morebadtext\n"
+        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+    )
+
+
+def test_docker_uninstall_tolerates_malformed_cred_helpers(tmp_path, monkeypatch):
     """uninstall treats a non-dict credHelpers (string) as a no-op rather than raising."""
     docker_dir = tmp_path / ".docker"
     docker_dir.mkdir(parents=True)
@@ -796,6 +1194,144 @@ def test_uninstall_tolerates_malformed_cred_helpers(tmp_path, monkeypatch):
     installer = DockerInstaller()
     # Must not raise
     installer.uninstall(bin_dir=str(bin_dir))
+
+
+def test_pnpm_uninstall_tolerates_malformed_cred_helpers(tmp_path: Path, monkeypatch):
+    """uninstall treats a non-dict credHelpers (string) as a no-op rather than raising."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (string instead of dict)
+    npm_path.write_text(
+        "badtext\n"
+        "//registry.npmjs.org/:_authToken=abc123\n"
+        "morebadtext\n"
+        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+    )
+
+    installer = PNPMInstaller()
+    # Must not raise
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    assert (
+        npm_path.read_text()
+        == "badtext\n//registry.npmjs.org/:_authToken=abc123\nmorebadtext"
+    )
+
+
+@pytest.mark.parametrize("char", [";", "#"])
+def test_pnpm_uninstall_tolerates_comments(char, tmp_path: Path, monkeypatch):
+    """uninstall treats a non-dict credHelpers (string) as a no-op rather than raising."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (string instead of dict)
+    npm_path.write_text(
+        "//registry.npmjs.org/:_authToken=abc123\n"
+        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith{char}wowcommented"
+    )
+
+    installer = PNPMInstaller()
+    # Must not raise
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123"
+
+
+def test_pnpm_uninstall_tolerates_leading_whitespace(tmp_path: Path, monkeypatch):
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (string instead of dict)
+    npm_path.write_text(
+        "//registry.npmjs.org/:_authToken=abc123\n"
+        f"   //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
+        "//unrelated.registry/:_authToken=abc123"
+    )
+
+    installer = PNPMInstaller()
+    # Must not raise
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    assert (
+        npm_path.read_text()
+        == "//registry.npmjs.org/:_authToken=abc123\n//unrelated.registry/:_authToken=abc123"
+    )
+
+
+def test_pnpm_uninstall_preserves_leading_whitespace(tmp_path: Path, monkeypatch):
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    # Seed config with a malformed credHelpers value (string instead of dict)
+    npm_path.write_text(
+        "    //registry.npmjs.org/:_authToken=abc123\n"
+        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
+        "//unrelated.registry/:_authToken=abc123"
+    )
+
+    installer = PNPMInstaller()
+    # Must not raise
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    assert (
+        npm_path.read_text()
+        == "    //registry.npmjs.org/:_authToken=abc123\n//unrelated.registry/:_authToken=abc123"
+    )
+
+
+@pytest.mark.parametrize("kind", ["_auth", "_authToken", "_password"])
+def test_pnpm_install_warn_on_auth_configured(kind, tmp_path: Path, monkeypatch):
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    npm_path.write_text(f"//npm.cloudsmith.io/:{kind}=token")
+
+    installer = PNPMInstaller()
+    with pytest.raises(PartialInstallError) as e:
+        installer.install(bin_dir=str(bin_dir), discover=False)
+    assert e.value.exit_code == 1
+    actions = e.value.actions
+
+    # file was untouched
+    assert npm_path.read_text() == f"//npm.cloudsmith.io/:{kind}=token"
+
+    warning_actions = [a for a in actions if a.startswith("WARNING")]
+    assert warning_actions, f"Expected a WARNING action, got: {actions}"
+
+
+@pytest.mark.parametrize("kind", ["_auth", "_authToken", "_password"])
+def test_pnpm_install_warn_on_auth_configured_partial_write(
+    kind, tmp_path: Path, monkeypatch
+):
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+
+    npm_path.write_text(f"//npm.cloudsmith.io/:{kind}=token")
+
+    installer = PNPMInstaller()
+    with pytest.raises(PartialInstallError) as e:
+        installer.install(
+            bin_dir=str(bin_dir), discover=False, domains=("my.registry.example.com",)
+        )
+
+    assert e.value.exit_code == 1
+    actions = e.value.actions
+
+    # file was partially written to
+    assert (
+        npm_path.read_text() == f"//npm.cloudsmith.io/:{kind}=token\n"
+        f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+    )
+
+    warning_actions = [a for a in actions if a.startswith("WARNING")]
+    assert warning_actions, f"Expected a WARNING action, got: {actions}"
 
 
 # ---------------------------------------------------------------------------

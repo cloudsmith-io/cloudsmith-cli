@@ -29,11 +29,11 @@ class ConfigParam(Param):
 
     def get_error_hint(self, ctx):
         if self.ctx:
-            files = []
-            for path in self.ctx.config_searchpath:
-                for filename in self.ctx.config_files:
-                    files.append(os.path.join(path, filename))
-            files = " or ".join(files)
+            files = " or ".join(
+                os.path.join(path, filename)
+                for path in self.ctx.config_searchpath
+                for filename in self.ctx.config_files
+            )
             msg = f"{self.name} in {files}"
         else:
             msg = f"{self.name} in a config file"
@@ -341,7 +341,7 @@ class Options:  # pylint: disable=too-many-public-methods
     @api_host.setter
     def api_host(self, value):
         """Set value for API host."""
-        self._set_option("api_host", value)
+        self._set_option("api_host", validators.normalize_api_host(value))
 
     @property
     def api_key(self):

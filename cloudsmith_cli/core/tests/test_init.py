@@ -1,10 +1,10 @@
-from cloudsmith_api import Configuration
-
 from ..api.init import initialise_api
 
 
 class TestInitialiseApi:
     def setup_class(cls):  # pylint: disable=no-self-argument
+        from cloudsmith_api import Configuration
+
         # For the purposes of these tests, we need to explicitly call set_default(None) at the
         # outset because other tests in the suite may have called initialise_api() already.
         # Resetting Configuration._default to None here effectively reverts the
@@ -36,6 +36,8 @@ class TestInitialiseApi:
         # Because Configuration._default is None, a newly-created instance of
         # cloudsmith_api.Configuration() should not have any other attributes than those
         # in the auto-generated swagger-codegen class declaration.
+        from cloudsmith_api import Configuration
+
         new_config_before_initialise = Configuration()
         assert all(
             not hasattr(new_config_before_initialise, attr)
@@ -92,6 +94,8 @@ class TestInitialiseApi:
 
     def test_initialise_api_bearer_credential(self):
         """Verify bearer credential sets Authorization header, not X-Api-Key."""
+        from cloudsmith_api import Configuration
+
         from cloudsmith_cli.core.credentials.models import CredentialResult
 
         Configuration.set_default(None)
@@ -107,6 +111,8 @@ class TestInitialiseApi:
 
     def test_initialise_api_with_basic_auth_header(self):
         """Verify basic auth header is parsed into username and password."""
+        from cloudsmith_api import Configuration
+
         temp_config = Configuration()
         temp_config.username = "username"
         temp_config.password = "password"

@@ -74,16 +74,15 @@ def list_dependencies(ctx, opts, owner_repo_package):
         return
 
     headers = ["Type", "Name", "Operator", "Version"]
-    rows = []
-    for dep in deps:
-        rows.append(
-            [
-                click.style(dep["dep_type"], fg="cyan"),
-                click.style(dep["name"], fg="yellow"),
-                click.style(dep["operator"], fg="magenta"),
-                click.style(dep["version"] or "", fg="green"),
-            ]
-        )
+    rows = [
+        [
+            click.style(dep["dep_type"], fg="cyan"),
+            click.style(dep["name"], fg="yellow"),
+            click.style(dep["operator"], fg="magenta"),
+            click.style(dep["version"] or "", fg="green"),
+        ]
+        for dep in deps
+    ]
 
     if deps:
         click.echo()

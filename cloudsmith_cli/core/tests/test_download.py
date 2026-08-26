@@ -2,7 +2,6 @@
 
 # pylint: disable=protected-access  # Testing private functions is acceptable in tests
 
-import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -324,7 +323,6 @@ class TestStreamDownload(unittest.TestCase):
 
     def setUp(self):
         self.session = Mock()
-        self.temp_dir = tempfile.mkdtemp()
 
     @patch("os.path.exists")
     def test_stream_download_file_exists_no_overwrite(self, mock_exists):

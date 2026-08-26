@@ -2,7 +2,15 @@ from urllib.parse import urlencode
 
 import requests
 
-from ..core.api.exceptions import ApiException
+from ..core.sso import raise_for_api_error, refresh_access_token
+
+__all__ = [
+    "create_configured_session",
+    "exchange_2fa_token",
+    "get_idp_url",
+    "raise_for_api_error",
+    "refresh_access_token",
+]
 
 
 def create_configured_session(opts):
@@ -35,14 +43,7 @@ def get_idp_url(api_host, owner, session):
 
     org_saml_response = session.get(org_saml_url, timeout=30)
 
-    try:
-        org_saml_response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ApiException(
-            org_saml_response.status_code,
-            headers=exc.response.headers,
-            body=exc.response.content,
-        )
+    raise_for_api_error(org_saml_response)
 
     return org_saml_response.json().get("redirect_url")
 
@@ -60,46 +61,10 @@ def exchange_2fa_token(api_host, two_factor_token, totp_token, session):
         timeout=30,
     )
 
-    try:
-        exchange_response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ApiException(
-            exchange_response.status_code,
-            headers=exc.response.headers,
-            body=exc.response.content,
-        )
+    raise_for_api_error(exchange_response)
 
     exchange_data = exchange_response.json()
     access_token = exchange_data.get("access_token")
     refresh_token = exchange_data.get("refresh_token")
-
-    return (access_token, refresh_token)
-
-
-def refresh_access_token(api_host, access_token, refresh_token, session):
-    data = {"refresh_token": refresh_token}
-    url = f"{api_host}/user/refresh-token/"
-
-    headers = {"Authorization": f"Bearer {access_token}"}
-
-    response = session.post(
-        url,
-        data=data,
-        headers=headers,
-        timeout=30,
-    )
-
-    try:
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ApiException(
-            response.status_code,
-            headers=exc.response.headers,
-            body=exc.response.content,
-        )
-
-    response_data = response.json()
-    access_token = response_data.get("access_token")
-    refresh_token = response_data.get("refresh_token")
 
     return (access_token, refresh_token)

@@ -13,6 +13,8 @@ from ..core.credentials.models import CredentialResult
 from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 
+REJECTED_TWO_FACTOR_STATUSES = frozenset({400, 401, 403, 422})
+
 
 def get_template_path(template_name):
     """Get the absolute path to a template file."""
@@ -33,6 +35,7 @@ class AuthenticationWebServer(HTTPServer):
         self.debug = kwargs.get("debug", False)
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
+        self.profile = kwargs.get("profile")
         self.sso_access_token = None
         self.exception = None
 
@@ -118,6 +121,10 @@ class AuthenticationWebServer(HTTPServer):
 
 
 class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
+    # Set once a response is written, so a later failure doesn't write a
+    # second one onto a request the browser already considers finished.
+    responded = False
+
     def __init__(self, request, client_address, server, **kwargs):
         self.owner = kwargs.get("owner")
         self.debug = kwargs.get("debug", False)
@@ -132,15 +139,67 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         """Get the API host from the server instance."""
         return self.server_instance.api_host if self.server_instance else None
 
+    @property
+    def profile(self):
+        """Get the profile from the server instance."""
+        return self.server_instance.profile if self.server_instance else None
+
+    def _prompt_and_exchange_2fa_token(self, two_factor_token):
+        """Prompt for a 2FA code, and prompt again while the API rejects it."""
+        click.echo(err=True)
+        click.secho(
+            "Your organization requires two-factor authentication.",
+            fg="yellow",
+            bold=True,
+            err=True,
+        )
+        click.echo(
+            "Enter the code from your authenticator app to finish signing in.",
+            err=True,
+        )
+
+        click.echo("Press Ctrl-C to give up.", err=True)
+
+        while True:
+            totp_token = click.prompt(
+                "Please enter your 2FA code", hide_input=True, type=str, err=True
+            )
+
+            try:
+                return exchange_2fa_token(
+                    self.api_host, two_factor_token, totp_token, session=self.session
+                )
+            except ApiException as exc:
+                if exc.status not in REJECTED_TWO_FACTOR_STATUSES:
+                    raise
+
+                click.secho(
+                    f"\nThat 2FA code was rejected ({exc}). Please try again.",
+                    fg="red",
+                    err=True,
+                )
+
     def _return_response(self, status=200, message=None):
+        body = (message or "").encode("utf-8")
+
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        # Without a length the client can only detect the end of the body when
+        # the connection closes, which is after do_GET returns. The 2FA page is
+        # sent before a blocking prompt, so it must be readable straight away.
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
 
-        self.wfile.write(message.encode("utf-8"))
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.responded = True
 
     def _return_success_response(self):
         html_content = render_template("auth_success.html")
+        self._return_response(message=html_content)
+
+    def _return_two_factor_response(self):
+        html_content = render_template("auth_two_factor.html")
         self._return_response(message=html_content)
 
     def _return_error_response(self, error_message=None):
@@ -176,6 +235,24 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
     def query_data(self):
         return dict(parse_qsl(self.url.query))
 
+    def _store_authentication_result(self, access_token, refresh_token):
+        # Store the access token on the server instance so it can be
+        # passed directly to initialise_api(), avoiding a keyring
+        # roundtrip (critical when CLOUDSMITH_NO_KEYRING is set).
+        if self.server_instance:
+            self.server_instance.sso_access_token = access_token
+
+        if not store_sso_tokens(
+            self.api_host, access_token, refresh_token, profile=self.profile
+        ):
+            click.echo(
+                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                err=True,
+            )
+
+        if self.refresh_api_on_success and self.server_instance:
+            self.server_instance.refresh_api_config_after_auth()
+
     def do_GET(self):
         access_token = self.query_data.get("access_token")
         refresh_token = self.query_data.get("refresh_token")
@@ -191,51 +268,26 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if access_token:
-                # Store the access token on the server instance so it can be
-                # passed directly to initialise_api(), avoiding a keyring
-                # roundtrip (critical when CLOUDSMITH_NO_KEYRING is set).
-                if self.server_instance:
-                    self.server_instance.sso_access_token = access_token
-
-                if not store_sso_tokens(self.api_host, access_token, refresh_token):
-                    click.echo(
-                        "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                        err=True,
-                    )
-
-                if self.refresh_api_on_success and self.server_instance:
-                    self.server_instance.refresh_api_config_after_auth()
-
+                self._store_authentication_result(access_token, refresh_token)
                 self._return_success_response()
                 return
 
             if two_factor_token:
-                totp_token = click.prompt(
-                    "Please enter your 2FA token", hide_input=True, type=str, err=True
+                # Answer the browser before prompting. The prompt blocks, so a
+                # request left open until then shows the user a blank page with
+                # no sign that the terminal is waiting on them.
+                self._return_two_factor_response()
+
+                access_token, refresh_token = self._prompt_and_exchange_2fa_token(
+                    two_factor_token
                 )
 
-                access_token, refresh_token = exchange_2fa_token(
-                    self.api_host, two_factor_token, totp_token, session=self.session
-                )
-
-                # Store the access token on the server instance (same as above)
-                if self.server_instance:
-                    self.server_instance.sso_access_token = access_token
-
-                if not store_sso_tokens(self.api_host, access_token, refresh_token):
-                    click.echo(
-                        "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                        err=True,
-                    )
-
-                if self.refresh_api_on_success and self.server_instance:
-                    self.server_instance.refresh_api_config_after_auth()
-
+                self._store_authentication_result(access_token, refresh_token)
                 click.secho("\nAuthentication complete", fg="green", err=True)
-                self._return_success_response()
                 return
         except Exception:
-            self._return_error_response()
+            if not self.responded:
+                self._return_error_response()
             raise
 
         click.secho("\nNo valid authentication parameters received", fg="red", err=True)
