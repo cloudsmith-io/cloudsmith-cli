@@ -13,14 +13,18 @@ locations, and invokes it as::
 
     terraform-credentials-cloudsmith [args...] <verb> <hostname>
 
-Only the ``get`` verb is delegated; ``store``/``forget`` and unknown verbs are
-answered directly here with an error and a non-zero exit, matching the runtime.
-
-Configure in ``~/.terraformrc``::
+The ``[args...]`` come from the ``args`` list in the ``credentials_helper``
+block and always precede the verb.  For ``get`` they are forwarded verbatim to
+``cloudsmith credential-helper terraform``, ahead of the hostname, so CLI
+options such as ``--org`` and ``-P/--profile`` can be configured in
+``~/.terraformrc`` instead of the environment::
 
     credentials_helper "cloudsmith" {
-        args = []
+        args = ["--org=acme", "-P", "ci"]
     }
+
+Only the ``get`` verb is delegated; ``store``/``forget`` and unknown verbs are
+answered directly here with an error and a non-zero exit, matching the runtime.
 
 See: https://developer.hashicorp.com/terraform/internals/credentials-helpers
 """
@@ -49,10 +53,16 @@ def _delegate_target() -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     """Terraform credentials-helper entry point.
 
-    Terraform calls this with a verb followed by the hostname it applies to,
-    e.g. ``terraform-credentials-cloudsmith get terraform.cloudsmith.io``.
-    Any leading ``args`` from the ``credentials_helper`` config block precede
-    the verb, so the verb and hostname are read from the tail of ``argv``.
+    Terraform calls this with any configured helper ``args`` followed by a verb
+    and the hostname it applies to, e.g.
+    ``terraform-credentials-cloudsmith --org=acme -P ci get terraform.cloudsmith.io``.
+    The verb and hostname are the final two positional arguments; everything
+    before them is the ``args`` list from the terraformrc block.
+
+    For ``get`` those leading args are forwarded verbatim to
+    ``cloudsmith credential-helper terraform``, ahead of the hostname, so CLI
+    options such as ``--org`` and ``-P/--profile`` configured in terraformrc
+    reach the delegate.
 
     Returns the process exit code (also used as the return value so the
     console-script shim can ``sys.exit`` on it).
@@ -64,14 +74,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # The verb and hostname are always the final two positional arguments;
-    # anything before them is helper `args` from the terraformrc block, which
-    # this helper takes none of and therefore ignores.
-    verb, hostname = args[-2], args[-1]
+    # everything before them is the helper `args` list from the terraformrc
+    # block, forwarded verbatim to the delegate ahead of the hostname.
+    helper_args, verb, hostname = args[:-2], args[-2], args[-1]
 
     if verb == "get":
         try:
             result = subprocess.run(
-                [*_delegate_target(), hostname],
+                [*_delegate_target(), *helper_args, hostname],
                 stdin=sys.stdin,
                 check=False,
             )
