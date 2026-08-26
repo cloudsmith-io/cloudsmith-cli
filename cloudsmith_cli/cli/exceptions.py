@@ -18,6 +18,7 @@ def handle_api_exceptions(
     exit_on_error=True,
     reraise_on_error=False,
     error_summaries=None,
+    summarise_error=None,
 ):
     """Context manager that handles API exceptions.
 
@@ -25,6 +26,14 @@ def handle_api_exceptions(
     message that replaces the default context/detail/hint block in
     human-readable output. Statuses that aren't mapped (and JSON output)
     keep the standard rendering.
+
+    ``summarise_error`` is an optional callable taking ``(exc, detail,
+    fields)`` and returning a single sentence to show instead of the default
+    context/detail/field block, or ``None`` to keep the default. Unlike
+    ``error_summaries``, this replaces the JSON ``detail`` too - use it
+    where the API's field-indexed errors read poorly next to the rest of
+    their output; returning ``None`` for statuses it doesn't recognise keeps
+    the status code visible where it still matters.
     """
     # flake8: ignore=C901
 
@@ -38,11 +47,12 @@ def handle_api_exceptions(
         context_msg = context_msg or "Failed to perform operation!"
         detail, fields = get_details(exc)
         hint = get_error_hint(ctx, opts, exc)
+        summary = summarise_error(exc, detail, fields) if summarise_error else None
 
         if is_json_output:
             # Construct JSON error object
             error_data = {
-                "detail": detail or exc.status_description,
+                "detail": summary or detail or exc.status_description,
                 "help": {
                     "context": context_msg,
                     "hint": hint,
@@ -80,10 +90,10 @@ def handle_api_exceptions(
             else:
                 click.secho("ERROR", fg="red", err=use_stderr)
 
-            summary = (error_summaries or {}).get(exc.status)
+            # A command-specific one-liner - from either mechanism - replaces
+            # the generic context/detail/fields/hint block entirely.
+            summary = summary or (error_summaries or {}).get(exc.status)
             if summary:
-                # A command-specific one-liner replaces the generic
-                # context/detail/hint block for the statuses it covers.
                 click.secho(summary, fg="red", err=use_stderr)
             else:
                 print_error_details(
