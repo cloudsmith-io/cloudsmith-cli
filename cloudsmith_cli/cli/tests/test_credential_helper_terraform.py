@@ -210,6 +210,26 @@ def test_cli_reads_hostname_from_stdin_when_no_argument(runner):
     assert json.loads(result.stdout) == {"token": "k_abc"}
 
 
+def test_cli_accepts_org_and_profile_flags(runner):
+    """`--org` and `-P/--profile` are accepted and the org reaches the runtime.
+
+    These are the options the wrapper forwards from a terraformrc `args` block,
+    so they must parse on the command without requiring environment variables.
+    """
+    with patch(
+        "cloudsmith_cli.cli.commands.credential_helper.terraform.execute",
+        return_value=(0, '{"token": "k_abc"}', None),
+    ) as mock_execute:
+        result = runner.invoke(
+            terraform,
+            args=["-k", "k_abc", "--org=acme", "-P", "ci", CLOUDSMITH_HOST],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    assert mock_execute.call_args.kwargs["org"] == "acme"
+
+
 def test_cli_prints_empty_object_for_foreign_host(runner):
     """A non-Cloudsmith host is exit-0 with ``{}`` and no leaked token."""
     result = runner.invoke(
@@ -281,15 +301,28 @@ def test_wrapper_forwards_the_cli_exit_code():
     assert code == 1
 
 
-def test_wrapper_ignores_leading_helper_args():
-    """Leading `args` from the terraformrc block precede the verb and are ignored."""
+def test_wrapper_forwards_leading_helper_args_before_the_hostname():
+    """Leading `args` from the terraformrc block are forwarded to the delegate.
+
+    Terraform places the `args` list ahead of the verb; the wrapper passes them
+    to `cloudsmith credential-helper terraform` before the hostname, so options
+    like `--org` and `-P` configured in terraformrc reach the CLI.
+    """
     with patch.object(wrapper.subprocess, "run") as mock_run:
         mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
-        code = wrapper.main(["--host=example.com", "get", CLOUDSMITH_HOST])
+        code = wrapper.main(["--org=acme", "-P", "ci", "get", CLOUDSMITH_HOST])
 
     assert code == 0
     called_args = mock_run.call_args.args[0]
-    assert called_args[-1] == CLOUDSMITH_HOST
+    assert called_args == [
+        "cloudsmith",
+        "credential-helper",
+        "terraform",
+        "--org=acme",
+        "-P",
+        "ci",
+        CLOUDSMITH_HOST,
+    ]
 
 
 def test_wrapper_errors_when_cloudsmith_not_installed():

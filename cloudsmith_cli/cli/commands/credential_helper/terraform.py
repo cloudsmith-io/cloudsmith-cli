@@ -14,11 +14,16 @@ import sys
 import click
 
 from ....credential_helpers.terraform import execute
-from ...decorators import common_api_auth_options, resolve_credentials
+from ...decorators import (
+    common_api_auth_options,
+    common_cli_config_options,
+    resolve_credentials,
+)
 
 
 @click.command()
 @click.argument("hostname", required=False, default=None)
+@common_cli_config_options
 @common_api_auth_options
 @resolve_credentials
 def terraform(opts, hostname):
@@ -51,11 +56,20 @@ def terraform(opts, hostname):
         0: Token returned, or the host is not a Cloudsmith registry
         1: Cloudsmith host with no credentials available, or an error occurred
 
+    The organisation and profile can be supplied with ``--org`` and
+    ``-P/--profile`` instead of environment variables.  The wrapper binary
+    forwards Terraform's ``args`` verbatim, so a terraformrc block such as
+    ``credentials_helper "cloudsmith" { args = ["--org=acme", "-P", "ci"] }``
+    reaches this command as those options.
+
     \b
     Examples:
         # Direct usage
         $ cloudsmith credential-helper terraform terraform.cloudsmith.io
         {"token": "..."}
+
+        # Select an org and profile explicitly (no env vars needed)
+        $ cloudsmith credential-helper terraform --org=acme -P ci terraform.cloudsmith.io
 
         # Via the wrapper binary Terraform invokes
         $ terraform-credentials-cloudsmith get terraform.cloudsmith.io
@@ -64,6 +78,7 @@ def terraform(opts, hostname):
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
         CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
+        CLOUDSMITH_PROFILE: Configuration profile to load (optional)
     """
     if not hostname:
         try:
