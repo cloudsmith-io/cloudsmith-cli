@@ -36,11 +36,15 @@ def _get_api_key_source(opts):
     return {"configured": False, "source": None, "source_key": None}
 
 
-def _get_sso_status(api_host):
+def _get_sso_status(api_host, profile=None):
     """Return SSO token status from the system keyring."""
     enabled = keyring.should_use_keyring()
-    has_tokens = enabled and keyring.has_sso_tokens(api_host)
-    refreshed = keyring.get_refresh_attempted_at(api_host) if has_tokens else None
+    has_tokens = enabled and keyring.has_sso_tokens(api_host, profile=profile)
+    refreshed = (
+        keyring.get_refresh_attempted_at(api_host, profile=profile)
+        if has_tokens
+        else None
+    )
 
     return {
         "configured": has_tokens,
@@ -50,10 +54,10 @@ def _get_sso_status(api_host):
     }
 
 
-def _get_verbose_auth_data(opts, api_host):
+def _get_verbose_auth_data(opts, api_host, profile=None):
     """Gather all auth details for verbose output."""
     api_key_info = _get_api_key_source(opts)
-    sso_info = _get_sso_status(api_host)
+    sso_info = _get_sso_status(api_host, profile=profile)
 
     # Fetch token metadata (extra API call, graceful fallback)
     token_meta = None
@@ -171,7 +175,9 @@ def whoami(ctx, opts):
 
     if opts.verbose:
         api_host = getattr(opts.api_config, "host", None) or opts.api_host
-        data["auth"] = _get_verbose_auth_data(opts, api_host)
+        data["auth"] = _get_verbose_auth_data(
+            opts, api_host, profile=ctx.meta.get("profile")
+        )
 
     if utils.maybe_print_as_json(opts, data):
         if not is_auth:

@@ -29,9 +29,11 @@ def _setup_api(monkeypatch):
     off the same Configuration singleton. Keyring is stubbed so we never touch the
     user's real SSO tokens during a test run.
     """
-    monkeypatch.setattr(keyring, "get_access_token", lambda host: None)
-    monkeypatch.setattr(keyring, "get_refresh_token", lambda host: None)
-    monkeypatch.setattr(keyring, "should_refresh_access_token", lambda host: False)
+    monkeypatch.setattr(keyring, "get_access_token", lambda host, profile=None: None)
+    monkeypatch.setattr(keyring, "get_refresh_token", lambda host, profile=None: None)
+    monkeypatch.setattr(
+        keyring, "should_refresh_access_token", lambda host, profile=None: False
+    )
     monkeypatch.setattr(
         httpretty.core.fakesock.socket,
         "shutdown",

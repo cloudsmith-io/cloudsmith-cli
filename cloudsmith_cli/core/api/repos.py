@@ -81,6 +81,45 @@ def delete_repo(owner, repo):
     ratelimits.maybe_rate_limit(client, headers)
 
 
+def list_repo_gpg_key(owner, repo):
+    """Get the active GPG key for a repository."""
+    client = get_repos_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.repos_gpg_list_with_http_info(owner, repo)
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.to_dict()
+
+
+def create_repo_gpg_key(owner, repo, gpg_private_key, gpg_passphrase=None):
+    """Set (upload) the active GPG key for a repository."""
+    client = get_repos_api()
+
+    gpg_key_create = cloudsmith_api.RepositoryGpgKeyCreate(
+        gpg_private_key=gpg_private_key, gpg_passphrase=gpg_passphrase
+    )
+
+    with catch_raise_api_exception():
+        data, _, headers = client.repos_gpg_create_with_http_info(
+            owner, repo, data=gpg_key_create
+        )
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.to_dict()
+
+
+def regenerate_repo_gpg_key(owner, repo):
+    """Regenerate the GPG key for a repository."""
+    client = get_repos_api()
+
+    with catch_raise_api_exception():
+        data, _, headers = client.repos_gpg_regenerate_with_http_info(owner, repo)
+
+    ratelimits.maybe_rate_limit(client, headers)
+    return data.to_dict()
+
+
 def list_repo_privileges(owner, repo):
     """Get the explicit team/user/service privileges on a repository.
 

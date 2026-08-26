@@ -17,7 +17,12 @@ AUTH_SERVER_PORT = 12400
 
 
 def _perform_saml_authentication(
-    opts, owner, enable_token_creation=False, use_stderr=False, no_browser=False
+    opts,
+    owner,
+    enable_token_creation=False,
+    use_stderr=False,
+    no_browser=False,
+    profile=None,
 ):
     """Perform SAML authentication via web browser and local web server."""
     session = create_configured_session(opts)
@@ -63,6 +68,7 @@ def _perform_saml_authentication(
         debug=opts.debug,
         refresh_api_on_success=enable_token_creation,
         api_opts=opts.api_config,
+        profile=profile,
     )
 
     auth_server.handle_request()
@@ -187,6 +193,7 @@ def authenticate(
             enable_token_creation=enable_token_creation,
             use_stderr=use_stderr,
             no_browser=no_browser,
+            profile=ctx.meta.get("profile"),
         )
 
     if request_api_key_flag:
