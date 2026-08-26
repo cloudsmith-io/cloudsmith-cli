@@ -5,11 +5,18 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from cloudsmith_cli.cli import saml
 from cloudsmith_cli.core import keyring
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.credentials.models import CredentialContext
 from cloudsmith_cli.core.credentials.providers import KeyringProvider, keyring_provider
+
+
+@pytest.fixture(autouse=True)
+def mock_get_keyring():
+    import keyring as keyring_backend
+
+    with patch.object(keyring_backend, "get_keyring") as get_keyring_mock:
+        yield get_keyring_mock
 
 
 class TestKeyringProvider:
@@ -59,10 +66,11 @@ class TestKeyringProvider:
             patch.object(keyring, "should_refresh_access_token", return_value=True),
             patch.object(keyring, "get_refresh_token", return_value="refresh_tok"),
             patch.object(
-                saml,
+                keyring_provider,
                 "refresh_access_token",
                 side_effect=ApiException(status=401, detail="Unauthorized"),
             ),
+            patch.object(keyring, "delete_sso_tokens", return_value=True),
             patch.object(keyring, "update_refresh_attempted_at"),
         ):
             result = provider.resolve(context)
