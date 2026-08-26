@@ -70,13 +70,16 @@ TARGET_KINDS = ("team", "user", "service")
 def privilege_rank(privilege):
     """Rank a privilege on the read < write < admin ladder.
 
-    Anything the CLI doesn't recognise ranks below Read, so an unfamiliar
-    level is never mistaken for one this command is safe to overwrite.
+    No privilege ranks below Read, so a fresh grant is never mistaken for a
+    lowering. An unrecognised non-empty level ranks above Admin, so a `set`
+    over it always confirms rather than silently lowering access.
     """
-    try:
-        return PRIVILEGE_LEVELS.index((privilege or "").lower())
-    except ValueError:
+    if not privilege:
         return -1
+    try:
+        return PRIVILEGE_LEVELS.index(privilege.lower())
+    except ValueError:
+        return len(PRIVILEGE_LEVELS)
 
 
 def get_privilege_target(entry):
@@ -581,8 +584,9 @@ def privileges_set(ctx, opts, owner_repo, teams, users, services, privilege, yes
 
     The endpoint sets a named target to the given level in either direction,
     so this reads the current privileges first and asks before lowering one.
-    Granting or raising access never asks. Pass -y to lower without being
-    asked.
+    Granting or raising access never asks. Pass -y to skip both the read and
+    the prompt and lower without being asked. A change made by someone else
+    between the read and the write can therefore be lost.
 
     Full CLI example:
 
@@ -599,46 +603,50 @@ def privileges_set(ctx, opts, owner_repo, teams, users, services, privilege, yes
     # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = utils.should_use_stderr(opts)
 
-    click.echo("Getting list of repository privileges ... ", nl=False, err=use_stderr)
-
-    context_msg = "Failed to get list of repository privileges!"
-    with (
-        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
-        maybe_spinner(opts),
-    ):
-        current = api.list_repo_privileges(owner=owner, repo=repo)
-
-    click.secho("OK", fg="green", err=use_stderr)
-
-    # The endpoint sets a named target to whatever level it is given, so this
-    # can lower one as easily as raise it. Losing access is the thing the
-    # other commands confirm, so it is confirmed here too.
-    held = {}
-    for entry in current:
-        target = get_privilege_target(entry)
-        if target is not None:
-            held[target] = entry.get("privilege")
-
-    lowered = [
-        (target, held[target])
-        for target in targets
-        if privilege_rank(held.get(target)) > privilege_rank(privilege)
-    ]
-
-    if lowered:
-        losses = ", ".join(
-            f"{kind} {click.style(name, bold=True)} from {click.style(was, bold=True)}"
-            for (kind, name), was in lowered
+    # The GET only exists to power the lowering confirmation below, so with
+    # -y there is nothing to check it against: skip it and just write.
+    if not yes:
+        click.echo(
+            "Getting list of repository privileges ... ", nl=False, err=use_stderr
         )
-        prompt = (
-            f"Lower {losses} to {click.style(privilege, bold=True)} on "
-            f"{click.style(repo, bold=True)} in the "
-            f"{click.style(owner, bold=True)} namespace"
-        )
-        if not utils.confirm_operation(
-            prompt, prefix="", assume_yes=yes, err=use_stderr
+
+        context_msg = "Failed to get list of repository privileges!"
+        with (
+            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            maybe_spinner(opts),
         ):
-            return
+            current = api.list_repo_privileges(owner=owner, repo=repo)
+
+        click.secho("OK", fg="green", err=use_stderr)
+
+        # The endpoint sets a named target to whatever level it is given, so
+        # this can lower one as easily as raise it. Losing access is the
+        # thing the other commands confirm, so it is confirmed here too.
+        held = {}
+        for entry in current:
+            target = get_privilege_target(entry)
+            if target is not None:
+                held[target] = entry.get("privilege")
+
+        lowered = [
+            (target, held[target])
+            for target in targets
+            if privilege_rank(held.get(target)) > privilege_rank(privilege)
+        ]
+
+        if lowered:
+            losses = ", ".join(
+                f"{kind} {click.style(name, bold=True)} from "
+                f"{click.style(was, bold=True)}"
+                for (kind, name), was in lowered
+            )
+            prompt = (
+                f"Lower {losses} to {click.style(privilege, bold=True)} on "
+                f"{click.style(repo, bold=True)} in the "
+                f"{click.style(owner, bold=True)} namespace"
+            )
+            if not utils.confirm_operation(prompt, prefix="", err=use_stderr):
+                return
 
     click.echo(
         f"Granting {click.style(privilege, bold=True)} on "

@@ -357,6 +357,47 @@ class TestPrivilegesSet:
             {"privilege": "Read", "team": "eng"}
         ]
 
+    @httpretty.activate(allow_net_connect=False)
+    def test_yes_skips_the_pre_write_get_entirely(self, runner):
+        """The GET only powers the lowering prompt, so -y should skip it too."""
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "admin", "-y"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        methods = {r.method for r in httpretty.latest_requests()}
+        assert methods == {"PATCH"}
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_unrecognised_held_privilege_asks_before_lowering(self, runner):
+        """An unfamiliar level must outrank Admin, or lowering it never asks."""
+        register_list([{"privilege": "Owner", "team": "eng"}])
+        register_write(httpretty.PATCH)
+
+        result = runner.invoke(
+            main,
+            PRIVILEGES_COMMAND
+            + ["set"]
+            + HERMETIC_ARGS
+            + [OWNER_REPO, "--team", "eng", "--privilege", "admin"],
+            input="n\n",
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert (
+            f"Lower team eng from Owner to Admin on {REPO} in the {OWNER} namespace?"
+            in result.output
+        )
+        assert httpretty.last_request().method == "GET"
+
     def test_rejects_an_unknown_privilege(self, runner):
         result = runner.invoke(
             main,
