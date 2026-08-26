@@ -301,8 +301,15 @@ def print_gpg_key(gpg_key):
 #: Reasons for the API failures a person can actually act on, keyed by
 #: status. Anything not listed here keeps the standard error rendering.
 GPG_READ_ERROR_REASONS = {404: "not found"}
-GPG_WRITE_ERROR_REASONS = {
+GPG_UPLOAD_ERROR_REASONS = {
     400: "the provided key is not valid",
+    402: "custom GPG keys require a paid plan",
+    404: "not found",
+}
+#: Statuses for GPG flows that never send a key in the request - regenerate,
+#: and the read-only pre-flight both dry runs do - so a 400 can't plausibly
+#: mean "the provided key is invalid" the way it does for an actual upload.
+GPG_NO_KEY_ERROR_REASONS = {
     402: "custom GPG keys require a paid plan",
     404: "not found",
 }
@@ -343,10 +350,10 @@ def secret_file_is_stdin(ctx, param_name):
     return ctx.meta.get(SecretFile.META_KEY, {}).get(param_name) == "-"
 
 
-def gpg_error_summaries(action, repo, reasons):
+def gpg_error_summaries(action, owner, repo, reasons):
     """Build single-line error messages for a GPG command, keyed by status."""
     return {
-        status: f"Could not {action} GPG key for {repo}: {reason}."
+        status: f"Could not {action} GPG key for {owner}/{repo}: {reason}."
         for status, reason in reasons.items()
     }
 
@@ -359,17 +366,21 @@ def gpg_dry_run(ctx, opts, action, reasons, owner, repo, note=None, err=False):
     replace, so a mistyped repository or an expired token fails here rather
     than on the attempt itself.
     """
+    click.echo("Checking current GPG key ... ", nl=False, err=err)
+
     context_msg = f"Failed to {action} the repository GPG key!"
     with (
         handle_api_exceptions(
             ctx,
             opts=opts,
             context_msg=context_msg,
-            error_summaries=gpg_error_summaries(action, repo, reasons),
+            error_summaries=gpg_error_summaries(action, owner, repo, reasons),
         ),
         maybe_spinner(opts),
     ):
         current = api.list_repo_gpg_key(owner, repo)
+
+    click.secho("OK", fg="green", err=err)
 
     if utils.maybe_print_as_json(
         opts,
@@ -476,7 +487,9 @@ def gpg_get(ctx, opts, owner_repo):
             ctx,
             opts=opts,
             context_msg=context_msg,
-            error_summaries=gpg_error_summaries("get", repo, GPG_READ_ERROR_REASONS),
+            error_summaries=gpg_error_summaries(
+                "get", owner, repo, GPG_READ_ERROR_REASONS
+            ),
         ),
         maybe_spinner(opts),
     ):
@@ -567,7 +580,14 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
             param_hint="--passphrase-file",
         )
 
-    gpg_private_key = private_key_file.read()
+    try:
+        gpg_private_key = private_key_file.read()
+    except UnicodeDecodeError as exc:
+        raise click.BadParameter(
+            "This looks like a binary key export, not an armored (text) one. "
+            "Re-export with 'gpg --armor --export-secret-keys' and try again.",
+            param_hint="--private-key-file",
+        ) from exc
     if not gpg_private_key.strip():
         raise click.BadParameter(
             "The private key file is empty.", param_hint="--private-key-file"
@@ -611,7 +631,7 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
             ctx,
             opts,
             "set",
-            GPG_WRITE_ERROR_REASONS,
+            GPG_NO_KEY_ERROR_REASONS,
             owner,
             repo,
             note=passphrase_note,
@@ -632,7 +652,9 @@ def gpg_upload(ctx, opts, owner_repo, private_key_file, passphrase_file, dry_run
             ctx,
             opts=opts,
             context_msg=context_msg,
-            error_summaries=gpg_error_summaries("set", repo, GPG_WRITE_ERROR_REASONS),
+            error_summaries=gpg_error_summaries(
+                "set", owner, repo, GPG_UPLOAD_ERROR_REASONS
+            ),
         ),
         maybe_spinner(opts),
     ):
@@ -701,7 +723,7 @@ def gpg_regenerate(ctx, opts, owner_repo, yes, dry_run):
             ctx,
             opts,
             "regenerate",
-            GPG_WRITE_ERROR_REASONS,
+            GPG_NO_KEY_ERROR_REASONS,
             owner,
             repo,
             err=use_stderr,
@@ -720,7 +742,7 @@ def gpg_regenerate(ctx, opts, owner_repo, yes, dry_run):
             opts=opts,
             context_msg=context_msg,
             error_summaries=gpg_error_summaries(
-                "regenerate", repo, GPG_WRITE_ERROR_REASONS
+                "regenerate", owner, repo, GPG_NO_KEY_ERROR_REASONS
             ),
         ),
         maybe_spinner(opts),

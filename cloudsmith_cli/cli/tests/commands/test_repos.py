@@ -667,6 +667,7 @@ class TestReposGpgUpload:
         )
 
         assert result.exit_code == 0, result.output
+        assert "Checking current GPG key ... OK" in result.output
         assert "Would set the GPG key" in result.output
         assert _GPG_KEY["fingerprint"] in result.output
         assert "--passphrase-file" in result.output
@@ -697,7 +698,37 @@ class TestReposGpgUpload:
         )
 
         assert result.return_value == 404
-        assert "Could not set GPG key for my-repo: not found." in result.output
+        assert "Checking current GPG key ... ERROR" in result.output
+        assert "Could not set GPG key for my-org/my-repo: not found." in result.output
+        mock_create.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_dry_run_400_keeps_the_standard_rendering(
+        self, mock_create, mock_list, runner, tmp_path
+    ):
+        """The dry-run pre-flight is a GET; a 400 there can't mean "bad key" either."""
+        mock_list.side_effect = ApiException(
+            status=400, detail="Some other validation problem."
+        )
+        key_file = tmp_path / "key.asc"
+        key_file.write_text(_FAKE_GPG_KEY_MATERIAL)
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload",
+                "my-org/my-repo",
+                "--private-key-file",
+                str(key_file),
+                "--dry-run",
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 400
+        assert "the provided key is not valid" not in result.output
+        assert "Detail: Some other validation problem." in result.output
         mock_create.assert_not_called()
 
     @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
@@ -794,6 +825,26 @@ class TestReposGpgUpload:
         assert result.exit_code != 0
         assert "no such option" in result.output.lower()
 
+    @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
+    def test_binary_key_file_fails_cleanly(self, mock_create, runner, tmp_path):
+        """A non-armored (binary) export must not surface a raw UnicodeDecodeError."""
+        key_file = tmp_path / "key.gpg"
+        key_file.write_bytes(bytes(range(256)))
+
+        result = runner.invoke(
+            main,
+            gpg_command_args(
+                "upload", "my-org/my-repo", "--private-key-file", str(key_file)
+            ),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "UnicodeDecodeError" not in result.output
+        assert "binary key export" in result.output
+        assert "--armor" in result.output
+        mock_create.assert_not_called()
+
 
 class TestReposGpgRegenerate:
     @patch("cloudsmith_cli.cli.commands.repos.stdin_is_a_terminal", return_value=True)
@@ -860,6 +911,7 @@ class TestReposGpgRegenerate:
         )
 
         assert result.exit_code == 0, result.output
+        assert "Checking current GPG key ... OK" in result.output
         assert "Would regenerate the GPG key" in result.output
         assert _GPG_KEY["fingerprint"] in result.output
         mock_list.assert_called_once_with("my-org", "my-repo")
@@ -879,7 +931,31 @@ class TestReposGpgRegenerate:
         )
 
         assert result.return_value == 404
-        assert "Could not regenerate GPG key for my-repo: not found." in result.output
+        assert "Checking current GPG key ... ERROR" in result.output
+        assert (
+            "Could not regenerate GPG key for my-org/my-repo: not found."
+            in result.output
+        )
+        mock_regenerate.assert_not_called()
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_dry_run_json_output_stays_parseable_on_error(
+        self, mock_regenerate, mock_list, runner
+    ):
+        """The new pre-flight progress text must not land on stdout with -F json."""
+        mock_list.side_effect = ApiException(status=404, detail="Not found.")
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "--dry-run", "-F", "json"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 404
+        document = json.loads(result.stdout)
+        assert document["detail"] == "Not found."
+        assert document["meta"]["code"] == 404
         mock_regenerate.assert_not_called()
 
     @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
@@ -951,19 +1027,23 @@ class TestReposGpgErrorVoice:
         # AliasGroup.main runs click with standalone_mode=False, so the status
         # comes back as the command's return value rather than an exit code.
         assert result.return_value == 404
-        assert "Could not get GPG key for my-repo: not found." in result.output
+        assert "Could not get GPG key for my-org/my-repo: not found." in result.output
         assert "status: 404" not in result.output
 
     @pytest.mark.parametrize(
         ("status", "expected"),
         [
-            (400, "Could not set GPG key for my-repo: the provided key is not valid."),
+            (
+                400,
+                "Could not set GPG key for my-org/my-repo: the provided key is not "
+                "valid.",
+            ),
             (
                 402,
-                "Could not set GPG key for my-repo: custom GPG keys require a paid "
-                "plan.",
+                "Could not set GPG key for my-org/my-repo: custom GPG keys require a "
+                "paid plan.",
             ),
-            (404, "Could not set GPG key for my-repo: not found."),
+            (404, "Could not set GPG key for my-org/my-repo: not found."),
         ],
     )
     @patch("cloudsmith_cli.cli.commands.repos.api.create_repo_gpg_key")
@@ -999,9 +1079,45 @@ class TestReposGpgErrorVoice:
 
         assert result.return_value == 402
         assert (
-            "Could not regenerate GPG key for my-repo: custom GPG keys require a "
-            "paid plan." in result.output
+            "Could not regenerate GPG key for my-org/my-repo: custom GPG keys "
+            "require a paid plan." in result.output
         )
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.regenerate_repo_gpg_key")
+    def test_regenerate_400_keeps_the_standard_rendering(self, mock_regenerate, runner):
+        """No key is sent by 'regenerate', so a 400 can't mean "bad key"."""
+        mock_regenerate.side_effect = ApiException(
+            status=400, detail="Some other validation problem."
+        )
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "-y"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 400
+        assert "the provided key is not valid" not in result.output
+        assert "Detail: Some other validation problem." in result.output
+
+    @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
+    def test_regenerate_dry_run_400_keeps_the_standard_rendering(
+        self, mock_list, runner
+    ):
+        """The dry-run pre-flight is a GET; a 400 there can't mean "bad key" either."""
+        mock_list.side_effect = ApiException(
+            status=400, detail="Some other validation problem."
+        )
+
+        result = runner.invoke(
+            main,
+            gpg_command_args("regenerate", "my-org/my-repo", "--dry-run"),
+            catch_exceptions=False,
+        )
+
+        assert result.return_value == 400
+        assert "the provided key is not valid" not in result.output
+        assert "Detail: Some other validation problem." in result.output
 
     @patch("cloudsmith_cli.cli.commands.repos.api.list_repo_gpg_key")
     def test_unmapped_status_keeps_the_standard_rendering(self, mock_list, runner):
