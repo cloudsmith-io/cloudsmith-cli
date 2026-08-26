@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `-w` and `--workspace` as the shared Workspace option used by authentication, OIDC, and custom-domain discovery. Set `CLOUDSMITH_WORKSPACE` or `workspace` in `config.ini` to configure it once for every command.
+- Added a Terraform credentials helper for Cloudsmith registries. The `terraform-credentials-cloudsmith` wrapper binary implements Terraform's [credentials-helper protocol](https://developer.hashicorp.com/terraform/internals/credentials-helpers) by delegating to `cloudsmith credential-helper terraform`, so a `credentials_helper "cloudsmith" { args = [] }` block in `~/.terraformrc` authenticates `terraform init` against a Cloudsmith Terraform registry with no token on disk, using your existing CLI credentials (env, config, keyring, or OIDC). `get` returns `{"token": "..."}` for a Cloudsmith host (including custom domains) and `{}` for any other host so Terraform falls back to its own credential sources; `store`/`forget` are unsupported. Missing credentials for a Cloudsmith host produce an actionable error rather than a traceback.
 
 ### Changed
 
