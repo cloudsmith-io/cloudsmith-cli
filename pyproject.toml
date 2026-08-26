@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==82.0.1", "wheel==0.47.0"]
+requires = ["setuptools==83.0.0", "wheel==0.47.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -85,13 +85,13 @@ dev = [
 binary = [
     "pyinstaller==6.20.0",
     "pyinstaller-hooks-contrib==2026.5",
-    "setuptools==82.0.1",
+    "setuptools==83.0.0",
     "wheel==0.47.0",
 ]
 release = [
     "build==1.5.0",
     "check-wheel-contents==0.6.3",
-    "setuptools==82.0.1",
+    "setuptools==83.0.0",
     "twine==6.2.0",
     "wheel==0.47.0",
 ]
