@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `-w` and `--workspace` as the shared Workspace option used by authentication, OIDC, and custom-domain discovery. Set `CLOUDSMITH_WORKSPACE` or `workspace` in `config.ini` to configure it once for every command.
 - Added `cloudsmith repos gpg` for managing the GPG key a repository signs its package indexes with. `get` shows the active key and its armored public block, `upload` installs a key you supply, and `regenerate` replaces the current key with a freshly generated Cloudsmith one. Key material and passphrases are only ever read from a file, stdin, or a hidden prompt, never from a command-line value, and `--debug` is refused on `upload` so the request body can't be logged. Both mutating subcommands accept `-n/--dry-run`, which checks the inputs and the key currently in place - naming the fingerprint that would be replaced - then stops before the request, so a mistyped repository or a stale credential fails there rather than on the real attempt. `regenerate` asks you to type `regenerate` to confirm - with no terminal attached it fails instead of blocking, so pass `-y/--yes` for unattended runs. There's no `delete` subcommand because the API has no way to remove a repository's key.
 - Added `cloudsmith repos privileges` for managing explicit repository access from the terminal. `list` shows the teams, users and service accounts that were granted access explicitly; `set` grants access to any number of them and leaves everyone else untouched, asking first if it would lower access someone already has; `revoke` takes access away from the ones named, skipping any that had none; and `replace` makes a JSON file (or stdin) the complete truth for the repository. `revoke` and `replace` ask for confirmation first unless `-y` is passed.
 
 ### Changed
 
 - `cloudsmith copy` now prints `Copied: owner/repo/slug (slug_perm)` after a successful copy and includes `slug_perm` in `-F json` output, matching `push`.
+- `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
 
 ## [1.25.0] - 2026-08-24
 

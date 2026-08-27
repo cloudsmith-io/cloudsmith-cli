@@ -31,7 +31,7 @@ def _perform_saml_authentication(
     idp_url = get_idp_url(api_host, owner, session=session)
 
     click.echo(
-        f"Your organization's SAML IDP URL is: {click.style(idp_url, bold=True)}",
+        f"Your Workspace's SAML IDP URL is: {click.style(idp_url, bold=True)}",
         err=use_stderr,
     )
     click.echo(err=use_stderr)
@@ -75,15 +75,6 @@ def _perform_saml_authentication(
 
 
 @main.command(aliases=["auth"])
-@click.option(
-    "-o",
-    "--owner",
-    metavar="OWNER",
-    required=True,
-    callback=validators.validate_owner,
-    prompt=True,
-    help="The name of the Cloudsmith organization to authenticate with.",
-)
 @click.option(
     "-t",
     "--token",
@@ -132,7 +123,6 @@ def _perform_saml_authentication(
 def authenticate(
     ctx,
     opts,
-    owner,
     token,
     force,
     save_config,
@@ -140,7 +130,7 @@ def authenticate(
     request_api_key_flag,
     no_browser,
 ):
-    """Authenticate to Cloudsmith using the org's SAML setup."""
+    """Authenticate to Cloudsmith using the Workspace's SAML setup."""
     # Validate mutual exclusivity
     if request_api_key_flag and (token or force):
         raise click.UsageError(
@@ -175,10 +165,13 @@ def authenticate(
             err=True,
         )
 
-    owner = owner[0].strip("[]'")
+    workspace = opts.org or click.prompt("Workspace", err=use_stderr)
+    workspace = validators.validate_owner(ctx, None, workspace)[0]
+    opts.org = workspace
 
     click.echo(
-        f"Beginning authentication for the {click.style(owner, bold=True)} org ... ",
+        "Beginning authentication for the "
+        f"{click.style(workspace, bold=True)} Workspace ... ",
         err=use_stderr,
     )
 
@@ -189,7 +182,7 @@ def authenticate(
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
         _perform_saml_authentication(
             opts,
-            owner,
+            workspace,
             enable_token_creation=enable_token_creation,
             use_stderr=use_stderr,
             no_browser=no_browser,

@@ -33,7 +33,7 @@ def pnpm(opts, repo):
     \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
+        CLOUDSMITH_WORKSPACE: Workspace slug (CLOUDSMITH_ORG is also accepted)
     """
 
     exit_code, stdout, stderr = execute(
