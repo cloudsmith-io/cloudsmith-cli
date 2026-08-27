@@ -67,6 +67,7 @@ class ConfigSchema:
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
         oidc_audience = ConfigParam(name="oidc_audience", type=str)
+        workspace = ConfigParam(name="workspace", type=str)
         org = ConfigParam(name="org", type=str)
         organization = ConfigParam(name="organization", type=str)
         oidc_org = ConfigParam(name="oidc_org", type=str)
@@ -202,7 +203,18 @@ class ConfigReader(ConfigFileReader):
 
     @staticmethod
     def _load_values_into_opts(opts, values):
+        preferred_workspace = values.get("workspace")
+        if isinstance(preferred_workspace, str):
+            preferred_workspace = preferred_workspace.strip()
+            if preferred_workspace.startswith(('"', "'")):
+                preferred_workspace = preferred_workspace[1:]
+            if preferred_workspace.endswith(('"', "'")):
+                preferred_workspace = preferred_workspace[:-1]
+            preferred_workspace = preferred_workspace.strip()
+        has_preferred_workspace = bool(preferred_workspace)
         for k, v in values.items():
+            if has_preferred_workspace and k in ("org", "organization", "oidc_org"):
+                continue
             if v is None:
                 continue
             if isinstance(v, str):
@@ -499,6 +511,16 @@ class Options:  # pylint: disable=too-many-public-methods
         if isinstance(value, str):
             value = value.strip() or None
         self._set_option("org", value)
+
+    @property
+    def workspace(self):
+        """Get the Workspace slug using current terminology."""
+        return self.org
+
+    @workspace.setter
+    def workspace(self, value):
+        """Set the Workspace slug using current terminology."""
+        self.org = value
 
     @property
     def organization(self):

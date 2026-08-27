@@ -1,10 +1,9 @@
 # Copyright 2026 Cloudsmith Ltd
-"""Tests for the organisation option and its accepted spellings.
+"""Tests for the Workspace option and its accepted spellings.
 
-The organisation is named three ways for historical reasons: ``--org`` is the
-name to use, ``--organization`` reads naturally in scripts, and ``--oidc-org``
-is what the option was called when only OIDC token exchange consumed it. All
-three are one option, so a consumer never has to know which era it came from.
+``--workspace`` and ``-w`` use current Cloudsmith terminology. ``--org``,
+``--organization``, ``--oidc-org``, ``--owner``, and ``-o`` remain available
+for compatibility. All seven flags are one option.
 """
 
 import click
@@ -36,6 +35,7 @@ def org_reporting_command(monkeypatch):
     The Options object is a process-wide thread-local, so it is cleared per
     test to stop one invocation's organisation leaking into the next.
     """
+    monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
     monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
     monkeypatch.delattr(OPTIONS, "value", raising=False)
 
@@ -48,31 +48,87 @@ def org_reporting_command(monkeypatch):
     return report
 
 
-@pytest.mark.parametrize("key", ["org", "organization", "oidc_org"])
+@pytest.mark.parametrize("key", ["workspace", "org", "organization", "oidc_org"])
 def test_every_config_spelling_sets_the_one_organisation(config_file, key):
     """The aliases are one value in config.ini, not three independent settings."""
     opts = Options()
     opts.load_config_file(config_file(f"[default]\n{key} = acme\n"))
 
     assert opts.org == "acme"
+    assert opts.workspace == "acme"
     assert opts.organization == "acme"
     assert opts.oidc_org == "acme"
 
 
-@pytest.mark.parametrize("flag", ["--org", "--organization", "--oidc-org"])
+def test_workspace_config_takes_precedence_over_legacy_aliases(config_file):
+    """The current config key wins regardless of the order used in the file."""
+    opts = Options()
+    opts.load_config_file(
+        config_file(
+            "[default]\n"
+            "workspace = preferred-workspace\n"
+            "org = legacy-org\n"
+            "organization = legacy-organization\n"
+            "oidc_org = legacy-oidc-org\n"
+        )
+    )
+
+    assert opts.workspace == "preferred-workspace"
+    assert opts.org == "preferred-workspace"
+
+
+@pytest.mark.parametrize("empty_workspace", ["", '""', "''", '"   "'])
+def test_empty_workspace_config_does_not_mask_legacy_alias(
+    config_file, empty_workspace
+):
+    """An empty preferred key allows a populated compatibility key to apply."""
+    opts = Options()
+    opts.load_config_file(
+        config_file(
+            f"[default]\nworkspace = {empty_workspace}\norg = legacy-workspace\n"
+        )
+    )
+
+    assert opts.workspace == "legacy-workspace"
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--workspace",
+        "-w",
+        "--org",
+        "--organization",
+        "--oidc-org",
+        "--owner",
+        "-o",
+    ],
+)
 def test_every_flag_sets_the_organisation(org_reporting_command, flag):
-    """All three flags are one option, so any of them reaches ``opts.org``."""
+    """Every flag reaches the existing internal ``opts.org`` value."""
     result = click.testing.CliRunner().invoke(org_reporting_command, [flag, "acme"])
 
     assert result.exit_code == 0, result.output
     assert "org=acme" in result.output
 
 
-def test_environment_sets_the_organisation(org_reporting_command, monkeypatch):
-    """CLOUDSMITH_ORG is unchanged by the rename, and is still honoured."""
-    monkeypatch.setenv("CLOUDSMITH_ORG", "acme-from-env")
+@pytest.mark.parametrize("envvar", ["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"])
+def test_environment_sets_the_organisation(org_reporting_command, monkeypatch, envvar):
+    """Both environment-variable spellings set the internal organisation value."""
+    monkeypatch.setenv(envvar, "acme-from-env")
 
     result = click.testing.CliRunner().invoke(org_reporting_command, [])
 
     assert result.exit_code == 0, result.output
     assert "org=acme-from-env" in result.output
+
+
+def test_workspace_environment_takes_precedence(org_reporting_command, monkeypatch):
+    """Current Workspace terminology wins when both environment aliases are set."""
+    monkeypatch.setenv("CLOUDSMITH_ORG", "legacy-org")
+    monkeypatch.setenv("CLOUDSMITH_WORKSPACE", "preferred-workspace")
+
+    result = click.testing.CliRunner().invoke(org_reporting_command, [])
+
+    assert result.exit_code == 0, result.output
+    assert "org=preferred-workspace" in result.output

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `-w` and `--workspace` as the shared Workspace option used by authentication, OIDC, and custom-domain discovery. Set `CLOUDSMITH_WORKSPACE` or `workspace` in `config.ini` to configure it once for every command.
+
+### Changed
+
+- `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
+
 ## [1.26.0] - 2026-08-26
 
 ### Added
