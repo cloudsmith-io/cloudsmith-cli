@@ -37,6 +37,7 @@ LAZY_COMMANDS = {
     "status": f"{_PACKAGE}.status",
     "tags": f"{_PACKAGE}.tags",
     "tokens": f"{_PACKAGE}.tokens",
+    "upgrade": f"{_PACKAGE}.upgrade",
     "upstream": f"{_PACKAGE}.upstream",
     "vulnerabilities": f"{_PACKAGE}.vulnerabilities",
     "whoami": f"{_PACKAGE}.whoami",
@@ -56,4 +57,5 @@ LAZY_ALIASES = {
     "quarantine": ["block"],
     "repositories": ["repos"],
     "tags": ["tag"],
+    "upgrade": ["update"],
 }
