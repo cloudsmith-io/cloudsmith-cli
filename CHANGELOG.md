@@ -10,19 +10,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `-w` and `--workspace` as the shared Workspace option used by authentication, OIDC, and custom-domain discovery. Set `CLOUDSMITH_WORKSPACE` or `workspace` in `config.ini` to configure it once for every command.
-- Added `cloudsmith repos gpg` for managing the GPG key a repository signs its package indexes with. `get` shows the active key and its armored public block, `upload` installs a key you supply, and `regenerate` replaces the current key with a freshly generated Cloudsmith one. Key material and passphrases are only ever read from a file, stdin, or a hidden prompt, never from a command-line value, and `--debug` is refused on `upload` so the request body can't be logged. Both mutating subcommands accept `-n/--dry-run`, which checks the inputs and the key currently in place - naming the fingerprint that would be replaced - then stops before the request, so a mistyped repository or a stale credential fails there rather than on the real attempt. `regenerate` asks you to type `regenerate` to confirm - with no terminal attached it fails instead of blocking, so pass `-y/--yes` for unattended runs. There's no `delete` subcommand because the API has no way to remove a repository's key.
-- Added `cloudsmith repos privileges` for managing explicit repository access from the terminal. `list` shows the teams, users and service accounts that were granted access explicitly; `set` grants access to any number of them and leaves everyone else untouched, asking first if it would lower access someone already has; `revoke` takes access away from the ones named, skipping any that had none; and `replace` makes a JSON file (or stdin) the complete truth for the repository. `revoke` and `replace` ask for confirmation first unless `-y` is passed.
 
 ### Changed
 
-- `cloudsmith copy` now prints `Copied: owner/repo/slug (slug_perm)` after a successful copy and includes `slug_perm` in `-F json` output, matching `push`.
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
+
+## [1.26.0] - 2026-08-26
+
+### Added
+
+- `cloudsmith repos gpg`: view, upload, or regenerate the GPG key your repository signs its package indexes with. No more trips to the web app.
+- `cloudsmith repos privileges`: see who has explicit access to a repository, then grant, revoke, or replace it wholesale, all from the terminal.
+- A Cargo credential provider. Run `cloudsmith credential-helper install cargo` once and Cargo authenticates to your Cloudsmith registries with your existing CLI credentials. No `cargo login`, no token on disk, and crates.io is left untouched.
+
+### Changed
+
+- The CLI starts noticeably faster. Heavy dependencies now load only when a command needs them.
+- `cloudsmith copy` now tells you exactly what it copied, including the `slug_perm`, just like `push`.
+
+### Fixed
+
+- macOS finally remembers "Always Allow". The CLI now updates keychain items in place instead of recreating them, so the recurring permission prompts stop for good.
+- Every profile now keeps its own SSO session. Profiles that point at the same API host no longer clobber each other.
+- A dead SSO session now cleans itself up and asks you to log in again, instead of nagging you every half hour.
+- Retry notices for throttled requests go to stderr, keeping stdout clean for scripts.
+- The pnpm credential helper now always sends `Bearer`, fixing authentication in Docker containers and other places pnpm's own detection missed.
 
 ## [1.25.0] - 2026-08-24
 
 ### Added
 
-- Added a Cargo credential provider for Cloudsmith registries. `cloudsmith credential-helper install cargo` installs a `cargo-credential-cloudsmith` launcher binary and registers it in `$CARGO_HOME/config.toml`, so Cargo authenticates to Cloudsmith registries automatically using your existing CLI credentials — no `cargo login` and no token in `credentials.toml`. `cloudsmith credential-helper cargo` speaks Cargo's [credential provider protocol](https://doc.rust-lang.org/cargo/reference/credential-provider-protocol.html): a newline-delimited JSON exchange that answers `get` with the resolved token, and answers a registry that is not a Cloudsmith one with `url-not-supported` so Cargo falls through to the next configured provider — registering globally cannot break authentication to crates.io. The provider is appended to `registry.global-credential-providers` (keeping `cargo:token` as the fallback) and pinned on any `[registries.*]` entry whose index points at a known Cloudsmith Cargo host. Custom Cloudsmith registry domains are discovered via the API and cached locally; add extra hostnames with `--domain` (repeatable), disable discovery with `--no-discover`, or preview changes with `--dry-run`. Manage installed helpers with `cloudsmith credential-helper uninstall cargo` and `cloudsmith credential-helper list`.
 - Added Nix package and upstream support. Use `cloudsmith push nix` to upload Nix packages and `cloudsmith upstream nix` to manage Nix channel upstreams.
 - Added a pnpm credential helper. `cloudsmith credential-helper install pnpm` registers `pnpm-credential-cloudsmith` in the user-level `.npmrc`, using existing CLI credentials for Cloudsmith registries. It supports custom-domain discovery, additional `--domain` values, `--no-discover`, `--dry-run`, listing, and uninstalling.
 - Added `CLOUDSMITH_KEYRING_FILE_PATH` and `CLOUDSMITH_KEYRING_DIR` to relocate tokens stored by the bundled file-based keyring backends. An explicit file path takes precedence over the directory, and `KEYRING_PROPERTY_FILE_PATH` takes precedence over its Cloudsmith alias.
