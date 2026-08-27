@@ -141,11 +141,12 @@ def list_domains(  # pylint: disable=too-many-arguments
     missing here.
 
     Built-in hosts are always listed and need no Workspace or authentication.
-    A Workspace from ``--workspace``, CLOUDSMITH_ORG or ``org`` in ``config.ini``
-    adds its custom domains, and a failed lookup exits non-zero rather than
-    rendering as "no domains". With no Workspace the command lists whatever
-    earlier runs cached and makes no API call; ``--refresh`` bypasses that cache
-    for a configured Workspace.
+    A Workspace from ``--workspace``, CLOUDSMITH_WORKSPACE, CLOUDSMITH_ORG,
+    ``workspace`` in ``config.ini`` or a legacy config alias adds its custom
+    domains, and a failed lookup exits non-zero rather than rendering as "no
+    domains". With no Workspace the command lists whatever earlier runs cached
+    and makes no API call; ``--refresh`` bypasses that cache for a configured
+    Workspace.
 
     Where two custom domains could serve the same request Cloudsmith picks the
     one bound to the repository in hand, then ``primary`` over secondary, then
@@ -259,7 +260,7 @@ def list_domains(  # pylint: disable=too-many-arguments
             click.secho(
                 "Warning: --refresh needs a Workspace to fetch from, so the "
                 "cached custom domains below are unchanged. Set --workspace, "
-                "CLOUDSMITH_ORG or org in config.ini.",
+                "CLOUDSMITH_WORKSPACE, or workspace in config.ini.",
                 fg="yellow",
                 err=True,
             )

@@ -51,6 +51,58 @@ def mock_auth_server():
 class TestAuthenticateCommand:
     """Tests for the authenticate command."""
 
+    @pytest.mark.parametrize(
+        "option",
+        [
+            "--workspace",
+            "-w",
+            "--org",
+            "--organization",
+            "--oidc-org",
+            "--owner",
+            "-o",
+        ],
+    )
+    def test_workspace_option_aliases(
+        self,
+        option,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Current and legacy option spellings identify the same Workspace."""
+        result = runner.invoke(
+            authenticate,
+            [option, "test-workspace", "--no-browser"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert mock_auth_server.call_args.kwargs["owner"] == "test-workspace"
+
+    @pytest.mark.parametrize("envvar", ["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"])
+    def test_workspace_environment_aliases(
+        self,
+        envvar,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Authentication inherits either Workspace environment variable."""
+        result = runner.invoke(
+            authenticate,
+            ["--no-browser"],
+            env={envvar: "test-workspace"},
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert mock_auth_server.call_args.kwargs["owner"] == "test-workspace"
+
     def test_auth_command_invokes_webserver(
         self,
         runner,
@@ -204,8 +256,8 @@ class TestNoBrowserFlag:
         assert result.exit_code == 0
         mock_webbrowser.open.assert_not_called()
         assert "Skipping automatic browser launch" in result.output
-        assert "Opening your organization's SAML IDP URL" not in result.output
-        assert "Your organization's SAML IDP URL is:" in result.output
+        assert "Opening your Workspace's SAML IDP URL" not in result.output
+        assert "Your Workspace's SAML IDP URL is:" in result.output
         mock_auth_server.assert_called_once()
         mock_auth_server.return_value.handle_request.assert_called_once()
 
@@ -414,5 +466,5 @@ class TestAuthFailureOutputModes:
         payload = json.loads(result.stdout)
         assert payload["detail"] == "Invalid input."
         assert payload["meta"]["code"] == 422
-        assert "Beginning authentication for the testorg org" in result.stderr
+        assert "Beginning authentication for the testorg Workspace" in result.stderr
         assert "Beginning authentication for the testorg org" not in result.stdout

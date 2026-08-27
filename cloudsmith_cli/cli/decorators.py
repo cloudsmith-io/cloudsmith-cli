@@ -441,8 +441,10 @@ def resolve_credentials(f):
         "--org",
         "--organization",
         "--oidc-org",
+        "-o",
+        "--owner",
         "org",
-        envvar="CLOUDSMITH_ORG",
+        envvar=["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"],
         help="The Cloudsmith Workspace slug.",
     )
     @click.option(

@@ -27,7 +27,7 @@ def generic(opts):
 
     Resolves a credential through the full provider chain and writes a
     versioned JSON document to stdout.  Takes no arguments: a Cloudsmith token
-    is organisation-wide, so the host it will be used against does not change
+    is Workspace-wide, so the host it will be used against does not change
     which credential resolves.
 
     \b
