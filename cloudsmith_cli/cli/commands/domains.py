@@ -63,6 +63,7 @@ def _custom_entries(records) -> list[dict]:
             "format": format_for_backend_kind(record.backend_kind),
             "type": "custom",
             "domain_type": record.domain_type.value,
+            "workspace": record.org,
             "org": record.org,
             "repository": record.repository,
             "primary": record.primary,
@@ -141,12 +142,11 @@ def list_domains(  # pylint: disable=too-many-arguments
     missing here.
 
     Built-in hosts are always listed and need no Workspace or authentication.
-    A Workspace from ``--workspace``, CLOUDSMITH_WORKSPACE, CLOUDSMITH_ORG,
-    ``workspace`` in ``config.ini`` or a legacy config alias adds its custom
-    domains, and a failed lookup exits non-zero rather than rendering as "no
-    domains". With no Workspace the command lists whatever earlier runs cached
-    and makes no API call; ``--refresh`` bypasses that cache for a configured
-    Workspace.
+    A Workspace from ``--workspace``, CLOUDSMITH_WORKSPACE, or ``workspace`` in
+    ``config.ini`` adds its custom domains, and a failed lookup exits non-zero
+    rather than rendering as "no domains". With no Workspace the command lists
+    whatever earlier runs cached and makes no API call; ``--refresh`` bypasses
+    that cache for a configured Workspace.
 
     Where two custom domains could serve the same request Cloudsmith picks the
     one bound to the repository in hand, then ``primary`` over secondary, then
@@ -164,7 +164,7 @@ def list_domains(  # pylint: disable=too-many-arguments
 
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
-        "type": ..., "domain_type": ..., "org": ..., "repository": ...,
+        "type": ..., "domain_type": ..., "workspace": ..., "repository": ...,
         "primary": ..., "created_at": ...}], "meta": {"pagination": {...}}}
 
         "meta" is only present when the result is paginated (i.e. not
@@ -230,6 +230,7 @@ def list_domains(  # pylint: disable=too-many-arguments
             "format": domain.format_label,
             "type": "default",
             "domain_type": domain.domain_type.value,
+            "workspace": None,
             "org": None,
             "repository": None,
             "primary": True,
