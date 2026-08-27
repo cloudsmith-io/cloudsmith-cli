@@ -2,6 +2,7 @@
 
 import click
 
+from ...core import update_check
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
@@ -62,6 +63,8 @@ For issues/contributing: {get_github_website()}
 def main(ctx, opts, version):
     """Handle entrypoint to CLI."""
     # pylint: disable=unused-argument
+
+    update_check.arm(ctx, opts)
 
     if version:
         print_version(opts)
