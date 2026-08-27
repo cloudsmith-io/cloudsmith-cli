@@ -22,11 +22,22 @@ from ...decorators import (
 
 
 @click.command(context_settings={"ignore_unknown_options": True})
+@click.option(
+    "-r",
+    "--repo",
+    "--repository",
+    "repo",
+    required=True,
+    envvar="CLOUDSMITH_REPO",
+    help="The Cloudsmith repository the registry serves. Terraform does not "
+    "pass the repository to a credentials helper, so it must be configured "
+    "here (e.g. in the terraformrc args) to build a repository-scoped token.",
+)
 @click.argument("params", nargs=-1, type=click.UNPROCESSED)
 @common_cli_config_options
 @common_api_auth_options
 @resolve_credentials
-def terraform(opts, params):
+def terraform(opts, repo, params):
     """
     Terraform credentials helper for Cloudsmith registries.
 
@@ -62,20 +73,26 @@ def terraform(opts, params):
         0: Token returned, or the host is not a Cloudsmith registry
         1: Cloudsmith host with no credentials available, or an error occurred
 
-    The organisation and profile can be supplied with ``--org`` and
-    ``-P/--profile`` instead of environment variables.  The launcher forwards
-    Terraform's ``args`` verbatim, so a terraformrc block such as
-    ``credentials_helper "cloudsmith" { args = ["--org=acme", "-P", "ci"] }``
-    reaches this command as those options.
+    The organisation and repository are both required to build the
+    repository-scoped token (``{org}/{repo}/{token}``): the repository via
+    ``-r/--repo/--repository`` or ``CLOUDSMITH_REPO`` (Terraform does not tell
+    a credentials helper which repository is being requested), and the
+    organisation via ``--org``, ``CLOUDSMITH_ORG`` or ``org`` in ``config.ini``.
+    A Cloudsmith host requested without an organisation is a non-zero exit; a
+    non-Cloudsmith host still returns ``{}`` and exit 0. The profile can also be
+    supplied with ``-P/--profile``. The launcher forwards Terraform's ``args``
+    verbatim, so a terraformrc block such as ``credentials_helper "cloudsmith"
+    { args = ["--org=acme", "--repo=my-repo", "-P", "ci"] }`` reaches this
+    command as those options.
 
     \b
     Examples:
         # Direct usage
-        $ cloudsmith credential-helper terraform terraform.cloudsmith.io
+        $ cloudsmith credential-helper terraform --repo my-repo terraform.cloudsmith.io
         {"token": "..."}
 
         # Terraform's calling convention (verb + hostname)
-        $ cloudsmith credential-helper terraform get terraform.cloudsmith.io
+        $ cloudsmith credential-helper terraform --repo my-repo get terraform.cloudsmith.io
 
         # Select an org and profile explicitly (no env vars needed)
         $ cloudsmith credential-helper terraform --org=acme -P ci get terraform.cloudsmith.io
@@ -83,7 +100,8 @@ def terraform(opts, params):
     \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
+        CLOUDSMITH_ORG:     Organisation slug (required to scope the token)
+        CLOUDSMITH_REPO:    Repository slug the registry serves (required)
         CLOUDSMITH_PROFILE: Configuration profile to load (optional)
     """
     # Terraform passes "<verb> <hostname>"; direct/manual use may pass just the
@@ -107,6 +125,7 @@ def terraform(opts, params):
         credential=opts.credential,
         api_host=opts.api_host,
         org=opts.org,
+        repo=repo,
     )
 
     if stdout is not None:

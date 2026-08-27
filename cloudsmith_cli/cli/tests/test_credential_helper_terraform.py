@@ -26,6 +26,7 @@ from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
 from ...credential_helpers.terraform import wrapper
 from ...credential_helpers.terraform.runtime import (
+    _MISSING_ORG_MESSAGE,
     _REFUSAL_MESSAGE,
     execute,
     get_token,
@@ -103,11 +104,16 @@ def test_get_token_returns_none_for_a_foreign_host(credential):
 
 
 def test_execute_get_returns_token_object_for_cloudsmith_host(credential):
-    """Happy path: exit-0, ``{"token": ...}`` on stdout, no stderr."""
-    exit_code, stdout, stderr = execute("get", CLOUDSMITH_HOST, credential=credential)
+    """Happy path: exit-0, ``{"token": ...}`` on stdout, no stderr.
+
+    The token is scoped to the owner/repository as ``{owner}/{repo}/{token}``.
+    """
+    exit_code, stdout, stderr = execute(
+        "get", CLOUDSMITH_HOST, credential=credential, org="acme", repo="myrepo"
+    )
 
     assert (exit_code, stderr) == (0, None)
-    assert json.loads(stdout) == {"token": "k_abc"}
+    assert json.loads(stdout) == {"token": "acme/myrepo/k_abc"}
 
 
 def test_execute_get_returns_empty_object_for_foreign_host(credential):
@@ -126,9 +132,32 @@ def test_execute_get_refuses_cloudsmith_host_without_credentials():
         "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
         return_value=True,
     ):
-        exit_code, stdout, stderr = execute("get", CLOUDSMITH_HOST, credential=None)
+        exit_code, stdout, stderr = execute(
+            "get", CLOUDSMITH_HOST, credential=None, org="acme", repo="myrepo"
+        )
 
     assert (exit_code, stdout, stderr) == (1, None, _REFUSAL_MESSAGE)
+
+
+def test_execute_get_refuses_cloudsmith_host_without_an_org(credential):
+    """A Cloudsmith host needs an org to build the scoped token: exit 1 with an
+    actionable error on stderr, not a ``None/repo/token`` credential."""
+    exit_code, stdout, stderr = execute(
+        "get", CLOUDSMITH_HOST, credential=credential, org=None, repo="myrepo"
+    )
+
+    assert (exit_code, stdout, stderr) == (1, None, _MISSING_ORG_MESSAGE)
+
+
+def test_execute_get_returns_empty_object_for_foreign_host_without_an_org(credential):
+    """A foreign host still falls back cleanly (``{}``, exit 0) even with no org
+    — the org is only required on the Cloudsmith-host path."""
+    exit_code, stdout, stderr = execute(
+        "get", FOREIGN_HOST, credential=credential, org=None, repo="myrepo"
+    )
+
+    assert (exit_code, stderr) == (0, None)
+    assert json.loads(stdout) == {}
 
 
 def test_execute_get_refuses_when_no_hostname_provided(credential):
@@ -189,12 +218,12 @@ def test_cli_prints_token_object_for_cloudsmith_host(runner):
     """The click shim resolves the credential and prints the JSON token object."""
     result = runner.invoke(
         terraform,
-        args=["-k", "k_abc", CLOUDSMITH_HOST],
+        args=["-k", "k_abc", "--org", "acme", "--repo", "myrepo", CLOUDSMITH_HOST],
         catch_exceptions=False,
     )
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"token": "k_abc"}
+    assert json.loads(result.stdout) == {"token": "acme/myrepo/k_abc"}
 
 
 def test_cli_accepts_terraform_verb_and_hostname(runner):
@@ -206,19 +235,28 @@ def test_cli_accepts_terraform_verb_and_hostname(runner):
     """
     result = runner.invoke(
         terraform,
-        args=["-k", "k_abc", "get", CLOUDSMITH_HOST],
+        args=[
+            "-k",
+            "k_abc",
+            "--org",
+            "acme",
+            "--repo",
+            "myrepo",
+            "get",
+            CLOUDSMITH_HOST,
+        ],
         catch_exceptions=False,
     )
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"token": "k_abc"}
+    assert json.loads(result.stdout) == {"token": "acme/myrepo/k_abc"}
 
 
 def test_cli_rejects_store_verb(runner):
     """`store <hostname>` is answered with a non-zero exit and no token."""
     result = runner.invoke(
         terraform,
-        args=["-k", "k_abc", "store", CLOUDSMITH_HOST],
+        args=["-k", "k_abc", "--repo", "myrepo", "store", CLOUDSMITH_HOST],
         catch_exceptions=False,
     )
 
@@ -230,13 +268,13 @@ def test_cli_reads_hostname_from_stdin_when_no_argument(runner):
     """Omitting the hostname argument falls back to reading it from stdin."""
     result = runner.invoke(
         terraform,
-        args=["-k", "k_abc"],
+        args=["-k", "k_abc", "--org", "acme", "--repo", "myrepo"],
         input=f"{CLOUDSMITH_HOST}\n",
         catch_exceptions=False,
     )
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"token": "k_abc"}
+    assert json.loads(result.stdout) == {"token": "acme/myrepo/k_abc"}
 
 
 def test_cli_accepts_org_and_profile_flags(runner):
@@ -251,19 +289,105 @@ def test_cli_accepts_org_and_profile_flags(runner):
     ) as mock_execute:
         result = runner.invoke(
             terraform,
-            args=["-k", "k_abc", "--org=acme", "-P", "ci", CLOUDSMITH_HOST],
+            args=[
+                "-k",
+                "k_abc",
+                "--repo",
+                "myrepo",
+                "--org=acme",
+                "-P",
+                "ci",
+                CLOUDSMITH_HOST,
+            ],
             catch_exceptions=False,
         )
 
     assert result.exit_code == 0
     assert mock_execute.call_args.kwargs["org"] == "acme"
+    assert mock_execute.call_args.kwargs["repo"] == "myrepo"
+
+
+@pytest.mark.parametrize(
+    "repo_flag",
+    [
+        ["-r", "myrepo"],
+        ["--repo", "myrepo"],
+        ["--repository", "myrepo"],
+        ["--repo=myrepo"],
+    ],
+)
+def test_cli_accepts_repo_flag_forms(runner, repo_flag):
+    """`-r/--repo/--repository` (and the `=` form) all parse and satisfy the
+    required repository option."""
+    result = runner.invoke(
+        terraform,
+        args=["-k", "k_abc", "--org", "acme", *repo_flag, "get", CLOUDSMITH_HOST],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"token": "acme/myrepo/k_abc"}
+
+
+def test_cli_repo_is_required(runner):
+    """The repository is required: omitting it is a usage error, not a token.
+
+    Terraform never tells the helper which repository is requested, so the
+    command must fail fast rather than emit a credential for an unknown
+    repository.
+    """
+    result = runner.invoke(
+        terraform,
+        args=["-k", "k_abc", CLOUDSMITH_HOST],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code != 0
+    assert "repo" in result.output.lower()
+
+
+def test_cli_org_is_required_for_a_cloudsmith_host(runner):
+    """A Cloudsmith host without an org is a non-zero exit, not a token.
+
+    The token is scoped as ``{org}/{repo}/{token}``, so an org must be
+    configured (``--org``/``CLOUDSMITH_ORG``/``org`` in config.ini) before a
+    credential can be emitted.
+    """
+    with patch(
+        "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+        return_value=True,
+    ):
+        result = runner.invoke(
+            terraform,
+            args=["-k", "k_abc", "--repo", "myrepo", "get", CLOUDSMITH_HOST],
+            env={"CLOUDSMITH_ORG": ""},
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 1
+    # No token must leak on stdout on the refusal path.
+    assert result.stdout == ""
+    assert "organisation" in result.output.lower()
+
+
+def test_cli_repo_from_env_var(runner):
+    """CLOUDSMITH_REPO satisfies the required repository without the flag."""
+    result = runner.invoke(
+        terraform,
+        args=["-k", "k_abc", "--org", "acme", "get", CLOUDSMITH_HOST],
+        env={"CLOUDSMITH_REPO": "envrepo"},
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"token": "acme/envrepo/k_abc"}
 
 
 def test_cli_prints_empty_object_for_foreign_host(runner):
     """A non-Cloudsmith host is exit-0 with ``{}`` and no leaked token."""
     result = runner.invoke(
         terraform,
-        args=["-k", "k_abc", FOREIGN_HOST],
+        args=["-k", "k_abc", "--repo", "myrepo", FOREIGN_HOST],
         catch_exceptions=False,
     )
 
@@ -289,7 +413,7 @@ def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
     ):
         result = runner.invoke(
             terraform,
-            args=[CLOUDSMITH_HOST],
+            args=["--repo", "myrepo", CLOUDSMITH_HOST],
             env={"CLOUDSMITH_API_KEY": ""},
             catch_exceptions=False,
         )

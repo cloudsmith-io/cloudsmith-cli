@@ -9,6 +9,7 @@ that the resolved ``--org``/``-P`` land in the terraformrc ``args`` list.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import click.testing
@@ -247,6 +248,59 @@ def test_cli_install_bakes_org_and_profile_into_args(runner, tmp_path, monkeypat
     assert 'args = ["--org", "acme", "-P", "ci"]' in rc
 
 
+@pytest.mark.parametrize(
+    "repo_flag",
+    [
+        ["-r", "my-repo"],
+        ["--repo", "my-repo"],
+        ["--repository", "my-repo"],
+        ["--repo=my-repo"],
+    ],
+)
+def test_cli_install_bakes_repo_into_args(runner, tmp_path, monkeypatch, repo_flag):
+    """`install terraform --repo` writes `-r <repo>` into the terraformrc args."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--org=acme", *repo_flag, "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert 'args = ["--org", "acme", "-r", "my-repo"]' in rc
+
+
+def test_cli_install_with_repo_suppresses_next_steps(runner, tmp_path, monkeypatch):
+    """A baked-in repository means the repository guidance is not printed."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "--org=acme",
+            "--repo",
+            "my-repo",
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Next steps" not in result.output
+    assert "CLOUDSMITH_REPO" not in result.output
+
+
 def test_cli_install_conflict_is_clean_error(runner, tmp_path, monkeypatch):
     """A pre-existing foreign credentials_helper yields a ClickException, not a traceback."""
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
@@ -268,3 +322,60 @@ def test_cli_install_conflict_is_clean_error(runner, tmp_path, monkeypatch):
     # The launcher must not have been written when the terraformrc conflicts.
     launcher = _launcher(tmp_path)
     assert not launcher.exists()
+
+
+def test_cli_install_prints_repo_next_steps(runner, tmp_path, monkeypatch):
+    """install terraform prints guidance about the required repository."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--org=acme", "-P", "ci", "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    out = result.output
+    assert "Next steps" in out
+    assert "CLOUDSMITH_REPO" in out
+    assert "--repo" in out
+
+
+def test_cli_install_repo_next_steps_in_json(runner, tmp_path, monkeypatch):
+    """The repository guidance is surfaced as a next_steps field in JSON mode."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--no-discover", "-k", "k_flag", "-F", "json"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    next_steps = payload["data"]["next_steps"]
+    assert next_steps
+    assert any("CLOUDSMITH_REPO" in line for line in next_steps)
+
+
+def test_cli_install_docker_has_no_next_steps(runner, tmp_path, monkeypatch):
+    """Non-terraform helpers do not emit the terraform repository guidance."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["docker", "--no-discover", "-k", "k_flag", "-F", "json"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["data"]["next_steps"] == []
