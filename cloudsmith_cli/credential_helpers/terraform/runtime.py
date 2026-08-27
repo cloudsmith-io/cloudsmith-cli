@@ -43,6 +43,13 @@ _REFUSAL_MESSAGE = (
     "Verify current authentication with `cloudsmith whoami --verbose`."
 )
 
+_MISSING_ORG_MESSAGE = (
+    "Error: No organisation configured. "
+    "Provide the Cloudsmith organisation via the --org flag, the "
+    "CLOUDSMITH_ORG environment variable, or the 'org' key in config.ini so "
+    "the token can be scoped as '{org}/{repo}/{token}'."
+)
+
 
 def get_token(hostname, credential=None, api_host=None, org=None):
     """
@@ -77,7 +84,7 @@ def get_token(hostname, credential=None, api_host=None, org=None):
 
 
 def _execute_get(
-    hostname, credential, api_host, org
+    hostname, credential, api_host, org, repo
 ) -> tuple[int, str | None, str | None]:
     """Handle the 'get' verb of the Terraform credentials-helper protocol.
 
@@ -103,15 +110,24 @@ def _execute_get(
         # its own credential sources instead of treating this as an error.
         return (0, "{}", None)
 
+    # A Cloudsmith host requires an org to build the repository-scoped token.
+    # This is checked only after the domain match so foreign hosts still fall
+    # back cleanly via the empty object above.
+    if not org:
+        return (1, None, _MISSING_ORG_MESSAGE)
+
     token = get_token(hostname, credential=credential, api_host=api_host, org=org)
     if not token:
         return (1, None, _REFUSAL_MESSAGE)
 
-    return (0, json.dumps({"token": token}), None)
+    # Prefix the token with the org and repository so the registry can scope
+    # the credential to a single repository: "{org}/{repo}/{token}".
+    scoped_token = f"{org}/{repo}/{token}"
+    return (0, json.dumps({"token": scoped_token}), None)
 
 
 def execute(
-    verb, hostname, credential=None, api_host=None, org=None
+    verb, hostname, credential=None, api_host=None, org=None, repo=None
 ) -> tuple[int, str | None, str | None]:
     """
     Execute a Terraform credentials-helper protocol verb.
@@ -129,7 +145,7 @@ def execute(
     """
     if verb == "get":
         try:
-            return _execute_get(hostname, credential, api_host, org)
+            return _execute_get(hostname, credential, api_host, org, repo)
         except Exception as exc:  # pylint: disable=broad-except
             # Protocol boundary: a credentials helper must never crash
             # `terraform init` with a traceback.  Covers network/SDK errors
