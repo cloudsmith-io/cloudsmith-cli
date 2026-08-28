@@ -73,17 +73,19 @@ def terraform(opts, repo, params):
         0: Token returned, or the host is not a Cloudsmith registry
         1: Cloudsmith host with no credentials available, or an error occurred
 
-    The organisation and repository are both required to build the
-    repository-scoped token (``{org}/{repo}/{token}``): the repository via
-    ``-r/--repo/--repository`` or ``CLOUDSMITH_REPO`` (Terraform does not tell
-    a credentials helper which repository is being requested), and the
-    organisation via ``--org``, ``CLOUDSMITH_ORG`` or ``org`` in ``config.ini``.
-    A Cloudsmith host requested without an organisation is a non-zero exit; a
-    non-Cloudsmith host still returns ``{}`` and exit 0. The profile can also be
-    supplied with ``-P/--profile``. The launcher forwards Terraform's ``args``
-    verbatim, so a terraformrc block such as ``credentials_helper "cloudsmith"
-    { args = ["--org=acme", "--repo=my-repo", "-P", "ci"] }`` reaches this
-    command as those options.
+    The token is scoped to the repository. On a standard
+    ``*.cloudsmith.io``/``*.cloudsmith.com`` host it is ``{org}/{repo}/{token}``
+    and the organisation is required (``--org``, ``CLOUDSMITH_ORG`` or ``org``
+    in ``config.ini``); a standard host requested without an organisation is a
+    non-zero exit. On a custom domain — which is already bound to a single
+    organisation — the org is omitted and the token is ``{repo}/{token}``. The
+    repository is always required (``-r/--repo/--repository`` or
+    ``CLOUDSMITH_REPO``): Terraform does not tell a credentials helper which
+    repository is being requested. A non-Cloudsmith host still returns ``{}``
+    and exit 0. The profile can also be supplied with ``-P/--profile``. The
+    launcher forwards Terraform's ``args`` verbatim, so a terraformrc block such
+    as ``credentials_helper "cloudsmith" { args = ["--org=acme",
+    "--repo=my-repo", "-P", "ci"] }`` reaches this command as those options.
 
     \b
     Examples:

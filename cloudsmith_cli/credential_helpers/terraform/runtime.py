@@ -32,7 +32,7 @@ import json
 import logging
 
 from ..backends import BackendKind
-from ..common import is_cloudsmith_domain
+from ..common import is_cloudsmith_domain, is_standard_cloudsmith_domain
 
 logger = logging.getLogger(__name__)
 
@@ -110,19 +110,26 @@ def _execute_get(
         # its own credential sources instead of treating this as an error.
         return (0, "{}", None)
 
-    # A Cloudsmith host requires an org to build the repository-scoped token.
-    # This is checked only after the domain match so foreign hosts still fall
-    # back cleanly via the empty object above.
-    if not org:
+    # Standard *.cloudsmith.io/.com hosts carry the org in the token; a custom
+    # domain is already bound to a single organisation, so its token must omit
+    # the org and be scoped as "{repo}/{token}" instead. The org is therefore
+    # only required on the standard-domain path (checked after the domain match
+    # so foreign hosts still fall back cleanly via the empty object above).
+    standard_domain = is_standard_cloudsmith_domain(hostname)
+    if standard_domain and not org:
         return (1, None, _MISSING_ORG_MESSAGE)
 
     token = get_token(hostname, credential=credential, api_host=api_host, org=org)
     if not token:
         return (1, None, _REFUSAL_MESSAGE)
 
-    # Prefix the token with the org and repository so the registry can scope
-    # the credential to a single repository: "{org}/{repo}/{token}".
-    scoped_token = f"{org}/{repo}/{token}"
+    # Scope the token to a single repository. Standard domains also carry the
+    # org ("{org}/{repo}/{token}"); custom domains are already org-bound, so
+    # they omit it ("{repo}/{token}").
+    if standard_domain:
+        scoped_token = f"{org}/{repo}/{token}"
+    else:
+        scoped_token = f"{repo}/{token}"
     return (0, json.dumps({"token": scoped_token}), None)
 
 

@@ -116,6 +116,44 @@ def test_execute_get_returns_token_object_for_cloudsmith_host(credential):
     assert json.loads(stdout) == {"token": "acme/myrepo/k_abc"}
 
 
+def test_execute_get_omits_org_from_token_for_a_custom_domain(credential):
+    """A custom domain is already bound to one organisation, so its token must
+    omit the org and be scoped as ``{repo}/{token}`` (not ``{org}/{repo}/...``)."""
+    with patch(
+        "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+        return_value=True,
+    ):
+        exit_code, stdout, stderr = execute(
+            "get",
+            "https://tf.acme.com/",
+            credential=credential,
+            org="acme",
+            repo="myrepo",
+        )
+
+    assert (exit_code, stderr) == (0, None)
+    assert json.loads(stdout) == {"token": "myrepo/k_abc"}
+
+
+def test_execute_get_custom_domain_does_not_require_an_org_in_the_token(credential):
+    """The org is only needed to *resolve* a custom domain, never in its token:
+    once matched, a custom-domain token is ``{repo}/{token}`` with no org."""
+    with patch(
+        "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+        return_value=True,
+    ):
+        exit_code, stdout, stderr = execute(
+            "get",
+            "https://tf.acme.com/",
+            credential=credential,
+            org=None,
+            repo="myrepo",
+        )
+
+    assert (exit_code, stderr) == (0, None)
+    assert json.loads(stdout) == {"token": "myrepo/k_abc"}
+
+
 def test_execute_get_returns_empty_object_for_foreign_host(credential):
     """A non-Cloudsmith host is not ours to answer: emit ``{}`` and exit 0 so
     Terraform falls back to its own credential sources."""

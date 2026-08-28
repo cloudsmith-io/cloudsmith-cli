@@ -46,6 +46,28 @@ def extract_hostname(url):
     return hostname
 
 
+def is_standard_cloudsmith_domain(url):
+    """
+    Check if a URL points to a standard Cloudsmith domain.
+
+    Standard domains are the ``*.cloudsmith.io``/``*.cloudsmith.com`` registries
+    (and the bare apex domains). Custom domains configured for an organisation
+    are *not* standard domains.
+
+    Args:
+        url: URL or hostname to check
+
+    Returns:
+        bool: True if this is a standard Cloudsmith domain
+    """
+    hostname = extract_hostname(url)
+    if not hostname:
+        return False
+    return hostname in ("cloudsmith.io", "cloudsmith.com") or hostname.endswith(
+        (".cloudsmith.io", ".cloudsmith.com")
+    )
+
+
 def is_cloudsmith_domain(
     url, credential=None, api_host=None, backend_kind=None, org=None
 ):
@@ -74,9 +96,7 @@ def is_cloudsmith_domain(
         return False
 
     # Standard Cloudsmith domains — no auth needed, always match regardless of backend_kind
-    if hostname in ("cloudsmith.io", "cloudsmith.com") or hostname.endswith(
-        (".cloudsmith.io", ".cloudsmith.com")
-    ):
+    if is_standard_cloudsmith_domain(hostname):
         return True
 
     # Custom domains require org + auth
