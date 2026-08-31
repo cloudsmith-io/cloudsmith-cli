@@ -9,8 +9,7 @@ credential chain.
 Unlike Docker/Cargo/pnpm, Terraform does **not** search ``PATH`` for credentials
 helpers — it only looks in its default plugin locations. The launcher is
 therefore written into ``~/.terraform.d/plugins`` by default (override with
-``--bin-dir``) rather than a PATH directory, and no "not on PATH" warning is
-emitted.
+``--bin-dir``) rather than a PATH directory.
 """
 
 from __future__ import annotations
