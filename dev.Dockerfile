@@ -5,7 +5,7 @@ FROM ${UV_IMAGE} AS build
 
 WORKDIR /root/cloudsmith-cli
 
-RUN apk add --no-cache binutils=2.45.1-r0
+RUN apk add --no-cache binutils
 
 COPY bin bin
 COPY cloudsmith_cli cloudsmith_cli
