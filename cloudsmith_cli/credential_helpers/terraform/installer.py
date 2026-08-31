@@ -18,13 +18,9 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from ..launchers import remove_launcher, write_launcher
 from . import terraformrc
-
-if TYPE_CHECKING:
-    from ...core.credentials.models import CredentialResult
 
 logger = logging.getLogger(__name__)
 
@@ -118,14 +114,8 @@ class TerraformInstaller:
         helper_args: tuple[str, ...] = (),
         dry_run: bool = False,
         # Accepted for a uniform installer interface; Terraform's helper is
-        # host-agnostic (Terraform passes the hostname at call time), so there
-        # is nothing to discover or pin per domain.
-        domains: tuple[str, ...] = (),
-        discover: bool = True,
-        refresh: bool = False,
-        org: str | None = None,
-        credential: CredentialResult | None = None,
-        api_host: str | None = None,
+        # host-agnostic (Terraform passes the hostname at call time).
+        **kwargs,
     ) -> list[str]:
         """Install the Terraform credentials helper.
 
