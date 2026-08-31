@@ -3,8 +3,8 @@
 Terraform credentials helper command.
 
 Implements the ``get`` verb of Terraform's credentials-helper protocol for
-Cloudsmith registries.  The ``terraform-credentials-cloudsmith`` wrapper binary
-delegates here.
+Cloudsmith registries.  The installed ``terraform-credentials-cloudsmith``
+launcher forwards Terraform's invocation to this command.
 
 See: https://developer.hashicorp.com/terraform/internals/credentials-helpers
 """
