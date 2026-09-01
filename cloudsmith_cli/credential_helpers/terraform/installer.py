@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -23,6 +24,17 @@ from ..launchers import remove_launcher, write_launcher
 from . import terraformrc
 
 logger = logging.getLogger(__name__)
+
+
+class TerraformHelperExeNotFound(Exception):
+    """Raised when the real ``terraform-credentials-cloudsmith`` exe is missing.
+
+    On Windows Terraform ignores ``.cmd`` shims and only runs a real
+    executable, so the installer must copy an actual
+    ``terraform-credentials-cloudsmith.exe`` into the plugin directory. When
+    neither the frozen bundle nor ``PATH`` provides one, installation cannot
+    proceed and this is raised with actionable guidance.
+    """
 
 
 def _terraformrc_path() -> Path:
@@ -45,8 +57,9 @@ def _terraformrc_path() -> Path:
 def _default_plugin_dir() -> Path:
     """Return Terraform's conventional user plugin directory.
 
-    ``~/.terraform.d/plugins`` on all platforms — the best-known of Terraform's
-    default credentials-helper search locations and writable without elevation.
+    ``~/.terraform.d/plugins`` on POSIX and ``%APPDATA%\\terraform.d\\plugins``
+    on Windows — the best-known of Terraform's default credentials-helper search
+    locations and writable without elevation.
     """
     if os.name == "nt":
         appdata = os.environ.get("APPDATA")
@@ -102,11 +115,77 @@ class TerraformInstaller:
             return Path(bin_dir).resolve()
         return _default_plugin_dir()
 
+    @staticmethod
+    def _is_windows() -> bool:
+        """Return True on Windows.
+
+        A single seam for the platform check so tests can drive the Windows
+        launcher path without patching ``os.name`` (which makes ``pathlib``
+        build a ``WindowsPath`` and raise on a POSIX host).
+        """
+        return os.name == "nt"
+
     def _plugin_path(self, target_dir: Path) -> Path:
-        """Return the launcher path within *target_dir* for this platform."""
-        if os.name == "nt":
-            return target_dir / f"{self.LAUNCHER_NAME}.cmd"
+        """Return the launcher path within *target_dir* for this platform.
+
+        On Windows this is a real ``.exe`` (Terraform ignores ``.cmd`` shims and
+        only executes a genuine executable); elsewhere it is the bare shell
+        launcher written by :func:`write_launcher`.
+        """
+        if self._is_windows():
+            return target_dir / f"{self.LAUNCHER_NAME}.exe"
         return target_dir / self.LAUNCHER_NAME
+
+    @classmethod
+    def _resolve_helper_exe(cls) -> Path | None:
+        """Locate the real ``terraform-credentials-cloudsmith`` executable.
+
+        Windows Terraform runs a genuine ``.exe`` rather than a ``.cmd`` shim,
+        so the installer copies a real executable into the plugin directory.
+        Two distributions provide one:
+
+        * a frozen PyInstaller bundle ships it next to ``cloudsmith.exe`` (the
+          second ``EXE`` target in the spec);
+        * a ``pip`` install has ``[project.scripts]`` generate it into the same
+          scripts directory as ``cloudsmith`` — found via ``PATH``.
+
+        Returns the resolved path, or ``None`` when no real executable can be
+        located.
+        """
+        exe_name = (
+            f"{cls.LAUNCHER_NAME}.exe" if cls._is_windows() else cls.LAUNCHER_NAME
+        )
+
+        if getattr(sys, "frozen", False):
+            candidate = Path(sys.executable).resolve().parent / exe_name
+            if candidate.exists():
+                return candidate
+
+        found = shutil.which(cls.LAUNCHER_NAME)
+        if found:
+            return Path(found).resolve()
+
+        return None
+
+    def _install_exe_launcher(self, target_dir: Path) -> Path:
+        """Copy the real helper executable into *target_dir* (Windows path).
+
+        Raises :class:`TerraformHelperExeNotFound` when no genuine executable is
+        available to copy.
+        """
+        source = self._resolve_helper_exe()
+        if source is None:
+            raise TerraformHelperExeNotFound(
+                "Could not locate a real 'terraform-credentials-cloudsmith' "
+                "executable to install. Terraform on Windows requires a genuine "
+                ".exe (it ignores .cmd shims). Install the Cloudsmith CLI via a "
+                "packaged build or ensure 'terraform-credentials-cloudsmith' is "
+                "on PATH, then retry."
+            )
+        target_dir.mkdir(parents=True, exist_ok=True)
+        dest = self._plugin_path(target_dir)
+        shutil.copy2(source, dest)
+        return dest
 
     # ------------------------------------------------------------------
     # install / uninstall / status
@@ -175,10 +254,15 @@ class TerraformInstaller:
                 )
             return actions
 
-        # Real install: launcher first, then terraformrc.
-        written = write_launcher(
-            target_dir, self.LAUNCHER_NAME, self._resolve_target_cmd()
-        )
+        # Real install: launcher first, then terraformrc. On Windows Terraform
+        # only executes a genuine .exe, so copy the real helper executable;
+        # elsewhere a lightweight shell shim is sufficient.
+        if self._is_windows():
+            written = self._install_exe_launcher(target_dir)
+        else:
+            written = write_launcher(
+                target_dir, self.LAUNCHER_NAME, self._resolve_target_cmd()
+            )
         actions.append(f"wrote launcher {written}")
 
         if rc_changed:
@@ -242,7 +326,15 @@ class TerraformInstaller:
                 )
             return actions
 
-        removed = remove_launcher(target_dir, self.LAUNCHER_NAME)
+        # On Windows the launcher is a real .exe at `launcher_path`; elsewhere
+        # `remove_launcher` handles the shell shim name. Remove the exact path
+        # we would have installed so the two stay in lockstep.
+        if self._is_windows():
+            removed = launcher_path.exists()
+            if removed:
+                launcher_path.unlink()
+        else:
+            removed = remove_launcher(target_dir, self.LAUNCHER_NAME)
         if removed:
             actions.append(f"removed launcher {launcher_path}")
         else:
