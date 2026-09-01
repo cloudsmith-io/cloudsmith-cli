@@ -1,17 +1,18 @@
 ARG ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+ARG UV_IMAGE=astral/uv:0.12.7-alpine3.23@sha256:d0d7c7a05e4d9270b97392da2204371581b431287f2ae959e4aef715c86f9efc
 
-FROM astral/uv:alpine AS build
+FROM ${UV_IMAGE} AS build
 
 WORKDIR /root/cloudsmith-cli
 
 RUN apk add --no-cache binutils
 
-ADD bin bin
-ADD cloudsmith_cli cloudsmith_cli
-ADD packaging packaging
-ADD pyproject.toml pyproject.toml
-ADD uv.lock uv.lock
-ADD VERSION VERSION
+COPY bin bin
+COPY cloudsmith_cli cloudsmith_cli
+COPY packaging packaging
+COPY pyproject.toml pyproject.toml
+COPY uv.lock uv.lock
+COPY VERSION VERSION
 
 ARG CLOUDSMITH_CLI_VERSION
 ARG PYTHON_VERSION=3.14
