@@ -11,6 +11,20 @@ def get_help_website():
     return "https://docs.cloudsmith.com/developer-tools/cli"
 
 
+def should_use_color(env: dict[str, str]) -> bool:
+    if env.get("NO_COLOR"):
+        return False
+    if env.get("CS_FORCE_TTY") == "true":
+        return True
+    if env.get("TERM") == "dumb":
+        return False
+    return True
+
+
+def is_interactive(env: dict[str, str]) -> bool:
+    return True
+
+
 def get_github_website():
     """Get the URL for the GitHub project."""
     return "https://github.com/cloudsmith-io/cloudsmith-cli"
