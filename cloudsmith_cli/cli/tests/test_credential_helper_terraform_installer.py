@@ -15,8 +15,11 @@ from pathlib import Path
 import click.testing
 import pytest
 
-from ...credential_helpers.terraform import terraformrc
-from ...credential_helpers.terraform.installer import TerraformInstaller
+from ...credential_helpers.terraform import installer as installer_mod, terraformrc
+from ...credential_helpers.terraform.installer import (
+    TerraformHelperExeNotFound,
+    TerraformInstaller,
+)
 
 LAUNCHER = "terraform-credentials-cloudsmith"
 
@@ -411,3 +414,111 @@ def test_conflict_error_uses_resolved_rc_path(tmp_path, monkeypatch):
 
     assert str(rc) in str(exc.value)
     assert "~/.terraformrc" not in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# 4. Windows launcher — a real .exe, not a .cmd (Terraform ignores .cmd)
+# ---------------------------------------------------------------------------
+
+
+def _force_windows(monkeypatch):
+    """Make the installer take its Windows branch without patching os.name.
+
+    Patching ``os.name`` would make ``pathlib`` build a ``WindowsPath`` and
+    raise on a POSIX host (even inside pytest's own reporting), so the installer
+    exposes ``_is_windows()`` as the single seam to override instead.
+    """
+    monkeypatch.setattr(TerraformInstaller, "_is_windows", staticmethod(lambda: True))
+
+
+def test_plugin_path_is_exe_on_windows(monkeypatch, tmp_path):
+    """On Windows the launcher is a real .exe (Terraform ignores .cmd shims)."""
+    _force_windows(monkeypatch)
+    installer = TerraformInstaller()
+    path = installer._plugin_path(tmp_path)
+    assert path.name == f"{LAUNCHER}.exe"
+
+
+def test_resolve_helper_exe_prefers_frozen_sibling(monkeypatch, tmp_path):
+    """When frozen, the sibling exe next to sys.executable is used."""
+    sibling = tmp_path / "terraform-credentials-cloudsmith"
+    sibling.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(installer_mod.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(
+        installer_mod.sys, "executable", str(tmp_path / "cloudsmith"), raising=False
+    )
+    # PATH lookup must not be consulted when the frozen sibling exists.
+    monkeypatch.setattr(installer_mod.shutil, "which", lambda _n: None)
+
+    assert TerraformInstaller._resolve_helper_exe() == sibling.resolve()
+
+
+def test_resolve_helper_exe_falls_back_to_path(monkeypatch, tmp_path):
+    """A pip install resolves the [project.scripts]-generated exe via PATH."""
+    on_path = tmp_path / "terraform-credentials-cloudsmith"
+    on_path.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(installer_mod.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(installer_mod.shutil, "which", lambda _n: str(on_path))
+
+    assert TerraformInstaller._resolve_helper_exe() == on_path.resolve()
+
+
+def test_windows_install_copies_real_exe(monkeypatch, tmp_path):
+    """On Windows, install copies a genuine exe into the plugin dir."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    _force_windows(monkeypatch)
+
+    source = tmp_path / "src" / "terraform-credentials-cloudsmith.exe"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"MZfake-pe")
+    monkeypatch.setattr(
+        TerraformInstaller, "_resolve_helper_exe", classmethod(lambda cls: source)
+    )
+
+    installer = TerraformInstaller()
+    custom = tmp_path / "plugins"
+    installer.install(bin_dir=str(custom), helper_args=("--org", "acme"))
+
+    dest = custom / f"{LAUNCHER}.exe"
+    assert dest.exists()
+    assert dest.read_bytes() == b"MZfake-pe"
+
+
+def test_windows_install_errors_when_no_exe(monkeypatch, tmp_path):
+    """A clean error (not a traceback) when no real exe can be located."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    _force_windows(monkeypatch)
+    monkeypatch.setattr(
+        TerraformInstaller, "_resolve_helper_exe", classmethod(lambda cls: None)
+    )
+
+    installer = TerraformInstaller()
+    with pytest.raises(TerraformHelperExeNotFound):
+        installer.install(bin_dir=str(tmp_path / "plugins"))
+
+    # The terraformrc must not have been written when the launcher can't be.
+    assert not (tmp_path / ".terraformrc").exists()
+
+
+def test_windows_uninstall_removes_exe(monkeypatch, tmp_path):
+    """Uninstall removes the .exe launcher on Windows."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    _force_windows(monkeypatch)
+
+    source = tmp_path / "terraform-credentials-cloudsmith.exe"
+    source.write_bytes(b"MZfake-pe")
+    monkeypatch.setattr(
+        TerraformInstaller, "_resolve_helper_exe", classmethod(lambda cls: source)
+    )
+
+    installer = TerraformInstaller()
+    custom = tmp_path / "plugins"
+    installer.install(bin_dir=str(custom))
+    dest = custom / f"{LAUNCHER}.exe"
+    assert dest.exists()
+
+    installer.uninstall(bin_dir=str(custom))
+    assert not dest.exists()
