@@ -40,10 +40,13 @@ class TerraformrcConflictError(Exception):
     a second one, and we must not overwrite someone else's.
     """
 
-    def __init__(self, existing_name: str) -> None:
+    def __init__(
+        self, existing_name: str, rc_path: str = "the Terraform CLI config"
+    ) -> None:
         self.existing_name = existing_name
+        self.rc_path = rc_path
         super().__init__(
-            "~/.terraformrc already configures a different credentials helper "
+            f"{rc_path} already configures a different credentials helper "
             f"({existing_name!r}). Terraform allows only one credentials_helper "
             "block; remove the existing one before installing the Cloudsmith "
             "helper."
@@ -70,7 +73,9 @@ def find_block(text: str) -> re.Match[str] | None:
 
 
 def add_or_update_block(
-    text: str, args: list[str] | tuple[str, ...] = ()
+    text: str,
+    args: list[str] | tuple[str, ...] = (),
+    rc_path: str | None = None,
 ) -> tuple[str, bool]:
     """Return *text* with the Cloudsmith credentials_helper block installed.
 
@@ -81,6 +86,8 @@ def add_or_update_block(
     Args:
         text: Current terraformrc content ("" when the file does not exist).
         args: Values for the block's ``args`` list.
+        rc_path: The resolved path of the config file, used only to make the
+            conflict error message platform-accurate. Optional.
 
     Returns:
         A ``(new_text, changed)`` tuple; *changed* is False when the file
@@ -100,6 +107,8 @@ def add_or_update_block(
         return new_text, new_text != text
 
     if match.group("name") != HELPER_NAME:
+        if rc_path is not None:
+            raise TerraformrcConflictError(match.group("name"), rc_path)
         raise TerraformrcConflictError(match.group("name"))
 
     # Replace the existing Cloudsmith block in place.

@@ -157,7 +157,9 @@ class TerraformInstaller:
 
         # Compute the terraformrc change up front so a conflict aborts before we
         # write the launcher — leaving no orphan behind.
-        new_rc, rc_changed = terraformrc.add_or_update_block(existing, helper_args)
+        new_rc, rc_changed = terraformrc.add_or_update_block(
+            existing, helper_args, rc_path=str(rc_path)
+        )
 
         if dry_run:
             actions.append(f"would write launcher {launcher_path}")

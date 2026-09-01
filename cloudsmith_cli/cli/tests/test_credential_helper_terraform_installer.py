@@ -379,3 +379,35 @@ def test_cli_install_docker_has_no_next_steps(runner, tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["data"]["next_steps"] == []
+
+
+def test_next_steps_uses_resolved_rc_path(tmp_path, monkeypatch):
+    """The repository guidance names the resolved config file, not a hardcoded path.
+
+    Driven via ``TF_CLI_CONFIG_FILE`` so the assertion holds on every platform
+    (on Windows the default would be ``%APPDATA%\\terraform.rc``, not
+    ``~/.terraformrc`` — the bug this guards against).
+    """
+    rc = tmp_path / "custom.tfrc"
+    monkeypatch.setenv("TF_CLI_CONFIG_FILE", str(rc))
+
+    from ...cli.commands.credential_helper.manage import _terraform_next_steps
+
+    steps = _terraform_next_steps(())
+    assert steps
+    assert any(str(rc) in line for line in steps)
+    assert not any("~/.terraformrc" in line for line in steps)
+
+
+def test_conflict_error_uses_resolved_rc_path(tmp_path, monkeypatch):
+    """A foreign-helper conflict names the resolved config file, not ~/.terraformrc."""
+    rc = tmp_path / "custom.tfrc"
+    rc.write_text('credentials_helper "vault" {\n  args = []\n}\n', encoding="utf-8")
+    monkeypatch.setenv("TF_CLI_CONFIG_FILE", str(rc))
+
+    installer = TerraformInstaller()
+    with pytest.raises(terraformrc.TerraformrcConflictError) as exc:
+        installer.install(helper_args=("--org", "acme"))
+
+    assert str(rc) in str(exc.value)
+    assert "~/.terraformrc" not in str(exc.value)
