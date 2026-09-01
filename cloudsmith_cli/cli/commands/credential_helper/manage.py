@@ -15,7 +15,10 @@ import click
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
-from cloudsmith_cli.credential_helpers.terraform.installer import TerraformInstaller
+from cloudsmith_cli.credential_helpers.terraform.installer import (
+    TerraformInstaller,
+    _terraformrc_path,
+)
 from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
@@ -106,6 +109,7 @@ def _terraform_next_steps(helper_args: tuple[str, ...]) -> list[str]:
     )
     if has_repo:
         return []
+    rc_path = _terraformrc_path()
     return [
         (
             "Next steps: the Terraform helper requires a repository, which"
@@ -117,7 +121,7 @@ def _terraform_next_steps(helper_args: tuple[str, ...]) -> list[str]:
             " `terraform init`, or"
         ),
         (
-            "  - add it to the args in ~/.terraformrc, e.g."
+            f"  - add it to the args in {rc_path}, e.g."
             ' args = ["--repo", "<your-repo>", ...].'
         ),
     ]
