@@ -48,6 +48,11 @@ def _default_plugin_dir() -> Path:
     ``~/.terraform.d/plugins`` on all platforms — the best-known of Terraform's
     default credentials-helper search locations and writable without elevation.
     """
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        base = Path(appdata) if appdata else Path.home()
+        return base / "terraform.d" / "plugins"
+
     return Path.home() / ".terraform.d" / "plugins"
 
 
@@ -86,7 +91,7 @@ class TerraformInstaller:
             return f'"{sys.executable}" credential-helper terraform'
         return cls.TARGET_CMD
 
-    def _resolve_bin_dir(self, bin_dir: str | None) -> Path:
+    def _resolve_plugin_dir(self, bin_dir: str | None) -> Path:
         """Return the directory to install the launcher into.
 
         Defaults to Terraform's user plugin directory (Terraform ignores
@@ -97,7 +102,7 @@ class TerraformInstaller:
             return Path(bin_dir).resolve()
         return _default_plugin_dir()
 
-    def _launcher_path(self, target_dir: Path) -> Path:
+    def _plugin_path(self, target_dir: Path) -> Path:
         """Return the launcher path within *target_dir* for this platform."""
         if os.name == "nt":
             return target_dir / f"{self.LAUNCHER_NAME}.cmd"
@@ -139,8 +144,8 @@ class TerraformInstaller:
         list[str]
             Human-readable descriptions of actions taken (or planned).
         """
-        target_dir = self._resolve_bin_dir(bin_dir)
-        launcher_path = self._launcher_path(target_dir)
+        target_dir = self._resolve_plugin_dir(bin_dir)
+        launcher_path = self._plugin_path(target_dir)
         rc_path = _terraformrc_path()
 
         actions: list[str] = []
@@ -206,8 +211,8 @@ class TerraformInstaller:
         list[str]
             Human-readable descriptions of actions taken (or planned).
         """
-        target_dir = self._resolve_bin_dir(bin_dir)
-        launcher_path = self._launcher_path(target_dir)
+        target_dir = self._resolve_plugin_dir(bin_dir)
+        launcher_path = self._plugin_path(target_dir)
         rc_path = _terraformrc_path()
 
         actions: list[str] = []
@@ -267,8 +272,8 @@ class TerraformInstaller:
                 host-agnostic — Terraform passes the hostname at call time), or
                 an empty list.
         """
-        target_dir = self._resolve_bin_dir(None)
-        launcher_path: Path | None = self._launcher_path(target_dir)
+        target_dir = self._resolve_plugin_dir(None)
+        launcher_path: Path | None = self._plugin_path(target_dir)
         if launcher_path is not None and not launcher_path.exists():
             launcher_path = None
 
