@@ -35,9 +35,10 @@ def cargo(opts, cargo_plugin, provider_args):  # pylint: disable=unused-argument
     the supported protocol versions, then one response per request.
 
     Provides credentials for all Cloudsmith Cargo registries: ``*.cloudsmith.io``,
-    ``*.cloudsmith.com``, and any custom domains configured for the organisation
-    (requires an organisation - ``--org``, CLOUDSMITH_ORG or ``org`` in
-    ``config.ini`` - and a valid API key/token).
+    ``*.cloudsmith.com``, and any custom domains configured for the Workspace
+    (requires a Workspace - ``--workspace``, CLOUDSMITH_WORKSPACE, or
+    ``workspace`` in ``config.ini``; legacy aliases are also accepted - and a
+    valid API key/token).
 
     A registry that is not a Cloudsmith one is answered with
     ``url-not-supported`` so Cargo falls through to the next configured
@@ -74,7 +75,7 @@ def cargo(opts, cargo_plugin, provider_args):  # pylint: disable=unused-argument
     \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_ORG:     Organisation slug (required for custom domain support)
+        CLOUDSMITH_WORKSPACE: Workspace slug (CLOUDSMITH_ORG is also accepted)
     """
     # `provider_args` collects the extra arguments Cargo appends from the
     # credential-provider config entry.  This provider takes no configuration

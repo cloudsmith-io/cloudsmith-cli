@@ -436,12 +436,16 @@ def resolve_credentials(f):
         help="The OIDC audience for token requests.",
     )
     @click.option(
+        "-w",
+        "--workspace",
         "--org",
         "--organization",
         "--oidc-org",
+        "-o",
+        "--owner",
         "org",
-        envvar="CLOUDSMITH_ORG",
-        help="The Cloudsmith organisation slug.",
+        envvar=["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"],
+        help="The Cloudsmith Workspace slug.",
     )
     @click.option(
         "--oidc-service-slug",

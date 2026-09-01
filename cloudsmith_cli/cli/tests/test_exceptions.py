@@ -4,7 +4,7 @@ import json
 from unittest.mock import Mock, patch
 
 from cloudsmith_cli.cli.commands.main import main
-from cloudsmith_cli.cli.exceptions import get_401_error_hint
+from cloudsmith_cli.cli.exceptions import get_401_error_hint, handle_api_exceptions
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.credentials.models import CredentialResult
 
@@ -92,3 +92,66 @@ class TestCredentialed401Rendering:
         error = json.loads(result.stdout)
         assert error["meta"] == {"code": 401, "description": "Unauthorized"}
         assert error["help"]["hint"] == API_KEY_HINT
+
+
+class Opts:
+    """The handful of attributes the renderer reads off opts."""
+
+    def __init__(self, output="pretty"):
+        self.output = output
+        self.verbose = False
+        self.debug = False
+        self.push_metadata_info = None
+
+
+class TestSummariseError:
+    """The opt-in one-sentence rendering, in isolation from its callers."""
+
+    @staticmethod
+    def run(summarise, opts, status=422):
+        ctx = Mock()
+        ctx.exit.side_effect = SystemExit
+        exc = ApiException(status=status, detail="Invalid input.")
+        exc.fields = {"privileges": "Nope."}
+
+        try:
+            with handle_api_exceptions(
+                ctx, opts=opts, context_msg="Boom!", summarise_error=summarise
+            ):
+                raise exc
+        except SystemExit:
+            pass
+
+    def test_a_summary_replaces_the_context_and_field_block(self, capsys):
+        self.run(lambda exc, detail, fields: "Could not do the thing: nope", Opts())
+
+        out = capsys.readouterr().out
+        assert "Could not do the thing: nope" in out
+        assert "status: 422" not in out
+        assert "Privileges Field:" not in out
+
+    def test_declining_keeps_the_default_rendering(self, capsys):
+        self.run(lambda exc, detail, fields: None, Opts())
+
+        out = capsys.readouterr().out
+        assert "Boom! (status: 422" in out
+        assert "Privileges Field: Nope." in out
+
+    def test_the_summary_becomes_the_json_detail(self, capsys):
+        self.run(
+            lambda exc, detail, fields: "Could not do the thing: nope",
+            Opts("json"),
+        )
+
+        error = json.loads(capsys.readouterr().out)
+        assert error["detail"] == "Could not do the thing: nope"
+        assert error["meta"]["code"] == 422
+
+    def test_the_callable_sees_the_exception(self):
+        seen = []
+        self.run(
+            lambda exc, detail, fields: seen.append((exc.status, detail, fields)),
+            Opts(),
+        )
+
+        assert seen == [(422, "Invalid input.", {"privileges": "Nope."})]

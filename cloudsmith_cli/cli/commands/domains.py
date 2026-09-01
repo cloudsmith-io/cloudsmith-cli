@@ -63,6 +63,7 @@ def _custom_entries(records) -> list[dict]:
             "format": format_for_backend_kind(record.backend_kind),
             "type": "custom",
             "domain_type": record.domain_type.value,
+            "workspace": record.org,
             "org": record.org,
             "repository": record.repository,
             "primary": record.primary,
@@ -133,19 +134,19 @@ def list_domains(  # pylint: disable=too-many-arguments
     ``*.cloudsmith.io`` service hosts alongside custom domains, with ``type``
     distinguishing ``default`` from ``custom`` and ``domain_type`` saying what
     each host is for: ``download``, ``upload``, or ``native_api`` for a host
-    speaking one package format's own protocol. An organisation's own custom
+    speaking one package format's own protocol. A Workspace's own custom
     domains are listed ahead of the built-in hosts, which serve as the
     fallback. Only usable hosts are listed: a custom domain that is disabled or
     not yet validated serves nothing, so it is left out rather than offered as
     somewhere to publish to. Check it in the Cloudsmith UI if one you expect is
     missing here.
 
-    Built-in hosts are always listed and need no organisation or authentication.
-    An organisation from ``--org``, CLOUDSMITH_ORG or ``org`` in ``config.ini``
-    adds its custom domains, and a failed lookup exits non-zero rather than
-    rendering as "no domains". With no organisation the command lists whatever
-    earlier runs cached and makes no API call; ``--refresh`` bypasses that cache
-    for a configured organisation.
+    Built-in hosts are always listed and need no Workspace or authentication.
+    A Workspace from ``--workspace``, CLOUDSMITH_WORKSPACE, or ``workspace`` in
+    ``config.ini`` adds its custom domains, and a failed lookup exits non-zero
+    rather than rendering as "no domains". With no Workspace the command lists
+    whatever earlier runs cached and makes no API call; ``--refresh`` bypasses
+    that cache for a configured Workspace.
 
     Where two custom domains could serve the same request Cloudsmith picks the
     one bound to the repository in hand, then ``primary`` over secondary, then
@@ -163,7 +164,7 @@ def list_domains(  # pylint: disable=too-many-arguments
 
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
-        "type": ..., "domain_type": ..., "org": ..., "repository": ...,
+        "type": ..., "domain_type": ..., "workspace": ..., "repository": ...,
         "primary": ..., "created_at": ...}], "meta": {"pagination": {...}}}
 
         "meta" is only present when the result is paginated (i.e. not
@@ -177,16 +178,16 @@ def list_domains(  # pylint: disable=too-many-arguments
         $ cloudsmith domains list
 
     \b
-        # List built-in hosts plus an organisation's custom domains
-        $ cloudsmith domains list --org my-org
+        # List built-in hosts plus a Workspace's custom domains
+        $ cloudsmith domains list --workspace my-workspace
 
     \b
         # The hosts usable for one repository, most-preferred first
-        $ cloudsmith domains list --org my-org --repo my-repo --format maven
+        $ cloudsmith domains list --workspace my-workspace --repo my-repo --format maven
 
     \b
         # Where to upload to
-        $ cloudsmith domains list --org my-org --domain-type upload
+        $ cloudsmith domains list --workspace my-workspace --domain-type upload
     """
     if not page_all:
         explicit_sources = {
@@ -229,6 +230,7 @@ def list_domains(  # pylint: disable=too-many-arguments
             "format": domain.format_label,
             "type": "default",
             "domain_type": domain.domain_type.value,
+            "workspace": None,
             "org": None,
             "repository": None,
             "primary": True,
@@ -257,9 +259,9 @@ def list_domains(  # pylint: disable=too-many-arguments
     else:
         if refresh:
             click.secho(
-                "Warning: --refresh needs an organisation to fetch from, so the "
-                "cached custom domains below are unchanged. Set --org, "
-                "CLOUDSMITH_ORG or org in config.ini.",
+                "Warning: --refresh needs a Workspace to fetch from, so the "
+                "cached custom domains below are unchanged. Set --workspace, "
+                "CLOUDSMITH_WORKSPACE, or workspace in config.ini.",
                 fg="yellow",
                 err=True,
             )

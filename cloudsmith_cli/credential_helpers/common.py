@@ -62,8 +62,9 @@ def is_cloudsmith_domain(
         backend_kind: If given, custom domains only match when their backend_kind
             equals it (standard *.cloudsmith.io domains always match regardless).
             When None (default), any enabled+validated custom domain matches.
-        org: Organisation slug whose custom domains to match against, as the
-            CLI resolved it from --org, CLOUDSMITH_ORG or config.ini
+        org: Workspace slug whose custom domains to match against, as the CLI
+            resolved it from --workspace, CLOUDSMITH_WORKSPACE,
+            CLOUDSMITH_ORG, workspace in config.ini, or a legacy config alias
 
     Returns:
         bool: True if this is a Cloudsmith domain

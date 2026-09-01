@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 class OidcProvider(CredentialProvider):
     """Resolves credentials via OIDC auto-discovery.
 
-    Requires CLOUDSMITH_ORG and CLOUDSMITH_SERVICE_SLUG to be set (via env
-    vars or click options).  Auto-detects the environment, fetches the vendor
-    OIDC JWT, and exchanges it for a short-lived Cloudsmith API token.
+    Requires a Workspace and CLOUDSMITH_SERVICE_SLUG to be set (via environment
+    variables or Click options). Auto-detects the environment, fetches the
+    vendor OIDC JWT, and exchanges it for a short-lived Cloudsmith API token.
     """
 
     name = "oidc"
@@ -37,7 +37,8 @@ class OidcProvider(CredentialProvider):
         if not org or not service_slug:
             if context.debug:
                 logger.debug(
-                    "OidcProvider: CLOUDSMITH_ORG and/or CLOUDSMITH_SERVICE_SLUG "
+                    "OidcProvider: CLOUDSMITH_WORKSPACE (or CLOUDSMITH_ORG) "
+                    "and/or CLOUDSMITH_SERVICE_SLUG "
                     "not set, skipping OIDC auto-discovery"
                 )
             return None
@@ -54,6 +55,7 @@ class OidcProvider(CredentialProvider):
                 api_key=cached,
                 source_name="oidc",
                 source_detail=f"OIDC [cached] (org: {org}, service: {service_slug})",
+                auth_type="bearer",
             )
 
         from ..oidc.detectors import detect_environment
@@ -112,4 +114,5 @@ class OidcProvider(CredentialProvider):
             api_key=cloudsmith_token,
             source_name="oidc",
             source_detail=f"OIDC via {detector.name} (org: {org}, service: {service_slug})",
+            auth_type="bearer",
         )
