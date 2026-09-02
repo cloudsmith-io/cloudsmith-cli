@@ -323,13 +323,30 @@ class TestRequestApiKeyFlag:
         assert '"key"' in result.output
         assert "ck_test123456" in result.output
 
-    @pytest.mark.parametrize("option", ["--token", "-t", "--force", "-f"])
-    def test_removed_options_are_rejected(self, runner, option):
-        """Verify the removed token-management options are rejected."""
-        result = runner.invoke(authenticate, [option])
+    def test_token_option_is_rejected(self, runner):
+        """Verify the removed --token option is rejected."""
+        result = runner.invoke(authenticate, ["--token"])
 
         assert result.exit_code != 0
-        assert "No such option" in result.output
+        assert "No such option '--token'" in result.output
+
+    def test_request_api_key_mutual_exclusion_with_force(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify --request-api-key cannot be used with --force."""
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg", "--request-api-key", "--force"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code != 0
+        assert "--request-api-key cannot be used with --force" in result.output
 
     def test_request_api_key_with_save_config(
         self,

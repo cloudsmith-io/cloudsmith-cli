@@ -76,6 +76,13 @@ def _perform_saml_authentication(
 
 @main.command(aliases=["auth"])
 @click.option(
+    "-f",
+    "--force",
+    default=False,
+    is_flag=True,
+    help="[DEPRECATED: Use --request-api-key] Force refresh of user API token without prompts.",
+)
+@click.option(
     "--save-config",
     default=False,
     is_flag=True,
@@ -109,14 +116,30 @@ def _perform_saml_authentication(
 def authenticate(
     ctx,
     opts,
+    force,
     save_config,
     json,
     request_api_key_flag,
     no_browser,
 ):
     """Authenticate to Cloudsmith using the Workspace's SAML setup."""
+    # Validate mutual exclusivity
+    if request_api_key_flag and force:
+        raise click.UsageError(
+            "--request-api-key cannot be used with --force. "
+            "Use --request-api-key alone for fully automated token retrieval."
+        )
+
     # Determine if we should redirect info messages to stderr
     use_stderr = request_api_key_flag or json or utils.should_use_stderr(opts)
+
+    if force:
+        click.secho(
+            "DEPRECATION WARNING: The `--force` flag is deprecated and will be removed in a future release. "
+            "Please use `--request-api-key` instead (force is implied).",
+            fg="yellow",
+            err=True,
+        )
 
     if json and not utils.should_use_stderr(opts):
         click.secho(
