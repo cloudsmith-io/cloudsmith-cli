@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+from enum import Flag, auto
 
 import click
 
@@ -9,6 +10,54 @@ import click
 def get_help_website():
     """Get the URL for the help website."""
     return "https://docs.cloudsmith.com/developer-tools/cli"
+
+
+class ColorMode(Flag):
+    AUTO = 0
+    ALWAYS = auto()
+    NEVER = auto()
+
+
+class TTYMode(Flag):
+    ENABLED = auto()
+    DISABLED = auto()
+
+
+def color_enabled(env: dict[str, str], colorMode: ColorMode, ttyMode: TTYMode) -> bool:
+    """Checks based on environment and"""
+    match colorMode:
+        case ColorMode.ALWAYS:
+            return True
+        case ColorMode.NEVER:
+            return False
+        case ColorMode.AUTO:
+            pass
+
+    if env.get("NO_COLOR"):
+        return False
+    if env.get("CLOUDSMITH_FORCE_COLOR") == "true":
+        return True
+    if env.get("TERM") == "dumb":
+        return False
+
+    match ttyMode:
+        case TTYMode.ENABLED:
+            return True
+        case TTYMode.DISABLED:
+            return False
+    return True
+
+
+def is_interactive(env: dict[str, str], ttyMode: TTYMode) -> bool:
+    if env.get("CI") == "true":
+        return False
+
+    match ttyMode:
+        case TTYMode.ENABLED:
+            return True
+        case TTYMode.DISABLED:
+            return False
+    return True
 
 
 def get_github_website():
