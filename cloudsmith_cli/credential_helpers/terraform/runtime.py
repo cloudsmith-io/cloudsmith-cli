@@ -50,6 +50,14 @@ _MISSING_ORG_MESSAGE = (
     "the token can be scoped as '{org}/{repo}/{token}'."
 )
 
+_MISSING_REPO_MESSAGE = (
+    "Error: No repository configured. "
+    "Terraform does not tell a credentials helper which repository is being "
+    "requested, so provide it via the --repo/--repository flag or the "
+    "CLOUDSMITH_REPO environment variable so the token can be scoped to a "
+    "single repository."
+)
+
 
 def get_token(hostname, credential=None, api_host=None, org=None):
     """
@@ -118,6 +126,14 @@ def _execute_get(
     standard_domain = is_standard_cloudsmith_domain(hostname)
     if standard_domain and not org:
         return (1, None, _MISSING_ORG_MESSAGE)
+
+    # The repository is required on every Cloudsmith host: the token is scoped
+    # to a single repository ("{org}/{repo}/{token}" or "{repo}/{token}"). Fail
+    # cleanly here rather than emitting a malformed "org/None/<token>" if a
+    # caller reaches this path without one (foreign hosts already returned {}
+    # above, so they never require a repository).
+    if not repo:
+        return (1, None, _MISSING_REPO_MESSAGE)
 
     token = get_token(hostname, credential=credential, api_host=api_host, org=org)
     if not token:

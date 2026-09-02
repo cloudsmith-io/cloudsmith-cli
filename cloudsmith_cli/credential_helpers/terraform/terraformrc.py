@@ -72,6 +72,21 @@ def find_block(text: str) -> re.Match[str] | None:
     return _BLOCK_RE.search(text)
 
 
+def _find_conflicting_block(text: str) -> re.Match[str] | None:
+    """Return the first ``credentials_helper`` block for a *different* helper.
+
+    Terraform permits only one ``credentials_helper`` block in the whole file,
+    so any block whose name is not ``cloudsmith`` — wherever it appears — is a
+    conflict we must not silently coexist with. Scanning every match (rather
+    than only the first) means a Cloudsmith block that happens to precede, say,
+    a ``vault`` block later in the file is still caught.
+    """
+    for match in _BLOCK_RE.finditer(text):
+        if match.group("name") != HELPER_NAME:
+            return match
+    return None
+
+
 def add_or_update_block(
     text: str,
     args: list[str] | tuple[str, ...] = (),
@@ -80,8 +95,10 @@ def add_or_update_block(
     """Return *text* with the Cloudsmith credentials_helper block installed.
 
     If a Cloudsmith block already exists it is replaced (so re-running with
-    different ``args`` updates it); if a block for a different helper exists a
-    :class:`TerraformrcConflictError` is raised; otherwise the block is appended.
+    different ``args`` updates it); if a block for a different helper exists
+    *anywhere* in the file a :class:`TerraformrcConflictError` is raised (even
+    when a Cloudsmith block precedes it, since Terraform allows only one
+    ``credentials_helper`` block total); otherwise the block is appended.
 
     Args:
         text: Current terraformrc content ("" when the file does not exist).
@@ -94,6 +111,17 @@ def add_or_update_block(
         already contained exactly the desired block.
     """
     block = render_block(args)
+
+    # Terraform allows only one credentials_helper block anywhere in the file.
+    # Refuse if *any* block for a different helper is present — even when a
+    # Cloudsmith block appears first — so we never leave a second, foreign block
+    # behind and produce an invalid config.
+    conflict = _find_conflicting_block(text)
+    if conflict is not None:
+        if rc_path is not None:
+            raise TerraformrcConflictError(conflict.group("name"), rc_path)
+        raise TerraformrcConflictError(conflict.group("name"))
+
     match = find_block(text)
 
     if match is None:
@@ -106,12 +134,7 @@ def add_or_update_block(
             new_text = f"{text}{separator}\n{block}\n"
         return new_text, new_text != text
 
-    if match.group("name") != HELPER_NAME:
-        if rc_path is not None:
-            raise TerraformrcConflictError(match.group("name"), rc_path)
-        raise TerraformrcConflictError(match.group("name"))
-
-    # Replace the existing Cloudsmith block in place.
+    # The only remaining block is our own Cloudsmith one — replace it in place.
     new_text = text[: match.start()] + block + text[match.end() :]
     return new_text, new_text != text
 

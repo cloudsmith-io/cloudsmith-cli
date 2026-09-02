@@ -14,6 +14,7 @@ the rejection of ``store``/``forget`` and unknown verbs.
 from __future__ import annotations
 
 import json
+import sys
 from unittest.mock import patch
 
 import click.testing
@@ -23,6 +24,7 @@ from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
 from ...credential_helpers.terraform.runtime import (
     _MISSING_ORG_MESSAGE,
+    _MISSING_REPO_MESSAGE,
     _REFUSAL_MESSAGE,
     execute,
     get_token,
@@ -183,6 +185,39 @@ def test_execute_get_refuses_cloudsmith_host_without_an_org(credential):
     assert (exit_code, stdout, stderr) == (1, None, _MISSING_ORG_MESSAGE)
 
 
+def test_execute_get_refuses_cloudsmith_host_without_a_repo(credential):
+    """A Cloudsmith host needs a repo to build the scoped token: exit 1 with an
+    actionable error, not a malformed ``org/None/token`` credential."""
+    exit_code, stdout, stderr = execute(
+        "get", CLOUDSMITH_HOST, credential=credential, org="acme", repo=None
+    )
+
+    assert (exit_code, stdout, stderr) == (1, None, _MISSING_REPO_MESSAGE)
+
+
+def test_execute_get_refuses_custom_domain_without_a_repo(credential):
+    """A custom domain also requires a repo (its token is ``{repo}/{token}``)."""
+    with patch(
+        "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+        return_value=True,
+    ):
+        exit_code, stdout, stderr = execute(
+            "get", "https://tf.acme.com/", credential=credential, org=None, repo=None
+        )
+
+    assert (exit_code, stdout, stderr) == (1, None, _MISSING_REPO_MESSAGE)
+
+
+def test_execute_get_returns_empty_object_for_foreign_host_without_a_repo(credential):
+    """A foreign host never needs a repo — it still falls back cleanly (``{}``)."""
+    exit_code, stdout, stderr = execute(
+        "get", FOREIGN_HOST, credential=credential, org="acme", repo=None
+    )
+
+    assert (exit_code, stderr) == (0, None)
+    assert json.loads(stdout) == {}
+
+
 def test_execute_get_returns_empty_object_for_foreign_host_without_an_org(credential):
     """A foreign host still falls back cleanly (``{}``, exit 0) even with no org
     — the org is only required on the Cloudsmith-host path."""
@@ -296,6 +331,43 @@ def test_cli_rejects_store_verb(runner):
 
     assert result.exit_code == 1
     assert "k_abc" not in result.stdout
+
+
+def test_cli_store_drains_stdin_before_erroring(runner):
+    """`store` consumes its full stdin payload before returning an error.
+
+    Terraform sends the new credentials as a JSON object on stdin for `store`.
+    The protocol requires an unsupported store to read the whole payload before
+    exiting so Terraform sees the helper's non-zero status rather than a broken
+    pipe. We assert the shim exits non-zero without leaking the payload and that
+    the (large) input is fully consumed.
+    """
+    payload = json.dumps({"token": "should-not-be-stored"}) + "\n"
+
+    reads: list[str] = []
+    real_execute = None
+
+    def _spy_execute(*args, **kwargs):
+        # By the time execute() runs, the store branch must already have drained
+        # stdin. Record what stdin holds now: it should be empty (EOF).
+        reads.append(sys.stdin.read())
+        return real_execute(*args, **kwargs)
+
+    import cloudsmith_cli.cli.commands.credential_helper.terraform as tf_mod
+
+    real_execute = tf_mod.execute
+    with patch.object(tf_mod, "execute", side_effect=_spy_execute):
+        result = runner.invoke(
+            terraform,
+            args=["-k", "k_abc", "--repo", "myrepo", "store", CLOUDSMITH_HOST],
+            input=payload,
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 1
+    assert "should-not-be-stored" not in result.output
+    # After the store branch drained stdin, a further read sees EOF ("").
+    assert reads == [""]
 
 
 def test_cli_reads_hostname_from_stdin_when_no_argument(runner):

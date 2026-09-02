@@ -54,6 +54,9 @@ def terraform(opts, repo, params):
     can forward Terraform's arguments verbatim.  When no verb is given the
     action is ``get``.  When no hostname is given it is read from stdin.  Only
     ``get`` is served; ``store``/``forget`` return an error and a non-zero exit.
+    ``store`` first drains its stdin payload (the credentials Terraform sends)
+    before erroring, as the protocol requires, so Terraform sees the exit status
+    rather than a broken pipe.
 
     A hostname that is not a Cloudsmith registry yields an empty object
     (``{}``) and exit 0 so Terraform falls back to its own credential sources.
@@ -114,6 +117,17 @@ def terraform(opts, repo, params):
         verb, hostname = params[-2], params[-1]
     elif len(params) == 1:
         hostname = params[0]
+
+    # The `store` verb sends the new credentials as a JSON object on stdin. The
+    # protocol requires an unsupported store implementation to consume the whole
+    # payload before returning an error, otherwise Terraform can see a broken
+    # pipe instead of the helper's exit status. Drain stdin here; the payload is
+    # discarded because this helper never stores credentials.
+    if verb == "store":
+        try:
+            sys.stdin.read()
+        except (OSError, ValueError):
+            pass
 
     if not hostname:
         try:

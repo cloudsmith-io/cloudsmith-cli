@@ -95,6 +95,23 @@ def test_add_raises_on_foreign_credentials_helper():
     assert exc.value.existing_name == "vault"
 
 
+def test_add_raises_on_second_foreign_block_after_cloudsmith():
+    """A foreign block *after* our own is still a conflict.
+
+    Terraform allows only one credentials_helper block in the whole file, so
+    updating our Cloudsmith block while leaving a later `vault` block in place
+    would produce an invalid config. The whole file must be scanned, not just
+    the first match.
+    """
+    existing = (
+        'credentials_helper "cloudsmith" {\n  args = []\n}\n\n'
+        'credentials_helper "vault" {\n  args = []\n}\n'
+    )
+    with pytest.raises(terraformrc.TerraformrcConflictError) as exc:
+        terraformrc.add_or_update_block(existing, ["--org", "acme"])
+    assert exc.value.existing_name == "vault"
+
+
 def test_remove_block_strips_only_cloudsmith():
     """remove_block drops the Cloudsmith block and collapses stray blank lines."""
     existing = (
@@ -276,6 +293,71 @@ def test_cli_install_bakes_repo_into_args(runner, tmp_path, monkeypatch, repo_fl
     assert result.exit_code == 0, result.output
     rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
     assert 'args = ["--org", "acme", "-r", "my-repo"]' in rc
+
+
+def test_cli_install_bakes_config_and_credentials_files_into_args(
+    runner, tmp_path, monkeypatch
+):
+    """`install terraform -C/--credentials-file` pins those into terraformrc args.
+
+    ``terraform init`` invokes the helper in a fresh process without this
+    invocation's flags, so a non-default config/credentials file must be baked
+    into the block or Terraform would resolve credentials from the default
+    search path instead.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    config_file = tmp_path / "config.ini"
+    config_file.write_text("[default]\n", encoding="utf-8")
+    creds_file = tmp_path / "credentials.ini"
+    creds_file.write_text("[default]\n", encoding="utf-8")
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "--org=acme",
+            "-C",
+            str(config_file),
+            "--credentials-file",
+            str(creds_file),
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert f'"--config-file", "{config_file}"' in rc
+    assert f'"--credentials-file", "{creds_file}"' in rc
+
+
+def test_cli_install_omits_config_files_from_args_when_default(
+    runner, tmp_path, monkeypatch
+):
+    """Without an explicit config/credentials file, nothing extra is baked in."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CREDENTIALS_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--org=acme", "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert "--config-file" not in rc
+    assert "--credentials-file" not in rc
 
 
 def test_cli_install_with_repo_suppresses_next_steps(runner, tmp_path, monkeypatch):

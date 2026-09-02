@@ -75,12 +75,18 @@ def _get_installer(name: str):
 
 
 def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...]:
-    """Build the terraformrc ``args`` list from the resolved org, repo and profile.
+    """Build the terraformrc ``args`` list from the resolved config.
 
     Baking ``--org``/``-r``/``-P`` into the block means ``terraform init`` works
     with no environment variables and no hand-edited config. Only values
     actually supplied are written, so an install without ``--org``/``--repo``/
     ``-P`` leaves ``args = []``.
+
+    A non-default ``--config-file``/``--credentials-file`` is also baked in: the
+    helper is later invoked by ``terraform init`` in a fresh process with none
+    of this invocation's flags, so without pinning them Terraform would resolve
+    credentials from the default search path instead of the files the operator
+    installed with.
     """
     args: list[str] = []
     if opts.org:
@@ -90,6 +96,12 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
     profile = ctx.meta.get("profile")
     if profile:
         args.extend(["-P", profile])
+    config_file = ctx.meta.get("config_file")
+    if config_file:
+        args.extend(["--config-file", config_file])
+    creds_file = ctx.meta.get("creds_file")
+    if creds_file:
+        args.extend(["--credentials-file", creds_file])
     return tuple(args)
 
 
