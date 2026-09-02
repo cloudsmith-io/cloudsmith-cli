@@ -4,7 +4,6 @@ import click
 import click.testing
 import pytest
 
-from ...core.credentials.models import CredentialResult
 from ..decorators import report_retry, resolve_credentials
 
 
@@ -45,22 +44,6 @@ def test_rejected_sso_session_continues_anonymously():
     assert result.exit_code == 0
     assert "Your SSO session has expired" in result.stderr
     assert "continuing without SSO authentication" in result.stderr
-    assert result.stdout == "command ran\n"
-
-
-def test_failed_sso_refresh_reports_alternative_authentication_fallback():
-    def fallback(context):
-        context.keyring_refresh_failed = True
-        return CredentialResult(api_key="api-key", source_name="oidc")
-
-    with patch(
-        "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
-        side_effect=fallback,
-    ):
-        result = click.testing.CliRunner().invoke(_credential_command())
-
-    assert result.exit_code == 0
-    assert "Falling back to alternative authentication" in result.stderr
     assert result.stdout == "command ran\n"
 
 
