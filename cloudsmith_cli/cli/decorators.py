@@ -3,11 +3,13 @@
 import functools
 import logging
 import os
+import sys
 
 import click
 from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
+from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -134,6 +136,11 @@ def common_cli_config_options(f):
         config_file = kwargs.pop("config_file") or ctx.meta.get("config_file")
         creds_file = kwargs.pop("credentials_file") or ctx.meta.get("creds_file")
 
+        ctx.color = color_enabled(
+            dict(os.environ),
+            ColorMode.AUTO,
+            TTYMode.ENABLED if os.isatty(sys.stdin.fileno()) else TTYMode.DISABLED,
+        )
         # Store in context for subcommands to inherit
         ctx.meta["profile"] = profile
         ctx.meta["config_file"] = config_file
