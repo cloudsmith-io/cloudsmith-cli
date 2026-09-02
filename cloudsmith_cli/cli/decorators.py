@@ -495,6 +495,7 @@ def resolve_credentials(f):
             opts.oidc_detector_order, oidc_disabled_detectors
         )
 
+        is_auth_command = ctx.command.name in ("authenticate", "login")
         context = CredentialContext(
             session=opts.session,
             api_key_from_flag=opts.api_key_from_flag,
@@ -510,24 +511,37 @@ def resolve_credentials(f):
             oidc_discovery_disabled=opts.oidc_discovery_disabled,
             oidc_detector_order=opts.oidc_detector_order,
             oidc_disabled_detectors=oidc_disabled_detectors,
+            skip_keyring_refresh=is_auth_command,
         )
 
         chain = CredentialProviderChain()
         credential = chain.resolve(context)
 
-        if context.keyring_refresh_failed:
-            click.secho(
-                "An error occurred when attempting to refresh your SSO access token. "
-                "To refresh this session, run 'cloudsmith auth'",
-                fg="yellow",
-                err=True,
-            )
+        if context.keyring_refresh_failed and not is_auth_command:
             if credential:
-                click.secho(
-                    "Falling back to API key authentication.",
-                    fg="yellow",
-                    err=True,
+                message = (
+                    "Using the existing access token until it expires."
+                    if credential.source_name == "keyring"
+                    else "Falling back to alternative authentication."
                 )
+            elif context.keyring_refresh_rejected:
+                message = (
+                    "Your SSO session has expired. Run 'cloudsmith auth' to "
+                    "authenticate again; continuing without SSO authentication."
+                )
+            elif context.keyring_refresh_unrenewable:
+                message = (
+                    "The SSO session has no refresh token and its access token "
+                    "has expired. Run 'cloudsmith auth' to authenticate again; "
+                    "continuing without SSO authentication."
+                )
+            else:
+                message = (
+                    "The SSO session could not be renewed and its access token "
+                    "has expired. Check your connection, then run 'cloudsmith auth'; "
+                    "continuing without SSO authentication."
+                )
+            click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
 
