@@ -27,9 +27,6 @@ class CredentialContext:
     profile: str | None = None
     debug: bool = False
     keyring_refresh_failed: bool = False
-    keyring_refresh_rejected: bool = False
-    keyring_refresh_unrenewable: bool = False
-    skip_keyring_refresh: bool = False
     oidc_audience: str | None = None
     org: str | None = None
     oidc_service_slug: str | None = None
