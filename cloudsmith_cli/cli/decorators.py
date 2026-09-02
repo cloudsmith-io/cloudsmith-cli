@@ -3,11 +3,13 @@
 import functools
 import logging
 import os
+import sys
 
 import click
 from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
+from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -152,6 +154,11 @@ def common_cli_output_options(f):
     """Add common CLI output options to commands."""
 
     @click.option(
+        "--color",
+        default="auto",
+        type=click.Choice(ColorMode, case_insensitive=True),
+    )
+    @click.option(
         "-d",
         "--debug",
         default=False,
@@ -178,6 +185,13 @@ def common_cli_output_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        ctx.color = color_enabled(
+            dict(os.environ),
+            kwargs.pop("color"),
+            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        )
+
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
         opts.output = kwargs.pop("output_format")
