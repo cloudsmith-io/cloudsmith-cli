@@ -161,9 +161,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         click.echo("Press Ctrl-C to give up.", err=True)
 
         while True:
-            totp_token = click.prompt(
-                "Please enter your 2FA code", hide_input=True, type=str, err=True
-            )
+            totp_token = click.prompt("Please enter your 2FA code", type=str, err=True)
 
             try:
                 return exchange_2fa_token(
