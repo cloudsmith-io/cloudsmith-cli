@@ -378,6 +378,19 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
                 == "access_token_123"
             )
 
+    def test_2fa_prompt_is_not_hidden(self, two_factor_handler):
+        """Verify the 2FA code is echoed (not hidden) so users can see typos."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[("access_token_123", "refresh_token_123")],
+            prompt_side_effect=["123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            assert manager.prompt.call_count == 1
+            _, kwargs = manager.prompt.call_args
+            assert kwargs.get("hide_input", False) is False
+
     def test_user_can_abort_the_prompt(self, two_factor_handler):
         """Verify Ctrl-C at the prompt ends the command."""
         with self._patched(
