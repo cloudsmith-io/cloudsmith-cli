@@ -22,8 +22,7 @@ def test_report_retry_writes_to_stderr():
 def _credential_command(name="example"):
     @click.command(name=name)
     @resolve_credentials
-    @click.pass_context
-    def command(ctx, opts):
+    def command(opts):
         click.echo("command ran")
 
     return command
