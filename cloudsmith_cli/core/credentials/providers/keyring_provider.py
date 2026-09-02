@@ -5,69 +5,36 @@ from __future__ import annotations
 import logging
 
 from ....core import keyring
-from ...sso import SsoRenewalStatus, access_token_is_valid, renew_sso_session
+from ...api.exceptions import ApiException
+from ...sso import refresh_access_token
 from ..models import CredentialContext, CredentialResult
 from ..provider import CredentialProvider
 
 logger = logging.getLogger(__name__)
 
-
-def _credential(access_token):
-    return CredentialResult(
-        api_key=access_token,
-        source_name="keyring",
-        source_detail="SAML token from system keyring",
-        auth_type="bearer",
-    )
+REFRESH_REJECTED_STATUSES = (400, 401, 403, 422)
 
 
-def _access_token_from_renewal(context, renewal, held_access_token):
-    if renewal.status == SsoRenewalStatus.REJECTED:
-        context.keyring_refresh_failed = True
-        context.keyring_refresh_rejected = True
-        return None
-    if renewal.status == SsoRenewalStatus.MISSING:
-        context.keyring_refresh_failed = True
-        return held_access_token if access_token_is_valid(held_access_token) else None
-    if renewal.status == SsoRenewalStatus.FAILED:
-        context.keyring_refresh_failed = True
-        return None
-    if renewal.status == SsoRenewalStatus.UNRENEWABLE:
-        context.keyring_refresh_failed = True
-        context.keyring_refresh_unrenewable = True
-        if not access_token_is_valid(renewal.access_token):
-            return None
-    if renewal.status == SsoRenewalStatus.CURRENT and renewal.error:
-        context.keyring_refresh_failed = True
-    return renewal.access_token
+def _handle_refresh_failure(context, wipe_tokens):
+    """Record a refresh failure and clear rejected tokens.
 
-
-def _recover_from_unexpected_refresh_error(context, access_token):
-    context.keyring_refresh_failed = True
-    keyring.update_refresh_attempted_at(context.api_host, profile=context.profile)
-    return access_token if access_token_is_valid(access_token) else None
-
-
-def _refresh_access_token(context, access_token):
-    if context.skip_keyring_refresh or not keyring.should_refresh_access_token(
-        context.api_host,
-        access_token=access_token,
-        profile=context.profile,
-    ):
-        return access_token
-
-    if not context.session:
-        logger.debug(
-            "Session unavailable; skipping token refresh, using existing token"
+    A definitive rejection means the stored tokens are dead. Remove the
+    profile's own entries so the CLI returns to a clean logged-out
+    state instead of retrying dead tokens on every command. When the
+    profile has no entries of its own, the rejected tokens came from
+    the legacy unscoped entries, so remove those. When no entry was
+    removed, stamp the attempt time to throttle the next refresh.
+    """
+    tokens_removed = False
+    if wipe_tokens:
+        tokens_removed = keyring.delete_sso_tokens(
+            context.api_host, profile=context.profile, include_legacy=False
         )
-        return access_token
-
-    renewal = renew_sso_session(
-        context.api_host,
-        context.session,
-        profile=context.profile,
-    )
-    return _access_token_from_renewal(context, renewal, access_token)
+        if not tokens_removed:
+            tokens_removed = keyring.delete_sso_tokens(context.api_host)
+    if not tokens_removed:
+        keyring.update_refresh_attempted_at(context.api_host, profile=context.profile)
+    context.keyring_refresh_failed = True
 
 
 class KeyringProvider(CredentialProvider):
@@ -87,9 +54,52 @@ class KeyringProvider(CredentialProvider):
             return None
 
         try:
-            access_token = _refresh_access_token(context, access_token)
-        except Exception:  # pylint: disable=broad-exception-caught
-            logger.debug("Failed to refresh SAML token", exc_info=True)
-            access_token = _recover_from_unexpected_refresh_error(context, access_token)
+            if keyring.should_refresh_access_token(api_host, profile=profile):
+                if not context.session:
+                    logger.debug(
+                        "Session unavailable; skipping token refresh, using existing token"
+                    )
+                else:
+                    refresh_token = keyring.get_refresh_token(api_host, profile=profile)
+                    if not refresh_token:
+                        logger.debug(
+                            "No refresh token stored; using the existing access token"
+                        )
+                    else:
+                        new_access_token, new_refresh_token = refresh_access_token(
+                            api_host,
+                            access_token,
+                            refresh_token,
+                            session=context.session,
+                        )
+                        if not new_access_token:
+                            logger.debug("The refresh response has no access token")
+                            _handle_refresh_failure(context, wipe_tokens=False)
+                            return None
+                        keyring.store_sso_tokens(
+                            api_host,
+                            new_access_token,
+                            new_refresh_token,
+                            profile=profile,
+                        )
+                        access_token = new_access_token
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            wipe_tokens = (
+                isinstance(exc, ApiException)
+                and exc.status in REFRESH_REJECTED_STATUSES
+            )
+            if wipe_tokens:
+                logger.debug(
+                    "SSO refresh rejected; clearing stored SSO tokens", exc_info=True
+                )
+            else:
+                logger.debug("Failed to refresh SAML token", exc_info=True)
+            _handle_refresh_failure(context, wipe_tokens=wipe_tokens)
+            return None
 
-        return _credential(access_token) if access_token else None
+        return CredentialResult(
+            api_key=access_token,
+            source_name="keyring",
+            source_detail="SAML token from system keyring",
+            auth_type="bearer",
+        )
