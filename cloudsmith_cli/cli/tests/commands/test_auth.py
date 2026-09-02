@@ -323,25 +323,12 @@ class TestRequestApiKeyFlag:
         assert '"key"' in result.output
         assert "ck_test123456" in result.output
 
-    def test_request_api_key_mutual_exclusion_with_token(
-        self,
-        runner,
-        mock_saml_session,
-        mock_get_idp_url,
-        mock_webbrowser,
-        mock_auth_server,
-    ):
-        """Verify --request-api-key cannot be used with --token."""
-        result = runner.invoke(
-            authenticate,
-            ["--owner", "testorg", "--request-api-key", "--token"],
-            catch_exceptions=False,
-        )
+    def test_token_option_is_rejected(self, runner):
+        """Verify the removed --token option is rejected."""
+        result = runner.invoke(authenticate, ["--token"])
 
         assert result.exit_code != 0
-        assert (
-            "--request-api-key cannot be used with --token or --force" in result.output
-        )
+        assert "No such option '--token'" in result.output
 
     def test_request_api_key_mutual_exclusion_with_force(
         self,
@@ -359,9 +346,7 @@ class TestRequestApiKeyFlag:
         )
 
         assert result.exit_code != 0
-        assert (
-            "--request-api-key cannot be used with --token or --force" in result.output
-        )
+        assert "--request-api-key cannot be used with --force" in result.output
 
     def test_request_api_key_with_save_config(
         self,
