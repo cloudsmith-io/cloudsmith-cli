@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
 
+### Fixed
+
+- SSO access tokens now refresh based on their JWT expiry. Transient refresh failures retain usable tokens, while expired or rejected sessions fall back to other authentication.
+
 ## [1.26.0] - 2026-08-26
 
 ### Added
