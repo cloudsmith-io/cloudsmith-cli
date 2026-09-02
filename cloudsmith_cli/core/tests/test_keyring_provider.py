@@ -54,6 +54,20 @@ class TestKeyringProvider:
             assert result.auth_type == "bearer"
             assert result.source_name == "keyring"
 
+    def test_uses_existing_token_when_session_is_unavailable(self):
+        provider = KeyringProvider()
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="sso-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=True),
+            patch.object(keyring_provider, "renew_sso_session") as renew_mock,
+        ):
+            result = provider.resolve(CredentialContext())
+
+        assert result is not None
+        assert result.api_key == "sso-token"
+        renew_mock.assert_not_called()
+
     def test_uses_renewed_token_and_profile(self):
         provider = KeyringProvider()
         context = CredentialContext(session=MagicMock(), profile="staging")
@@ -82,13 +96,21 @@ class TestKeyringProvider:
             context.api_host, context.session, profile="staging"
         )
 
-    def test_transient_failure_uses_still_valid_token(self):
+    @pytest.mark.parametrize(
+        "error",
+        [
+            RuntimeError("temporarily unavailable"),
+            ValueError("Cloudsmith did not return a new SSO access token."),
+        ],
+        ids=["transient-error", "missing-access-response"],
+    )
+    def test_renewal_failure_uses_still_valid_token(self, error):
         provider = KeyringProvider()
         context = CredentialContext(session=MagicMock())
         renewal = SsoRenewalResult(
             status="current",
             access_token="old-token",
-            error=RuntimeError("temporarily unavailable"),
+            error=error,
         )
         with (
             patch.object(keyring, "should_use_keyring", return_value=True),
@@ -101,6 +123,26 @@ class TestKeyringProvider:
         assert result is not None
         assert result.api_key == "old-token"
         assert context.keyring_refresh_failed is True
+
+    def test_unrenewable_session_uses_still_valid_token(self):
+        provider = KeyringProvider()
+        context = CredentialContext(session=MagicMock())
+        renewal = SsoRenewalResult(
+            status="unrenewable",
+            access_token="old-token",
+        )
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="old-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=True),
+            patch.object(keyring_provider, "renew_sso_session", return_value=renewal),
+        ):
+            result = provider.resolve(context)
+
+        assert result is not None
+        assert result.api_key == "old-token"
+        assert context.keyring_refresh_failed is True
+        assert context.keyring_refresh_unrenewable is True
 
     def test_rejected_dead_session_returns_no_credential(self):
         provider = KeyringProvider()
