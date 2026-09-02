@@ -1035,13 +1035,13 @@ class TestReposGpgErrorVoice:
         [
             (
                 400,
-                "Could not set GPG key for my-org/my-repo: the provided key is not "
-                "valid.",
+                ("Could not set GPG key for my-org/my-repo: the provided key is not "
+                "valid."),
             ),
             (
                 402,
-                "Could not set GPG key for my-org/my-repo: custom GPG keys require a "
-                "paid plan.",
+                ("Could not set GPG key for my-org/my-repo: custom GPG keys require a "
+                "paid plan."),
             ),
             (404, "Could not set GPG key for my-org/my-repo: not found."),
         ],
