@@ -9,7 +9,7 @@ from ..exceptions import handle_api_exceptions
 from ..saml import create_configured_session, get_idp_url
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 from .main import main
-from .tokens import create, request_api_key
+from .tokens import request_api_key
 
 # Authentication server configuration
 AUTH_SERVER_HOST = "127.0.0.1"
@@ -76,13 +76,6 @@ def _perform_saml_authentication(
 
 @main.command(aliases=["auth"])
 @click.option(
-    "-t",
-    "--token",
-    default=False,
-    is_flag=True,
-    help="[DEPRECATED: Use --request-api-key] Retrieve a user API token after successful authentication.",
-)
-@click.option(
     "-f",
     "--force",
     default=False,
@@ -123,7 +116,6 @@ def _perform_saml_authentication(
 def authenticate(
     ctx,
     opts,
-    token,
     force,
     save_config,
     json,
@@ -132,22 +124,14 @@ def authenticate(
 ):
     """Authenticate to Cloudsmith using the Workspace's SAML setup."""
     # Validate mutual exclusivity
-    if request_api_key_flag and (token or force):
+    if request_api_key_flag and force:
         raise click.UsageError(
-            "--request-api-key cannot be used with --token or --force. "
+            "--request-api-key cannot be used with --force. "
             "Use --request-api-key alone for fully automated token retrieval."
         )
 
     # Determine if we should redirect info messages to stderr
     use_stderr = request_api_key_flag or json or utils.should_use_stderr(opts)
-
-    if token:
-        click.secho(
-            "DEPRECATION WARNING: The `--token` flag is deprecated and will be removed in a future release. "
-            "Please use `--request-api-key` instead.",
-            fg="yellow",
-            err=True,
-        )
 
     if force:
         click.secho(
@@ -175,15 +159,12 @@ def authenticate(
         err=use_stderr,
     )
 
-    # Determine if we need to refresh API after SSO (required for token operations)
-    enable_token_creation = token or request_api_key_flag
-
     context_message = "Failed to authenticate via SSO!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
         _perform_saml_authentication(
             opts,
             workspace,
-            enable_token_creation=enable_token_creation,
+            enable_token_creation=request_api_key_flag,
             use_stderr=use_stderr,
             no_browser=no_browser,
             profile=ctx.meta.get("profile"),
@@ -204,7 +185,3 @@ def authenticate(
 
         # Default: output only the raw token value to stdout
         click.echo(new_token.key)
-        return
-
-    if token:
-        ctx.invoke(create, opts=opts, save_config=save_config, force=force, json=json)
