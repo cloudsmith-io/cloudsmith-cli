@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
+- `cloudsmith auth` now reuses an existing SSO session when it can be renewed.
+- `cloudsmith auth` now reports the SSO access-token expiry in normal and JSON output.
 
 ### Fixed
 
