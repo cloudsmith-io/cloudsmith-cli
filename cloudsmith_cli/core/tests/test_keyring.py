@@ -339,8 +339,8 @@ class TestProfileScopedKeys:
         assert deleted_keys == [
             "cloudsmith_cli-access_token-https://example.com-profile-staging",
             "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
-            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
-            "-profile-staging",
+            ("cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
+            "-profile-staging"),
             "cloudsmith_cli-access_token-https://example.com",
             "cloudsmith_cli-refresh_token-https://example.com",
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
@@ -358,8 +358,8 @@ class TestProfileScopedKeys:
         assert deleted_keys == [
             "cloudsmith_cli-access_token-https://example.com-profile-staging",
             "cloudsmith_cli-refresh_token-https://example.com-profile-staging",
-            "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
-            "-profile-staging",
+            ("cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
+            "-profile-staging"),
         ]
 
     def test_get_access_token_with_profile_falls_back_to_legacy_key(
