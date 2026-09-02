@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
-- Removed `cloudsmith auth --token`; use `--request-api-key` instead.
+- Removed `cloudsmith auth --token` and `--force`; use `--request-api-key` instead.
 
 ## [1.26.0] - 2026-08-26
 
