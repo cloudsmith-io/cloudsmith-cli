@@ -510,6 +510,7 @@ def resolve_credentials(f):
             oidc_discovery_disabled=opts.oidc_discovery_disabled,
             oidc_detector_order=opts.oidc_detector_order,
             oidc_disabled_detectors=oidc_disabled_detectors,
+            warning_writer=lambda message: click.echo(message, err=True),
         )
 
         chain = CredentialProviderChain()
