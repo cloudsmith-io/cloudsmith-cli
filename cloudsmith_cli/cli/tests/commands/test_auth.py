@@ -2,14 +2,30 @@
 
 import json
 import webbrowser
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
+import requests
 
 from ....core.api.exceptions import ApiException
-from ...commands.auth import authenticate
+from ....core.sso import SsoRenewalResult, SsoRenewalStatus
+from ...commands.auth import _renew_existing_sso_session, authenticate
 from ...commands.main import main
 from .conftest import MockToken
+
+
+@pytest.fixture(autouse=True)
+def no_existing_sso_session(monkeypatch):
+    """Keep browser-flow tests independent of locally stored SSO sessions."""
+    monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+    with patch(
+        "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+        return_value=None,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -162,6 +178,103 @@ class TestAuthenticateCommand:
         mock_auth_server.assert_called_once()
         call_kwargs = mock_auth_server.call_args.kwargs
         assert call_kwargs.get("owner") == "testorg"
+
+    def test_usable_session_avoids_workspace_and_browser(self, runner):
+        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        access_token = jwt.encode(
+            {"exp": expires_at},
+            "not-used-for-verification",
+            algorithm="HS256",
+        )
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.RENEWED,
+            access_token=access_token,
+        )
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+                return_value=renewal,
+            ),
+            patch("cloudsmith_cli.cli.commands.auth.webbrowser") as browser,
+            patch(
+                "cloudsmith_cli.cli.commands.auth.AuthenticationWebServer"
+            ) as auth_server,
+        ):
+            result = runner.invoke(authenticate, [], catch_exceptions=False)
+
+        assert result.exit_code == 0
+        assert result.stdout == (
+            "SSO session renewed.\nAccess token expires at 2030-01-02T03:04:05Z.\n"
+        )
+        assert "Workspace" not in result.output
+        browser.open.assert_not_called()
+        auth_server.assert_not_called()
+
+    @pytest.mark.parametrize("output_format", ["json", "pretty_json"])
+    def test_json_renewal_report_is_machine_readable(self, runner, output_format):
+        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.CURRENT,
+            access_token=jwt.encode(
+                {"exp": expires_at},
+                "not-used-for-verification",
+                algorithm="HS256",
+            ),
+        )
+        with patch(
+            "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+            return_value=renewal,
+        ):
+            result = runner.invoke(
+                authenticate,
+                ["--output-format", output_format],
+                catch_exceptions=False,
+            )
+            legacy_result = (
+                runner.invoke(authenticate, ["--json"], catch_exceptions=False)
+                if output_format == "json"
+                else None
+            )
+
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["data"] == {
+            "authenticated": True,
+            "expires_at": "2030-01-02T03:04:05Z",
+            "method": "sso",
+            "renewal_error": None,
+            "status": "current",
+        }
+        assert result.stderr == ""
+        if legacy_result:
+            assert legacy_result.stdout == ""
+            assert "Access token expires at 2030-01-02T03:04:05Z." in (
+                legacy_result.stderr
+            )
+
+    def test_expired_session_offline_has_actionable_error(self, runner):
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.FAILED,
+            error=requests.ConnectionError("offline"),
+        )
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.auth.renew_sso_session",
+                return_value=renewal,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+                wraps=_renew_existing_sso_session,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.auth.AuthenticationWebServer"
+            ) as auth_server,
+        ):
+            result = runner.invoke(authenticate, [])
+
+        assert result.exit_code == 1
+        assert "Cloudsmith could not be reached" in result.output
+        assert "Check your connection" in result.output
+        auth_server.assert_not_called()
 
 
 class TestBrowserFallback:
@@ -330,7 +443,7 @@ class TestRequestApiKeyFlag:
         assert result.exit_code != 0
         assert "No such option '--token'" in result.output
 
-    def test_request_api_key_mutual_exclusion_with_force(
+    def test_request_api_key_allows_force(
         self,
         runner,
         mock_saml_session,
@@ -338,15 +451,25 @@ class TestRequestApiKeyFlag:
         mock_webbrowser,
         mock_auth_server,
     ):
-        """Verify --request-api-key cannot be used with --force."""
-        result = runner.invoke(
-            authenticate,
-            ["--owner", "testorg", "--request-api-key", "--force"],
-            catch_exceptions=False,
+        """Verify --force selects browser auth before API key retrieval."""
+        mock_token = MockToken(
+            key="ck_test123456",
+            created="2026-02-06T00:00:00Z",
+            slug_perm="test-token",
         )
+        with patch(
+            "cloudsmith_cli.cli.commands.auth.request_api_key",
+            return_value=mock_token,
+        ):
+            result = runner.invoke(
+                authenticate,
+                ["--owner", "testorg", "--request-api-key", "--force"],
+                catch_exceptions=False,
+            )
 
-        assert result.exit_code != 0
-        assert "--request-api-key cannot be used with --force" in result.output
+        assert result.exit_code == 0
+        mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
+        mock_auth_server.assert_called_once()
 
     def test_request_api_key_with_save_config(
         self,

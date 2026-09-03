@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
 - Removed `cloudsmith auth --token`; use `--request-api-key` instead.
+- `cloudsmith auth` now reuses an existing SSO session when it can be renewed.
+- `cloudsmith auth` now reports the SSO access-token expiry in normal and JSON output.
+- `cloudsmith auth --force` now explicitly runs browser authentication instead of
+  reusing an existing SSO session.
+
+### Fixed
+
+- SSO access tokens now refresh based on their JWT expiry. Transient refresh failures retain usable tokens, while expired or rejected sessions fall back to other authentication.
 
 ### Fixed
 

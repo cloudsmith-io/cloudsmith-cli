@@ -3,7 +3,13 @@
 import webbrowser
 
 import click
+import requests
 
+from ...core.sso import (
+    SsoRenewalStatus,
+    get_access_token_expiry,
+    renew_sso_session,
+)
 from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..saml import create_configured_session, get_idp_url
@@ -14,6 +20,55 @@ from .tokens import request_api_key
 # Authentication server configuration
 AUTH_SERVER_HOST = "127.0.0.1"
 AUTH_SERVER_PORT = 12400
+
+
+def _renew_existing_sso_session(opts, profile):
+    """Return a usable existing SSO session, or fall back to browser auth."""
+    renewal = renew_sso_session(opts.api_config.host, opts.session, profile=profile)
+    if renewal.status in (
+        SsoRenewalStatus.RENEWED,
+        SsoRenewalStatus.CURRENT,
+    ):
+        return renewal
+    if renewal.status == SsoRenewalStatus.FAILED and isinstance(
+        renewal.error, requests.RequestException
+    ):
+        raise click.ClickException(
+            "The SSO session has expired and Cloudsmith could not be reached. "
+            "Check your connection, then run 'cloudsmith auth' again."
+        ) from renewal.error
+    return None
+
+
+def _report_active_sso_session(opts, renewal, use_stderr=False):
+    """Report the usable SSO session without exposing its access token."""
+    expires_at = get_access_token_expiry(renewal.access_token)
+    data = {
+        "authenticated": True,
+        "method": "sso",
+        "status": renewal.status.value,
+        "expires_at": expires_at,
+        "renewal_error": str(renewal.error) if renewal.error else None,
+    }
+    if utils.maybe_print_as_json(opts, data):
+        return
+
+    if renewal.status == SsoRenewalStatus.RENEWED:
+        click.secho("SSO session renewed.", fg="green", err=use_stderr)
+    elif renewal.error:
+        click.secho(
+            "The SSO session could not be renewed; the existing access token "
+            "remains active.",
+            fg="yellow",
+            err=use_stderr,
+        )
+    else:
+        click.secho("SSO session is active.", fg="green", err=use_stderr)
+    if expires_at:
+        click.echo(
+            f"Access token expires at {utils.fmt_datetime(expires_at)}.",
+            err=use_stderr,
+        )
 
 
 def _perform_saml_authentication(
@@ -80,7 +135,8 @@ def _perform_saml_authentication(
     "--force",
     default=False,
     is_flag=True,
-    help="[DEPRECATED: Use --request-api-key] Force refresh of user API token without prompts.",
+    help="Authenticate in the browser even when the existing SSO session can be "
+    "renewed.",
 )
 @click.option(
     "--save-config",
@@ -123,23 +179,8 @@ def authenticate(
     no_browser,
 ):
     """Authenticate to Cloudsmith using the Workspace's SAML setup."""
-    # Validate mutual exclusivity
-    if request_api_key_flag and force:
-        raise click.UsageError(
-            "--request-api-key cannot be used with --force. "
-            "Use --request-api-key alone for fully automated token retrieval."
-        )
-
     # Determine if we should redirect info messages to stderr
     use_stderr = request_api_key_flag or json or utils.should_use_stderr(opts)
-
-    if force:
-        click.secho(
-            "DEPRECATION WARNING: The `--force` flag is deprecated and will be removed in a future release. "
-            "Please use `--request-api-key` instead (force is implied).",
-            fg="yellow",
-            err=True,
-        )
 
     if json and not utils.should_use_stderr(opts):
         click.secho(
@@ -148,6 +189,14 @@ def authenticate(
             fg="yellow",
             err=True,
         )
+
+    if not force and not request_api_key_flag:
+        session_result = _renew_existing_sso_session(
+            opts, profile=ctx.meta.get("profile")
+        )
+        if session_result:
+            _report_active_sso_session(opts, session_result, use_stderr)
+            return
 
     workspace = opts.org or click.prompt("Workspace", err=use_stderr)
     workspace = validators.validate_owner(ctx, None, workspace)[0]
