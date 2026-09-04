@@ -2,7 +2,7 @@
 
 import json
 import webbrowser
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -120,6 +120,71 @@ class TestAuthenticateCommand:
 
         # Verify AuthenticationWebServer was called
         mock_auth_server.assert_called_once()
+
+    def test_auth_command_uses_first_available_redirect_port(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify occupied callback ports are skipped without user interaction."""
+        auth_server = MagicMock()
+        mock_auth_server.side_effect = [
+            OSError("port unavailable"),
+            OSError("port unavailable"),
+            auth_server,
+        ]
+
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg", "--no-browser"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert [call.args[0] for call in mock_auth_server.call_args_list] == [
+            ("127.0.0.1", 12400),
+            ("127.0.0.1", 12401),
+            ("127.0.0.1", 12402),
+        ]
+        mock_get_idp_url.assert_called_once_with(
+            ANY,
+            "testorg",
+            redirect_url="http://localhost:12402",
+            session=mock_saml_session.return_value,
+        )
+        auth_server.handle_request.assert_called_once()
+        auth_server.server_close.assert_called_once()
+
+    def test_auth_command_fails_after_all_redirect_ports_are_unavailable(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify authentication fails only after every callback port is tried."""
+        mock_auth_server.side_effect = OSError("port unavailable")
+
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg", "--no-browser"],
+        )
+
+        assert result.exit_code != 0
+        assert [call.args[0] for call in mock_auth_server.call_args_list] == [
+            ("127.0.0.1", 12400),
+            ("127.0.0.1", 12401),
+            ("127.0.0.1", 12402),
+            ("127.0.0.1", 12403),
+            ("127.0.0.1", 12404),
+        ]
+        mock_get_idp_url.assert_not_called()
+        assert isinstance(result.exception, SystemExit)
+        assert "12400, 12401, 12402, 12403, 12404" in result.output
 
     def test_auth_command_opens_browser(
         self,
