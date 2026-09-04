@@ -62,3 +62,8 @@ def test_cli_import_does_not_load_command_modules():
 def test_docker_helper_import_does_not_load_heavy_modules():
     modules = modules_loaded_by_import("cloudsmith_cli.credential_helpers.docker")
     assert heavy_modules_in(modules) == []
+
+
+def test_terraform_helper_import_does_not_load_heavy_modules():
+    modules = modules_loaded_by_import("cloudsmith_cli.credential_helpers.terraform")
+    assert heavy_modules_in(modules) == []
