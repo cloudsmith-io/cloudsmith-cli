@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import requests
 
 
@@ -33,6 +35,7 @@ class CredentialContext:
     oidc_discovery_disabled: bool = False
     oidc_detector_order: str | None = None
     oidc_disabled_detectors: frozenset[str] = frozenset()
+    warning_writer: Callable[[str], None] | None = None
 
 
 @dataclass
