@@ -31,7 +31,12 @@ class TestSaml:
         mock_session.get.return_value = mock_response
 
         assert (
-            get_idp_url(self.api_host, "test_org", session=mock_session)
+            get_idp_url(
+                self.api_host,
+                "test_org",
+                redirect_url="http://localhost:12400",
+                session=mock_session,
+            )
             == "response_redirect_url"
         )
         mock_session.get.assert_called_once_with(
@@ -50,14 +55,19 @@ class TestSaml:
         )
 
         with pytest.raises(ApiException) as exc:
-            get_idp_url(self.api_host, "test_org", session=mock_session)
+            get_idp_url(
+                self.api_host,
+                "test_org",
+                redirect_url="http://localhost:12400",
+                session=mock_session,
+            )
 
-            assert exc == ApiException(
-                status=500, headers={"foo": "bar"}, body="Error body"
-            )
-            mock_session.get.assert_called_once_with(
-                f"{self.api_host}/orgs/test_org/saml/?{self.query_params}", timeout=30
-            )
+        assert exc.value.status == 500
+        assert exc.value.headers == {"foo": "bar"}
+        assert exc.value.body == "Error body"
+        mock_session.get.assert_called_once_with(
+            f"{self.api_host}/orgs/test_org/saml/?{self.query_params}", timeout=30
+        )
 
     def test_error_carries_the_api_detail(self, mock_response, mock_session):
         import requests
