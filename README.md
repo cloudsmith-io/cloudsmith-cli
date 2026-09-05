@@ -437,6 +437,8 @@ cloudsmith download --help
 
 Arbitrary JSON metadata can be attached to any package — SBOMs, JFrog BuildInfo documents, or custom payloads. Metadata is validated against the declared content type and stays with the package for its lifetime.
 
+For teams mapping SBOM and vulnerability-handling evidence to EU Cyber Resilience Act (CRA) readiness, the [OpenChain CRA Compliance Requirements & Checklist](https://github.com/OpenChain-Project/CRA-Compliance) provides a community-maintained reference for organizing compliance evidence. This checklist is not legal advice or a conformity assessment.
+
 Metadata can be attached at push time with `cloudsmith push` (see [Attaching Metadata During Push](#attaching-metadata-during-push)) or managed afterwards with the `cloudsmith metadata` command group.
 
 To attach metadata to an existing package:
