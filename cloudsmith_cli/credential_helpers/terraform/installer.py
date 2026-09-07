@@ -26,6 +26,29 @@ from . import terraformrc
 logger = logging.getLogger(__name__)
 
 
+class TerraformPluginDirError(Exception):
+    """Raised when ``--bin-dir`` points outside Terraform's plugin locations.
+
+    Terraform only looks for a credentials helper in its own plugin directories
+    (it never searches ``PATH``), so a launcher written elsewhere would install
+    "successfully" yet never be discovered by ``terraform init``. Rather than
+    leave a silently useless install behind, the installer refuses and names the
+    directories Terraform will actually search.
+    """
+
+    def __init__(self, target_dir: Path, recognized: list[Path]) -> None:
+        self.target_dir = target_dir
+        self.recognized = recognized
+        recognized_str = ", ".join(str(d) for d in recognized)
+        super().__init__(
+            f"{target_dir} is not one of Terraform's plugin directories, so "
+            "Terraform would not discover the credentials helper installed "
+            "there (Terraform does not search PATH for credentials helpers). "
+            f"Install into a recognized plugin directory ({recognized_str}) or "
+            "omit --bin-dir to use the default."
+        )
+
+
 class TerraformHelperExeNotFound(Exception):
     """Raised when the real ``terraform-credentials-cloudsmith`` exe is missing.
 
@@ -67,6 +90,80 @@ def _default_plugin_dir() -> Path:
         return base / "terraform.d" / "plugins"
 
     return Path.home() / ".terraform.d" / "plugins"
+
+
+def _recognized_plugin_dirs() -> list[Path]:
+    """Return the plugin directories Terraform actually searches for helpers.
+
+    Terraform only looks for a credentials helper in its default plugin
+    locations — it does **not** search ``PATH``. Installing the launcher
+    anywhere else silently "succeeds" while ``terraform init`` can never find
+    it, so the installer uses this list to reject a ``--bin-dir`` override that
+    is somewhere Terraform will not look.
+
+    The set mirrors Terraform's implied filesystem-mirror directories (the same
+    locations it searches for credentials helpers), which vary by OS:
+
+    * **Windows:** ``%APPDATA%/terraform.d/plugins`` and
+      ``%APPDATA%/HashiCorp/Terraform/plugins``.
+    * **macOS:** ``~/.terraform.d/plugins``,
+      ``~/Library/Application Support/io.terraform/plugins`` and
+      ``/Library/Application Support/io.terraform/plugins``.
+    * **Linux / other Unix:** ``~/.terraform.d/plugins`` plus
+      ``terraform/plugins`` under each XDG Base Directory data dir
+      (``$XDG_DATA_HOME`` or ``~/.local/share``, then each ``$XDG_DATA_DIRS``
+      entry or the ``/usr/local/share`` and ``/usr/share`` defaults).
+
+    On every OS a ``terraform.d/plugins`` directory in the current working
+    directory is also searched.
+
+    See:
+    https://developer.hashicorp.com/terraform/cli/config/config-file#implied-local-mirror-directories
+    """
+    dirs: list[Path] = [_default_plugin_dir()]
+
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        base = Path(appdata) if appdata else Path.home()
+        dirs.append(base / "HashCorp" / "Terraform" / "plugins")
+    elif sys.platform == "darwin":
+        home = Path.home()
+        dirs.append(
+            home / "Library" / "Application Support" / "io.terraform" / "plugins"
+        )
+        dirs.append(Path("/Library/Application Support/io.terraform/plugins"))
+    else:
+        home = Path.home()
+        xdg_data_home = os.environ.get("XDG_DATA_HOME")
+        xdg_base = Path(xdg_data_home) if xdg_data_home else home / ".local" / "share"
+        dirs.append(xdg_base / "terraform" / "plugins")
+
+        xdg_data_dirs = os.environ.get("XDG_DATA_DIRS")
+        if xdg_data_dirs:
+            extra_bases = [Path(p) for p in xdg_data_dirs.split(os.pathsep) if p]
+        else:
+            extra_bases = [Path("/usr/local/share"), Path("/usr/share")]
+        dirs.extend(extra / "terraform" / "plugins" for extra in extra_bases)
+
+    # A `terraform.d/plugins` directory in the current working directory is
+    # searched on every OS.
+    dirs.append(Path.cwd() / "terraform.d" / "plugins")
+
+    return dirs
+
+
+def _is_recognized_plugin_dir(target_dir: Path) -> bool:
+    """Return True when *target_dir* is a directory Terraform searches.
+
+    A directory is recognized when it is one of Terraform's plugin roots or a
+    subdirectory of one (Terraform also searches ``<root>/<OS>_<ARCH>``).
+    """
+    resolved = target_dir.resolve()
+    for root in _recognized_plugin_dirs():
+        root = root.resolve()
+        if resolved == root or root in resolved.parents:
+            return True
+    return False
 
 
 class TerraformInstaller:
@@ -228,6 +325,13 @@ class TerraformInstaller:
         rc_path = _terraformrc_path()
 
         actions: list[str] = []
+
+        # A --bin-dir override can point Terraform-blind: Terraform only searches
+        # its own plugin locations (never PATH), so a launcher written elsewhere
+        # installs "successfully" but is never discovered. Refuse up front so we
+        # never leave a silently useless install behind.
+        if bin_dir is not None and not _is_recognized_plugin_dir(target_dir):
+            raise TerraformPluginDirError(target_dir, _recognized_plugin_dirs())
 
         existing = ""
         rc_exists = rc_path.exists()

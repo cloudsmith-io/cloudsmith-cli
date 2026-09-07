@@ -18,6 +18,7 @@ from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
     TerraformInstaller,
+    TerraformPluginDirError,
     _terraformrc_path,
 )
 from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
@@ -253,7 +254,11 @@ def install_cmd(
 
     try:
         actions = installer.install(**install_kwargs)
-    except (TerraformrcConflictError, TerraformHelperExeNotFound) as exc:
+    except (
+        TerraformrcConflictError,
+        TerraformHelperExeNotFound,
+        TerraformPluginDirError,
+    ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
