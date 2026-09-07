@@ -13,7 +13,37 @@ from .tokens import create, request_api_key
 
 # Authentication server configuration
 AUTH_SERVER_HOST = "127.0.0.1"
-AUTH_SERVER_PORT = 12400
+AUTH_REDIRECT_HOST = "localhost"
+AUTH_SERVER_PORTS = (12400, 12401, 12402, 12403, 12404)
+
+
+def _create_auth_server(opts, owner, session, enable_token_creation, profile):
+    """Create an authentication server on the first available callback port."""
+    last_error = None
+
+    for port in AUTH_SERVER_PORTS:
+        try:
+            server = AuthenticationWebServer(
+                (AUTH_SERVER_HOST, port),
+                AuthenticationWebRequestHandler,
+                owner=owner,
+                session=session,
+                debug=opts.debug,
+                refresh_api_on_success=enable_token_creation,
+                api_opts=opts.api_config,
+                profile=profile,
+            )
+            return server, port
+        except OSError as exc:
+            last_error = exc
+
+    ports = ", ".join(str(port) for port in AUTH_SERVER_PORTS)
+    raise click.ClickException(
+        "Could not start the authentication callback server. "
+        f"Every candidate port is unavailable: {ports}. "
+        f"The last error was: {last_error}. "
+        "Stop the process that holds one of these ports, then try again."
+    ) from last_error
 
 
 def _perform_saml_authentication(
@@ -28,50 +58,52 @@ def _perform_saml_authentication(
     session = create_configured_session(opts)
     api_host = opts.api_config.host
 
-    idp_url = get_idp_url(api_host, owner, session=session)
-
-    click.echo(
-        f"Your Workspace's SAML IDP URL is: {click.style(idp_url, bold=True)}",
-        err=use_stderr,
+    auth_server, port = _create_auth_server(
+        opts, owner, session, enable_token_creation, profile
     )
-    click.echo(err=use_stderr)
+    redirect_url = f"http://{AUTH_REDIRECT_HOST}:{port}"
 
-    if no_browser:
+    try:
+        idp_url = get_idp_url(
+            api_host, owner, redirect_url=redirect_url, session=session
+        )
+
         click.echo(
-            "Skipping automatic browser launch (--no-browser). "
-            "Please open the URL above manually to continue.",
+            f"Your Workspace's SAML IDP URL is: {click.style(idp_url, bold=True)}",
             err=use_stderr,
         )
-    else:
-        try:
-            browser_opened = webbrowser.open(idp_url)
-        except Exception:
-            # Browser launch failures vary by platform (webbrowser.Error on
-            # Cygwin/headless, anything else elsewhere), so catch broadly and
-            # fall back to the manual URL rather than crashing.
-            browser_opened = False
+        click.echo(err=use_stderr)
 
-        if not browser_opened:
+        if no_browser:
             click.echo(
-                "Couldn't open a browser automatically. "
+                "Skipping automatic browser launch (--no-browser). "
                 "Please open the URL above manually to continue.",
                 err=use_stderr,
             )
+        else:
+            try:
+                browser_opened = webbrowser.open(idp_url)
+            except Exception:
+                # Browser launch failures vary by platform (webbrowser.Error on
+                # Cygwin/headless, anything else elsewhere), so catch broadly and
+                # fall back to the manual URL rather than crashing.
+                browser_opened = False
 
-    click.echo("Starting webserver to begin authentication ... ", err=use_stderr)
+            if not browser_opened:
+                click.echo(
+                    "Couldn't open a browser automatically. "
+                    "Please open the URL above manually to continue.",
+                    err=use_stderr,
+                )
 
-    auth_server = AuthenticationWebServer(
-        (AUTH_SERVER_HOST, AUTH_SERVER_PORT),
-        AuthenticationWebRequestHandler,
-        owner=owner,
-        session=session,
-        debug=opts.debug,
-        refresh_api_on_success=enable_token_creation,
-        api_opts=opts.api_config,
-        profile=profile,
-    )
+        click.echo(
+            f"Waiting for the authentication callback on port {port} ... ",
+            err=use_stderr,
+        )
 
-    auth_server.handle_request()
+        auth_server.handle_request()
+    finally:
+        auth_server.server_close()
 
 
 @main.command(aliases=["auth"])
