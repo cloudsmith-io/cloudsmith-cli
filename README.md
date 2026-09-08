@@ -208,6 +208,10 @@ See the [Bitbucket Pipelines OIDC documentation](https://support.atlassian.com/b
 
 In CircleCI, OIDC credential discovery works out of the box with no extra dependencies — the CLI reads the token from the `CIRCLE_OIDC_TOKEN_V2` (preferred) or `CIRCLE_OIDC_TOKEN` environment variable that CircleCI injects into every job. The Cloudsmith OIDC provider must expect the audience CircleCI mints, which is your CircleCI organization UUID. See the [Cloudsmith CircleCI integration guide](https://docs.cloudsmith.com/integrations/integrating-with-circleci).
 
+#### Buildkite OIDC Support
+
+In Buildkite, OIDC credential discovery works out of the box with no extra dependencies — the CLI requests a token for the current job through `buildkite-agent oidc request-token`. By default it requests the `cloudsmith` audience; use `--oidc-audience` or `CLOUDSMITH_OIDC_AUDIENCE` if your Cloudsmith OIDC provider expects a different audience. See the [Buildkite OIDC documentation](https://buildkite.com/docs/pipelines/security/oidc).
+
 #### Azure DevOps OIDC Support
 
 In Azure DevOps Pipelines, OIDC credential discovery works out of the box with no extra dependencies — the CLI fetches an OIDC token from the `SYSTEM_OIDCREQUESTURI` endpoint using the pipeline's `SYSTEM_ACCESSTOKEN`. Make sure `SYSTEM_ACCESSTOKEN` is mapped into the step's environment. The Cloudsmith OIDC provider must expect the audience `api://AzureADTokenExchange`, which Azure DevOps always mints (any requested audience is ignored). See the [Cloudsmith Azure DevOps integration guide](https://docs.cloudsmith.com/integrations/integrating-with-azure-devops).
@@ -242,7 +246,7 @@ By default the CLI tries each detector in a fixed priority order and uses the fi
 - **Disable a detector** — set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip it entirely. Only the literal value `true` (case-insensitive) disables; anything else leaves the detector enabled. For example, `CLOUDSMITH_OIDC_AWS_DISABLED=true` skips the AWS detector so an explicitly-set `CLOUDSMITH_OIDC_TOKEN` is picked up by the generic detector instead.
 - **Reorder evaluation** — use `--oidc-detector-order` (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) with a comma-separated list of detector ids to control both which detectors are considered and the order they are tried in (first match wins). Ids not listed are skipped; unrecognised ids are ignored with a warning. For example, `--oidc-detector-order=generic,aws` tries the generic detector first and considers only those two.
 
-When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
+When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `buildkite`, `circleci`, `generic`, `github`, `gitlab`.
 
 Both controls can also be set in `config.ini`, under `[default]` or a profile section:
 
