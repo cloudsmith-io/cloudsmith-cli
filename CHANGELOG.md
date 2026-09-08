@@ -7,20 +7,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-09-08
+
 ### Added
 
 - Added `-w` and `--workspace` as the shared Workspace option used by authentication, OIDC, and custom-domain discovery. Set `CLOUDSMITH_WORKSPACE` or `workspace` in `config.ini` to configure it once for every command.
 - Added a Terraform credentials helper for Cloudsmith registries. `cloudsmith credential-helper install terraform` writes a `terraform-credentials-cloudsmith` launcher into Terraform's plugin directory (`~/.terraform.d/plugins` by default; override with `--bin-dir`) and adds a `credentials_helper "cloudsmith"` block to `~/.terraformrc`, so `terraform init` authenticates against a Cloudsmith Terraform registry with no token on disk, using your existing CLI credentials (env, config, keyring, or OIDC). The resolved `--org`, `-r/--repo`, `-P/--profile`, and any non-default `--config-file`/`--credentials-file` are baked into the terraformrc `args` list, so `terraform init` resolves the same credentials as the install invocation with no environment variables. `get` returns `{"token": "..."}` for a Cloudsmith host (including custom domains) and `{}` for any other host so Terraform falls back to its own credential sources; `store`/`forget` are unsupported (`store` drains its stdin payload before erroring, per the protocol). Missing credentials for a Cloudsmith host produce an actionable error rather than a traceback. Manage with `cloudsmith credential-helper uninstall terraform` and `cloudsmith credential-helper list`.
+- Added `--color {auto,always,never}` and support for `NO_COLOR`, `CLOUDSMITH_FORCE_COLOR`, and `TERM=dumb` to control ANSI output.
+- Failed OIDC token exchanges now print diagnostics for the configured Workspace, service, API host, detector, and decoded JWT header and claims without printing the raw token.
 
 ### Changed
 
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
 - `cloudsmith auth` now reuses an existing SSO session when it can be renewed.
 - `cloudsmith auth` now reports the SSO access-token expiry in normal and JSON output.
+- SAML two-factor codes are now visible while entered, making numeric input errors easier to spot.
 
 ### Fixed
 
 - SSO access tokens now refresh based on their JWT expiry. Transient refresh failures retain usable tokens, while expired or rejected sessions fall back to other authentication.
+- SAML authentication now tries callback ports `12400` through `12404` instead of failing when port `12400` is occupied.
+- Raised minimum dependency versions to incorporate current security fixes for Cryptography, PyJWT, MCP, Pydantic Settings, and Starlette.
 
 ## [1.26.0] - 2026-08-26
 
