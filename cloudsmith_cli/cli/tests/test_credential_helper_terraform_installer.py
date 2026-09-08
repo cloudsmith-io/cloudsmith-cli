@@ -162,16 +162,28 @@ def test_installer_install_writes_launcher_and_block(tmp_path, monkeypatch):
     assert any("wrote launcher" in a for a in actions)
 
 
+def _arch_subdir(tmp_path: Path) -> Path:
+    """Return the recognized ``<GOOS>_<GOARCH>`` plugin subdir under *tmp_path*.
+
+    Computed from the installer's own OS/arch mapping so the test targets the
+    exact directory Terraform searches on the running platform, rather than a
+    hardcoded ``linux_amd64`` that only matches one host.
+    """
+    os_arch = f"{installer_mod._go_os()}_{installer_mod._go_arch()}"
+    return tmp_path / ".terraform.d" / "plugins" / os_arch
+
+
 def test_installer_respects_bin_dir_override(tmp_path, monkeypatch):
     """--bin-dir overrides the default plugin directory for the launcher.
 
-    Uses a subdirectory of the default plugin root — recognized by Terraform on
-    every OS — so the override is honoured without tripping the plugin-directory
-    validation, while proving the launcher lands somewhere other than the root.
+    Uses the ``<GOOS>_<GOARCH>`` subdirectory of the default plugin root — the
+    only subdirectory Terraform searches for helpers — so the override is
+    honoured without tripping the plugin-directory validation, while proving the
+    launcher lands somewhere other than the root.
     """
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
-    custom = tmp_path / ".terraform.d" / "plugins" / "custom"
+    custom = _arch_subdir(tmp_path)
 
     installer = TerraformInstaller()
     installer.install(bin_dir=str(custom))
@@ -213,17 +225,34 @@ def test_installer_accepts_default_bin_dir(tmp_path, monkeypatch):
     assert _launcher(tmp_path).exists()
 
 
-def test_installer_accepts_recognized_bin_dir_subdir(tmp_path, monkeypatch):
-    """A subdirectory of a recognized plugin root (e.g. <OS>_<ARCH>) is accepted."""
+def test_installer_accepts_recognized_arch_subdir(tmp_path, monkeypatch):
+    """The ``<GOOS>_<GOARCH>`` subdir of the plugin root is accepted."""
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    arch_dir = tmp_path / ".terraform.d" / "plugins" / "linux_amd64"
+    arch_dir = _arch_subdir(tmp_path)
 
     installer = TerraformInstaller()
     installer.install(bin_dir=str(arch_dir))
 
     assert (arch_dir / "terraform-credentials-cloudsmith").exists()
+
+
+def test_installer_rejects_arbitrary_plugin_subdir(tmp_path, monkeypatch):
+    """A non-``<GOOS>_<GOARCH>`` subdir of the plugin root is refused.
+
+    Terraform does a flat, non-recursive ``ReadDir`` of ``plugins/`` and
+    ``plugins/<GOOS>_<GOARCH>`` only, so a launcher in any other subdirectory
+    would never be discovered.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    custom = tmp_path / ".terraform.d" / "plugins" / "custom"
+
+    installer = TerraformInstaller()
+    with pytest.raises(installer_mod.TerraformPluginDirError):
+        installer.install(bin_dir=str(custom))
+
+    assert not (custom / "terraform-credentials-cloudsmith").exists()
 
 
 def test_installer_rejects_unrecognized_bin_dir_in_dry_run(tmp_path, monkeypatch):
@@ -268,62 +297,42 @@ def test_cli_install_rejects_unrecognized_bin_dir(runner, tmp_path, monkeypatch)
     assert not (custom / "terraform-credentials-cloudsmith").exists()
 
 
-def test_recognized_plugin_dirs_macos(tmp_path, monkeypatch):
-    """macOS covers ~/.terraform.d and both io.terraform Application Support dirs."""
+def test_recognized_plugin_dirs_is_exactly_root_and_arch_subdir(tmp_path, monkeypatch):
+    """Only the plugin root and its <GOOS>_<GOARCH> subdir are recognized.
+
+    Credentials-helper discovery uses Terraform's ``GlobalPluginDirs()``, which
+    is exactly ``<ConfigDir>/plugins`` and ``<ConfigDir>/plugins/<GOOS>_<GOARCH>``
+    — none of the broader provider-mirror locations (XDG, macOS io.terraform,
+    the cwd) are searched.
+    """
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    monkeypatch.setattr(installer_mod.sys, "platform", "darwin")
-    monkeypatch.setattr(installer_mod.os, "name", "posix")
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
 
-    dirs = {str(d) for d in installer_mod._recognized_plugin_dirs()}
+    dirs = [str(d) for d in installer_mod._recognized_plugin_dirs()]
 
-    assert str(tmp_path / ".terraform.d" / "plugins") in dirs
-    assert (
-        str(tmp_path / "Library" / "Application Support" / "io.terraform" / "plugins")
-        in dirs
-    )
-    assert "/Library/Application Support/io.terraform/plugins" in dirs
+    root = tmp_path / ".terraform.d" / "plugins"
+    os_arch = f"{installer_mod._go_os()}_{installer_mod._go_arch()}"
+    assert dirs == [str(root), str(root / os_arch)]
 
 
-def test_recognized_plugin_dirs_linux_defaults(tmp_path, monkeypatch):
-    """Linux without XDG vars covers ~/.terraform.d, ~/.local/share and the sys dirs."""
+def test_recognized_plugin_dirs_excludes_provider_mirror_locations(
+    tmp_path, monkeypatch
+):
+    """None of the provider-mirror dirs (XDG / macOS / cwd) are recognized."""
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    monkeypatch.setattr(installer_mod.sys, "platform", "linux")
-    monkeypatch.setattr(installer_mod.os, "name", "posix")
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    monkeypatch.delenv("XDG_DATA_DIRS", raising=False)
-
-    dirs = {str(d) for d in installer_mod._recognized_plugin_dirs()}
-
-    assert str(tmp_path / ".terraform.d" / "plugins") in dirs
-    assert str(tmp_path / ".local" / "share" / "terraform" / "plugins") in dirs
-    assert "/usr/local/share/terraform/plugins" in dirs
-    assert "/usr/share/terraform/plugins" in dirs
-
-
-def test_recognized_plugin_dirs_linux_honours_xdg(tmp_path, monkeypatch):
-    """Linux honours $XDG_DATA_HOME and every $XDG_DATA_DIRS entry."""
-    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    monkeypatch.setattr(installer_mod.sys, "platform", "linux")
-    monkeypatch.setattr(installer_mod.os, "name", "posix")
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg_home"))
-    monkeypatch.setenv(
-        "XDG_DATA_DIRS", f"{tmp_path / 'share_a'}:{tmp_path / 'share_b'}"
-    )
-
-    dirs = {str(d) for d in installer_mod._recognized_plugin_dirs()}
-
-    assert str(tmp_path / "xdg_home" / "terraform" / "plugins") in dirs
-    assert str(tmp_path / "share_a" / "terraform" / "plugins") in dirs
-    assert str(tmp_path / "share_b" / "terraform" / "plugins") in dirs
-
-
-def test_recognized_plugin_dirs_includes_cwd(tmp_path, monkeypatch):
-    """A terraform.d/plugins dir in the working directory is recognized on any OS."""
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
     monkeypatch.chdir(tmp_path)
 
     dirs = {str(d) for d in installer_mod._recognized_plugin_dirs()}
 
-    assert str(tmp_path / "terraform.d" / "plugins") in dirs
+    assert str(tmp_path / ".local" / "share" / "terraform" / "plugins") not in dirs
+    assert "/usr/local/share/terraform/plugins" not in dirs
+    assert "/usr/share/terraform/plugins" not in dirs
+    assert (
+        str(tmp_path / "Library" / "Application Support" / "io.terraform" / "plugins")
+        not in dirs
+    )
+    assert str(tmp_path / "terraform.d" / "plugins") not in dirs
 
 
 def test_installer_dry_run_writes_nothing(tmp_path, monkeypatch):
@@ -709,9 +718,10 @@ def test_windows_install_copies_real_exe(monkeypatch, tmp_path):
     )
 
     installer = TerraformInstaller()
-    # A recognized plugin dir (subdir of ~/.terraform.d/plugins); the plugin-dir
-    # validation runs off os.name, which stays POSIX under _force_windows.
-    custom = tmp_path / ".terraform.d" / "plugins" / "win"
+    # A recognized plugin dir (the <GOOS>_<GOARCH> subdir of ~/.terraform.d/
+    # plugins); the plugin-dir validation runs off os.name, which stays POSIX
+    # under _force_windows.
+    custom = _arch_subdir(tmp_path)
     installer.install(bin_dir=str(custom), helper_args=("--org", "acme"))
 
     dest = custom / f"{LAUNCHER}.exe"
@@ -729,7 +739,7 @@ def test_windows_install_errors_when_no_exe(monkeypatch, tmp_path):
     )
 
     installer = TerraformInstaller()
-    recognized = tmp_path / ".terraform.d" / "plugins" / "win"
+    recognized = _arch_subdir(tmp_path)
     with pytest.raises(TerraformHelperExeNotFound):
         installer.install(bin_dir=str(recognized))
 
@@ -750,7 +760,7 @@ def test_windows_uninstall_removes_exe(monkeypatch, tmp_path):
     )
 
     installer = TerraformInstaller()
-    custom = tmp_path / ".terraform.d" / "plugins" / "win"
+    custom = _arch_subdir(tmp_path)
     installer.install(bin_dir=str(custom))
     dest = custom / f"{LAUNCHER}.exe"
     assert dest.exists()

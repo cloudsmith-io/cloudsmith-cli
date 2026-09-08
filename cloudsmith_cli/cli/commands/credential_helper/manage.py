@@ -249,8 +249,10 @@ def install_cmd(
     # Terraform bakes the resolved org/profile into the terraformrc `args` list
     # so `terraform init` needs neither env vars nor a hand-edited config. The
     # wrapper forwards these to the CLI ahead of the hostname at call time.
+    helper_args: tuple[str, ...] = ()
     if helper == "terraform":
-        install_kwargs["helper_args"] = _terraform_helper_args(ctx, opts, repo)
+        helper_args = _terraform_helper_args(ctx, opts, repo)
+        install_kwargs["helper_args"] = helper_args
 
     try:
         actions = installer.install(**install_kwargs)
@@ -276,7 +278,7 @@ def install_cmd(
 
     next_steps: list[str] = []
     if helper == "terraform":
-        next_steps = _terraform_next_steps(install_kwargs.get("helper_args", ()))
+        next_steps = _terraform_next_steps(helper_args)
 
     data = {
         "helper": helper,
