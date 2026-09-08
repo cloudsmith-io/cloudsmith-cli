@@ -3,11 +3,13 @@
 import functools
 import logging
 import os
+import sys
 
 import click
 from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
+from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -152,6 +154,31 @@ def common_cli_output_options(f):
     """Add common CLI output options to commands."""
 
     @click.option(
+        "--color",
+        envvar="CLOUDSMITH_COLOR",
+        default="auto",
+        type=click.Choice(ColorMode, case_sensitive=False),
+        help="Control whether ANSI colour output is used: auto, always or never.",
+    )
+    @click.option(
+        "--no-color-env",
+        envvar="NO_COLOR",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
+        "--force-color-env",
+        envvar="CLOUDSMITH_FORCE_COLOR",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
+        "--term-env",
+        envvar="TERM",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
         "-d",
         "--debug",
         default=False,
@@ -178,6 +205,17 @@ def common_cli_output_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        ctx.color = color_enabled(
+            {
+                "NO_COLOR": kwargs.pop("no_color_env"),
+                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+                "TERM": kwargs.pop("term_env"),
+            },
+            kwargs.pop("color"),
+            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        )
+
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
         opts.output = kwargs.pop("output_format")
