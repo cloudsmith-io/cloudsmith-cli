@@ -2,12 +2,68 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 from ..models import CredentialContext, CredentialResult
 from ..provider import CredentialProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _warn(context: CredentialContext, message: str, *args: object) -> None:
+    """Write a user-facing warning to CLI stderr, falling back to logging."""
+    rendered = message % args if args else message
+    if context.warning_writer:
+        context.warning_writer(rendered)
+    else:
+        logger.warning("%s", rendered)
+
+
+def _log_exchange_diagnostics(
+    *,
+    context: CredentialContext,
+    detector_name: str,
+    org: str,
+    service_slug: str,
+    vendor_token: str,
+) -> None:
+    """Log the inputs needed to diagnose a failed exchange without the raw JWT."""
+    _warn(context, "OIDC exchange diagnostics:")
+    _warn(context, "  Workspace: %s", org)
+    _warn(context, "  Service slug: %s", service_slug)
+    _warn(context, "  Cloudsmith API host: %s", context.api_host)
+    _warn(context, "  Vendor detector: %s", detector_name)
+
+    try:
+        import jwt
+
+        header = jwt.get_unverified_header(vendor_token)
+        claims = jwt.decode(
+            vendor_token,
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_aud": False,
+                "verify_iss": False,
+            },
+        )
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _warn(context, "  Vendor JWT could not be decoded: %s", exc)
+        return
+
+    _warn(context, "  Vendor issuer URL: %s", claims.get("iss", "<missing>"))
+    _warn(context, "  Vendor JWT KID: %s", header.get("kid", "<missing>"))
+    _warn(
+        context,
+        "  Vendor JWT header: %s",
+        json.dumps(header, sort_keys=True, default=str),
+    )
+    _warn(
+        context,
+        "  Vendor JWT claims: %s",
+        json.dumps(claims, sort_keys=True, default=str),
+    )
 
 
 class OidcProvider(CredentialProvider):
@@ -72,7 +128,8 @@ class OidcProvider(CredentialProvider):
         try:
             vendor_token = detector.get_token()
         except Exception:  # pylint: disable=broad-exception-caught
-            logger.warning(
+            _warn(
+                context,
                 "OIDC: Failed to retrieve identity token from %s. "
                 "Use --debug for details.",
                 detector.name,
@@ -85,7 +142,11 @@ class OidcProvider(CredentialProvider):
             return None
 
         if not vendor_token:
-            logger.warning("OIDC: %s detector returned an empty token.", detector.name)
+            _warn(
+                context,
+                "OIDC: %s detector returned an empty token.",
+                detector.name,
+            )
             return None
 
         try:
@@ -96,13 +157,28 @@ class OidcProvider(CredentialProvider):
                 oidc_token=vendor_token,
             )
         except OidcExchangeError as exc:
-            logger.warning("OIDC: Token exchange failed: %s", exc)
+            _warn(context, "OIDC: Token exchange failed: %s", exc)
+            _log_exchange_diagnostics(
+                context=context,
+                detector_name=detector.name,
+                org=org,
+                service_slug=service_slug,
+                vendor_token=vendor_token,
+            )
             return None
         except Exception:  # pylint: disable=broad-exception-caught
-            logger.warning(
-                "OIDC: Token exchange failed unexpectedly. Use --debug for details."
+            _warn(
+                context,
+                "OIDC: Token exchange failed unexpectedly. Use --debug for details.",
             )
             logger.debug("OidcProvider: OIDC token exchange error", exc_info=True)
+            _log_exchange_diagnostics(
+                context=context,
+                detector_name=detector.name,
+                org=org,
+                service_slug=service_slug,
+                vendor_token=vendor_token,
+            )
             return None
 
         if not cloudsmith_token:

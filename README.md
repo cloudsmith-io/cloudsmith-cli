@@ -321,7 +321,7 @@ cloudsmith auth --owner example
 Beginning authentication for the example org ...
 Your organization's SAML IDP URL is: https://example.com/some-saml-idp
 
-Starting webserver to begin authentication ...
+Waiting for the authentication callback on port 12400 ...
 
 Authentication complete
 ```
@@ -332,7 +332,7 @@ The CLI opens the IDP URL in your browser automatically. If it can't (for exampl
 cloudsmith auth --owner example --no-browser
 ```
 
-*Note:* The authentication callback is served on `127.0.0.1:12400`, so the browser you open the URL in must be running on the same machine as the CLI.
+*Note:* The authentication callback is served on `127.0.0.1`, on the first free port between `12400` and `12404`. The browser you open the URL in must run on the same machine as the CLI.
 
 #### Getting Your API Key
 

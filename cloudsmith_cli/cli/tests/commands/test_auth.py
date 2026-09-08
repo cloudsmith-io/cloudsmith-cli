@@ -2,14 +2,30 @@
 
 import json
 import webbrowser
-from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
+from unittest.mock import ANY, MagicMock, patch
 
+import jwt
 import pytest
+import requests
 
 from ....core.api.exceptions import ApiException
-from ...commands.auth import authenticate
+from ....core.sso import SsoRenewalResult, SsoRenewalStatus
+from ...commands.auth import _renew_existing_sso_session, authenticate
 from ...commands.main import main
 from .conftest import MockToken
+
+
+@pytest.fixture(autouse=True)
+def no_existing_sso_session(monkeypatch):
+    """Keep browser-flow tests independent of locally stored SSO sessions."""
+    monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+    with patch(
+        "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+        return_value=None,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -121,6 +137,95 @@ class TestAuthenticateCommand:
         # Verify AuthenticationWebServer was called
         mock_auth_server.assert_called_once()
 
+    def test_auth_command_uses_first_available_redirect_port(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify occupied callback ports are skipped without user interaction."""
+        auth_server = MagicMock()
+        mock_auth_server.side_effect = [
+            OSError("port unavailable"),
+            OSError("port unavailable"),
+            auth_server,
+        ]
+
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg", "--no-browser"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert [call.args[0] for call in mock_auth_server.call_args_list] == [
+            ("127.0.0.1", 12400),
+            ("127.0.0.1", 12401),
+            ("127.0.0.1", 12402),
+        ]
+        mock_get_idp_url.assert_called_once_with(
+            ANY,
+            "testorg",
+            redirect_url="http://localhost:12402",
+            session=mock_saml_session.return_value,
+        )
+        auth_server.handle_request.assert_called_once()
+        auth_server.server_close.assert_called_once()
+
+    def test_auth_command_fails_after_all_redirect_ports_are_unavailable(
+        self,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify authentication fails only after every callback port is tried."""
+        mock_auth_server.side_effect = OSError("port unavailable")
+
+        result = runner.invoke(
+            authenticate,
+            ["--owner", "testorg", "--no-browser"],
+        )
+
+        assert result.exit_code != 0
+        assert [call.args[0] for call in mock_auth_server.call_args_list] == [
+            ("127.0.0.1", 12400),
+            ("127.0.0.1", 12401),
+            ("127.0.0.1", 12402),
+            ("127.0.0.1", 12403),
+            ("127.0.0.1", 12404),
+        ]
+        mock_get_idp_url.assert_not_called()
+        assert isinstance(result.exception, SystemExit)
+        assert "12400, 12401, 12402, 12403, 12404" in result.output
+
+    def test_auth_command_reports_callback_port_before_idp_lookup(
+        self,
+        runner,
+        mock_saml_session,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        """Verify the callback port is shown even if IDP URL lookup fails."""
+        with patch(
+            "cloudsmith_cli.cli.commands.auth.get_idp_url",
+            side_effect=RuntimeError("lookup failed"),
+        ):
+            result = runner.invoke(
+                authenticate,
+                ["--owner", "testorg"],
+                catch_exceptions=True,
+            )
+
+        assert result.exit_code != 0
+        assert "Waiting for the authentication callback on port 12400" in result.output
+        mock_webbrowser.open.assert_not_called()
+        mock_auth_server.return_value.handle_request.assert_not_called()
+        mock_auth_server.return_value.server_close.assert_called_once()
+
     def test_auth_command_opens_browser(
         self,
         runner,
@@ -162,6 +267,103 @@ class TestAuthenticateCommand:
         mock_auth_server.assert_called_once()
         call_kwargs = mock_auth_server.call_args.kwargs
         assert call_kwargs.get("owner") == "testorg"
+
+    def test_usable_session_avoids_workspace_and_browser(self, runner):
+        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        access_token = jwt.encode(
+            {"exp": expires_at},
+            "not-used-for-verification",
+            algorithm="HS256",
+        )
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.RENEWED,
+            access_token=access_token,
+        )
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+                return_value=renewal,
+            ),
+            patch("cloudsmith_cli.cli.commands.auth.webbrowser") as browser,
+            patch(
+                "cloudsmith_cli.cli.commands.auth.AuthenticationWebServer"
+            ) as auth_server,
+        ):
+            result = runner.invoke(authenticate, [], catch_exceptions=False)
+
+        assert result.exit_code == 0
+        assert result.stdout == (
+            "SSO session renewed.\nAccess token expires at 2030-01-02T03:04:05Z.\n"
+        )
+        assert "Workspace" not in result.output
+        browser.open.assert_not_called()
+        auth_server.assert_not_called()
+
+    @pytest.mark.parametrize("output_format", ["json", "pretty_json"])
+    def test_json_renewal_report_is_machine_readable(self, runner, output_format):
+        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.CURRENT,
+            access_token=jwt.encode(
+                {"exp": expires_at},
+                "not-used-for-verification",
+                algorithm="HS256",
+            ),
+        )
+        with patch(
+            "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+            return_value=renewal,
+        ):
+            result = runner.invoke(
+                authenticate,
+                ["--output-format", output_format],
+                catch_exceptions=False,
+            )
+            legacy_result = (
+                runner.invoke(authenticate, ["--json"], catch_exceptions=False)
+                if output_format == "json"
+                else None
+            )
+
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["data"] == {
+            "authenticated": True,
+            "expires_at": "2030-01-02T03:04:05Z",
+            "method": "sso",
+            "renewal_error": None,
+            "status": "current",
+        }
+        assert result.stderr == ""
+        if legacy_result:
+            assert legacy_result.stdout == ""
+            assert "Access token expires at 2030-01-02T03:04:05Z." in (
+                legacy_result.stderr
+            )
+
+    def test_expired_session_offline_has_actionable_error(self, runner):
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.FAILED,
+            error=requests.ConnectionError("offline"),
+        )
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.auth.renew_sso_session",
+                return_value=renewal,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+                wraps=_renew_existing_sso_session,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.auth.AuthenticationWebServer"
+            ) as auth_server,
+        ):
+            result = runner.invoke(authenticate, [])
+
+        assert result.exit_code == 1
+        assert "Cloudsmith could not be reached" in result.output
+        assert "Check your connection" in result.output
+        auth_server.assert_not_called()
 
 
 class TestBrowserFallback:

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import requests
 
 
@@ -27,12 +29,16 @@ class CredentialContext:
     profile: str | None = None
     debug: bool = False
     keyring_refresh_failed: bool = False
+    keyring_refresh_rejected: bool = False
+    keyring_refresh_unrenewable: bool = False
+    skip_keyring_refresh: bool = False
     oidc_audience: str | None = None
     org: str | None = None
     oidc_service_slug: str | None = None
     oidc_discovery_disabled: bool = False
     oidc_detector_order: str | None = None
     oidc_disabled_detectors: frozenset[str] = frozenset()
+    warning_writer: Callable[[str], None] | None = None
 
 
 @dataclass

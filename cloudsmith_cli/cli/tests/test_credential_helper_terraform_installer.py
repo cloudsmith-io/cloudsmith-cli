@@ -1,0 +1,769 @@
+# Copyright 2026 Cloudsmith Ltd
+"""Tests for the Terraform credentials-helper installer and terraformrc block.
+
+Covers the pure ``terraformrc`` block helpers (add/update/remove/conflict), the
+``TerraformInstaller`` (launcher into the plugin dir + terraformrc block), and
+the ``credential-helper install/uninstall terraform`` CLI wiring — including
+that the resolved ``--org``/``-P`` land in the terraformrc ``args`` list.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import click.testing
+import pytest
+
+from ...credential_helpers.terraform import installer as installer_mod, terraformrc
+from ...credential_helpers.terraform.installer import (
+    TerraformHelperExeNotFound,
+    TerraformInstaller,
+)
+
+LAUNCHER = "terraform-credentials-cloudsmith"
+
+
+def _launcher(home: Path) -> Path:
+    """Return the default launcher path under a fake *home*."""
+    return home / ".terraform.d" / "plugins" / LAUNCHER
+
+
+@pytest.fixture()
+def runner():
+    """Return a CliRunner."""
+    return click.testing.CliRunner()
+
+
+# ---------------------------------------------------------------------------
+# 1. terraformrc block helpers (pure text)
+# ---------------------------------------------------------------------------
+
+
+def test_render_block_formats_args():
+    """render_block emits a valid HCL block with the args quoted."""
+    block = terraformrc.render_block(["--org", "acme", "-P", "ci"])
+    assert block == (
+        'credentials_helper "cloudsmith" {\n  args = ["--org", "acme", "-P", "ci"]\n}'
+    )
+
+
+def test_render_block_empty_args():
+    """No args renders an empty list, not a missing key."""
+    assert "args = []" in terraformrc.render_block([])
+
+
+def test_add_block_to_empty_file():
+    """Adding to an empty file yields just the block plus a trailing newline."""
+    new_text, changed = terraformrc.add_or_update_block("", ["--org", "acme"])
+    assert changed is True
+    assert new_text == terraformrc.render_block(["--org", "acme"]) + "\n"
+
+
+def test_add_block_preserves_foreign_content():
+    """Existing settings are kept and the block is appended after a blank line."""
+    existing = 'plugin_cache_dir = "/tmp/x"\ndisable_checkpoint = true\n'
+    new_text, changed = terraformrc.add_or_update_block(existing, [])
+    assert changed is True
+    assert new_text.startswith(existing)
+    assert 'credentials_helper "cloudsmith"' in new_text
+
+
+def test_update_replaces_existing_cloudsmith_block():
+    """Re-adding with different args replaces the block in place."""
+    first, _ = terraformrc.add_or_update_block("", ["--org", "acme"])
+    second, changed = terraformrc.add_or_update_block(first, ["--org", "other"])
+    assert changed is True
+    assert second.count('credentials_helper "cloudsmith"') == 1
+    assert '"other"' in second
+    assert '"acme"' not in second
+
+
+def test_add_is_idempotent():
+    """Adding the identical block twice reports no change the second time."""
+    first, _ = terraformrc.add_or_update_block("", ["--org", "acme"])
+    second, changed = terraformrc.add_or_update_block(first, ["--org", "acme"])
+    assert changed is False
+    assert second == first
+
+
+def test_add_raises_on_foreign_credentials_helper():
+    """A credentials_helper for a different helper is a hard conflict."""
+    existing = 'credentials_helper "vault" {\n  args = []\n}\n'
+    with pytest.raises(terraformrc.TerraformrcConflictError) as exc:
+        terraformrc.add_or_update_block(existing, [])
+    assert exc.value.existing_name == "vault"
+
+
+def test_add_raises_on_second_foreign_block_after_cloudsmith():
+    """A foreign block *after* our own is still a conflict.
+
+    Terraform allows only one credentials_helper block in the whole file, so
+    updating our Cloudsmith block while leaving a later `vault` block in place
+    would produce an invalid config. The whole file must be scanned, not just
+    the first match.
+    """
+    existing = (
+        'credentials_helper "cloudsmith" {\n  args = []\n}\n\n'
+        'credentials_helper "vault" {\n  args = []\n}\n'
+    )
+    with pytest.raises(terraformrc.TerraformrcConflictError) as exc:
+        terraformrc.add_or_update_block(existing, ["--org", "acme"])
+    assert exc.value.existing_name == "vault"
+
+
+def test_remove_block_strips_only_cloudsmith():
+    """remove_block drops the Cloudsmith block and collapses stray blank lines."""
+    existing = (
+        'plugin_cache_dir = "/tmp/x"\n\n'
+        'credentials_helper "cloudsmith" {\n  args = []\n}\n'
+    )
+    new_text, changed = terraformrc.remove_block(existing)
+    assert changed is True
+    assert "credentials_helper" not in new_text
+    assert new_text == 'plugin_cache_dir = "/tmp/x"\n'
+
+
+def test_remove_block_leaves_foreign_helper_untouched():
+    """A different helper's block is not removed."""
+    existing = 'credentials_helper "vault" {\n  args = []\n}\n'
+    new_text, changed = terraformrc.remove_block(existing)
+    assert changed is False
+    assert new_text == existing
+
+
+def test_remove_block_no_block_is_noop():
+    """Removing from a file without our block reports no change."""
+    new_text, changed = terraformrc.remove_block("disable_checkpoint = true\n")
+    assert changed is False
+
+
+# ---------------------------------------------------------------------------
+# 2. TerraformInstaller.install / uninstall / status
+# ---------------------------------------------------------------------------
+
+
+def test_installer_install_writes_launcher_and_block(tmp_path, monkeypatch):
+    """install writes the launcher into the plugin dir and the terraformrc block."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    installer = TerraformInstaller()
+    actions = installer.install(helper_args=("--org", "acme", "-P", "ci"))
+
+    launcher = _launcher(tmp_path)
+    assert launcher.exists()
+    body = launcher.read_text(encoding="utf-8")
+    assert "exec cloudsmith credential-helper terraform" in body
+
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert 'credentials_helper "cloudsmith"' in rc
+    assert 'args = ["--org", "acme", "-P", "ci"]' in rc
+    assert any("wrote launcher" in a for a in actions)
+
+
+def _arch_subdir(tmp_path: Path) -> Path:
+    """Return the recognized ``<GOOS>_<GOARCH>`` plugin subdir under *tmp_path*.
+
+    Computed from the installer's own OS/arch mapping so the test targets the
+    exact directory Terraform searches on the running platform, rather than a
+    hardcoded ``linux_amd64`` that only matches one host.
+    """
+    os_arch = f"{installer_mod._go_os()}_{installer_mod._go_arch()}"
+    return tmp_path / ".terraform.d" / "plugins" / os_arch
+
+
+def test_installer_respects_bin_dir_override(tmp_path, monkeypatch):
+    """--bin-dir overrides the default plugin directory for the launcher.
+
+    Uses the ``<GOOS>_<GOARCH>`` subdirectory of the default plugin root — the
+    only subdirectory Terraform searches for helpers — so the override is
+    honoured without tripping the plugin-directory validation, while proving the
+    launcher lands somewhere other than the root.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    custom = _arch_subdir(tmp_path)
+
+    installer = TerraformInstaller()
+    installer.install(bin_dir=str(custom))
+
+    assert (custom / "terraform-credentials-cloudsmith").exists()
+    # The launcher must NOT have been written to the default plugin dir root.
+    assert not (tmp_path / ".terraform.d" / "plugins" / LAUNCHER).exists()
+
+
+def test_installer_rejects_unrecognized_bin_dir(tmp_path, monkeypatch):
+    """A --bin-dir Terraform won't search is refused, leaving nothing behind.
+
+    Terraform only looks for credentials helpers in its own plugin directories,
+    never on PATH, so a launcher written elsewhere would never be discovered.
+    The installer fails up front rather than leaving a silently useless install.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    custom = tmp_path / "not_a_plugin_dir"
+
+    installer = TerraformInstaller()
+    with pytest.raises(installer_mod.TerraformPluginDirError):
+        installer.install(bin_dir=str(custom))
+
+    # Nothing must be written when the target directory is rejected.
+    assert not (custom / "terraform-credentials-cloudsmith").exists()
+    assert not (tmp_path / ".terraformrc").exists()
+
+
+def test_installer_accepts_default_bin_dir(tmp_path, monkeypatch):
+    """The default plugin directory is recognized, so install succeeds."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    installer = TerraformInstaller()
+    installer.install()
+
+    assert _launcher(tmp_path).exists()
+
+
+def test_installer_accepts_recognized_arch_subdir(tmp_path, monkeypatch):
+    """The ``<GOOS>_<GOARCH>`` subdir of the plugin root is accepted."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    arch_dir = _arch_subdir(tmp_path)
+
+    installer = TerraformInstaller()
+    installer.install(bin_dir=str(arch_dir))
+
+    assert (arch_dir / "terraform-credentials-cloudsmith").exists()
+
+
+def test_installer_rejects_arbitrary_plugin_subdir(tmp_path, monkeypatch):
+    """A non-``<GOOS>_<GOARCH>`` subdir of the plugin root is refused.
+
+    Terraform does a flat, non-recursive ``ReadDir`` of ``plugins/`` and
+    ``plugins/<GOOS>_<GOARCH>`` only, so a launcher in any other subdirectory
+    would never be discovered.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    custom = tmp_path / ".terraform.d" / "plugins" / "custom"
+
+    installer = TerraformInstaller()
+    with pytest.raises(installer_mod.TerraformPluginDirError):
+        installer.install(bin_dir=str(custom))
+
+    assert not (custom / "terraform-credentials-cloudsmith").exists()
+
+
+def test_installer_rejects_unrecognized_bin_dir_in_dry_run(tmp_path, monkeypatch):
+    """A dry run also refuses an unrecognized --bin-dir, before anything is written."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    custom = tmp_path / "not_a_plugin_dir"
+
+    installer = TerraformInstaller()
+    with pytest.raises(installer_mod.TerraformPluginDirError):
+        installer.install(bin_dir=str(custom), dry_run=True)
+
+    assert not custom.exists()
+
+
+def test_cli_install_rejects_unrecognized_bin_dir(runner, tmp_path, monkeypatch):
+    """`install terraform --bin-dir <bad>` fails cleanly, not with a traceback."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    custom = tmp_path / "not_a_plugin_dir"
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "--org=acme",
+            "--bin-dir",
+            str(custom),
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code != 0
+    assert "not one of Terraform's plugin directories" in result.output
+    assert not (custom / "terraform-credentials-cloudsmith").exists()
+
+
+def test_recognized_plugin_dirs_is_exactly_root_and_arch_subdir(tmp_path, monkeypatch):
+    """Only the plugin root and its <GOOS>_<GOARCH> subdir are recognized.
+
+    Credentials-helper discovery uses Terraform's ``GlobalPluginDirs()``, which
+    is exactly ``<ConfigDir>/plugins`` and ``<ConfigDir>/plugins/<GOOS>_<GOARCH>``
+    — none of the broader provider-mirror locations (XDG, macOS io.terraform,
+    the cwd) are searched.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    dirs = [str(d) for d in installer_mod._recognized_plugin_dirs()]
+
+    root = tmp_path / ".terraform.d" / "plugins"
+    os_arch = f"{installer_mod._go_os()}_{installer_mod._go_arch()}"
+    assert dirs == [str(root), str(root / os_arch)]
+
+
+def test_recognized_plugin_dirs_excludes_provider_mirror_locations(
+    tmp_path, monkeypatch
+):
+    """None of the provider-mirror dirs (XDG / macOS / cwd) are recognized."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    dirs = {str(d) for d in installer_mod._recognized_plugin_dirs()}
+
+    assert str(tmp_path / ".local" / "share" / "terraform" / "plugins") not in dirs
+    assert "/usr/local/share/terraform/plugins" not in dirs
+    assert "/usr/share/terraform/plugins" not in dirs
+    assert (
+        str(tmp_path / "Library" / "Application Support" / "io.terraform" / "plugins")
+        not in dirs
+    )
+    assert str(tmp_path / "terraform.d" / "plugins") not in dirs
+
+
+def test_installer_dry_run_writes_nothing(tmp_path, monkeypatch):
+    """dry_run reports planned actions without touching the filesystem."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    installer = TerraformInstaller()
+    actions = installer.install(helper_args=("--org", "acme"), dry_run=True)
+
+    assert not (tmp_path / ".terraformrc").exists()
+    assert not (tmp_path / ".terraform.d" / "plugins").exists()
+    assert any("would write launcher" in a for a in actions)
+    assert any("would add" in a for a in actions)
+
+
+def test_installer_idempotent(tmp_path, monkeypatch):
+    """A second install reports the terraformrc is already up to date."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    installer = TerraformInstaller()
+    installer.install(helper_args=("--org", "acme"))
+    actions = installer.install(helper_args=("--org", "acme"))
+
+    assert any("already up to date" in a for a in actions)
+
+
+def test_installer_uninstall_removes_launcher_and_block(tmp_path, monkeypatch):
+    """uninstall removes the launcher and the terraformrc block."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    installer = TerraformInstaller()
+    installer.install(helper_args=("--org", "acme"))
+    launcher = _launcher(tmp_path)
+    assert launcher.exists()
+
+    installer.uninstall()
+
+    assert not launcher.exists()
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert "credentials_helper" not in rc
+
+
+def test_installer_status_type_contract(tmp_path, monkeypatch):
+    """status()['launcher'] is str when installed and None when not — never Path."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    installer = TerraformInstaller()
+
+    before = installer.status()
+    assert before["launcher"] is None
+    assert before["hosts"] == []
+
+    installer.install(helper_args=("--org", "acme"))
+    after = installer.status()
+    assert isinstance(after["launcher"], str)
+    assert after["launcher"].endswith("terraform-credentials-cloudsmith")
+    assert after["hosts"]  # non-empty marker
+
+
+# ---------------------------------------------------------------------------
+# 3. CLI wiring — install/uninstall terraform
+# ---------------------------------------------------------------------------
+
+
+def test_cli_install_bakes_org_and_profile_into_args(runner, tmp_path, monkeypatch):
+    """`install terraform --org --P` writes those into the terraformrc args list."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "--org=acme",
+            "-P",
+            "ci",
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert 'args = ["--org", "acme", "-P", "ci"]' in rc
+
+
+@pytest.mark.parametrize(
+    "repo_flag",
+    [
+        ["-r", "my-repo"],
+        ["--repo", "my-repo"],
+        ["--repository", "my-repo"],
+        ["--repo=my-repo"],
+    ],
+)
+def test_cli_install_bakes_repo_into_args(runner, tmp_path, monkeypatch, repo_flag):
+    """`install terraform --repo` writes `-r <repo>` into the terraformrc args."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--org=acme", *repo_flag, "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert 'args = ["--org", "acme", "-r", "my-repo"]' in rc
+
+
+def test_cli_install_bakes_config_and_credentials_files_into_args(
+    runner, tmp_path, monkeypatch
+):
+    """`install terraform -C/--credentials-file` pins those into terraformrc args.
+
+    ``terraform init`` invokes the helper in a fresh process without this
+    invocation's flags, so a non-default config/credentials file must be baked
+    into the block or Terraform would resolve credentials from the default
+    search path instead.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    config_file = tmp_path / "config.ini"
+    config_file.write_text("[default]\n", encoding="utf-8")
+    creds_file = tmp_path / "credentials.ini"
+    creds_file.write_text("[default]\n", encoding="utf-8")
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "--org=acme",
+            "-C",
+            str(config_file),
+            "--credentials-file",
+            str(creds_file),
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert f'"--config-file", "{config_file}"' in rc
+    assert f'"--credentials-file", "{creds_file}"' in rc
+
+
+def test_cli_install_omits_config_files_from_args_when_default(
+    runner, tmp_path, monkeypatch
+):
+    """Without an explicit config/credentials file, nothing extra is baked in."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CREDENTIALS_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--org=acme", "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert "--config-file" not in rc
+    assert "--credentials-file" not in rc
+
+
+def test_cli_install_with_repo_suppresses_next_steps(runner, tmp_path, monkeypatch):
+    """A baked-in repository means the repository guidance is not printed."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "--org=acme",
+            "--repo",
+            "my-repo",
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Next steps" not in result.output
+    assert "CLOUDSMITH_REPO" not in result.output
+
+
+def test_cli_install_conflict_is_clean_error(runner, tmp_path, monkeypatch):
+    """A pre-existing foreign credentials_helper yields a ClickException, not a traceback."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    (tmp_path / ".terraformrc").write_text(
+        'credentials_helper "vault" {\n  args = []\n}\n', encoding="utf-8"
+    )
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code != 0
+    assert "only one credentials_helper" in result.output
+    # The launcher must not have been written when the terraformrc conflicts.
+    launcher = _launcher(tmp_path)
+    assert not launcher.exists()
+
+
+def test_cli_install_prints_repo_next_steps(runner, tmp_path, monkeypatch):
+    """install terraform prints guidance about the required repository."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--org=acme", "-P", "ci", "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    out = result.output
+    assert "Next steps" in out
+    assert "CLOUDSMITH_REPO" in out
+    assert "--repo" in out
+
+
+def test_cli_install_repo_next_steps_in_json(runner, tmp_path, monkeypatch):
+    """The repository guidance is surfaced as a next_steps field in JSON mode."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--no-discover", "-k", "k_flag", "-F", "json"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    next_steps = payload["data"]["next_steps"]
+    assert next_steps
+    assert any("CLOUDSMITH_REPO" in line for line in next_steps)
+
+
+def test_cli_install_docker_has_no_next_steps(runner, tmp_path, monkeypatch):
+    """Non-terraform helpers do not emit the terraform repository guidance."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["docker", "--no-discover", "-k", "k_flag", "-F", "json"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["data"]["next_steps"] == []
+
+
+def test_next_steps_uses_resolved_rc_path(tmp_path, monkeypatch):
+    """The repository guidance names the resolved config file, not a hardcoded path.
+
+    Driven via ``TF_CLI_CONFIG_FILE`` so the assertion holds on every platform
+    (on Windows the default would be ``%APPDATA%\\terraform.rc``, not
+    ``~/.terraformrc`` — the bug this guards against).
+    """
+    rc = tmp_path / "custom.tfrc"
+    monkeypatch.setenv("TF_CLI_CONFIG_FILE", str(rc))
+
+    from ...cli.commands.credential_helper.manage import _terraform_next_steps
+
+    steps = _terraform_next_steps(())
+    assert steps
+    assert any(str(rc) in line for line in steps)
+    assert not any("~/.terraformrc" in line for line in steps)
+
+
+def test_conflict_error_uses_resolved_rc_path(tmp_path, monkeypatch):
+    """A foreign-helper conflict names the resolved config file, not ~/.terraformrc."""
+    rc = tmp_path / "custom.tfrc"
+    rc.write_text('credentials_helper "vault" {\n  args = []\n}\n', encoding="utf-8")
+    monkeypatch.setenv("TF_CLI_CONFIG_FILE", str(rc))
+
+    installer = TerraformInstaller()
+    with pytest.raises(terraformrc.TerraformrcConflictError) as exc:
+        installer.install(helper_args=("--org", "acme"))
+
+    assert str(rc) in str(exc.value)
+    assert "~/.terraformrc" not in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# 4. Windows launcher — a real .exe, not a .cmd (Terraform ignores .cmd)
+# ---------------------------------------------------------------------------
+
+
+def _force_windows(monkeypatch):
+    """Make the installer take its Windows branch without patching os.name.
+
+    Patching ``os.name`` would make ``pathlib`` build a ``WindowsPath`` and
+    raise on a POSIX host (even inside pytest's own reporting), so the installer
+    exposes ``_is_windows()`` as the single seam to override instead.
+    """
+    monkeypatch.setattr(TerraformInstaller, "_is_windows", staticmethod(lambda: True))
+
+
+def test_plugin_path_is_exe_on_windows(monkeypatch, tmp_path):
+    """On Windows the launcher is a real .exe (Terraform ignores .cmd shims)."""
+    _force_windows(monkeypatch)
+    installer = TerraformInstaller()
+    path = installer._plugin_path(tmp_path)
+    assert path.name == f"{LAUNCHER}.exe"
+
+
+def test_resolve_helper_exe_prefers_frozen_sibling(monkeypatch, tmp_path):
+    """When frozen, the sibling exe next to sys.executable is used."""
+    sibling = tmp_path / "terraform-credentials-cloudsmith"
+    sibling.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(installer_mod.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(
+        installer_mod.sys, "executable", str(tmp_path / "cloudsmith"), raising=False
+    )
+    # PATH lookup must not be consulted when the frozen sibling exists.
+    monkeypatch.setattr(installer_mod.shutil, "which", lambda _n: None)
+
+    assert TerraformInstaller._resolve_helper_exe() == sibling.resolve()
+
+
+def test_resolve_helper_exe_falls_back_to_path(monkeypatch, tmp_path):
+    """A pip install resolves the [project.scripts]-generated exe via PATH."""
+    on_path = tmp_path / "terraform-credentials-cloudsmith"
+    on_path.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(installer_mod.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(installer_mod.shutil, "which", lambda _n: str(on_path))
+
+    assert TerraformInstaller._resolve_helper_exe() == on_path.resolve()
+
+
+def test_windows_install_copies_real_exe(monkeypatch, tmp_path):
+    """On Windows, install copies a genuine exe into the plugin dir."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    _force_windows(monkeypatch)
+
+    source = tmp_path / "src" / "terraform-credentials-cloudsmith.exe"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"MZfake-pe")
+    monkeypatch.setattr(
+        TerraformInstaller, "_resolve_helper_exe", classmethod(lambda cls: source)
+    )
+
+    installer = TerraformInstaller()
+    # A recognized plugin dir (the <GOOS>_<GOARCH> subdir of ~/.terraform.d/
+    # plugins); the plugin-dir validation runs off os.name, which stays POSIX
+    # under _force_windows.
+    custom = _arch_subdir(tmp_path)
+    installer.install(bin_dir=str(custom), helper_args=("--org", "acme"))
+
+    dest = custom / f"{LAUNCHER}.exe"
+    assert dest.exists()
+    assert dest.read_bytes() == b"MZfake-pe"
+
+
+def test_windows_install_errors_when_no_exe(monkeypatch, tmp_path):
+    """A clean error (not a traceback) when no real exe can be located."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    _force_windows(monkeypatch)
+    monkeypatch.setattr(
+        TerraformInstaller, "_resolve_helper_exe", classmethod(lambda cls: None)
+    )
+
+    installer = TerraformInstaller()
+    recognized = _arch_subdir(tmp_path)
+    with pytest.raises(TerraformHelperExeNotFound):
+        installer.install(bin_dir=str(recognized))
+
+    # The terraformrc must not have been written when the launcher can't be.
+    assert not (tmp_path / ".terraformrc").exists()
+
+
+def test_windows_uninstall_removes_exe(monkeypatch, tmp_path):
+    """Uninstall removes the .exe launcher on Windows."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    _force_windows(monkeypatch)
+
+    source = tmp_path / "terraform-credentials-cloudsmith.exe"
+    source.write_bytes(b"MZfake-pe")
+    monkeypatch.setattr(
+        TerraformInstaller, "_resolve_helper_exe", classmethod(lambda cls: source)
+    )
+
+    installer = TerraformInstaller()
+    custom = _arch_subdir(tmp_path)
+    installer.install(bin_dir=str(custom))
+    dest = custom / f"{LAUNCHER}.exe"
+    assert dest.exists()
+
+    installer.uninstall(bin_dir=str(custom))
+    assert not dest.exists()
