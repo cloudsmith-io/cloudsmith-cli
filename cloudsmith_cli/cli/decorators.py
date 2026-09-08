@@ -155,8 +155,28 @@ def common_cli_output_options(f):
 
     @click.option(
         "--color",
+        envvar="CLOUDSMITH_COLOR",
         default="auto",
         type=click.Choice(ColorMode, case_sensitive=False),
+        help="Control whether ANSI colour output is used: auto, always or never.",
+    )
+    @click.option(
+        "--no-color-env",
+        envvar="NO_COLOR",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
+        "--force-color-env",
+        envvar="CLOUDSMITH_FORCE_COLOR",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
+        "--term-env",
+        envvar="TERM",
+        default=None,
+        hidden=True,
     )
     @click.option(
         "-d",
@@ -187,7 +207,11 @@ def common_cli_output_options(f):
         opts = config.get_or_create_options(ctx)
 
         ctx.color = color_enabled(
-            dict(os.environ),
+            {
+                "NO_COLOR": kwargs.pop("no_color_env"),
+                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+                "TERM": kwargs.pop("term_env"),
+            },
             kwargs.pop("color"),
             TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
         )
