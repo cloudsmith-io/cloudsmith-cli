@@ -50,11 +50,14 @@ class CredentialProviderChain:
         """Evaluate each provider in order. Return the first successful result."""
         providers = self.providers
         if self._uses_default_providers and context.org and context.oidc_service_slug:
-            providers = [
-                self.providers[0],
-                self.providers[4],
-                *self.providers[1:4],
-            ]
+            providers = self.providers.copy()
+            oidc_index = next(
+                index
+                for index, provider in enumerate(providers)
+                if provider.name == "oidc"
+            )
+            oidc_provider = providers.pop(oidc_index)
+            providers.insert(1, oidc_provider)
 
         for provider in providers:
             try:

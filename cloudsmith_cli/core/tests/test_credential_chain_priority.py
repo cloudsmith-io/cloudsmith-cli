@@ -9,8 +9,7 @@ from unittest.mock import patch
 
 from cloudsmith_cli.core import keyring
 from cloudsmith_cli.core.credentials.chain import CredentialProviderChain
-from cloudsmith_cli.core.credentials.models import CredentialContext
-from cloudsmith_cli.core.credentials.models import CredentialResult
+from cloudsmith_cli.core.credentials.models import CredentialContext, CredentialResult
 
 
 class TestCredentialChainPriority:
