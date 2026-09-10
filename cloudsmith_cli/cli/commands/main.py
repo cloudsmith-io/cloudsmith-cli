@@ -2,6 +2,7 @@
 
 import click
 
+from ...core import update_check
 from ...core.api.version import get_version as get_api_version
 from ...core.utils import get_github_website, get_help_website
 from ...core.version import get_version as get_cli_version
@@ -56,12 +57,21 @@ For issues/contributing: {get_github_website()}
     is_flag=True,
     is_eager=True,
 )
+@click.option(
+    "--no-check-update",
+    is_flag=True,
+    default=False,
+    envvar="CLOUDSMITH_NO_UPDATE_CHECK",
+    help="Disable the once-a-day check for a newer version of the CLI.",
+)
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @click.pass_context
-def main(ctx, opts, version):
+def main(ctx, opts, version, no_check_update):
     """Handle entrypoint to CLI."""
     # pylint: disable=unused-argument
+
+    update_check.arm(ctx, opts, no_check_update)
 
     if version:
         print_version(opts)
