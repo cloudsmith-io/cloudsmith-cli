@@ -33,9 +33,14 @@ def _get_cache_dir() -> str:
     return cache_dir
 
 
-def _cache_key(api_host: str, org: str, service_slug: str) -> str:
+def _cache_key(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None = None,
+) -> str:
     """Compute a deterministic cache filename from the exchange parameters."""
-    raw = f"{api_host}|{org}|{service_slug}"
+    raw = f"{api_host}|{org}|{service_slug}|{audience or ''}"
     digest = hashlib.sha256(raw.encode()).hexdigest()[:32]
     return f"oidc_{digest}.json"
 
@@ -59,20 +64,30 @@ def _decode_jwt_exp(token: str) -> float | None:
     return None
 
 
-def get_cached_token(api_host: str, org: str, service_slug: str) -> str | None:
+def get_cached_token(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None = None,
+) -> str | None:
     """Return a cached token if it exists and is not expired."""
-    token = _get_from_keyring(api_host, org, service_slug)
+    token = _get_from_keyring(api_host, org, service_slug, audience)
     if token:
         return token
-    return _get_from_disk(api_host, org, service_slug)
+    return _get_from_disk(api_host, org, service_slug, audience)
 
 
-def _get_from_keyring(api_host: str, org: str, service_slug: str) -> str | None:
+def _get_from_keyring(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None,
+) -> str | None:
     """Try to get token from keyring."""
     try:
         from ...keyring import get_oidc_token
 
-        token_data = get_oidc_token(api_host, org, service_slug)
+        token_data = get_oidc_token(api_host, org, service_slug, audience)
         if not token_data:
             return None
 
@@ -94,7 +109,7 @@ def _get_from_keyring(api_host: str, org: str, service_slug: str) -> str | None:
                 )
                 from ...keyring import delete_oidc_token
 
-                delete_oidc_token(api_host, org, service_slug)
+                delete_oidc_token(api_host, org, service_slug, audience)
                 return None
             logger.debug("Using keyring OIDC token (expires in %.0fs)", remaining)
         else:
@@ -107,10 +122,17 @@ def _get_from_keyring(api_host: str, org: str, service_slug: str) -> str | None:
         return None
 
 
-def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
+def _get_from_disk(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None,
+) -> str | None:
     """Try to get token from disk cache."""
     cache_dir = _get_cache_dir()
-    cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))
+    cache_file = os.path.join(
+        cache_dir, _cache_key(api_host, org, service_slug, audience)
+    )
 
     if not os.path.isfile(cache_file):
         return None
@@ -148,7 +170,13 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
         return None
 
 
-def store_cached_token(api_host: str, org: str, service_slug: str, token: str) -> None:
+def store_cached_token(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    token: str,
+    audience: str | None = None,
+) -> None:
     """Cache a token in keyring (if available) or filesystem."""
     expires_at = _decode_jwt_exp(token)
 
@@ -158,22 +186,29 @@ def store_cached_token(api_host: str, org: str, service_slug: str, token: str) -
         "api_host": api_host,
         "org": org,
         "service_slug": service_slug,
+        "audience": audience,
         "cached_at": time.time(),
     }
 
-    if _store_in_keyring(api_host, org, service_slug, data):
+    if _store_in_keyring(api_host, org, service_slug, audience, data):
         return
 
-    _store_on_disk(api_host, org, service_slug, data)
+    _store_on_disk(api_host, org, service_slug, audience, data)
 
 
-def _store_in_keyring(api_host: str, org: str, service_slug: str, data: dict) -> bool:
+def _store_in_keyring(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None,
+    data: dict,
+) -> bool:
     """Try to store token in keyring."""
     try:
         from ...keyring import store_oidc_token
 
         token_data = json.dumps(data)
-        success = store_oidc_token(api_host, org, service_slug, token_data)
+        success = store_oidc_token(api_host, org, service_slug, audience, token_data)
         if success:
             logger.debug(
                 "Stored OIDC token in keyring (expires_at=%s)", data.get("expires_at")
@@ -184,10 +219,18 @@ def _store_in_keyring(api_host: str, org: str, service_slug: str, data: dict) ->
         return False
 
 
-def _store_on_disk(api_host: str, org: str, service_slug: str, data: dict) -> None:
+def _store_on_disk(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None,
+    data: dict,
+) -> None:
     """Store token on disk."""
     cache_dir = _get_cache_dir()
-    cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))
+    cache_file = os.path.join(
+        cache_dir, _cache_key(api_host, org, service_slug, audience)
+    )
 
     try:
         atomic_write_json(cache_file, data)
@@ -198,17 +241,24 @@ def _store_on_disk(api_host: str, org: str, service_slug: str, data: dict) -> No
         logger.debug("Failed to write OIDC token to disk cache", exc_info=True)
 
 
-def invalidate_cached_token(api_host: str, org: str, service_slug: str) -> None:
+def invalidate_cached_token(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    audience: str | None = None,
+) -> None:
     """Remove a cached token from both keyring and disk."""
     try:
         from ...keyring import delete_oidc_token
 
-        delete_oidc_token(api_host, org, service_slug)
+        delete_oidc_token(api_host, org, service_slug, audience)
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("Failed to delete OIDC token from keyring", exc_info=True)
 
     cache_dir = _get_cache_dir()
-    cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))
+    cache_file = os.path.join(
+        cache_dir, _cache_key(api_host, org, service_slug, audience)
+    )
     _remove_cache_file(cache_file)
 
 
