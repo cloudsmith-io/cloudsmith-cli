@@ -10,14 +10,10 @@ from cloudsmith_cli.core.credentials.oidc.exchange import OidcExchangeError
 from cloudsmith_cli.core.credentials.providers.oidc_provider import OidcProvider
 
 
-def _context(
-    service_slug: str = "github-actions",
-    audience: str | None = None,
-) -> CredentialContext:
+def _context(service_slug: str = "github-actions") -> CredentialContext:
     return CredentialContext(
         org="cloudsmith",
         oidc_service_slug=service_slug,
-        oidc_audience=audience,
     )
 
 
@@ -71,8 +67,8 @@ def test_switching_service_accounts_mints_and_caches_separate_tokens():
     def get_cached(*key):
         return cache.get(key)
 
-    def store_cached(api_host, org, service_slug, token, audience):
-        cache[(api_host, org, service_slug, audience)] = token
+    def store_cached(api_host, org, service_slug, token):
+        cache[(api_host, org, service_slug)] = token
 
     with (
         patch(
@@ -100,46 +96,6 @@ def test_switching_service_accounts_mints_and_caches_separate_tokens():
     assert push_credential.api_key == "push-token"
     assert cached_read_credential.api_key == "read-token"
     assert exchange.call_count == 2
-
-
-def test_switching_oidc_audiences_mints_separate_tokens():
-    detector = Mock(name="github-actions")
-    detector.name = "github-actions"
-    detector.get_token.return_value = "vendor-token"
-    cache = {}
-
-    def get_cached(*key):
-        return cache.get(key)
-
-    def store_cached(api_host, org, service_slug, token, audience):
-        cache[(api_host, org, service_slug, audience)] = token
-
-    with (
-        patch(
-            "cloudsmith_cli.core.credentials.oidc.cache.get_cached_token",
-            side_effect=get_cached,
-        ),
-        patch(
-            "cloudsmith_cli.core.credentials.oidc.cache.store_cached_token",
-            side_effect=store_cached,
-        ),
-        patch(
-            "cloudsmith_cli.core.credentials.oidc.detectors.detect_environment",
-            return_value=detector,
-        ),
-        patch(
-            "cloudsmith_cli.core.credentials.oidc.exchange.exchange_oidc_token",
-            side_effect=["first-token", "second-token"],
-        ) as exchange,
-    ):
-        first_credential = OidcProvider().resolve(_context(audience="first"))
-        second_credential = OidcProvider().resolve(_context(audience="second"))
-
-    assert first_credential.api_key == "first-token"
-    assert second_credential.api_key == "second-token"
-    assert exchange.call_count == 2
-
-
 def test_failed_exchange_logs_vendor_jwt_diagnostics(caplog):
     vendor_token = jwt.encode(
         {

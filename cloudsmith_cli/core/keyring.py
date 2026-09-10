@@ -320,24 +320,17 @@ def delete_sso_tokens(api_host, profile=None, include_legacy=True):
     return any(results)
 
 
-OIDC_TOKEN_KEY = (
-    "cloudsmith_cli-oidc_token-{api_host}-{org}-{service_slug}-{audience}"
-)
+OIDC_TOKEN_KEY = "cloudsmith_cli-oidc_token-{api_host}-{org}-{service_slug}"
 
 
-def store_oidc_token(api_host, org, service_slug, token_data, audience=None):
+def store_oidc_token(api_host, org, service_slug, token_data):
     """Store OIDC token in keyring if enabled."""
     from keyring.errors import KeyringError
 
     if not should_use_keyring():
         return False
 
-    key = OIDC_TOKEN_KEY.format(
-        api_host=api_host,
-        org=org,
-        service_slug=service_slug,
-        audience=audience or "",
-    )
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
     try:
         _set_value(key, token_data)
         return True
@@ -345,26 +338,16 @@ def store_oidc_token(api_host, org, service_slug, token_data, audience=None):
         return False
 
 
-def get_oidc_token(api_host, org, service_slug, audience=None):
+def get_oidc_token(api_host, org, service_slug):
     """Retrieve OIDC token from keyring."""
     if not should_use_keyring():
         return None
 
-    key = OIDC_TOKEN_KEY.format(
-        api_host=api_host,
-        org=org,
-        service_slug=service_slug,
-        audience=audience or "",
-    )
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
     return _get_value(key)
 
 
-def delete_oidc_token(api_host, org, service_slug, audience=None):
+def delete_oidc_token(api_host, org, service_slug):
     """Delete OIDC token from keyring."""
-    key = OIDC_TOKEN_KEY.format(
-        api_host=api_host,
-        org=org,
-        service_slug=service_slug,
-        audience=audience or "",
-    )
+    key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
     return _delete_value(key)

@@ -104,12 +104,7 @@ class OidcProvider(CredentialProvider):
         # Check cache BEFORE environment detection — detection can be expensive
         # (e.g. boto3 credential resolution, IMDS calls) and is unnecessary when
         # we already hold a valid exchanged token.
-        cached = get_cached_token(
-            context.api_host,
-            org,
-            service_slug,
-            context.oidc_audience,
-        )
+        cached = get_cached_token(context.api_host, org, service_slug)
         if cached:
             logger.debug("OidcProvider: Using cached OIDC token")
             return CredentialResult(
@@ -194,7 +189,6 @@ class OidcProvider(CredentialProvider):
             org,
             service_slug,
             cloudsmith_token,
-            context.oidc_audience,
         )
 
         return CredentialResult(
