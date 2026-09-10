@@ -1,9 +1,10 @@
 # Copyright 2026 Cloudsmith Ltd
 """Tests for cloudsmith_cli.core.update_check.
 
-These cover the decision about when to fetch, the manifest fetch/parse, the
-once-a-day "update available" notice and its suppression, and state
-persistence. The network is stubbed throughout via a fake requests session.
+Two decoupled rhythms are exercised: the daily *fetch* (gated by
+``last_checked_at`` + the disable controls) and the *notice* (gated by the
+invariant ``last_notified_at < last_checked_at`` + presentation suppressors).
+The network is stubbed throughout via a fake requests session.
 """
 
 from __future__ import annotations
@@ -39,9 +40,14 @@ def state_path(tmp_path, monkeypatch):
     return path
 
 
-def _write_state(path, last_check_at, latest_version=CURRENT_VERSION):
+def _write_state(path, *, last_checked_at=None, last_notified_at=None, latest_version):
+    state = {"latest_version": latest_version}
+    if last_checked_at is not None:
+        state["last_checked_at"] = last_checked_at
+    if last_notified_at is not None:
+        state["last_notified_at"] = last_notified_at
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"last_check_at": last_check_at, "latest_version": latest_version}, f)
+        json.dump(state, f)
 
 
 def _read_state(path):
@@ -49,12 +55,18 @@ def _read_state(path):
         return json.load(f)
 
 
-class _FakeSession:
-    """A stand-in requests session.
+class _FakeResponse:
+    def __init__(self, text, status=200):
+        self.text = text
+        self.status = status
 
-    Records whether ``get`` was called and returns a manifest body, or raises a
-    ``requests.RequestException``, standing in for a successful or failed fetch.
-    """
+    def raise_for_status(self):
+        if self.status >= 400:
+            raise requests.HTTPError(f"status {self.status}")
+
+
+class _FakeSession:
+    """A stand-in requests session recording whether ``get`` was called."""
 
     def __init__(self, *, version_str=CURRENT_VERSION, fails=False):
         self.version = version_str
@@ -68,29 +80,18 @@ class _FakeSession:
         return _FakeResponse(f"schema=1\nversion={self.version}\n")
 
 
-class _FakeResponse:
-    def __init__(self, text, status=200):
-        self.text = text
-        self.status = status
-
-    def raise_for_status(self):
-        if self.status >= 400:
-            raise requests.HTTPError(f"status {self.status}")
-
-
 def _run(session, *, now=NOW, no_check_flag=False, config_value=True, env=None):
-    """Drive the real decision + fetch/notify path with a fake session.
+    """Drive the real fetch decision synchronously with a fake session.
 
-    Mirrors ``arm`` minus the Click context: if a fetch is due, run the real
-    ``run_background_check`` synchronously; if we already know we are behind,
-    notify without fetching. Returns the session so tests can assert on it.
+    Mirrors the fetch half of ``arm``: if a check is due, either bump (already
+    behind) or run the real ``run_background_check``. Returns the session.
     """
     env = {} if env is None else env
     if not update_check.should_check_for_update(
         no_check_flag=no_check_flag, config_value=config_value, env=env, now=now
     ):
         return session
-    if update_check.should_notify():
+    if update_check.newer_version_known(update_check.read_latest_version()):
         update_check.record_check(update_check.read_latest_version(), now=now)
         return session
     update_check.run_background_check(session, now=now)
@@ -98,141 +99,157 @@ def _run(session, *, now=NOW, no_check_flag=False, config_value=True, env=None):
 
 
 # ---------------------------------------------------------------------------
-# The six required scenarios
+# The daily fetch decision + state
 # ---------------------------------------------------------------------------
 
 
-class TestUpdateCheckDecision:
-    def test_no_state_file_triggers_check_and_creates_file(self, state_path):
-        """1. No state file → check runs and the file is created."""
+class TestFetchDecision:
+    def test_no_state_file_triggers_fetch_and_creates_file(self, state_path):
         assert not os.path.exists(state_path)
         session = _run(_FakeSession(version_str=CURRENT_VERSION))
         assert session.called is True
         assert os.path.exists(state_path)
-        assert _read_state(state_path)["last_check_at"] == NOW
+        assert _read_state(state_path)["last_checked_at"] == NOW
 
-    def test_stale_state_triggers_check_and_updates_file(self, state_path):
-        """2. Stale timestamp → check runs and the file is updated."""
-        _write_state(state_path, last_check_at=NOW - (DAY * 3))
+    def test_stale_state_triggers_fetch_and_updates_file(self, state_path):
+        _write_state(
+            state_path, last_checked_at=NOW - (DAY * 3), latest_version=CURRENT_VERSION
+        )
         session = _run(_FakeSession(version_str=CURRENT_VERSION))
         assert session.called is True
-        assert _read_state(state_path)["last_check_at"] == NOW
+        assert _read_state(state_path)["last_checked_at"] == NOW
 
-    def test_recent_state_skips_check_and_leaves_file(self, state_path):
-        """3. Recent timestamp → check does not run and the file is untouched."""
+    def test_recent_state_skips_fetch_and_leaves_file(self, state_path):
         recent = NOW - 60.0
-        _write_state(state_path, last_check_at=recent)
+        _write_state(state_path, last_checked_at=recent, latest_version=CURRENT_VERSION)
         before = os.stat(state_path).st_mtime_ns
         session = _run(_FakeSession(version_str=CURRENT_VERSION))
         assert session.called is False
-        assert _read_state(state_path)["last_check_at"] == recent
+        assert _read_state(state_path)["last_checked_at"] == recent
         assert os.stat(state_path).st_mtime_ns == before
 
-    def test_stale_but_newer_known_notifies_without_fetch(self, state_path):
-        """4. Stale timestamp with a cached newer version → notify, no fetch.
-
-        The timestamp is bumped (throttling the next notice), but no network
-        fetch happens because we already know we are behind.
-        """
+    def test_stale_but_newer_known_bumps_without_fetch(self, state_path):
+        """Already behind → bump last_checked_at (re-arm notice), no fetch."""
         _write_state(
-            state_path, last_check_at=NOW - (DAY * 3), latest_version=NEWER_VERSION
+            state_path, last_checked_at=NOW - (DAY * 3), latest_version=NEWER_VERSION
         )
         session = _run(_FakeSession(version_str=NEWER_VERSION))
         assert session.called is False
         after = _read_state(state_path)
-        assert after["last_check_at"] == NOW
+        assert after["last_checked_at"] == NOW
         assert after["latest_version"] == NEWER_VERSION
 
-    def test_no_state_file_failed_check_does_not_create_file(self, state_path):
-        """5. No state file and the check fails → the file is not created."""
+    def test_no_state_file_failed_fetch_does_not_create_file(self, state_path):
         assert not os.path.exists(state_path)
         session = _run(_FakeSession(fails=True))
         assert session.called is True
         assert not os.path.exists(state_path)
 
-    def test_stale_state_failed_check_does_not_update_file(self, state_path):
-        """6. Stale state and the check fails → the file is not updated."""
+    def test_stale_state_failed_fetch_does_not_update_file(self, state_path):
         stale = NOW - (DAY * 3)
-        _write_state(state_path, last_check_at=stale)
+        _write_state(state_path, last_checked_at=stale, latest_version=CURRENT_VERSION)
         session = _run(_FakeSession(fails=True))
         assert session.called is True
-        assert _read_state(state_path)["last_check_at"] == stale
+        assert _read_state(state_path)["last_checked_at"] == stale
 
 
 # ---------------------------------------------------------------------------
-# Additional coverage
+# The notice invariant + daily re-nag
 # ---------------------------------------------------------------------------
-
-
-class TestNoticeThrottle:
-    """The once-a-day throttle via the shared last_check_at timestamp."""
-
-    def test_behind_and_recent_stays_silent(self, state_path):
-        """Behind but checked recently → not due, file untouched, no fetch."""
-        recent = NOW - 60.0
-        _write_state(state_path, last_check_at=recent, latest_version=NEWER_VERSION)
-        before = os.stat(state_path).st_mtime_ns
-        session = _run(_FakeSession(version_str=NEWER_VERSION))
-        assert session.called is False
-        assert os.stat(state_path).st_mtime_ns == before
-
-    def test_behind_and_stale_bumps_then_throttles(self, state_path):
-        """Behind and stale → bump timestamp; an immediate re-run is throttled."""
-        _write_state(
-            state_path, last_check_at=NOW - (DAY * 2), latest_version=NEWER_VERSION
-        )
-        _run(_FakeSession(version_str=NEWER_VERSION), now=NOW)
-        assert _read_state(state_path)["last_check_at"] == NOW
-
-        # Same day, a minute later: not due, state untouched.
-        before = os.stat(state_path).st_mtime_ns
-        _run(_FakeSession(version_str=NEWER_VERSION), now=NOW + 60.0)
-        assert os.stat(state_path).st_mtime_ns == before
-
-        # A day later: due again, keeps the cached newer version.
-        _run(_FakeSession(version_str=NEWER_VERSION), now=NOW + DAY + 60.0)
-        assert _read_state(state_path)["last_check_at"] == NOW + DAY + 60.0
-        assert _read_state(state_path)["latest_version"] == NEWER_VERSION
-
-    def test_disable_control_suppresses_everything(self, state_path):
-        """A disable control silences the fetch (and hence the notice)."""
-        _write_state(
-            state_path, last_check_at=NOW - (DAY * 2), latest_version=NEWER_VERSION
-        )
-        before = os.stat(state_path).st_mtime_ns
-        session = _run(_FakeSession(version_str=NEWER_VERSION), config_value=False)
-        assert session.called is False
-        assert os.stat(state_path).st_mtime_ns == before
 
 
 class TestShouldNotify:
-    def test_true_when_cached_version_newer(self, state_path):
-        _write_state(state_path, last_check_at=NOW, latest_version=NEWER_VERSION)
+    def test_true_when_behind_and_checked_since_notify(self, state_path):
+        _write_state(
+            state_path,
+            last_checked_at=NOW,
+            last_notified_at=NOW - 10,
+            latest_version=NEWER_VERSION,
+        )
         assert update_check.should_notify() is True
 
     def test_false_when_up_to_date(self, state_path):
-        _write_state(state_path, last_check_at=NOW, latest_version=CURRENT_VERSION)
+        _write_state(
+            state_path,
+            last_checked_at=NOW,
+            last_notified_at=0,
+            latest_version=CURRENT_VERSION,
+        )
         assert update_check.should_notify() is False
+
+    def test_false_when_already_notified_for_this_check(self, state_path):
+        """last_notified_at == last_checked_at → disarmed until the next check."""
+        _write_state(
+            state_path,
+            last_checked_at=NOW,
+            last_notified_at=NOW,
+            latest_version=NEWER_VERSION,
+        )
+        assert update_check.should_notify() is False
+
+    def test_true_when_never_notified(self, state_path):
+        _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
+        assert update_check.should_notify() is True
 
     def test_false_when_no_state(self, state_path):
         assert update_check.should_notify() is False
 
-    def test_accepts_explicit_state(self, state_path):
-        assert update_check.should_notify({"latest_version": NEWER_VERSION}) is True
-        assert update_check.should_notify({"latest_version": OLDER_VERSION}) is False
-
     def test_current_version_override(self, state_path):
-        state = {"latest_version": "1.5.0"}
+        state = {
+            "latest_version": "1.5.0",
+            "last_checked_at": NOW,
+            "last_notified_at": 0,
+        }
         assert update_check.should_notify(state, current_version="1.0.0") is True
         assert update_check.should_notify(state, current_version="2.0.0") is False
 
 
-class TestShouldCheckForUpdate:
-    """should_check_for_update gates purely on disabled + freshness now."""
+class TestDailyRenag:
+    """The full notify → disarm → re-arm-next-day cycle."""
 
+    def _notify_cycle(self, state_path, now):
+        """Mirror _finish_and_notify's notify branch (assuming not suppressed)."""
+        state = update_check.read_cached_state()
+        if update_check.should_notify(state):
+            update_check.record_notified(now=now)
+            return True
+        return False
+
+    def test_notify_then_throttle_then_renag(self, state_path):
+        # Behind, fetched today, never notified → notify.
+        _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
+        assert self._notify_cycle(state_path, NOW) is True
+        assert _read_state(state_path)["last_notified_at"] == NOW
+
+        # Same check, later the same run/day → disarmed.
+        assert self._notify_cycle(state_path, NOW + 60) is False
+
+        # A day passes: a fresh check bumps last_checked_at → re-armed.
+        update_check.record_check(NEWER_VERSION, now=NOW + DAY + 60)
+        assert self._notify_cycle(state_path, NOW + DAY + 120) is True
+
+
+class TestMissedWarningRegression:
+    """A fetch that could not notify must not consume the notice budget."""
+
+    def test_suppressed_fetch_does_not_advance_notified(self, state_path):
+        # Cold start: a fetch runs (as it would under -F json / non-TTY) and
+        # discovers a newer version, advancing last_checked_at only.
+        _run(_FakeSession(version_str=NEWER_VERSION), now=NOW)
+        state = _read_state(state_path)
+        assert state["last_checked_at"] == NOW
+        assert state["latest_version"] == NEWER_VERSION
+        assert "last_notified_at" not in state
+
+        # A later interactive run (no new fetch needed) still notifies, because
+        # last_notified_at (absent → 0) < last_checked_at.
+        assert update_check.should_notify() is True
+
+
+class TestShouldCheckForUpdate:
     def test_due_when_stale_even_if_behind(self, state_path):
         _write_state(
-            state_path, last_check_at=NOW - (DAY * 2), latest_version=NEWER_VERSION
+            state_path, last_checked_at=NOW - (DAY * 2), latest_version=NEWER_VERSION
         )
         assert (
             update_check.should_check_for_update(
@@ -242,7 +259,9 @@ class TestShouldCheckForUpdate:
         )
 
     def test_not_due_when_recent(self, state_path):
-        _write_state(state_path, last_check_at=NOW - 60.0)
+        _write_state(
+            state_path, last_checked_at=NOW - 60.0, latest_version=CURRENT_VERSION
+        )
         assert (
             update_check.should_check_for_update(
                 no_check_flag=False, config_value=True, env={}, now=NOW
@@ -260,7 +279,7 @@ class TestShouldCheckForUpdate:
 
 
 class TestDisableControls:
-    """The --no-check-update flag, env vars and config key suppress the check."""
+    """The --no-check-update flag, env vars and config key suppress the fetch."""
 
     def test_no_check_flag_suppresses(self, state_path):
         session = _run(_FakeSession(), no_check_flag=True)
@@ -327,13 +346,30 @@ class TestNewerVersionKnown:
 
 
 class TestStatePersistence:
-    def test_record_and_read_round_trip(self, state_path):
+    def test_record_check_preserves_notified(self, state_path):
+        _write_state(
+            state_path,
+            last_checked_at=1.0,
+            last_notified_at=500.0,
+            latest_version=OLDER_VERSION,
+        )
         update_check.record_check(NEWER_VERSION, now=NOW)
-        assert update_check.read_last_check_time() == NOW
-        assert update_check.read_latest_version() == NEWER_VERSION
+        state = _read_state(state_path)
+        assert state["last_checked_at"] == NOW
+        assert state["latest_version"] == NEWER_VERSION
+        assert state["last_notified_at"] == 500.0
+
+    def test_record_notified_preserves_check(self, state_path):
+        _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
+        update_check.record_notified(now=NOW + 5)
+        state = _read_state(state_path)
+        assert state["last_notified_at"] == NOW + 5
+        assert state["last_checked_at"] == NOW
+        assert state["latest_version"] == NEWER_VERSION
 
     def test_read_missing_file_returns_none(self, state_path):
         assert update_check.read_last_check_time() is None
+        assert update_check.read_last_notified_time() is None
         assert update_check.read_latest_version() is None
         assert update_check.read_cached_state() == {}
 
@@ -342,7 +378,6 @@ class TestStatePersistence:
             f.write("not json")
         assert update_check.read_cached_state() == {}
         assert update_check.read_last_check_time() is None
-        assert update_check.read_latest_version() is None
 
     def test_read_non_object_returns_empty(self, state_path):
         with open(state_path, "w", encoding="utf-8") as f:
@@ -356,13 +391,11 @@ class TestStatePersistence:
         assert os.path.exists(path)
 
     def test_record_swallows_storage_errors(self, tmp_path, monkeypatch):
-        # Point the state file at a path whose parent is a file, so makedirs fails.
         blocker = tmp_path / "blocker"
         blocker.write_text("x")
         path = str(blocker / "update_check.json")
         monkeypatch.setattr(update_check, "get_state_file_path", lambda: path)
-        # Must not raise.
-        update_check.record_check(CURRENT_VERSION, now=NOW)
+        update_check.record_check(CURRENT_VERSION, now=NOW)  # must not raise
         assert not os.path.exists(path)
 
 
@@ -433,16 +466,10 @@ class TestFetchLatestManifest:
         concrete = self._url().replace("latest", "1.27.0")
         with httpretty.enabled(allow_net_connect=False):
             httpretty.register_uri(
-                httpretty.GET,
-                self._url(),
-                status=302,
-                location=concrete,
+                httpretty.GET, self._url(), status=302, location=concrete
             )
             httpretty.register_uri(
-                httpretty.GET,
-                concrete,
-                body="version=1.27.0\n",
-                status=200,
+                httpretty.GET, concrete, body="version=1.27.0\n", status=200
             )
             manifest = update_check.fetch_latest_manifest(create_requests_session())
         assert manifest["version"] == "1.27.0"
@@ -476,10 +503,9 @@ class TestRunBackgroundCheck:
             _FakeSession(version_str=NEWER_VERSION), now=NOW
         )
         assert _read_state(state_path)["latest_version"] == NEWER_VERSION
-        assert _read_state(state_path)["last_check_at"] == NOW
+        assert _read_state(state_path)["last_checked_at"] == NOW
 
     def test_swallows_network_failure_and_records_nothing(self, state_path):
-        # Must not raise, and must not create the state file.
         update_check.run_background_check(_FakeSession(fails=True), now=NOW)
         assert not os.path.exists(state_path)
 
@@ -506,34 +532,45 @@ class TestNoticeSuppressed:
 
 
 class TestFinishAndNotify:
-    """Join-then-notify at command close."""
+    """Join-then-notify at command close, honouring presentation suppressors."""
 
-    def test_notifies_and_bumps_when_behind(self, state_path, capsys):
-        _write_state(
-            state_path, last_check_at=NOW - (DAY * 2), latest_version=NEWER_VERSION
-        )
-        update_check._finish_and_notify(None, now=NOW)
+    class _Opts:
+        def __init__(self, output="pretty"):
+            self.output = output
+
+    @pytest.fixture(autouse=True)
+    def _tty(self, monkeypatch):
+        monkeypatch.setattr(update_check, "stderr_is_tty", lambda: True)
+
+    def test_notifies_and_stamps_when_behind(self, state_path, capsys):
+        _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
+        update_check._finish_and_notify(None, self._Opts(), "list", now=NOW + 1)
         err = capsys.readouterr().err
         assert "new version" in err.lower()
         assert NEWER_VERSION in err
-        assert _read_state(state_path)["last_check_at"] == NOW
+        assert _read_state(state_path)["last_notified_at"] == NOW + 1
+
+    def test_silent_and_untouched_when_suppressed(self, state_path, capsys):
+        """JSON output suppresses the notice and does not stamp last_notified."""
+        _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
+        update_check._finish_and_notify(None, self._Opts("json"), "list", now=NOW + 1)
+        assert capsys.readouterr().err == ""
+        assert "last_notified_at" not in _read_state(state_path)
 
     def test_silent_when_up_to_date(self, state_path, capsys):
-        _write_state(state_path, last_check_at=NOW, latest_version=CURRENT_VERSION)
-        update_check._finish_and_notify(None, now=NOW)
+        _write_state(state_path, last_checked_at=NOW, latest_version=CURRENT_VERSION)
+        update_check._finish_and_notify(None, self._Opts(), "list", now=NOW)
         assert capsys.readouterr().err == ""
 
     def test_joins_thread_before_reading_state(self, state_path, capsys):
-        """A thread that writes a newer version is joined, then the notice fires."""
         import threading
 
-        _write_state(state_path, last_check_at=NOW - (DAY * 2))
+        _write_state(state_path, last_checked_at=1.0, latest_version=CURRENT_VERSION)
 
         def writer():
             update_check.record_check(NEWER_VERSION, now=NOW)
 
         thread = threading.Thread(target=writer)
         thread.start()
-        update_check._finish_and_notify(thread, now=NOW + 1)
-        err = capsys.readouterr().err
-        assert NEWER_VERSION in err
+        update_check._finish_and_notify(thread, self._Opts(), "list", now=NOW + 1)
+        assert NEWER_VERSION in capsys.readouterr().err

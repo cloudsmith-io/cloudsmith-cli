@@ -75,8 +75,10 @@ class TestMainUpdateNotice:
         return path
 
     def _write_behind(self, path):
+        # Stale check (so a check is due) + never notified + a newer version:
+        # arm re-arms by bumping last_checked_at, close notifies.
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"last_check_at": 1000.0, "latest_version": "9.9.9"}, f)
+            json.dump({"last_checked_at": 1000.0, "latest_version": "9.9.9"}, f)
 
     def test_notice_prints_when_behind(self, runner, state_file):
         """A stale + behind state prints the notice at command close."""
@@ -111,3 +113,42 @@ class TestMainUpdateNotice:
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
         assert "9.9.9" in result.output
+
+    def test_notifies_from_cache_when_no_fetch_due(self, runner, state_file):
+        """Notice fires from cache even when the check is fresh (not due).
+
+        Regression: a prior suppressed run may have fetched (advancing
+        last_checked_at) without notifying. The next interactive run must still
+        speak, driven purely by last_notified_at < last_checked_at.
+        """
+        with open(state_file, "w", encoding="utf-8") as f:
+            # Fresh check (not due) + newer version + never notified.
+            json.dump(
+                {
+                    "last_checked_at": 9_999_999_999.0,
+                    "latest_version": "9.9.9",
+                },
+                f,
+            )
+        result = runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
+        assert "9.9.9" in result.output
+        # last_notified_at now stamped → throttled next time.
+        with open(state_file, encoding="utf-8") as f:
+            assert "last_notified_at" in json.load(f)
+
+    def test_json_run_still_fetches(self, runner, state_file, monkeypatch):
+        """-F json suppresses the notice but the daily fetch still runs."""
+        calls = []
+
+        def fake_fetch(session, now=None):
+            calls.append(True)
+            update_check.record_check("9.9.9", now=now)
+
+        monkeypatch.setattr(update_check, "run_background_check", fake_fetch)
+        # No state file → a fetch is due; JSON silences only the notice.
+        result = runner.invoke(main, ["-F", "json", "--version"])
+        assert result.exit_code == 0
+        assert calls == [True]
+        assert "9.9.9" not in result.output
+        json.loads(result.output)

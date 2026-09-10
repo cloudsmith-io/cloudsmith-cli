@@ -1,24 +1,23 @@
-"""Decide when to check for a newer CLI version, and record what we found.
+"""Decide when to check for a newer CLI version, and when to notify about it.
 
-This module answers *whether* an update check (a network fetch) should run now
-and stores *when* the last successful check happened together with the latest
-version it reported. It performs no network access itself and renders no
-notice; those belong to the actual update-check implementation that calls into
-here.
+State lives in a small JSON file with two timestamps and the last-seen version:
+``{last_checked_at, last_notified_at, latest_version}``.
 
-The decision to act (fetch and/or notify) combines, in precedence order:
+Two rhythms run off it, deliberately decoupled:
 
-1. The ``--no-check-update`` flag.
-2. The ``CLOUDSMITH_NO_UPDATE_CHECK`` environment variable (and ``CI``).
-3. The ``check_for_update`` config-file key.
-4. A once-every-24-hours freshness rule backed by an on-disk timestamp.
+* **Fetch** (network + refresh ``latest_version``) runs at most once a day,
+  gated by ``last_checked_at`` and the disable controls (``--no-check-update``,
+  ``CLOUDSMITH_NO_UPDATE_CHECK``, ``CI``, ``check_for_update``). It runs even in
+  contexts where the notice is silenced (``-F json``, non-TTY, ``mcp``/``update``)
+  so the cache stays warm for a later interactive run.
 
-A single ``last_check_at`` timestamp throttles both the network fetch and the
-"an update is available" notice to at most once a day. When the caller acts —
-whether it fetches a new version or merely reprints the notice for a version it
-already knows is newer — it bumps ``last_check_at`` so nothing repeats until the
-day is up. Deciding whether a notice is warranted (as opposed to whether it is
-*time* to act) is left to :func:`should_notify`.
+* **Notice** ("an update is available") is gated by the invariant
+  ``last_notified_at < last_checked_at`` — i.e. a check has happened since we
+  last spoke — plus the presentation suppressors in :func:`notice_suppressed`.
+  Tying the notice to "a check we have not reported" rather than to its own
+  clock keeps the two rhythms from drifting: a fetch that could not print (JSON,
+  non-TTY) advances ``last_checked_at`` without spending the notice, so the next
+  interactive run still notifies promptly.
 """
 
 import json
@@ -75,12 +74,22 @@ def read_cached_state():
     return state if isinstance(state, dict) else {}
 
 
-def read_last_check_time():
-    """Return the unix timestamp of the last check, or None."""
+def _read_timestamp(key):
+    """Return a float timestamp for ``key`` from the cached state, or None."""
     try:
-        return float(read_cached_state().get("last_check_at"))
+        return float(read_cached_state().get(key))
     except (TypeError, ValueError):
         return None
+
+
+def read_last_check_time():
+    """Return the unix timestamp of the last check, or None."""
+    return _read_timestamp("last_checked_at")
+
+
+def read_last_notified_time():
+    """Return the unix timestamp of the last notice, or None."""
+    return _read_timestamp("last_notified_at")
 
 
 def read_latest_version():
@@ -89,22 +98,39 @@ def read_latest_version():
     return latest or None
 
 
-def record_check(latest_version, now=None):
-    """Record a successful check's timestamp and reported latest version.
+def _write_state(updates):
+    """Merge ``updates`` into the cached state and write it; swallow errors.
 
-    Called only after a successful check. A failure to persist the state must
-    never break the running command, so storage errors are swallowed.
+    A read-modify-write so that updating one field (e.g. the check timestamp)
+    never drops a sibling (e.g. the notice timestamp). A failure to persist the
+    state must never break the running command.
     """
     from .cache_utils import atomic_write_json
 
-    now = time.time() if now is None else now
     path = get_state_file_path()
-    state = {"last_check_at": now, "latest_version": latest_version}
+    state = read_cached_state()
+    state.update(updates)
     try:
         os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
         atomic_write_json(path, state)
     except OSError:
         logger.debug("Failed to record the update-check state", exc_info=True)
+
+
+def record_check(latest_version, now=None):
+    """Record a check's timestamp and reported latest version.
+
+    Preserves ``last_notified_at``. Called after a fetch, or when a
+    cache-confirmed newer version re-arms the daily check without a fetch.
+    """
+    now = time.time() if now is None else now
+    _write_state({"last_checked_at": now, "latest_version": latest_version})
+
+
+def record_notified(now=None):
+    """Record that the update notice was just shown. Preserves the rest."""
+    now = time.time() if now is None else now
+    _write_state({"last_notified_at": now})
 
 
 def parse_manifest(text):
@@ -210,32 +236,41 @@ def update_check_disabled(*, no_check_flag, config_value=None, env=None):
 
 
 def should_check_for_update(*, no_check_flag, config_value=None, env=None, now=None):
-    """Tell whether the CLI should act (fetch and/or notify) this invocation.
+    """Tell whether a check (fetch or cache-confirmed re-arm) is due this run.
 
     True when the check is not disabled and at least a day has elapsed since
-    the last action. It does not distinguish between "fetch" and "notify"; the
-    caller inspects the cached state (via :func:`should_notify`) to decide which
-    to do. Being behind does *not* short-circuit here — the daily notice depends
-    on this returning True while a newer version is known.
+    ``last_checked_at``. Independent of presentation: a check may run even when
+    the notice will be silenced.
     """
     if update_check_disabled(
         no_check_flag=no_check_flag, config_value=config_value, env=env
     ):
         return False
-    return is_check_due(read_cached_state().get("last_check_at"), now=now)
+    return is_check_due(read_cached_state().get("last_checked_at"), now=now)
 
 
 def should_notify(state=None, *, current_version=None):
     """Tell whether an "update available" notice is warranted from cached state.
 
-    True when the cached ``latest_version`` is newer than the running CLI. The
-    once-a-day throttle is supplied separately by
-    :func:`should_check_for_update`; this only judges whether there is something
-    worth saying.
+    True when the cached ``latest_version`` is newer than the running CLI *and*
+    a check has happened since the last notice (``last_notified_at <
+    last_checked_at``). The second clause is the daily throttle: a check re-arms
+    the notice, and showing it stamps ``last_notified_at`` to disarm it until the
+    next check.
     """
     if state is None:
         state = read_cached_state()
-    return newer_version_known(state.get("latest_version"), current_version)
+    if not newer_version_known(state.get("latest_version"), current_version):
+        return False
+    try:
+        last_notified = float(state.get("last_notified_at") or 0)
+    except (TypeError, ValueError):
+        last_notified = 0.0
+    try:
+        last_checked = float(state.get("last_checked_at") or 0)
+    except (TypeError, ValueError):
+        last_checked = 0.0
+    return last_notified < last_checked
 
 
 def stderr_is_tty():
@@ -282,45 +317,53 @@ def _start_background_check(session):
     return thread
 
 
-def _finish_and_notify(thread, *, now=None):
-    """Join the background fetch (bounded) then notify once a day if behind.
+def _finish_and_notify(thread, opts, invoked, *, now=None):
+    """Join the background fetch (bounded) then notify if warranted.
 
-    Runs at command close. If a newer version is known — whether the just-joined
-    fetch discovered it or the cache already held it — print the notice and bump
-    ``last_check_at`` so it does not repeat until tomorrow.
+    Runs at command close. Presentation suppressors are evaluated here (not at
+    decision time) so a subcommand's own ``-F`` and the live TTY state are
+    known. When suppressed, ``last_notified_at`` is left untouched so a later
+    interactive run can still speak.
     """
     if thread is not None:
         thread.join(BACKGROUND_JOIN_TIMEOUT_SECONDS)
+    if notice_suppressed(getattr(opts, "output", None), invoked):
+        return
     state = read_cached_state()
     if not should_notify(state):
         return
     print_update_notice(state["latest_version"])
-    record_check(state["latest_version"], now=now)
+    record_notified(now=now)
 
 
 def arm(ctx, opts, no_check_flag):
-    """Wire up the update check for this invocation, if enabled.
+    """Wire up the update check for this invocation.
 
-    When a check is due and not disabled, start the background fetch (unless we
-    already know we are behind, in which case there is nothing to fetch) and
-    register a close handler that joins it and prints the notice. The notice is
-    additionally suppressed for machine output, non-TTY stderr and certain
-    subcommands via :func:`notice_suppressed`.
+    Unless disabled (``--no-check-update``/env/``CI``/config), a close handler is
+    always registered so a pending notice can fire from cache even on a run where
+    no fetch is due. When a fetch *is* due, either start the background fetch or —
+    if we already know we are behind — bump ``last_checked_at`` to re-arm the
+    daily notice without a fetch. The fetch runs even when the notice is
+    suppressed (e.g. ``-F json``, non-TTY), keeping the cache warm; the close
+    handler decides separately whether to print.
     """
     invoked = ctx.invoked_subcommand
     invoked = getattr(ctx.command, "inverse", {}).get(invoked, invoked)
-    if notice_suppressed(getattr(opts, "output", None), invoked):
-        return
-    if not should_check_for_update(
+    if update_check_disabled(
         no_check_flag=no_check_flag, config_value=opts.check_for_update
     ):
         return
 
     thread = None
-    if not should_notify():
-        from .session import create_requests_session
+    if is_check_due(read_last_check_time()):
+        if newer_version_known(read_latest_version()):
+            # Already behind: no fetch needed, but bump last_checked_at so the
+            # daily notice re-arms (last_notified_at < last_checked_at).
+            record_check(read_latest_version())
+        else:
+            from .session import create_requests_session
 
-        session = create_requests_session(user_agent=opts.api_user_agent)
-        thread = _start_background_check(session)
+            session = create_requests_session(user_agent=opts.api_user_agent)
+            thread = _start_background_check(session)
 
-    ctx.call_on_close(lambda: _finish_and_notify(thread))
+    ctx.call_on_close(lambda: _finish_and_notify(thread, opts, invoked))
