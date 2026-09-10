@@ -148,12 +148,7 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
         return None
 
 
-def store_cached_token(
-    api_host: str,
-    org: str,
-    service_slug: str,
-    token: str,
-) -> None:
+def store_cached_token(api_host: str, org: str, service_slug: str, token: str) -> None:
     """Cache a token in keyring (if available) or filesystem."""
     expires_at = _decode_jwt_exp(token)
 
@@ -172,12 +167,7 @@ def store_cached_token(
     _store_on_disk(api_host, org, service_slug, data)
 
 
-def _store_in_keyring(
-    api_host: str,
-    org: str,
-    service_slug: str,
-    data: dict,
-) -> bool:
+def _store_in_keyring(api_host: str, org: str, service_slug: str, data: dict) -> bool:
     """Try to store token in keyring."""
     try:
         from ...keyring import store_oidc_token
@@ -194,12 +184,7 @@ def _store_in_keyring(
         return False
 
 
-def _store_on_disk(
-    api_host: str,
-    org: str,
-    service_slug: str,
-    data: dict,
-) -> None:
+def _store_on_disk(api_host: str, org: str, service_slug: str, data: dict) -> None:
     """Store token on disk."""
     cache_dir = _get_cache_dir()
     cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))

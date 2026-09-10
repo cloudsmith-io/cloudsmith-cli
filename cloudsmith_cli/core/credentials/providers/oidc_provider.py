@@ -184,12 +184,7 @@ class OidcProvider(CredentialProvider):
         if not cloudsmith_token:
             return None
 
-        store_cached_token(
-            context.api_host,
-            org,
-            service_slug,
-            cloudsmith_token,
-        )
+        store_cached_token(context.api_host, org, service_slug, cloudsmith_token)
 
         return CredentialResult(
             api_key=cloudsmith_token,
