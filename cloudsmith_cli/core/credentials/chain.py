@@ -19,13 +19,15 @@ logger = logging.getLogger(__name__)
 class CredentialProviderChain:
     """Evaluates credential providers in order, returning the first valid result.
 
-    If no providers are given, uses the default chain:
-    CLIFlag → EnvVar → CredentialsFile → Keyring → OIDC.
+    If no providers are given, uses the default chain. Explicit OIDC
+    configuration takes precedence over ambient credentials so a changed
+    service slug cannot be masked by a token exported by an earlier command.
     """
 
     def __init__(self, providers: list[CredentialProvider] | None = None):
         if providers is not None:
             self.providers = providers
+            self._uses_default_providers = False
         else:
             from .providers import (
                 CLIFlagProvider,
@@ -42,10 +44,19 @@ class CredentialProviderChain:
                 KeyringProvider(),
                 OidcProvider(),
             ]
+            self._uses_default_providers = True
 
     def resolve(self, context: CredentialContext) -> CredentialResult | None:
         """Evaluate each provider in order. Return the first successful result."""
-        for provider in self.providers:
+        providers = self.providers
+        if self._uses_default_providers and context.org and context.oidc_service_slug:
+            providers = [
+                self.providers[0],
+                self.providers[4],
+                *self.providers[1:4],
+            ]
+
+        for provider in providers:
             try:
                 result = provider.resolve(context)
                 if result is not None:

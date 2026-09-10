@@ -1,7 +1,8 @@
 """Integration tests proving correct credential resolution priority.
 
 Priority (highest → lowest):
-    --api-key CLI flag > CLOUDSMITH_API_KEY env var > credentials.ini > keyring SSO
+--api-key CLI flag > configured OIDC > CLOUDSMITH_API_KEY env var
+> credentials.ini > keyring SSO
 """
 
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from unittest.mock import patch
 from cloudsmith_cli.core import keyring
 from cloudsmith_cli.core.credentials.chain import CredentialProviderChain
 from cloudsmith_cli.core.credentials.models import CredentialContext
+from cloudsmith_cli.core.credentials.models import CredentialResult
 
 
 class TestCredentialChainPriority:
@@ -48,6 +50,45 @@ class TestCredentialChainPriority:
 
         assert result is not None
         assert result.api_key == "env-key"
+        assert result.source_name == "env_var"
+
+    def test_configured_oidc_beats_inherited_env_token(self):
+        """A previous action's exported token must not mask a requested service."""
+        context = self._context(
+            api_key_from_env="previous-oidc-token",
+            org="cloudsmith",
+            oidc_service_slug="push-service",
+        )
+
+        with patch(
+            "cloudsmith_cli.core.credentials.providers.oidc_provider.OidcProvider.resolve",
+            return_value=CredentialResult(
+                api_key="push-token",
+                source_name="oidc",
+                auth_type="bearer",
+            ),
+        ):
+            result = CredentialProviderChain().resolve(context)
+
+        assert result is not None
+        assert result.api_key == "push-token"
+        assert result.source_name == "oidc"
+
+    def test_failed_configured_oidc_falls_back_to_env_token(self):
+        context = self._context(
+            api_key_from_env="fallback-token",
+            org="cloudsmith",
+            oidc_service_slug="push-service",
+        )
+
+        with patch(
+            "cloudsmith_cli.core.credentials.providers.oidc_provider.OidcProvider.resolve",
+            return_value=None,
+        ):
+            result = CredentialProviderChain().resolve(context)
+
+        assert result is not None
+        assert result.api_key == "fallback-token"
         assert result.source_name == "env_var"
 
     def test_credentials_file_beats_keyring(self):

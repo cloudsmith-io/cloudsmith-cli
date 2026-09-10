@@ -325,7 +325,7 @@ OIDC_TOKEN_KEY = (
 )
 
 
-def store_oidc_token(api_host, org, service_slug, audience, token_data):
+def store_oidc_token(api_host, org, service_slug, token_data, audience=None):
     """Store OIDC token in keyring if enabled."""
     from keyring.errors import KeyringError
 

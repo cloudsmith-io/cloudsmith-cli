@@ -208,7 +208,13 @@ def _store_in_keyring(
         from ...keyring import store_oidc_token
 
         token_data = json.dumps(data)
-        success = store_oidc_token(api_host, org, service_slug, audience, token_data)
+        success = store_oidc_token(
+            api_host,
+            org,
+            service_slug,
+            token_data,
+            audience,
+        )
         if success:
             logger.debug(
                 "Stored OIDC token in keyring (expires_at=%s)", data.get("expires_at")
