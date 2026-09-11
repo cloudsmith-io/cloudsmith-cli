@@ -80,13 +80,54 @@ class TestMainUpdateNotice:
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"last_checked_at": 1000.0, "latest_version": "9.9.9"}, f)
 
-    def test_notice_prints_when_behind(self, runner, state_file):
-        """A stale + behind state prints the notice at command close."""
+    def test_notice_prints_when_behind_standalone(
+        self, runner, state_file, monkeypatch
+    ):
+        """A standalone install (self-update capable) is told to run `cloudsmith update`."""
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(
+            installation, "detect_channel", lambda: installation.CHANNEL_STANDALONE
+        )
+        monkeypatch.setattr(installation, "self_update_supported", lambda: True)
         self._write_behind(state_file)
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
         assert "9.9.9" in result.output
         assert "cloudsmith update" in result.output
+
+    def test_notice_windows_standalone_points_at_releases(
+        self, runner, state_file, monkeypatch
+    ):
+        """A standalone install without self-update (Windows) points at releases."""
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(
+            installation, "detect_channel", lambda: installation.CHANNEL_STANDALONE
+        )
+        monkeypatch.setattr(installation, "self_update_supported", lambda: False)
+        self._write_behind(state_file)
+        result = runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
+        assert "9.9.9" in result.output
+        assert installation.RELEASES_LATEST_URL in result.output
+        assert "cloudsmith update" not in result.output
+
+    def test_notice_prints_package_manager_command(
+        self, runner, state_file, monkeypatch
+    ):
+        """A package-managed install is told the channel's own upgrade command."""
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(
+            installation, "detect_channel", lambda: installation.CHANNEL_PIP
+        )
+        self._write_behind(state_file)
+        result = runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
+        assert "9.9.9" in result.output
+        assert "pip install --upgrade cloudsmith-cli" in result.output
+        assert "cloudsmith update" not in result.output
 
     def test_no_check_update_flag_suppresses(self, runner, state_file):
         self._write_behind(state_file)

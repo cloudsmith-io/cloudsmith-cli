@@ -367,6 +367,25 @@ class TestStatePersistence:
         assert state["last_checked_at"] == NOW
         assert state["latest_version"] == NEWER_VERSION
 
+    def test_record_checked_and_notified_stamps_both(self, state_path):
+        _write_state(
+            state_path,
+            last_checked_at=1.0,
+            last_notified_at=2.0,
+            latest_version=OLDER_VERSION,
+        )
+        update_check.record_checked_and_notified(NEWER_VERSION, now=NOW)
+        state = _read_state(state_path)
+        assert state["last_checked_at"] == NOW
+        assert state["last_notified_at"] == NOW
+        assert state["latest_version"] == NEWER_VERSION
+
+    def test_record_checked_and_notified_disarms_notice(self, state_path):
+        # After an explicit check the background notice must stay silent:
+        # last_notified_at is not < last_checked_at.
+        update_check.record_checked_and_notified(NEWER_VERSION, now=NOW)
+        assert update_check.should_notify() is False
+
     def test_read_missing_file_returns_none(self, state_path):
         assert update_check.read_last_check_time() is None
         assert update_check.read_last_notified_time() is None
@@ -496,6 +515,23 @@ class TestFetchLatestManifest:
             with pytest.raises(requests.RequestException):
                 update_check.fetch_latest_manifest(create_requests_session(retries=0))
 
+    def test_env_override_template(self, monkeypatch):
+        import httpretty
+
+        from cloudsmith_cli.core.session import create_requests_session
+
+        override = "http://127.0.0.1:9/{target}/manifest.txt"
+        monkeypatch.setenv(update_check.MANIFEST_URL_TEMPLATE_ENV, override)
+        url = override.format(target="macos-arm64")
+        with httpretty.enabled(allow_net_connect=False):
+            httpretty.register_uri(
+                httpretty.GET, url, body="version=9.9.9\n", status=200
+            )
+            manifest = update_check.fetch_latest_manifest(
+                create_requests_session(), target="macos-arm64"
+            )
+        assert manifest["version"] == "9.9.9"
+
 
 class TestRunBackgroundCheck:
     def test_records_on_success(self, state_path):
@@ -508,6 +544,53 @@ class TestRunBackgroundCheck:
     def test_swallows_network_failure_and_records_nothing(self, state_path):
         update_check.run_background_check(_FakeSession(fails=True), now=NOW)
         assert not os.path.exists(state_path)
+
+
+class TestUpdateActionLines:
+    """The notice's "how to update" lines depend on the install channel."""
+
+    def test_standalone_points_at_update_command(self, monkeypatch):
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(
+            installation, "detect_channel", lambda: installation.CHANNEL_STANDALONE
+        )
+        monkeypatch.setattr(installation, "self_update_supported", lambda: True)
+        assert update_check._update_action_lines() == [
+            "Run `cloudsmith update` to update."
+        ]
+
+    def test_standalone_windows_points_at_releases(self, monkeypatch):
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(
+            installation, "detect_channel", lambda: installation.CHANNEL_STANDALONE
+        )
+        monkeypatch.setattr(installation, "self_update_supported", lambda: False)
+        lines = update_check._update_action_lines()
+        assert lines[-1].strip() == installation.RELEASES_LATEST_URL
+        assert all("cloudsmith update" not in line for line in lines)
+
+    @pytest.mark.parametrize(
+        "channel, command",
+        [
+            ("pip", "pip install --upgrade cloudsmith-cli"),
+            ("pipx", "pipx upgrade cloudsmith-cli"),
+            ("homebrew", "brew update && brew upgrade cloudsmith-cli"),
+            ("unknown", "pip install --upgrade cloudsmith-cli"),
+        ],
+    )
+    def test_package_manager_command_on_its_own_line(
+        self, monkeypatch, channel, command
+    ):
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(installation, "detect_channel", lambda: channel)
+        lines = update_check._update_action_lines()
+        # The command sits alone on the final line (indented) so it copies clean.
+        assert lines[0] == "To update, run:"
+        assert lines[-1] == f"  {command}"
+        assert all("cloudsmith update" not in line for line in lines)
 
 
 class TestNoticeSuppressed:
