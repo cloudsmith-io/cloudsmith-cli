@@ -44,6 +44,9 @@ MANIFEST_URL_TEMPLATE = (
     "https://dl.cloudsmith.io/public/cloudsmith/cli/raw/names/"
     "cloudsmith-cli-manifest-{target}/versions/latest/manifest.txt"
 )
+#: Overrides ``MANIFEST_URL_TEMPLATE`` when set. Must contain a ``{target}``
+#: placeholder. For testing self-update against a local or staging endpoint.
+MANIFEST_URL_TEMPLATE_ENV = "CLOUDSMITH_MANIFEST_URL_TEMPLATE"
 VERSION_PROBE_TARGET = "linux-x86_64-gnu"
 MANIFEST_FETCH_TIMEOUT_SECONDS = 5.0
 #: How long the command waits at exit for the background fetch to finish.
@@ -133,6 +136,25 @@ def record_notified(now=None):
     _write_state({"last_notified_at": now})
 
 
+def record_checked_and_notified(latest_version, now=None):
+    """Stamp both timestamps and the latest version in a single write.
+
+    Used by the ``update`` command, which performs its own check on every run
+    regardless of the cache. Advancing ``last_notified_at`` alongside
+    ``last_checked_at`` disarms the background notice's daily re-nag
+    (``last_notified_at < last_checked_at`` becomes false) so the user is not
+    told about an update they just ran the command to handle.
+    """
+    now = time.time() if now is None else now
+    _write_state(
+        {
+            "last_checked_at": now,
+            "last_notified_at": now,
+            "latest_version": latest_version,
+        }
+    )
+
+
 def parse_manifest(text):
     """Parse the ``key=value`` lines of a release manifest into a dict.
 
@@ -158,7 +180,8 @@ def fetch_latest_manifest(
     apply and redirects are followed). Raises ``requests.RequestException`` on
     network failure and ``ValueError`` if the manifest has no ``version``.
     """
-    url = MANIFEST_URL_TEMPLATE.format(target=target)
+    template = os.environ.get(MANIFEST_URL_TEMPLATE_ENV) or MANIFEST_URL_TEMPLATE
+    url = template.format(target=target)
     response = session.get(url, timeout=timeout)
     response.raise_for_status()
     manifest = parse_manifest(response.text)
@@ -292,17 +315,41 @@ def notice_suppressed(output_format=None, invoked_subcommand=None):
     return invoked_subcommand in NOTICE_SUPPRESSED_SUBCOMMANDS
 
 
+def _update_action_lines():
+    """Return the "how to update" lines for the current install channel.
+
+    A standalone binary can update itself, so it is pointed at
+    ``cloudsmith update``. Every package-managed install cannot be updated by
+    the CLI, so the notice prints that channel's own upgrade command on its own
+    line — easy to copy, and not mangled by terminal line-wrapping — rather than
+    sending the user to a command that would only print another command.
+    """
+    from . import installation
+
+    channel = installation.detect_channel()
+    instruction = installation.upgrade_instruction(channel)
+    if instruction is None:
+        if installation.self_update_supported():
+            return ["Run `cloudsmith update` to update."]
+        return [
+            "Download the latest build and replace your install:",
+            f"  {installation.RELEASES_LATEST_URL}",
+        ]
+    return ["To update, run:", f"  {instruction}"]
+
+
 def print_update_notice(latest_version):
     """Print the "an update is available" notice on stderr."""
     import click
 
-    click.secho(
-        "A new version of the Cloudsmith CLI is available: "
-        f"{version.get_version()} \u2192 {latest_version}. "
-        "Run `cloudsmith update` to update.",
-        fg="yellow",
-        err=True,
-    )
+    lines = [
+        (
+            "A new version of the Cloudsmith CLI is available: "
+            f"{version.get_version()} \u2192 {latest_version}."
+        ),
+        *_update_action_lines(),
+    ]
+    click.secho("\n".join(lines), fg="yellow", err=True)
 
 
 def _start_background_check(session):
