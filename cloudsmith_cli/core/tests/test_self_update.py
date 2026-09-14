@@ -2,8 +2,8 @@
 """Tests for cloudsmith_cli.core.self_update.
 
 The self-update primitives are exercised against real files in a temp tree
-(checksum, extraction, atomic swap). The network download is stubbed so no
-test touches a remote.
+(checksum, extraction, entry-scoped replacement). The network download is
+stubbed so no test touches a remote.
 """
 
 from __future__ import annotations
@@ -64,91 +64,146 @@ class TestExtractArchive:
         assert (dest / "cloudsmith").read_text() == "binary"
 
 
-class TestSwapInstallDir:
-    def test_success(self, tmp_path):
+class TestReplaceBundleEntries:
+    def _install(self, tmp_path):
+        """A pristine install dir with a bundle exe + _internal dir."""
         install = tmp_path / "install"
         install.mkdir()
-        (install / "old").write_text("old")
+        (install / "cloudsmith").write_text("old-exe")
+        (install / "_internal").mkdir()
+        (install / "_internal" / "d").write_text("old-dep")
+        return install
+
+    def _staging(self, tmp_path, *, exe="cloudsmith"):
+        """A staged new bundle with a new exe + _internal dir."""
         staging = tmp_path / "install.new"
         staging.mkdir()
-        (staging / "new").write_text("new")
+        (staging / exe).write_text("new-exe")
+        (staging / "_internal").mkdir()
+        (staging / "_internal" / "d").write_text("new-dep")
+        return staging
 
-        old_dir = self_update.swap_install_dir(str(install), str(staging))
+    def test_success_replaces_bundle_entries(self, tmp_path):
+        install = self._install(tmp_path)
+        staging = self._staging(tmp_path)
 
-        assert (install / "new").exists()
-        assert not (install / "old").exists()
-        assert os.path.exists(old_dir)
+        backup = self_update.replace_bundle_entries(
+            str(install), str(staging), executable_name="cloudsmith"
+        )
 
-    def test_rollback_on_failure(self, tmp_path, monkeypatch):
-        install = tmp_path / "install"
-        install.mkdir()
-        (install / "keep").write_text("keep")
-        staging = tmp_path / "install.new"
-        staging.mkdir()
+        assert (install / "cloudsmith").read_text() == "new-exe"
+        assert (install / "_internal" / "d").read_text() == "new-dep"
+        # The backup dir (a SIBLING of install_dir) is returned for the caller
+        # to remove; it holds the old bundle entries only.
+        assert os.path.exists(backup)
+        assert backup == str(install) + self_update._BACKUP_DIR_SUFFIX
+        assert os.path.exists(os.path.join(backup, "cloudsmith"))
+
+    def test_user_files_are_never_touched(self, tmp_path):
+        # The core safety property: files the user keeps alongside the CLI must
+        # survive an update untouched, because they are not bundle entries.
+        install = self._install(tmp_path)
+        (install / "my-notes.txt").write_text("keep me")
+        user_dir = install / "user-dir"
+        user_dir.mkdir()
+        (user_dir / "x").write_text("keep dir")
+        staging = self._staging(tmp_path)
+
+        inode_before = os.stat(install).st_ino
+        self_update.replace_bundle_entries(
+            str(install), str(staging), executable_name="cloudsmith"
+        )
+
+        assert (install / "my-notes.txt").read_text() == "keep me"
+        assert (user_dir / "x").read_text() == "keep dir"
+        # The install directory itself is never renamed, so its inode is stable
+        # (a shell whose cwd is here keeps working).
+        assert os.stat(install).st_ino == inode_before
+
+    def test_missing_executable_rejected_before_any_move(self, tmp_path, monkeypatch):
+        # A staged bundle without the executable is rejected before anything in
+        # the live install is moved, so the original is never even at risk.
+        install = self._install(tmp_path)
+        staging = self._staging(tmp_path, exe="not-cloudsmith")
+
+        def guard_rename(src, dst):
+            raise AssertionError(f"nothing must be moved: rename({src}, {dst})")
+
+        monkeypatch.setattr(self_update.os, "rename", guard_rename)
+        with pytest.raises(
+            self_update.SelfUpdateError, match="missing cloudsmith before replace"
+        ):
+            self_update.replace_bundle_entries(
+                str(install), str(staging), executable_name="cloudsmith"
+            )
+
+        assert (install / "cloudsmith").read_text() == "old-exe"
+        assert not os.path.exists(str(install) + self_update._BACKUP_DIR_SUFFIX)
+
+    def test_rollback_restores_original_and_keeps_user_files(
+        self, tmp_path, monkeypatch
+    ):
+        # A failure partway through the per-entry loop must restore every moved
+        # bundle entry AND leave user files untouched.
+        install = self._install(tmp_path)
+        (install / "my-notes.txt").write_text("keep me")
+        staging = self._staging(tmp_path)
+        # Add a second bundle entry so the loop moves more than one thing.
+        (staging / "terraform-credentials-cloudsmith").write_text("new-tf")
+        (install / "terraform-credentials-cloudsmith").write_text("old-tf")
 
         real_rename = os.rename
         calls = {"n": 0}
 
         def flaky_rename(src, dst):
             calls["n"] += 1
-            # First rename (install -> .old) succeeds; second (.new -> install)
-            # fails; the rollback rename must restore the original.
-            if calls["n"] == 2:
+            # Fail on the 3rd rename (partway through the entry loop) to force a
+            # rollback of what has been applied so far.
+            if calls["n"] == 3:
                 raise OSError("boom")
             return real_rename(src, dst)
 
         monkeypatch.setattr(self_update.os, "rename", flaky_rename)
         with pytest.raises(OSError, match="boom"):
-            self_update.swap_install_dir(str(install), str(staging))
-
-        assert (install / "keep").read_text() == "keep"
-
-    def test_rollback_when_executable_missing_after_swap(self, tmp_path):
-        # A staging dir without the executable must not become the install; the
-        # original must be restored so a botched bundle never empties the dir.
-        install = tmp_path / "install"
-        install.mkdir()
-        (install / "cloudsmith").write_text("old-exe")
-        (install / "_internal").mkdir()
-        staging = tmp_path / "install.new"
-        staging.mkdir()
-        (staging / "unexpected").write_text("no exe here")
-
-        with pytest.raises(self_update.SelfUpdateError, match="missing cloudsmith"):
-            self_update.swap_install_dir(
+            self_update.replace_bundle_entries(
                 str(install), str(staging), executable_name="cloudsmith"
             )
 
-        # Original install fully intact.
+        # Original bundle entries restored, user file intact.
         assert (install / "cloudsmith").read_text() == "old-exe"
-        assert (install / "_internal").is_dir()
+        assert (install / "_internal" / "d").read_text() == "old-dep"
+        assert (install / "terraform-credentials-cloudsmith").read_text() == "old-tf"
+        assert (install / "my-notes.txt").read_text() == "keep me"
 
-    def test_failed_restore_preserves_old_and_reports_path(self, tmp_path, monkeypatch):
-        # If the swap fails AND the restore also fails, the old install must be
-        # preserved at <install>.old and the error must point the user to it.
-        install = tmp_path / "install"
-        install.mkdir()
-        (install / "keep").write_text("keep")
-        staging = tmp_path / "install.new"
-        staging.mkdir()
+    def test_failed_rollback_reports_backup_paths(self, tmp_path, monkeypatch):
+        # If the replacement fails AND a restore also fails, the error must name
+        # the surviving backup so the user can recover by hand.
+        install = self._install(tmp_path)
+        staging = self._staging(tmp_path)
 
+        # Entries are processed sorted, so `_internal` is handled before
+        # `cloudsmith`: rename 1 moves install/_internal -> backup (ok); rename
+        # 2 (staging/_internal -> install) fails and triggers rollback; rename 3
+        # (backup/_internal restore) also fails.
         real_rename = os.rename
         calls = {"n": 0}
 
         def flaky_rename(src, dst):
             calls["n"] += 1
-            # 1: install -> .old (ok); 2: .new -> install (fail);
-            # 3: .old -> install restore (fail).
             if calls["n"] in (2, 3):
                 raise OSError(f"boom{calls['n']}")
             return real_rename(src, dst)
 
         monkeypatch.setattr(self_update.os, "rename", flaky_rename)
-        with pytest.raises(self_update.SelfUpdateError, match="preserved at"):
-            self_update.swap_install_dir(str(install), str(staging))
+        with pytest.raises(self_update.SelfUpdateError, match="could not be restored"):
+            self_update.replace_bundle_entries(
+                str(install), str(staging), executable_name="cloudsmith"
+            )
 
-        old_dir = tmp_path / "install.old"
-        assert (old_dir / "keep").read_text() == "keep"
+        # The un-restored original entry is preserved in the backup dir so the
+        # user can recover it by hand.
+        backup = install.parent / (install.name + self_update._BACKUP_DIR_SUFFIX)
+        assert (backup / "_internal" / "d").read_text() == "old-dep"
 
 
 class TestFindBundleRoot:
@@ -223,6 +278,7 @@ class TestPerformSelfUpdate:
 
         monkeypatch.setattr(self_update, "download_archive", fake_download)
 
+        inode_before = os.stat(install).st_ino
         self_update.perform_self_update(
             {"url": "http://x/bundle.tar.gz", "sha256": expected_sha},
             executable_path=str(exe),
@@ -233,10 +289,42 @@ class TestPerformSelfUpdate:
         assert exe.read_text() == "new-binary"
         assert (install / "_internal" / "data").read_text() == "dep"
         assert not (install / "cloudsmith").is_dir()
+        # The install directory is replaced entry-scoped, never renamed: its
+        # inode is stable so a shell whose cwd is here keeps working.
+        assert os.stat(install).st_ino == inode_before
         # No scratch directories are left behind next to the install.
         assert not (tmp_path / "install.new").exists()
         assert not (tmp_path / "install.extract").exists()
-        assert not (tmp_path / "install.old").exists()
+        assert not (install.parent / (install.name + "-BACKUP")).exists()
+        assert not (install / self_update._BACKUP_DIR_SUFFIX).exists()
+
+    @pytest.mark.parametrize("wrap", [False, True], ids=["flat", "wrapped"])
+    def test_user_files_survive_full_update(self, tmp_path, monkeypatch, wrap):
+        # End-to-end: a user file kept alongside the CLI survives a real update.
+        install = tmp_path / "install"
+        install.mkdir()
+        exe = install / "cloudsmith"
+        exe.write_text("old-binary")
+        (install / "my-notes.txt").write_text("keep me")
+        user_dir = install / "user-dir"
+        user_dir.mkdir()
+        (user_dir / "x").write_text("keep dir")
+
+        archive = self._make_bundle(tmp_path, wrap=wrap)
+        expected_sha = _sha256(str(archive))
+
+        def fake_download(url, dest_path, session=None, timeout=None):
+            shutil.copyfile(str(archive), dest_path)
+
+        monkeypatch.setattr(self_update, "download_archive", fake_download)
+
+        self_update.perform_self_update(
+            {"url": "http://x/bundle.tar.gz", "sha256": expected_sha},
+            executable_path=str(exe),
+        )
+        assert exe.read_text() == "new-binary"
+        assert (install / "my-notes.txt").read_text() == "keep me"
+        assert (user_dir / "x").read_text() == "keep dir"
 
     def test_missing_executable_in_bundle(self, tmp_path, monkeypatch):
         install = tmp_path / "install"
