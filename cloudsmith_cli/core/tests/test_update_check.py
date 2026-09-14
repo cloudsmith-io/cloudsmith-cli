@@ -72,9 +72,11 @@ class _FakeSession:
         self.version = version_str
         self.fails = fails
         self.called = False
+        self.url = None
 
     def get(self, url, timeout=None):
         self.called = True
+        self.url = url
         if self.fails:
             raise requests.ConnectionError("network down")
         return _FakeResponse(f"schema=1\nversion={self.version}\n")
@@ -527,6 +529,40 @@ class TestRunBackgroundCheck:
     def test_swallows_network_failure_and_records_nothing(self, state_path):
         update_check.run_background_check(_FakeSession(fails=True), now=NOW)
         assert not os.path.exists(state_path)
+
+    def test_probes_host_target(self, state_path, monkeypatch):
+        # The background check must probe the host platform's own target so each
+        # platform tracks its own release line, not always linux.
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(installation, "detect_target", lambda: "macos-arm64")
+        session = _FakeSession(version_str=NEWER_VERSION)
+        update_check.run_background_check(session, now=NOW)
+        assert "cloudsmith-cli-manifest-macos-arm64" in session.url
+
+    def test_falls_back_to_default_target_when_host_unknown(
+        self, state_path, monkeypatch
+    ):
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(installation, "detect_target", lambda: None)
+        session = _FakeSession(version_str=NEWER_VERSION)
+        update_check.run_background_check(session, now=NOW)
+        assert update_check.VERSION_PROBE_TARGET in session.url
+
+
+class TestProbeTarget:
+    def test_prefers_host_target(self, monkeypatch):
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(installation, "detect_target", lambda: "windows-x86_64")
+        assert update_check._probe_target() == "windows-x86_64"
+
+    def test_falls_back_when_host_unknown(self, monkeypatch):
+        from cloudsmith_cli.core import installation
+
+        monkeypatch.setattr(installation, "detect_target", lambda: None)
+        assert update_check._probe_target() == update_check.VERSION_PROBE_TARGET
 
 
 class TestUpdateActionLines:

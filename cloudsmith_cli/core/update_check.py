@@ -38,8 +38,9 @@ NO_UPDATE_CHECK_ENV = "CLOUDSMITH_NO_UPDATE_CHECK"
 _TRUTHY_ENV_VALUES = ("1", "true", "yes")
 
 #: The manifest the release workflow publishes per build target. We only read
-#: ``version`` from it, so any existing target works as a probe; the download
-#: fields (``url``/``sha256``) belong to the self-update path. Hard-coded to the
+#: ``version`` from it; the host's own target is probed (see ``_probe_target``)
+#: so each platform tracks its own release line, and the download fields
+#: (``url``/``sha256``) belong to the self-update path. Hard-coded to the
 #: Cloudsmith host on purpose: this is an unattended background request made
 #: before the endpoint guards run, so it must never be redirectable via env/config
 #: to an untrusted host.
@@ -47,6 +48,10 @@ MANIFEST_URL_TEMPLATE = (
     "https://dl.cloudsmith.io/public/cloudsmith/cli/raw/names/"
     "cloudsmith-cli-manifest-{target}/versions/latest/manifest.txt"
 )
+#: Fallback build target for the version probe when the host platform is not a
+#: recognised standalone target (e.g. pip/pipx installs). Any published target
+#: works as a probe since we only read ``version``; the host's own target is
+#: preferred so per-platform release skew never yields a wrong "latest".
 VERSION_PROBE_TARGET = "linux-x86_64-gnu"
 MANIFEST_FETCH_TIMEOUT_SECONDS = 5.0
 #: How long the command waits at exit for the background fetch to finish.
@@ -189,6 +194,19 @@ def fetch_latest_manifest(
     return manifest
 
 
+def _probe_target():
+    """Return the build target to probe for the latest version.
+
+    Prefers the host platform's own standalone target so each platform checks
+    its own release line (per-platform release skew never yields a wrong
+    "latest"); falls back to :data:`VERSION_PROBE_TARGET` when the host is not a
+    recognised standalone target.
+    """
+    from . import installation
+
+    return installation.detect_target() or VERSION_PROBE_TARGET
+
+
 def run_background_check(session, now=None):
     """Fetch the latest version and record it; swallow all errors.
 
@@ -199,7 +217,7 @@ def run_background_check(session, now=None):
     import requests
 
     try:
-        manifest = fetch_latest_manifest(session)
+        manifest = fetch_latest_manifest(session, target=_probe_target())
     except (requests.RequestException, ValueError):
         logger.debug("Update check fetch failed", exc_info=True)
         return
