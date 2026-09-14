@@ -515,23 +515,6 @@ class TestFetchLatestManifest:
             with pytest.raises(requests.RequestException):
                 update_check.fetch_latest_manifest(create_requests_session(retries=0))
 
-    def test_env_override_template(self, monkeypatch):
-        import httpretty
-
-        from cloudsmith_cli.core.session import create_requests_session
-
-        override = "http://127.0.0.1:9/{target}/manifest.txt"
-        monkeypatch.setenv(update_check.MANIFEST_URL_TEMPLATE_ENV, override)
-        url = override.format(target="macos-arm64")
-        with httpretty.enabled(allow_net_connect=False):
-            httpretty.register_uri(
-                httpretty.GET, url, body="version=9.9.9\n", status=200
-            )
-            manifest = update_check.fetch_latest_manifest(
-                create_requests_session(), target="macos-arm64"
-            )
-        assert manifest["version"] == "9.9.9"
-
 
 class TestRunBackgroundCheck:
     def test_records_on_success(self, state_path):

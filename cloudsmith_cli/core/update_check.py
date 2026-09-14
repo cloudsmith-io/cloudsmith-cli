@@ -39,14 +39,14 @@ _TRUTHY_ENV_VALUES = ("1", "true", "yes")
 
 #: The manifest the release workflow publishes per build target. We only read
 #: ``version`` from it, so any existing target works as a probe; the download
-#: fields (``url``/``sha256``) belong to the self-update path.
+#: fields (``url``/``sha256``) belong to the self-update path. Hard-coded to the
+#: Cloudsmith host on purpose: this is an unattended background request made
+#: before the endpoint guards run, so it must never be redirectable via env/config
+#: to an untrusted host.
 MANIFEST_URL_TEMPLATE = (
     "https://dl.cloudsmith.io/public/cloudsmith/cli/raw/names/"
     "cloudsmith-cli-manifest-{target}/versions/latest/manifest.txt"
 )
-#: Overrides ``MANIFEST_URL_TEMPLATE`` when set. Must contain a ``{target}``
-#: placeholder. For testing self-update against a local or staging endpoint.
-MANIFEST_URL_TEMPLATE_ENV = "CLOUDSMITH_MANIFEST_URL_TEMPLATE"
 VERSION_PROBE_TARGET = "linux-x86_64-gnu"
 MANIFEST_FETCH_TIMEOUT_SECONDS = 5.0
 #: How long the command waits at exit for the background fetch to finish.
@@ -180,8 +180,7 @@ def fetch_latest_manifest(
     apply and redirects are followed). Raises ``requests.RequestException`` on
     network failure and ``ValueError`` if the manifest has no ``version``.
     """
-    template = os.environ.get(MANIFEST_URL_TEMPLATE_ENV) or MANIFEST_URL_TEMPLATE
-    url = template.format(target=target)
+    url = MANIFEST_URL_TEMPLATE.format(target=target)
     response = session.get(url, timeout=timeout)
     response.raise_for_status()
     manifest = parse_manifest(response.text)
