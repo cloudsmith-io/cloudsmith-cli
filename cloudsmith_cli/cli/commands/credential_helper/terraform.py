@@ -92,13 +92,15 @@ def terraform(opts, repo, params):
 
     \b
     Examples:
+
+    \b
         # Direct usage
         $ cloudsmith credential-helper terraform --repo my-repo terraform.cloudsmith.io
         {"token": "..."}
-
+    \b
         # Terraform's calling convention (verb + hostname)
         $ cloudsmith credential-helper terraform --repo my-repo get terraform.cloudsmith.io
-
+    \b
         # Select an org and profile explicitly (no env vars needed)
         $ cloudsmith credential-helper terraform --org=acme -P ci get terraform.cloudsmith.io
 

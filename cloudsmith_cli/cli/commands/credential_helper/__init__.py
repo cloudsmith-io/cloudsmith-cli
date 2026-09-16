@@ -27,18 +27,20 @@ def credential_helper():
     manager automatically, or run the runtime command directly for debugging.
 
     Examples:
+
+    \b
         # Install Docker credential helper
         $ cloudsmith credential-helper install docker
-
+    \b
         # Install pnpm credential helper
         $ cloudsmith credential-helper install pnpm
-
+    \b
         # Install cargo credential helper
         $ cloudsmith credential-helper install cargo
-
+    \b
         # Test Docker credential helper directly
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker
-
+    \b
         # Test pnpm credential helper directly
         $ cloudsmith credential-helper pnpm npm.cloudsmith.io
     """
