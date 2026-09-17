@@ -64,6 +64,11 @@ class TestMainUpdateNotice:
         import semver
 
         path = str(tmp_path / "update_check.json")
+        # CI sets CI=1 (and may set CLOUDSMITH_NO_UPDATE_CHECK), which disables
+        # the update check via update_check_disabled(). Clear them so the notice
+        # logic under test actually runs.
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv(update_check.NO_UPDATE_CHECK_ENV, raising=False)
         monkeypatch.setattr(update_check, "get_state_file_path", lambda: path)
         monkeypatch.setattr(update_check, "stderr_is_tty", lambda: True)
         monkeypatch.setattr(
