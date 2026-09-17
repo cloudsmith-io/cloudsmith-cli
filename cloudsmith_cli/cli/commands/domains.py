@@ -162,6 +162,7 @@ def list_domains(  # pylint: disable=too-many-arguments
     paginated endpoint, so there is no benefit to hiding entries by default.
     Passing --page or --page-size switches to paged output.
 
+    \b
     Output (stdout):
         JSON: {"version": 1, "domains": [{"host": ..., "format": ...,
         "type": ..., "domain_type": ..., "workspace": ..., "repository": ...,
