@@ -375,6 +375,68 @@ class TestMCPServerDynamicToolGeneration:
         assert "packages_list" not in server.tools
 
 
+class TestMCPServerVersionPrefix:
+    """The version prefix (/v1, /v2) is declared out-of-band from the path
+    keys (servers[].url for v2, basePath for v1), so tool URLs must prepend
+    it or v2 requests hit the wrong path and 404.
+    """
+
+    def _server(self):
+        import cloudsmith_api
+
+        api_config = cloudsmith_api.Configuration()
+        api_config.host = "https://api.cloudsmith.io"
+        api_config.api_key = {"X-Api-Key": "test-key"}
+        return DynamicMCPServer(api_config=api_config, force_all_tools=True)
+
+    def test_v2_spec_base_url_includes_version_from_servers(self):
+        server = self._server()
+        server.spec = {"servers": [{"url": "https://api.cloudsmith.io/v2/"}]}
+        assert server._spec_base_url() == "https://api.cloudsmith.io/v2"
+
+    def test_v1_spec_base_url_falls_back_to_basepath(self):
+        server = self._server()
+        server.spec = {"basePath": "/"}
+        assert server._spec_base_url() == "https://api.cloudsmith.io"
+
+    def test_spec_base_url_keeps_configured_host_not_spec_host(self):
+        """A custom --api-host must win; only the version path is borrowed."""
+        import cloudsmith_api
+
+        api_config = cloudsmith_api.Configuration()
+        api_config.host = "https://api.eu.cloudsmith.example"
+        api_config.api_key = {"X-Api-Key": "test-key"}
+        server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
+        server.spec = {"servers": [{"url": "https://api.cloudsmith.io/v2/"}]}
+        assert server._spec_base_url() == "https://api.eu.cloudsmith.example/v2"
+
+    def test_v2_tools_are_generated_under_v2_path(self):
+        import asyncio
+
+        server = self._server()
+        server.spec = {
+            "servers": [{"url": "https://api.cloudsmith.io/v2/"}],
+            "paths": {
+                "/analytics/logs/package/{workspace}/": {
+                    "get": {
+                        "operationId": "analytics_logs_package_list",
+                        "summary": "List package log events",
+                    }
+                }
+            },
+        }
+        asyncio.run(
+            server._generate_tools_from_spec(  # pylint: disable=protected-access
+                server._spec_base_url()  # pylint: disable=protected-access
+            )
+        )
+        tool = server.tools["analytics_logs_package_list"]
+        assert (
+            tool.base_url + tool.path
+            == "https://api.cloudsmith.io/v2/analytics/logs/package/{workspace}/"
+        )
+
+
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
 
 
