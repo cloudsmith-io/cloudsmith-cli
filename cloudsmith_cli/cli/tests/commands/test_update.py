@@ -96,6 +96,7 @@ class TestPackageManagerChannel:
         )
         assert result.exit_code == 0
         assert "pip install --upgrade cloudsmith-cli" in result.output
+        assert installation.changelog_url(NEWER) in result.output
         record.assert_called_once_with(NEWER)
         self_update.assert_not_called()
 
@@ -109,6 +110,7 @@ class TestPackageManagerChannel:
         payload = json.loads(result.output)["data"]
         assert payload["channel"] == installation.CHANNEL_HOMEBREW
         assert "brew" in payload["upgrade_command"]
+        assert payload["changelog_url"] == installation.changelog_url(NEWER)
 
 
 class TestStandaloneSelfUpdate:
@@ -231,6 +233,7 @@ class TestStandaloneManualUpdate:
         assert manifest["url"] in result.output
         assert manifest["sha256"] in result.output
         assert "Windows" in result.output
+        assert installation.changelog_url(NEWER) in result.output
         self_update.assert_not_called()
 
     def test_json_outcome_manual(self, runner):
@@ -249,6 +252,7 @@ class TestStandaloneManualUpdate:
         assert payload["outcome"] == "manual"
         assert payload["download_url"] == manifest["url"]
         assert payload["sha256"] == manifest["sha256"]
+        assert payload["changelog_url"] == installation.changelog_url(NEWER)
         self_update.assert_not_called()
 
 

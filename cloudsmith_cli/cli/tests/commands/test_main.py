@@ -100,6 +100,7 @@ class TestMainUpdateNotice:
         assert result.exit_code == 0
         assert "9.9.9" in result.output
         assert "cloudsmith update" in result.output
+        assert installation.changelog_url("9.9.9") in result.output
 
     def test_notice_windows_standalone_points_at_releases(
         self, runner, state_file, monkeypatch
