@@ -138,6 +138,19 @@ class TestUpgradeInstruction:
         assert isinstance(instruction, str) and instruction
 
 
+class TestChangelogUrl:
+    @pytest.mark.parametrize("version", ["2.0.0", "v2.0.0"])
+    def test_points_at_release_tag(self, version):
+        assert (
+            installation.changelog_url(version)
+            == "https://github.com/cloudsmith-io/cloudsmith-cli/releases/tag/v2.0.0"
+        )
+
+    @pytest.mark.parametrize("version", [None, ""])
+    def test_without_version_falls_back_to_releases(self, version):
+        assert installation.changelog_url(version) == installation.RELEASES_LATEST_URL
+
+
 class TestSelfUpdateSupported:
     def test_posix_supported(self, monkeypatch):
         monkeypatch.setattr(installation.os, "name", "posix")

@@ -70,15 +70,18 @@ def _print_manual_update(opts, current, latest, manifest, data):
     URL and checksum rather than a vague pointer; it exits 0 so scripts do not
     treat "update available, self-update unsupported" as a failure.
     """
+    changelog = installation.changelog_url(latest)
     data["outcome"] = "manual"
     data["download_url"] = manifest.get("url")
     data["sha256"] = manifest.get("sha256")
     data["archive"] = manifest.get("archive")
+    data["changelog_url"] = changelog
     if utils.maybe_print_as_json(opts, data):
         return
     click.echo(
         f"A new version of the Cloudsmith CLI is available: {current} \u2192 {latest}"
     )
+    click.echo(f"See what's changed: {changelog}")
     click.echo("Self-update is not supported for the standalone binary on Windows.")
     click.echo(
         "Download and extract this archive, then replace your install directory:"
@@ -134,12 +137,15 @@ def update(ctx, opts, assume_yes):
 
     instruction = installation.upgrade_instruction(channel)
     if instruction is not None:
+        changelog = installation.changelog_url(latest)
         data["upgrade_command"] = instruction
+        data["changelog_url"] = changelog
         if utils.maybe_print_as_json(opts, data):
             return
         click.echo(
             f"A new version of the Cloudsmith CLI is available: {current} \u2192 {latest}"
         )
+        click.echo(f"See what's changed: {changelog}")
         click.echo(f"The CLI was installed via {channel}. To update, run:")
         click.echo(f"  {instruction}")
         return

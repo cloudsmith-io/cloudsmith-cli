@@ -26,9 +26,16 @@ import os
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING, Any
 
 from ..cli.config import get_default_config_path
 from . import version
+
+if TYPE_CHECKING:
+    import click
+    import requests
+
+    from ..cli.config import Options
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +70,12 @@ MACHINE_OUTPUT_FORMATS = ("json", "pretty_json")
 NOTICE_SUPPRESSED_SUBCOMMANDS = frozenset(("mcp", "update", "upgrade"))
 
 
-def get_state_file_path():
+def get_state_file_path() -> str:
     """Return the path of the update-check state file."""
     return os.path.join(get_default_config_path(), CACHE_FILE_NAME)
 
 
-def read_cached_state():
+def read_cached_state() -> dict[str, Any]:
     """Return the cached update-check state as a dict, or an empty dict.
 
     Tolerant of a missing, unreadable, corrupt, or unexpectedly-shaped file:
@@ -82,7 +89,7 @@ def read_cached_state():
     return state if isinstance(state, dict) else {}
 
 
-def _read_timestamp(key):
+def _read_timestamp(key: str) -> float | None:
     """Return a float timestamp for ``key`` from the cached state, or None."""
     try:
         return float(read_cached_state().get(key))
@@ -90,23 +97,23 @@ def _read_timestamp(key):
         return None
 
 
-def read_last_check_time():
+def read_last_check_time() -> float | None:
     """Return the unix timestamp of the last check, or None."""
     return _read_timestamp("last_checked_at")
 
 
-def read_last_notified_time():
+def read_last_notified_time() -> float | None:
     """Return the unix timestamp of the last notice, or None."""
     return _read_timestamp("last_notified_at")
 
 
-def read_latest_version():
+def read_latest_version() -> str | None:
     """Return the latest version reported by the last check, or None."""
     latest = read_cached_state().get("latest_version")
     return latest or None
 
 
-def _write_state(updates):
+def _write_state(updates: dict[str, Any]) -> None:
     """Merge ``updates`` into the cached state and write it; swallow errors.
 
     A read-modify-write so that updating one field (e.g. the check timestamp)
@@ -125,7 +132,7 @@ def _write_state(updates):
         logger.debug("Failed to record the update-check state", exc_info=True)
 
 
-def record_check(latest_version, now=None):
+def record_check(latest_version: str, now: float | None = None) -> None:
     """Record a check's timestamp and reported latest version.
 
     Preserves ``last_notified_at``. Called after a fetch, or when a
@@ -135,13 +142,13 @@ def record_check(latest_version, now=None):
     _write_state({"last_checked_at": now, "latest_version": latest_version})
 
 
-def record_notified(now=None):
+def record_notified(now: float | None = None) -> None:
     """Record that the update notice was just shown. Preserves the rest."""
     now = time.time() if now is None else now
     _write_state({"last_notified_at": now})
 
 
-def record_checked_and_notified(latest_version, now=None):
+def record_checked_and_notified(latest_version: str, now: float | None = None) -> None:
     """Stamp both timestamps and the latest version in a single write.
 
     Used by the ``update`` command, which performs its own check on every run
@@ -160,7 +167,7 @@ def record_checked_and_notified(latest_version, now=None):
     )
 
 
-def parse_manifest(text):
+def parse_manifest(text: str) -> dict[str, str]:
     """Parse the ``key=value`` lines of a release manifest into a dict.
 
     Blank lines and ``#`` comments are skipped. Unknown keys (including
@@ -177,8 +184,10 @@ def parse_manifest(text):
 
 
 def fetch_latest_manifest(
-    session, target=VERSION_PROBE_TARGET, timeout=MANIFEST_FETCH_TIMEOUT_SECONDS
-):
+    session: "requests.Session",
+    target: str = VERSION_PROBE_TARGET,
+    timeout: float = MANIFEST_FETCH_TIMEOUT_SECONDS,
+) -> dict[str, str]:
     """Fetch and parse the latest release manifest for a build target.
 
     ``session`` is the shared requests session (so proxy/CA/user-agent settings
@@ -194,7 +203,7 @@ def fetch_latest_manifest(
     return manifest
 
 
-def _probe_target():
+def _probe_target() -> str:
     """Return the build target to probe for the latest version.
 
     Prefers the host platform's own standalone target so each platform checks
@@ -207,7 +216,7 @@ def _probe_target():
     return installation.detect_target() or VERSION_PROBE_TARGET
 
 
-def run_background_check(session, now=None):
+def run_background_check(session: "requests.Session", now: float | None = None) -> None:
     """Fetch the latest version and record it; swallow all errors.
 
     Intended to run in a daemon thread. Any network, parse or storage failure
@@ -224,11 +233,18 @@ def run_background_check(session, now=None):
     record_check(manifest["version"], now=now)
 
 
-def is_check_due(last_check_at, *, now=None, interval=DEFAULT_INTERVAL_SECONDS):
+def is_check_due(
+    last_check_at: float | str | None,
+    *,
+    now: float | None = None,
+    interval: float = DEFAULT_INTERVAL_SECONDS,
+) -> bool:
     """Tell whether at least ``interval`` seconds have elapsed since last check.
 
     A missing or invalid ``last_check_at`` means a check is due.
     """
+    if last_check_at is None:
+        return True
     try:
         last = float(last_check_at)
     except (TypeError, ValueError):
@@ -237,7 +253,9 @@ def is_check_due(last_check_at, *, now=None, interval=DEFAULT_INTERVAL_SECONDS):
     return (now - last) >= interval
 
 
-def newer_version_known(latest_version, current_version=None):
+def newer_version_known(
+    latest_version: str | None, current_version: str | None = None
+) -> bool:
     """Tell whether a cached ``latest_version`` is newer than the current one.
 
     Used to skip a redundant network fetch: if we already know we are behind,
@@ -257,7 +275,12 @@ def newer_version_known(latest_version, current_version=None):
         return False
 
 
-def update_check_disabled(*, no_check_flag, config_value=None, env=None):
+def update_check_disabled(
+    *,
+    no_check_flag: bool,
+    config_value: bool | None = None,
+    env: "os._Environ[str] | dict[str, str] | None" = None,
+) -> bool:
     """Tell whether the update check is disabled for this invocation.
 
     Precedence: ``--no-check-update`` flag, then the
@@ -275,7 +298,13 @@ def update_check_disabled(*, no_check_flag, config_value=None, env=None):
     return config_value is False
 
 
-def should_check_for_update(*, no_check_flag, config_value=None, env=None, now=None):
+def should_check_for_update(
+    *,
+    no_check_flag: bool,
+    config_value: bool | None = None,
+    env: "os._Environ[str] | dict[str, str] | None" = None,
+    now: float | None = None,
+) -> bool:
     """Tell whether a check (fetch or cache-confirmed re-arm) is due this run.
 
     True when the check is not disabled and at least a day has elapsed since
@@ -289,7 +318,9 @@ def should_check_for_update(*, no_check_flag, config_value=None, env=None, now=N
     return is_check_due(read_cached_state().get("last_checked_at"), now=now)
 
 
-def should_notify(state=None, *, current_version=None):
+def should_notify(
+    state: dict[str, Any] | None = None, *, current_version: str | None = None
+) -> bool:
     """Tell whether an "update available" notice is warranted from cached state.
 
     True when the cached ``latest_version`` is newer than the running CLI *and*
@@ -313,12 +344,14 @@ def should_notify(state=None, *, current_version=None):
     return last_notified < last_checked
 
 
-def stderr_is_tty():
+def stderr_is_tty() -> bool:
     """Tell whether stderr is attached to a terminal."""
     return sys.stderr is not None and sys.stderr.isatty()
 
 
-def notice_suppressed(output_format=None, invoked_subcommand=None):
+def notice_suppressed(
+    output_format: str | None = None, invoked_subcommand: str | None = None
+) -> bool:
     """Tell whether the interactive update notice must stay silent.
 
     Independent of the disable controls in :func:`update_check_disabled`: this
@@ -332,7 +365,7 @@ def notice_suppressed(output_format=None, invoked_subcommand=None):
     return invoked_subcommand in NOTICE_SUPPRESSED_SUBCOMMANDS
 
 
-def _update_action_lines():
+def _update_action_lines() -> list[str]:
     """Return the "how to update" lines for the current install channel.
 
     A standalone binary can update itself, so it is pointed at
@@ -355,21 +388,24 @@ def _update_action_lines():
     return ["To update, run:", f"  {instruction}"]
 
 
-def print_update_notice(latest_version):
+def print_update_notice(latest_version: str) -> None:
     """Print the "an update is available" notice on stderr."""
     import click
+
+    from . import installation
 
     lines = [
         (
             "A new version of the Cloudsmith CLI is available: "
             f"{version.get_version()} \u2192 {latest_version}."
         ),
+        f"See what's changed: {installation.changelog_url(latest_version)}",
         *_update_action_lines(),
     ]
     click.secho("\n".join(lines), fg="yellow", err=True)
 
 
-def _start_background_check(session):
+def _start_background_check(session: "requests.Session") -> threading.Thread:
     """Start the manifest fetch in a daemon thread and return it."""
     thread = threading.Thread(
         target=run_background_check,
@@ -381,7 +417,13 @@ def _start_background_check(session):
     return thread
 
 
-def _finish_and_notify(thread, opts, invoked, *, now=None):
+def _finish_and_notify(
+    thread: threading.Thread | None,
+    opts: "Options",
+    invoked: str | None,
+    *,
+    now: float | None = None,
+) -> None:
     """Join the background fetch (bounded) then notify if warranted.
 
     Runs at command close. Presentation suppressors are evaluated here (not at
@@ -400,7 +442,7 @@ def _finish_and_notify(thread, opts, invoked, *, now=None):
     record_notified(now=now)
 
 
-def arm(ctx, opts, no_check_flag):
+def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
     """Wire up the update check for this invocation.
 
     Unless disabled (``--no-check-update``/env/``CI``/config), a close handler is
@@ -418,12 +460,13 @@ def arm(ctx, opts, no_check_flag):
     ):
         return
 
-    thread = None
+    thread: threading.Thread | None = None
     if is_check_due(read_last_check_time()):
-        if newer_version_known(read_latest_version()):
+        latest_version = read_latest_version()
+        if latest_version is not None and newer_version_known(latest_version):
             # Already behind: no fetch needed, but bump last_checked_at so the
             # daily notice re-arms (last_notified_at < last_checked_at).
-            record_check(read_latest_version())
+            record_check(latest_version)
         else:
             from .session import create_requests_session
 
