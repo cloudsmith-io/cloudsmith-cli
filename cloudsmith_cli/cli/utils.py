@@ -2,15 +2,22 @@
 
 import json
 import platform
+import sys
 from contextlib import contextmanager
 from datetime import date, datetime
 
 import click
+import rich
 from click_spinner import spinner
 
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
 from .table import make_table
+
+
+def configure_rich():
+
+    rich.reconfigure(width=None if sys.stdout.isatty() else 10000)
 
 
 def make_user_agent(prefix=None):
