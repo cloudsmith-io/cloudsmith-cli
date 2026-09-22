@@ -14,6 +14,12 @@ from .main import main
 def _fetch_manifest(opts, session, target):
     import requests
 
+    # A non-standalone channel on a platform without a recognised standalone
+    # target has ``target is None``; the manifest is still fetched only to read
+    # the latest *version* (the channel prints its own upgrade command), so fall
+    # back to a known target rather than building a ``manifest-None`` URL. The
+    # standalone path guards ``target is None`` before reaching here.
+    target = target or update_check.VERSION_PROBE_TARGET
     try:
         with maybe_spinner(opts):
             return update_check.fetch_latest_manifest(session, target=target)

@@ -80,10 +80,26 @@ class TestMainUpdateNotice:
         return path
 
     def _write_behind(self, path):
-        # Stale check (so a check is due) + never notified + a newer version:
-        # arm re-arms by bumping last_checked_at, close notifies.
+        # Stale check (so a check is due) + never notified + a newer version.
+        # A check is due, so arm starts a real fetch; the notice fires at close
+        # driven by last_notified_at < last_checked_at. Tests that assert notice
+        # content stub the fetch via _stub_fetch to keep the cached version and
+        # avoid the network.
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"last_checked_at": 1000.0, "latest_version": "9.9.9"}, f)
+
+    @staticmethod
+    def _stub_fetch(monkeypatch, version="9.9.9"):
+        """Replace the background fetch with one that keeps ``version`` cached.
+
+        A due check now always fetches; stubbing it (rather than the network)
+        makes the notice deterministic while still exercising the fetch path.
+        """
+
+        def fake_fetch(session, now=None):
+            update_check.record_check(version, now=now)
+
+        monkeypatch.setattr(update_check, "run_background_check", fake_fetch)
 
     def test_notice_prints_when_behind_standalone(
         self, runner, state_file, monkeypatch
@@ -95,6 +111,7 @@ class TestMainUpdateNotice:
             installation, "detect_channel", lambda: installation.CHANNEL_STANDALONE
         )
         monkeypatch.setattr(installation, "self_update_supported", lambda: True)
+        self._stub_fetch(monkeypatch)
         self._write_behind(state_file)
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
@@ -112,6 +129,7 @@ class TestMainUpdateNotice:
             installation, "detect_channel", lambda: installation.CHANNEL_STANDALONE
         )
         monkeypatch.setattr(installation, "self_update_supported", lambda: False)
+        self._stub_fetch(monkeypatch)
         self._write_behind(state_file)
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
@@ -128,6 +146,7 @@ class TestMainUpdateNotice:
         monkeypatch.setattr(
             installation, "detect_channel", lambda: installation.CHANNEL_PIP
         )
+        self._stub_fetch(monkeypatch)
         self._write_behind(state_file)
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
@@ -141,7 +160,8 @@ class TestMainUpdateNotice:
         assert result.exit_code == 0
         assert "9.9.9" not in result.output
 
-    def test_json_output_suppresses(self, runner, state_file):
+    def test_json_output_suppresses(self, runner, state_file, monkeypatch):
+        self._stub_fetch(monkeypatch)
         self._write_behind(state_file)
         result = runner.invoke(main, ["-F", "json", "--version"])
         assert result.exit_code == 0
@@ -149,16 +169,20 @@ class TestMainUpdateNotice:
         # stdout stays valid JSON.
         json.loads(result.output)
 
-    def test_no_network_when_behind(self, runner, state_file, monkeypatch):
-        """Being behind must not trigger a fetch."""
+    def test_fetch_runs_when_behind_and_due(self, runner, state_file, monkeypatch):
+        """A due check fetches even when already behind, so a later release is
+        picked up; notification throttling is handled separately."""
+        calls = []
 
-        def boom(*args, **kwargs):
-            raise AssertionError("fetch must not run when already behind")
+        def fake_fetch(session, now=None):
+            calls.append(True)
+            update_check.record_check("9.9.9", now=now)
 
-        monkeypatch.setattr(update_check, "run_background_check", boom)
+        monkeypatch.setattr(update_check, "run_background_check", fake_fetch)
         self._write_behind(state_file)
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
+        assert calls == [True]
         assert "9.9.9" in result.output
 
     def test_notifies_from_cache_when_no_fetch_due(self, runner, state_file):

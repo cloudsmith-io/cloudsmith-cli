@@ -21,6 +21,7 @@ from cloudsmith_cli.core import update_check
 # A fixed "current" version so tests do not break when VERSION is bumped.
 CURRENT_VERSION = "1.26.0"
 NEWER_VERSION = "2.0.0"
+NEWEST_VERSION = "2.1.0"
 OLDER_VERSION = "1.0.0"
 
 DAY = update_check.DEFAULT_INTERVAL_SECONDS
@@ -85,16 +86,14 @@ class _FakeSession:
 def _run(session, *, now=NOW, no_check_flag=False, config_value=True, env=None):
     """Drive the real fetch decision synchronously with a fake session.
 
-    Mirrors the fetch half of ``arm``: if a check is due, either bump (already
-    behind) or run the real ``run_background_check``. Returns the session.
+    Mirrors the fetch half of ``arm``: if a check is due, always run the real
+    ``run_background_check`` so the manifest keeps refreshing. Returns the
+    session.
     """
     env = {} if env is None else env
     if not update_check.should_check_for_update(
         no_check_flag=no_check_flag, config_value=config_value, env=env, now=now
     ):
-        return session
-    if update_check.newer_version_known(update_check.read_latest_version()):
-        update_check.record_check(update_check.read_latest_version(), now=now)
         return session
     update_check.run_background_check(session, now=now)
     return session
@@ -130,16 +129,22 @@ class TestFetchDecision:
         assert _read_state(state_path)["last_checked_at"] == recent
         assert os.stat(state_path).st_mtime_ns == before
 
-    def test_stale_but_newer_known_bumps_without_fetch(self, state_path):
-        """Already behind → bump last_checked_at (re-arm notice), no fetch."""
+    def test_stale_but_newer_known_still_fetches(self, state_path):
+        """Already behind → a due check still fetches so a later release is seen.
+
+        Notification throttling is separate (``last_notified_at <
+        last_checked_at`` in ``should_notify``), so re-fetching does not re-nag a
+        user who ignored the notice; it only keeps ``latest_version`` current.
+        """
         _write_state(
             state_path, last_checked_at=NOW - (DAY * 3), latest_version=NEWER_VERSION
         )
-        session = _run(_FakeSession(version_str=NEWER_VERSION))
-        assert session.called is False
+        # The manifest now advertises a version newer than the one we last saw.
+        session = _run(_FakeSession(version_str=NEWEST_VERSION))
+        assert session.called is True
         after = _read_state(state_path)
         assert after["last_checked_at"] == NOW
-        assert after["latest_version"] == NEWER_VERSION
+        assert after["latest_version"] == NEWEST_VERSION
 
     def test_no_state_file_failed_fetch_does_not_create_file(self, state_path):
         assert not os.path.exists(state_path)

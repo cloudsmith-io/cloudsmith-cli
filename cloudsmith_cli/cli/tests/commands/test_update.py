@@ -273,3 +273,34 @@ class TestChecksRegardlessOfState:
         assert result.exit_code != 0
         assert "supported platform" in result.output
         self_update.assert_not_called()
+
+    def test_non_standalone_without_target_falls_back(self, runner):
+        """A managed channel on an unrecognised platform (target=None) must not
+        build a ``manifest-None`` URL; it falls back to VERSION_PROBE_TARGET."""
+        from ....core import update_check
+
+        with ExitStack() as stack:
+            stack.enter_context(patch(f"{_MOD}.get_version", return_value=CURRENT))
+            stack.enter_context(
+                patch(
+                    f"{_MOD}.installation.detect_channel",
+                    return_value=installation.CHANNEL_PIP,
+                )
+            )
+            stack.enter_context(
+                patch(f"{_MOD}.installation.detect_target", return_value=None)
+            )
+            stack.enter_context(patch(f"{_MOD}.create_requests_session"))
+            stack.enter_context(
+                patch(f"{_MOD}.update_check.record_checked_and_notified")
+            )
+            fetch = stack.enter_context(
+                patch(
+                    f"{_MOD}.update_check.fetch_latest_manifest",
+                    return_value=_manifest(NEWER),
+                )
+            )
+            result = runner.invoke(update, [], catch_exceptions=False)
+
+        assert result.exit_code == 0
+        assert fetch.call_args.kwargs["target"] == update_check.VERSION_PROBE_TARGET

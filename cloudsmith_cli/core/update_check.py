@@ -448,11 +448,14 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
 
     Unless disabled (``--no-check-update``/env/``CI``/config), a close handler is
     always registered so a pending notice can fire from cache even on a run where
-    no fetch is due. When a fetch *is* due, either start the background fetch or —
-    if we already know we are behind — bump ``last_checked_at`` to re-arm the
-    daily notice without a fetch. The fetch runs even when the notice is
-    suppressed (e.g. ``-F json``, non-TTY), keeping the cache warm; the close
-    handler decides separately whether to print.
+    no fetch is due. When a fetch *is* due it always runs, so the manifest keeps
+    refreshing and a release newer than a previously-seen one is picked up. The
+    fetch runs even when the notice is suppressed (e.g. ``-F json``, non-TTY),
+    keeping the cache warm; the close handler decides separately whether to
+    print. Notification throttling is independent of the fetch: it lives in
+    :func:`should_notify` via ``last_notified_at < last_checked_at``, so a user
+    who ignores the notice is not re-nagged until the next due check even though
+    the fetch still happens.
     """
     invoked = ctx.invoked_subcommand
     invoked = getattr(ctx.command, "inverse", {}).get(invoked, invoked)
@@ -463,15 +466,9 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
 
     thread: threading.Thread | None = None
     if is_check_due(read_last_check_time()):
-        latest_version = read_latest_version()
-        if latest_version is not None and newer_version_known(latest_version):
-            # Already behind: no fetch needed, but bump last_checked_at so the
-            # daily notice re-arms (last_notified_at < last_checked_at).
-            record_check(latest_version)
-        else:
-            from .session import create_requests_session
+        from .session import create_requests_session
 
-            session = create_requests_session(user_agent=opts.api_user_agent)
-            thread = _start_background_check(session)
+        session = create_requests_session(user_agent=opts.api_user_agent)
+        thread = _start_background_check(session)
 
     ctx.call_on_close(lambda: _finish_and_notify(thread, opts, invoked))
