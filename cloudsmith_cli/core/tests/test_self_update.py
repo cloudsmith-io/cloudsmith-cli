@@ -63,6 +63,58 @@ class TestExtractArchive:
         self_update.extract_archive(str(archive), str(dest))
         assert (dest / "cloudsmith").read_text() == "binary"
 
+    def test_targz_nested_dir(self, tmp_path):
+        """A wrapped onedir bundle extracts on every supported Python.
+
+        This exercises the pre-3.12 safe-extraction path (no ``filter=`` kwarg
+        on 3.10/3.11) as well as ``filter="data"`` on 3.12+.
+        """
+        member = tmp_path / "cloudsmith"
+        member.write_text("binary")
+        archive = tmp_path / "bundle.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(member, arcname="cloudsmith/cloudsmith")
+        dest = tmp_path / "out"
+        self_update.extract_archive(str(archive), str(dest))
+        assert (dest / "cloudsmith" / "cloudsmith").read_text() == "binary"
+
+    def test_corrupt_targz_raises_self_update_error(self, tmp_path):
+        archive = tmp_path / "bundle.tar.gz"
+        archive.write_bytes(b"not a gzip stream")
+        dest = tmp_path / "out"
+        with pytest.raises(self_update.SelfUpdateError, match="could not be read"):
+            self_update.extract_archive(str(archive), str(dest))
+
+    def test_corrupt_zip_raises_self_update_error(self, tmp_path):
+        archive = tmp_path / "bundle.zip"
+        archive.write_bytes(b"PK\x03\x04 not really a zip")
+        dest = tmp_path / "out"
+        with pytest.raises(self_update.SelfUpdateError, match="could not be read"):
+            self_update.extract_archive(str(archive), str(dest))
+
+    def test_tar_traversal_member_rejected(self, tmp_path):
+        """A member escaping the extraction root is rejected on all Pythons."""
+        evil = tmp_path / "evil"
+        evil.write_text("owned")
+        archive = tmp_path / "bundle.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(evil, arcname="../escape")
+        dest = tmp_path / "out"
+        with pytest.raises(self_update.SelfUpdateError):
+            self_update.extract_archive(str(archive), str(dest))
+        assert not (tmp_path / "escape").exists()
+
+    def test_zip_traversal_member_rejected(self, tmp_path):
+        archive = tmp_path / "bundle.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("../escape", "owned")
+        dest = tmp_path / "out"
+        with pytest.raises(
+            self_update.SelfUpdateError, match="escapes the extraction directory"
+        ):
+            self_update.extract_archive(str(archive), str(dest))
+        assert not (tmp_path / "escape").exists()
+
 
 class TestReplaceBundleEntries:
     def _install(self, tmp_path):

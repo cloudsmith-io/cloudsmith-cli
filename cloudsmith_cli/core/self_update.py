@@ -100,22 +100,82 @@ def verify_sha256(path, expected):
         )
 
 
+def _is_within_directory(directory, target):
+    """Tell whether ``target`` resolves to a path inside ``directory``.
+
+    Used to reject archive members that would escape the extraction root via an
+    absolute path or ``..`` traversal (a "tar/zip slip" attack).
+    """
+    directory = os.path.abspath(directory)
+    resolved = os.path.abspath(os.path.join(directory, target))
+    return resolved == directory or resolved.startswith(directory + os.sep)
+
+
+def _safe_extract_tar(bundle, dest_dir):
+    """Extract a tarfile, rejecting members that escape ``dest_dir``.
+
+    Pre-3.12 replacement for ``extractall(filter="data")``: Python 3.10/3.11 do
+    not accept the ``filter`` keyword, so the traversal protection it provides
+    is reproduced here. Absolute paths, ``..`` traversal, and non-regular
+    members (devices, FIFOs) are rejected; symlinks/hardlinks are validated to
+    keep their target inside the extraction root.
+    """
+    for member in bundle.getmembers():
+        if not _is_within_directory(dest_dir, member.name):
+            raise SelfUpdateError(
+                f"archive member escapes the extraction directory: {member.name}"
+            )
+        if member.issym() or member.islnk():
+            link_dir = os.path.dirname(os.path.join(dest_dir, member.name))
+            if not _is_within_directory(
+                dest_dir, os.path.join(link_dir, member.linkname)
+            ):
+                raise SelfUpdateError(
+                    f"archive link escapes the extraction directory: {member.name}"
+                )
+        elif member.isdev():
+            raise SelfUpdateError(
+                f"archive contains an unsupported special file: {member.name}"
+            )
+    bundle.extractall(dest_dir)
+
+
 def extract_archive(archive_path, dest_dir):
-    """Extract a release archive (tar.gz or zip) into a directory."""
+    """Extract a release archive (tar.gz or zip) into a directory.
+
+    Corrupt or unsupported archives are reported as :class:`SelfUpdateError`
+    (not a raw ``tarfile``/``zipfile`` exception) so the update command renders
+    them cleanly rather than as a traceback.
+    """
     logger.debug("EXTRACT %s -> %s", _abspath(archive_path), _abspath(dest_dir))
     _log_makedirs(dest_dir, exist_ok=True)
-    if archive_path.endswith(".zip"):
-        with zipfile.ZipFile(archive_path) as bundle:
-            for name in bundle.namelist():
+    try:
+        if archive_path.endswith(".zip"):
+            with zipfile.ZipFile(archive_path) as bundle:
+                for name in bundle.namelist():
+                    logger.debug(
+                        "EXTRACT member %s", _abspath(os.path.join(dest_dir, name))
+                    )
+                    if not _is_within_directory(dest_dir, name):
+                        raise SelfUpdateError(
+                            f"archive member escapes the extraction directory: {name}"
+                        )
+                bundle.extractall(dest_dir)
+            return
+        with tarfile.open(archive_path, "r:gz") as bundle:
+            for name in bundle.getnames():
                 logger.debug(
                     "EXTRACT member %s", _abspath(os.path.join(dest_dir, name))
                 )
-            bundle.extractall(dest_dir)
-        return
-    with tarfile.open(archive_path, "r:gz") as bundle:
-        for name in bundle.getnames():
-            logger.debug("EXTRACT member %s", _abspath(os.path.join(dest_dir, name)))
-        bundle.extractall(dest_dir, filter="data")
+            # ``extractall(filter="data")`` gives traversal protection but the
+            # ``filter`` keyword only exists on Python >= 3.12; reproduce it on
+            # 3.10/3.11 with a manual safe extraction.
+            if sys.version_info >= (3, 12):
+                bundle.extractall(dest_dir, filter="data")
+            else:
+                _safe_extract_tar(bundle, dest_dir)
+    except (tarfile.TarError, zipfile.BadZipFile) as exc:
+        raise SelfUpdateError(f"the downloaded archive could not be read: {exc}")
 
 
 def find_bundle_root(extract_dir, executable_name):
