@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """Decide when to check for a newer CLI version, and when to notify about it.
 
 State lives in a small JSON file with two timestamps and the last-seen version:

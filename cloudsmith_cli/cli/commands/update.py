@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """CLI/Commands - Update the CLI to the latest released version."""
 
 import click

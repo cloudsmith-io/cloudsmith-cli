@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """Detect how the CLI was installed and how to upgrade it."""
 
 import os

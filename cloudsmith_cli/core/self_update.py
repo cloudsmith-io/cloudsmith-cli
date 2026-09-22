@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """Self-update for the standalone CLI bundle."""
 
 import hashlib
@@ -378,5 +379,4 @@ def perform_self_update(manifest, executable_path=None, session=None):
     if backup_dir is not None and os.path.exists(backup_dir):
         _log_rmtree(backup_dir, ignore_errors=True)
     logger.debug("SELF-UPDATE done: install_dir=%s", _abspath(install_dir))
-    _log_listdir("install_dir final", install_dir)
     _log_listdir("install_dir final", install_dir)
