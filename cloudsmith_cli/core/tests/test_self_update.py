@@ -227,6 +227,64 @@ class TestReplaceBundleEntries:
         assert (install / "terraform-credentials-cloudsmith").read_text() == "old-tf"
         assert (install / "my-notes.txt").read_text() == "keep me"
 
+    def test_keyboard_interrupt_mid_loop_rolls_back(self, tmp_path, monkeypatch):
+        # A Ctrl+C part-way through the entry loop must restore the original
+        # install (not leave a half-swapped bundle) and re-raise the interrupt.
+        install = self._install(tmp_path)
+        (install / "my-notes.txt").write_text("keep me")
+        staging = self._staging(tmp_path)
+        (staging / "terraform-credentials-cloudsmith").write_text("new-tf")
+        (install / "terraform-credentials-cloudsmith").write_text("old-tf")
+
+        real_rename = os.rename
+        calls = {"n": 0}
+
+        def interrupt_rename(src, dst):
+            calls["n"] += 1
+            # Interrupt on the 3rd rename (partway through), so at least one
+            # entry has already been swapped when the interrupt lands.
+            if calls["n"] == 3:
+                raise KeyboardInterrupt
+            return real_rename(src, dst)
+
+        monkeypatch.setattr(self_update.os, "rename", interrupt_rename)
+        with pytest.raises(KeyboardInterrupt):
+            self_update.replace_bundle_entries(
+                str(install), str(staging), executable_name="cloudsmith"
+            )
+
+        # Original bundle entries restored, user file intact.
+        assert (install / "cloudsmith").read_text() == "old-exe"
+        assert (install / "_internal" / "d").read_text() == "old-dep"
+        assert (install / "terraform-credentials-cloudsmith").read_text() == "old-tf"
+        assert (install / "my-notes.txt").read_text() == "keep me"
+
+    def test_system_exit_mid_loop_rolls_back(self, tmp_path, monkeypatch):
+        # A signal surfaced as SystemExit mid-loop must also roll back.
+        install = self._install(tmp_path)
+        staging = self._staging(tmp_path)
+        (staging / "terraform-credentials-cloudsmith").write_text("new-tf")
+        (install / "terraform-credentials-cloudsmith").write_text("old-tf")
+
+        real_rename = os.rename
+        calls = {"n": 0}
+
+        def exit_rename(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 3:
+                raise SystemExit(1)
+            return real_rename(src, dst)
+
+        monkeypatch.setattr(self_update.os, "rename", exit_rename)
+        with pytest.raises(SystemExit):
+            self_update.replace_bundle_entries(
+                str(install), str(staging), executable_name="cloudsmith"
+            )
+
+        assert (install / "cloudsmith").read_text() == "old-exe"
+        assert (install / "_internal" / "d").read_text() == "old-dep"
+        assert (install / "terraform-credentials-cloudsmith").read_text() == "old-tf"
+
     def test_failed_rollback_reports_backup_paths(self, tmp_path, monkeypatch):
         # If the replacement fails AND a restore also fails, the error must name
         # the surviving backup so the user can recover by hand.

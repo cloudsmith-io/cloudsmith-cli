@@ -218,24 +218,11 @@ _SCRATCH_SUFFIXES = (_EXTRACT_DIR_SUFFIX, _STAGING_DIR_SUFFIX, _BACKUP_DIR_SUFFI
 def replace_bundle_entries(install_dir, staging_dir, executable_name=None):
     """Replace only the bundle-owned top-level entries inside ``install_dir``.
 
-    The install directory itself is **never** renamed or removed, and only the
-    top-level names present in the *new* bundle (``staging_dir``) are touched.
-    Any other file or directory the user keeps alongside the CLI (they may have
-    extracted the release into a shared directory) is left completely untouched.
-    This is the core safety property: self-update can never delete user data.
-
-    For each incoming entry the existing same-named entry (if any) is moved into
-    a private backup directory, then the incoming entry is moved into place. On
-    any failure every moved entry is rolled back from the backup so the original
-    install is restored before raising. On success the backup — which only ever
-    held bundle-owned entries the CLI moved there itself — is removed.
-
-    Tradeoff (accepted): unlike a whole-directory rename this performs one rename
-    per entry, so a hard process kill mid-loop can leave a partially-swapped
-    bundle. Each individual rename is atomic and handled failures roll back; the
-    residual hard-kill leftovers live only in the private backup dir and are
-    reclaimed by :func:`_sweep_scratch` on the next run. Never destroying user
-    data is worth this reduced atomicity.
+    For each incoming entry the existing same-named entry is moved into a
+    private backup directory, then the incoming entry is moved into place. On any
+    failure  every moved entry is rolled back from the backup so the original install is
+    restored before the exception is re-raised. On success the backup - which only ever
+    held bundle-owned entries the CLI moved there itself - is removed.
     """
     backup_dir = install_dir + _BACKUP_DIR_SUFFIX
     entries = sorted(os.listdir(staging_dir))
@@ -280,7 +267,7 @@ def replace_bundle_entries(install_dir, staging_dir, executable_name=None):
             raise SelfUpdateError(
                 f"the installed bundle is missing {executable_name} after replace"
             )
-    except (OSError, SelfUpdateError) as exc:
+    except BaseException as exc:
         _rollback_entries(moved, backup_dir, exc)
         raise
 
