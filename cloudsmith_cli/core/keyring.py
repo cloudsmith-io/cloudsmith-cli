@@ -16,6 +16,7 @@ ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY = (
     "cloudsmith_cli-access_token_refresh_attempted_at-{api_host}"
 )
 REFRESH_TOKEN_KEY = "cloudsmith_cli-refresh_token-{api_host}"
+REFRESH_RETRY_INTERVAL = timedelta(minutes=5)
 
 
 def _get_username():
@@ -182,13 +183,19 @@ def get_access_token(api_host, profile=None):
 
 
 def update_refresh_attempted_at(api_host, refresh_time=None, profile=None):
+    from keyring.errors import KeyringError
+
     if refresh_time is None:
         refresh_time = datetime.now(tz=timezone.utc)
 
     refresh_attempted_at_value = refresh_time.isoformat()
 
     key = _format_key(ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY, api_host, profile)
-    _set_value(key, refresh_attempted_at_value)
+    try:
+        _set_value(key, refresh_attempted_at_value)
+    except KeyringError:
+        # This timestamp only throttles retries; it must not block renewal.
+        pass
 
 
 def get_refresh_attempted_at(api_host, profile=None):
@@ -205,10 +212,25 @@ def get_refresh_attempted_at(api_host, profile=None):
         return None
 
 
-def should_refresh_access_token(api_host, profile=None):
+def should_refresh_access_token(api_host, access_token=None, profile=None):
     if not should_use_keyring():
         return False
 
+    if access_token:
+        from .sso import get_access_token_expiry
+
+        expires_at = get_access_token_expiry(access_token)
+        if expires_at is not None:
+            now = datetime.now(tz=timezone.utc)
+            if expires_at > now + timedelta(minutes=30):
+                return False
+            if expires_at <= now:
+                return True
+
+            attempted_at = get_refresh_attempted_at(api_host, profile=profile)
+            return not attempted_at or attempted_at < now - REFRESH_RETRY_INTERVAL
+
+    # Preserve the original cadence for opaque tokens without a readable expiry.
     token_refreshed_at = get_refresh_attempted_at(api_host, profile=profile)
 
     if token_refreshed_at:
@@ -233,16 +255,18 @@ def store_sso_tokens(api_host, access_token, refresh_token, profile=None):
     if not should_use_keyring():
         return False
 
+    # Refresh-token rotation invalidates the old token, so persist its
+    # replacement before an access-token write can fail.
+    if refresh_token:
+        store_refresh_token(
+            api_host=api_host, refresh_token=refresh_token, profile=profile
+        )
+
     if access_token:
         store_access_token(
             api_host=api_host, access_token=access_token, profile=profile
         )
         update_refresh_attempted_at(api_host=api_host, profile=profile)
-
-    if refresh_token:
-        store_refresh_token(
-            api_host=api_host, refresh_token=refresh_token, profile=profile
-        )
 
     return True
 

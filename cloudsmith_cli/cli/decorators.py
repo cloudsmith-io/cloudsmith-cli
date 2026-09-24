@@ -3,11 +3,13 @@
 import functools
 import logging
 import os
+import sys
 
 import click
 from click.core import ParameterSource
 
 from cloudsmith_cli.cli import validators
+from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -152,6 +154,31 @@ def common_cli_output_options(f):
     """Add common CLI output options to commands."""
 
     @click.option(
+        "--color",
+        envvar="CLOUDSMITH_COLOR",
+        default="auto",
+        type=click.Choice(ColorMode, case_sensitive=False),
+        help="Control whether ANSI colour output is used: auto, always or never.",
+    )
+    @click.option(
+        "--no-color-env",
+        envvar="NO_COLOR",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
+        "--force-color-env",
+        envvar="CLOUDSMITH_FORCE_COLOR",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
+        "--term-env",
+        envvar="TERM",
+        default=None,
+        hidden=True,
+    )
+    @click.option(
         "-d",
         "--debug",
         default=False,
@@ -178,6 +205,17 @@ def common_cli_output_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        ctx.color = color_enabled(
+            {
+                "NO_COLOR": kwargs.pop("no_color_env"),
+                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+                "TERM": kwargs.pop("term_env"),
+            },
+            kwargs.pop("color"),
+            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        )
+
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
         opts.output = kwargs.pop("output_format")
@@ -495,6 +533,7 @@ def resolve_credentials(f):
             opts.oidc_detector_order, oidc_disabled_detectors
         )
 
+        is_auth_command = ctx.command.name in ("authenticate", "login")
         context = CredentialContext(
             session=opts.session,
             api_key_from_flag=opts.api_key_from_flag,
@@ -511,24 +550,40 @@ def resolve_credentials(f):
             oidc_detector_order=opts.oidc_detector_order,
             oidc_disabled_detectors=oidc_disabled_detectors,
             warning_writer=lambda message: click.echo(message, err=True),
+            skip_keyring_refresh=is_auth_command,
         )
 
         chain = CredentialProviderChain()
         credential = chain.resolve(context)
 
-        if context.keyring_refresh_failed:
-            click.secho(
-                "An error occurred when attempting to refresh your SSO access token. "
-                "To refresh this session, run 'cloudsmith auth'",
-                fg="yellow",
-                err=True,
-            )
+        if context.keyring_refresh_failed and not is_auth_command:
             if credential:
-                click.secho(
-                    "Falling back to API key authentication.",
-                    fg="yellow",
-                    err=True,
+                message = (
+                    "Using the existing access token until it expires."
+                    if credential.source_name == "keyring"
+                    else (
+                        "The SSO session could not be renewed. "
+                        "Falling back to alternative authentication."
+                    )
                 )
+            elif context.keyring_refresh_rejected:
+                message = (
+                    "Your SSO session has expired. Run 'cloudsmith auth' to "
+                    "authenticate again; continuing without SSO authentication."
+                )
+            elif context.keyring_refresh_unrenewable:
+                message = (
+                    "The SSO session has no refresh token and its access token "
+                    "has expired. Run 'cloudsmith auth' to authenticate again; "
+                    "continuing without SSO authentication."
+                )
+            else:
+                message = (
+                    "The SSO session could not be renewed and its access token "
+                    "has expired. Check your connection, then run 'cloudsmith auth'; "
+                    "continuing without SSO authentication."
+                )
+            click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
 

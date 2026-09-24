@@ -2,6 +2,7 @@
 
 import json
 import platform
+import sys
 from contextlib import contextmanager
 from datetime import date, datetime
 
@@ -75,7 +76,7 @@ def rich_print_table(headers, rows, title=None, show_lines=False):
     from rich.console import Console
     from rich.table import Table
 
-    console = Console()
+    console = Console(width=(None if sys.stdout.isatty() else 1000))
     table = Table(title=title, show_lines=show_lines)
 
     for header in headers:

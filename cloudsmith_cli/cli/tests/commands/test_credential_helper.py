@@ -14,7 +14,10 @@ from ....core.api.exceptions import ApiException
 from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
-from ....credential_helpers.common import is_cloudsmith_domain
+from ....credential_helpers.common import (
+    is_cloudsmith_domain,
+    is_standard_cloudsmith_domain,
+)
 from ....credential_helpers.custom_domains import (
     CACHE_FORMAT_VERSION,
     CustomDomain,
@@ -718,6 +721,31 @@ def test_is_cloudsmith_domain(
 
     result = is_cloudsmith_domain(host, **kwargs)
     assert result is expected
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        # Standard apex + subdomains, any scheme/path/casing → True
+        ("cloudsmith.io", True),
+        ("cloudsmith.com", True),
+        ("docker.cloudsmith.io", True),
+        ("https://terraform.cloudsmith.io/acme/repo/", True),
+        ("TERRAFORM.CLOUDSMITH.COM", True),
+        # Custom domains and foreign hosts → False (never standard)
+        ("tf.acme.com", False),
+        ("docker.acme.com", False),
+        ("evil.example.com", False),
+        # Lookalikes that must not match the suffix check
+        ("notcloudsmith.io", False),
+        ("cloudsmith.io.evil.com", False),
+        ("", False),
+    ],
+)
+def test_is_standard_cloudsmith_domain(url, expected):
+    """Only *.cloudsmith.io/.com (and the apexes) are standard; custom domains
+    and lookalikes are not — no API/auth is consulted."""
+    assert is_standard_cloudsmith_domain(url) is expected
 
 
 # ---------------------------------------------------------------------------
