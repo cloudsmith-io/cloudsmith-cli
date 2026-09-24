@@ -19,6 +19,7 @@ from ....cli.commands.mcp import (
 )
 from ....core.mcp.data import OpenAPITool
 from ....core.mcp.server import DynamicMCPServer
+from ....core.version import get_version as get_cli_version
 
 
 class TestMCPListToolsCommand:
@@ -373,6 +374,17 @@ class TestMCPServerDynamicToolGeneration:
         assert len(server.tools) == 1
         assert "repos_list" in server.tools
         assert "packages_list" not in server.tools
+
+    def test_server_reports_cli_version(self):
+        import cloudsmith_api
+
+        api_config = cloudsmith_api.Configuration()
+        api_config.host = "https://api.cloudsmith.io"
+
+        server = DynamicMCPServer(api_config=api_config)
+
+        assert server.mcp.version
+        assert server.mcp.version == get_cli_version()
 
 
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
