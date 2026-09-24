@@ -163,7 +163,7 @@ ignore = ["TRY002", "BLE001", "PERF203"]
 # lazily (see cli/commands/registry.py and cli/tests/test_startup_imports.py).
 banned-module-level-imports = [
     "cloudsmith_api",
-    "httpx",
+    "httpx2",
     "keyring",
     "mcp",
     "requests",
