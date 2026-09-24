@@ -51,7 +51,7 @@ dependencies = [
     # downstream installers do not consume uv.lock and could otherwise select
     # vulnerable transitive versions allowed by MCP's broader constraints.
     "cryptography>=50.0.0",
-    "mcp==1.28.1",
+    "mcp==2.2.0",
     "pydantic-settings>=2.14.2",
     # The crypto extra must be declared here: the OIDC flow verifies JWT
     # signatures, and a bare PyJWT requirement would let the
@@ -163,7 +163,7 @@ ignore = ["TRY002", "BLE001", "PERF203"]
 # lazily (see cli/commands/registry.py and cli/tests/test_startup_imports.py).
 banned-module-level-imports = [
     "cloudsmith_api",
-    "httpx",
+    "httpx2",
     "keyring",
     "mcp",
     "requests",
