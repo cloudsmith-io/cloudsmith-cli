@@ -12,6 +12,7 @@ from mcp import types
 from mcp.server.mcpserver import MCPServer
 from mcp.shared._httpx_utils import create_mcp_http_client
 
+from ..version import get_version as get_cli_version
 from .data import OpenAPITool
 
 ALLOWED_METHODS = ["get", "post", "put", "delete", "patch"]
@@ -187,7 +188,7 @@ class DynamicMCPServer:
         mcp_kwargs = {"log_level": "ERROR"}
         if debug_mode:
             mcp_kwargs["log_level"] = "DEBUG"
-        self.mcp = CustomFastMCP(SERVER_NAME, **mcp_kwargs)
+        self.mcp = CustomFastMCP(SERVER_NAME, version=get_cli_version(), **mcp_kwargs)
         self.api_config = api_config
         self.api_base_url = api_config.host
         self.use_toon = use_toon
