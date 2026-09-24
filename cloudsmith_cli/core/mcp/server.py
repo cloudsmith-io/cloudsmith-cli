@@ -212,7 +212,26 @@ class DynamicMCPServer:
                 response = await http_client.get(spec_url)
                 response.raise_for_status()
                 self.spec = response.json()
-                await self._generate_tools_from_spec()
+                await self._generate_tools_from_spec(self._spec_base_url())
+
+    def _spec_base_url(self) -> str:
+        """Base URL for the currently-loaded spec, including its version path.
+
+        The OpenAPI spec declares its version prefix out-of-band from the
+        path keys: OpenAPI 3 (v2) puts it in ``servers[].url`` (e.g.
+        ``https://api.cloudsmith.io/v2/``) while Swagger 2 (v1) uses
+        ``basePath``. The path keys themselves are version-relative, so we
+        must prepend that prefix or v2 requests hit ``/analytics/...`` instead
+        of ``/v2/analytics/...`` and 404. We keep the configured host (so a
+        custom ``--api-host`` still wins) and only borrow the version path.
+        """
+        version_path = ""
+        servers = self.spec.get("servers")
+        if servers and servers[0].get("url"):
+            version_path = parse.urlsplit(servers[0]["url"]).path
+        else:
+            version_path = self.spec.get("basePath", "") or ""
+        return f"{self.api_base_url.rstrip('/')}{version_path}".rstrip("/")
 
     def _get_tool_groups(self, tool_name: str) -> list[str]:
         """
@@ -286,11 +305,14 @@ class DynamicMCPServer:
         # Otherwise disable all categories in the default list
         return not any(group in DEFAULT_DISABLED_CATEGORIES for group in tool_groups)
 
-    async def _generate_tools_from_spec(self):
+    async def _generate_tools_from_spec(self, base_url: str | None = None):
         """Generate MCP tools from OpenAPI specification"""
 
         if not self.spec:
             raise ValueError("OpenAPI spec not loaded")
+
+        if base_url is None:
+            base_url = self.api_base_url
 
         # Parse paths and generate tools
         for path, path_item in self.spec.get("paths", {}).items():
@@ -303,7 +325,7 @@ class DynamicMCPServer:
                         path,
                         operation,
                         path_parameters,
-                        self.api_base_url,
+                        base_url,
                     )
                     if tool and self._is_tool_allowed(tool.name):
                         self.tools[tool.name] = tool
