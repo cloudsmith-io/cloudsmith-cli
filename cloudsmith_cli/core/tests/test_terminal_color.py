@@ -1,12 +1,15 @@
 from enum import Flag, auto
 from typing import ClassVar
+from unittest.mock import patch
 
 import pytest
 
+from cloudsmith_cli.core import utils
 from cloudsmith_cli.core.utils import (
     ColorMode,
     TTYMode,
     color_enabled,
+    controlling_terminal_mode,
     is_interactive,
 )
 
@@ -121,3 +124,25 @@ class TestTerminalUISuppression:
         assert is_interactive(env, ttyMode) == want_interactive, (
             f"interactive suppression check failed for environment {env} wanted {desired}"
         )
+
+
+class TestControllingTerminalMode:
+    """Tests for the check that a prompt can reach a user."""
+
+    def test_disabled_when_dev_tty_cannot_open(self):
+        with (
+            patch.object(utils.sys, "platform", "linux"),
+            patch.object(utils, "open", side_effect=OSError, create=True),
+        ):
+            assert controlling_terminal_mode() is TTYMode.DISABLED
+
+    @pytest.mark.parametrize(
+        "platform,terminal", [("linux", "/dev/tty"), ("win32", "CONIN$")]
+    )
+    def test_enabled_when_the_terminal_opens(self, platform, terminal):
+        with (
+            patch.object(utils.sys, "platform", platform),
+            patch.object(utils, "open", create=True) as open_mock,
+        ):
+            assert controlling_terminal_mode() is TTYMode.ENABLED
+        assert open_mock.call_args.args[0] == terminal
