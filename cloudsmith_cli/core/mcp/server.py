@@ -6,12 +6,13 @@ from typing import Any
 from urllib import parse
 
 import cloudsmith_api
-import httpx
+import httpx2
 import toon
 from mcp import types
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.shared._httpx_utils import create_mcp_http_client
 
+from ..version import get_version as get_cli_version
 from .data import OpenAPITool
 
 ALLOWED_METHODS = ["get", "post", "put", "delete", "patch"]
@@ -72,7 +73,7 @@ DEFAULT_DISABLED_CATEGORIES = [
 SERVER_NAME = "Cloudsmith MCP Server"
 
 
-class CustomFastMCP(FastMCP):
+class CustomFastMCP(MCPServer):
     """Custom FastMCP that overrides tool listing to clean up schemas to not overwhelm the LLM context"""
 
     def __init__(self, *args, **kwargs):
@@ -90,7 +91,7 @@ class CustomFastMCP(FastMCP):
             cleaned_tool = types.Tool(
                 name=tool.name,
                 description=tool.description,
-                inputSchema=self._clean_schema(tool.inputSchema),
+                input_schema=self._clean_schema(tool.input_schema),
                 annotations=tool.annotations,
             )
             cleaned_tools.append(cleaned_tool)
@@ -187,7 +188,7 @@ class DynamicMCPServer:
         mcp_kwargs = {"log_level": "ERROR"}
         if debug_mode:
             mcp_kwargs["log_level"] = "DEBUG"
-        self.mcp = CustomFastMCP(SERVER_NAME, **mcp_kwargs)
+        self.mcp = CustomFastMCP(SERVER_NAME, version=get_cli_version(), **mcp_kwargs)
         self.api_config = api_config
         self.api_base_url = api_config.host
         self.use_toon = use_toon
@@ -385,8 +386,8 @@ class DynamicMCPServer:
         # Register with MCP server - this uses the decorator approach
         self.mcp.tool(
             annotations=types.ToolAnnotations(
-                destructiveHint=api_tool.is_destructive,
-                readOnlyHint=api_tool.is_read_only,
+                destructive_hint=api_tool.is_destructive,
+                read_only_hint=api_tool.is_read_only,
             )
         )(dynamic_tool_func)
 
@@ -519,7 +520,7 @@ class DynamicMCPServer:
 
         except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
-        except httpx.HTTPError as e:
+        except httpx2.HTTPError as e:
             return f"HTTP error: {e!s}"
         finally:
             await http_client.aclose()

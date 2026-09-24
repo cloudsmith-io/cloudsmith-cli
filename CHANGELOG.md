@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- The CLI no longer prompts for a keyring password when no user can answer. A run is non-interactive when `CI` is set or when no controlling terminal is available. In such a run, a keyring call that needs a password that was not supplied fails without a prompt. OIDC tokens then use the on-disk cache, and `cloudsmith auth` prints why it did not store the SSO tokens. Previously, headless Linux agents printed `GetPassWarning: Can not control echo on the terminal` after each OIDC exchange. To keep a keyring in CI, set `CLOUDSMITH_KEYRING_BACKEND` to a backend that does not prompt, or to an encrypted backend together with `CLOUDSMITH_KEYRING_KEY`.
+- `CLOUDSMITH_KEYRING_KEY`, `CLOUDSMITH_KEYRING_DIR`, and `CLOUDSMITH_KEYRING_FILE_PATH` now apply to the default keyring on headless Linux. That keyring is a chain of backends. Previously, the CLI applied these settings to the chain and not to the encrypted backend that stores the values, so the settings had no effect.
+- A `CLOUDSMITH_KEYRING_KEY` that does not unlock the keyring file no longer stops commands such as `logout` and `whoami` with a `ValueError`. The CLI treats the keyring as not available. The CLI also unlocks an encrypted keyring file once for each run, not once for each keyring call.
+
 ## [1.27.0] - 2026-09-08
 
 ### Added
