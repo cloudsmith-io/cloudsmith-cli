@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    cooldown:
+      default-days: 7
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      uv-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "docker"
+    cooldown:
+      default-days: 7
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "github-actions"
+    cooldown:
+      default-days: 7
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
