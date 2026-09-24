@@ -463,6 +463,7 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
     """
     Remove package metadata.
 
+    \b
     OWNER/REPO/PACKAGE: target package.
     METADATA_SLUG_PERM: permanent slug for the metadata entry.
 

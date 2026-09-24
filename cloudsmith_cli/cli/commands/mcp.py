@@ -200,6 +200,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     """
     Configure the Cloudsmith MCP server for supported clients.
 
+    \b
     This command automatically adds the Cloudsmith MCP server configuration
     to the specified client's configuration file. Supported clients are:
     - Claude Desktop
@@ -211,11 +212,12 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     For Claude Code, --global edits ~/.claude.json (user scope) and
     --local writes ./.mcp.json (project scope, intended to be committed).
 
-    Examples:\n
-        cloudsmith mcp configure --client claude\n
-        cloudsmith mcp configure --client claude-code\n
-        cloudsmith mcp configure --client cursor --local\n
-        cloudsmith mcp configure --client gemini-cli\n
+    \b
+    Examples:
+        cloudsmith mcp configure --client claude
+        cloudsmith mcp configure --client claude-code
+        cloudsmith mcp configure --client cursor --local
+        cloudsmith mcp configure --client gemini-cli
         cloudsmith mcp configure  # Auto-detect and configure all
     """
 

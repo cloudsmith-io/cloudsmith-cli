@@ -2,8 +2,9 @@ import getpass
 import importlib
 import os
 from datetime import datetime, timedelta, timezone
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, Mock, call, patch
 
+import jwt
 import pytest
 from freezegun import freeze_time
 from keyrings.cryptfile.cryptfile import CryptFileKeyring
@@ -181,6 +182,30 @@ class TestKeyring:
             "test_user",
         )
 
+    @freeze_time("2024-06-01 10:00:00")
+    @pytest.mark.parametrize(
+        "expires_at,attempted_at,expected",
+        [
+            ("2024-06-01 10:31:00", None, False),
+            ("2024-06-01 10:30:00", None, True),
+            ("2024-06-01 09:59:00", "2024-06-01T09:59:00+00:00", True),
+        ],
+    )
+    def test_jwt_refresh_uses_expiry_and_ignores_throttle_after_expiration(
+        self, mock_get_password, expires_at, attempted_at, expected
+    ):
+        mock_get_password.return_value = attempted_at
+        access_token = jwt.encode(
+            {"exp": datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)},
+            "not-used-for-verification",
+            algorithm="HS256",
+        )
+
+        assert (
+            should_refresh_access_token(self.api_host, access_token=access_token)
+            is expected
+        )
+
     def test_store_refresh_token(self, mock_get_user, mock_set_password):
         store_refresh_token(self.api_host, "refresh_token")
 
@@ -219,25 +244,22 @@ class TestKeyring:
             result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
 
         assert result is True
-        assert mock_set_password.call_count == 3
-        mock_set_password.assert_any_call(
-            "cloudsmith_cli-access_token-https://example.com",
-            "test_user",
-            "access_token",
-        )
         refresh_key = (
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
         )
-        mock_set_password.assert_any_call(
-            refresh_key,
-            "test_user",
-            ANY,
-        )
-        mock_set_password.assert_any_call(
-            "cloudsmith_cli-refresh_token-https://example.com",
-            "test_user",
-            "refresh_token",
-        )
+        assert mock_set_password.call_args_list == [
+            call(
+                "cloudsmith_cli-refresh_token-https://example.com",
+                "test_user",
+                "refresh_token",
+            ),
+            call(
+                "cloudsmith_cli-access_token-https://example.com",
+                "test_user",
+                "access_token",
+            ),
+            call(refresh_key, "test_user", ANY),
+        ]
 
     def test_store_sso_tokens_returns_false_when_keyring_disabled(
         self, mock_get_user, mock_set_password

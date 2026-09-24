@@ -195,6 +195,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
 
     --query 'name:^foo$ filename:.zip$ architecture:~x86'
 
+    \b
     You can sort the results using --sort with these fields:
       - date/-date: Sort by creation date
       - downloads/-downloads: Sort by download count

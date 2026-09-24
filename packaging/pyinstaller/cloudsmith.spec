@@ -43,28 +43,47 @@ for dist in (
 ):
     datas += copy_metadata(dist)
 
+_excludes = [
+    "tkinter",
+    "pytest",
+    "pylint",
+    "black",
+    "isort",
+    "mcp.cli",
+    "cloudsmith_cli.cli.tests",
+    "cloudsmith_cli.conftest",
+    "cloudsmith_cli.core.tests",
+    "cloudsmith_cli.credential_helpers.pnpm.tests",
+    "keyrings.cryptfile.tests",
+]
+
 a = Analysis(
     ["entry.py"],
     pathex=[],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=[
-        "tkinter",
-        "pytest",
-        "pylint",
-        "black",
-        "isort",
-        "mcp.cli",
-        "cloudsmith_cli.cli.tests",
-        "cloudsmith_cli.conftest",
-        "cloudsmith_cli.core.tests",
-        "cloudsmith_cli.credential_helpers.pnpm.tests",
-        "keyrings.cryptfile.tests",
-    ],
+    excludes=_excludes,
 )
 
+# Second executable: terraform-credentials-cloudsmith. Terraform (notably on
+# Windows) only runs a real .exe named this way and ignores .cmd shims, so it
+# ships as its own binary that forwards to `credential-helper terraform`.
+tf = Analysis(
+    ["terraform_entry.py"],
+    pathex=["."],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    excludes=_excludes,
+)
+
+# MERGE dedupes the shared dependency tree so the two entry scripts don't each
+# carry a full copy of the collected binaries/datas in the onedir bundle.
+MERGE((a, "cloudsmith", "cloudsmith"), (tf, "terraform_entry", "terraform_entry"))
+
 pyz = PYZ(a.pure)
+tf_pyz = PYZ(tf.pure)
 
 exe = EXE(
     pyz,
@@ -77,10 +96,24 @@ exe = EXE(
     upx=False,
 )
 
+tf_exe = EXE(
+    tf_pyz,
+    tf.scripts,
+    [],
+    exclude_binaries=True,
+    name="terraform-credentials-cloudsmith",
+    console=True,
+    strip=False,
+    upx=False,
+)
+
 coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
+    tf_exe,
+    tf.binaries,
+    tf.datas,
     name="cloudsmith",
     strip=False,
     upx=False,

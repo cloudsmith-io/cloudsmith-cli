@@ -33,23 +33,30 @@ def docker(opts, operation):
     ``workspace`` in ``config.ini``; legacy aliases are also accepted - and a
     valid API key/token).
 
+    \b
     Input (stdin):
         Server URL as plain text (e.g. "docker.cloudsmith.io")
 
+    \b
     Output (stdout):
         JSON: {"Username": "token", "Secret": "<cloudsmith-token>"}
 
+    \b
     Exit codes:
         0: Success
         1: Error (no credentials available, not a Cloudsmith registry, etc.)
 
+    \b
     Examples:
+
+    \b
         # Manual testing
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker
-
+    \b
         # Called by Docker via launcher
         $ echo "docker.cloudsmith.io" | docker-credential-cloudsmith get
 
+    \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
         CLOUDSMITH_WORKSPACE: Workspace slug (CLOUDSMITH_ORG is also accepted)

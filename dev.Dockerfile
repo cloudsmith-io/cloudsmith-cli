@@ -1,7 +1,4 @@
-ARG ALPINE_IMAGE=alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
-ARG UV_IMAGE=astral/uv:0.12.7-alpine3.23@sha256:d0d7c7a05e4d9270b97392da2204371581b431287f2ae959e4aef715c86f9efc
-
-FROM ${UV_IMAGE} AS build
+FROM astral/uv:0.12.15-alpine3.23@sha256:f7fc5f0f42a6d0b49c96bfc35e9beeb06c4959b85c58af43fe0f8447d15f16d7 AS build
 
 WORKDIR /root/cloudsmith-cli
 
@@ -20,7 +17,7 @@ ARG PYTHON_VERSION=3.14
 RUN uv sync --locked --no-dev --no-editable --group binary --extra all --python "${PYTHON_VERSION}"
 RUN uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
 
-FROM ${ALPINE_IMAGE}
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 COPY --from=build /root/cloudsmith-cli/dist/cloudsmith /opt/cloudsmith
 
