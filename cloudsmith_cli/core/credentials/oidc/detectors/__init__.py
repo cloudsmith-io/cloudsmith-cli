@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from .aws import AWSDetector
 from .azure_devops import AzureDevOpsDetector
 from .bitbucket_pipelines import BitbucketPipelinesDetector
+from .buildkite import BuildkiteDetector
 from .circleci import CircleCIDetector
 from .generic import GenericDetector
 from .github_actions import GitHubActionsDetector
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DETECTORS: list[type[EnvironmentDetector]] = [
+    BuildkiteDetector,
     CircleCIDetector,
     AzureDevOpsDetector,
     GitHubActionsDetector,
