@@ -132,6 +132,16 @@ jobs:
           ARCHIVE: ${{ matrix.archive }}
         run: echo "name=cloudsmith-$(cat cloudsmith_cli/data/VERSION)-${TARGET}${ARCHIVE}" >> "$GITHUB_OUTPUT"
 
+      # cryptography has no Intel macOS wheel, so uv builds it from source.
+      # A dynamic build loads a libssl.3.dylib that PyInstaller can replace
+      # with an older copy. Static OpenSSL removes that dependency. Remove the
+      # cached build, because uv reuses it even when the build settings change.
+      - if: matrix.name == 'macos-x86_64'
+        shell: bash
+        run: |
+          echo "OPENSSL_STATIC=1" >> "$GITHUB_ENV"
+          uv cache clean cryptography
+
       - if: matrix.mode == 'native'
         shell: bash
         env:
