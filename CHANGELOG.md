@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added Google Cloud (GCP) support to OIDC credential auto-discovery. Install with the `gcp` extra (`pip install cloudsmith-cli[gcp]`) to use an attached service account, a `GOOGLE_APPLICATION_CREDENTIALS` service-account key, or local service-account impersonation via ADC. The CLI requests an ID token with audience `cloudsmith` by default, using IAM `generateIdToken` if the metadata identity endpoint returns 404 (requires `iam.serviceAccounts.getOpenIdToken`). User ADC requires its OAuth client ID as the explicitly configured audience. Unsupported ADC types and installations without the extra are skipped. The detector supports the existing order/disable controls using the id `gcp`.
+
 ### Fixed
 
 - The CLI no longer prompts for a keyring password when no user can answer. A run is non-interactive when `CI` is set or when no controlling terminal is available. In such a run, a keyring call that needs a password that was not supplied fails without a prompt. OIDC tokens then use the on-disk cache, and `cloudsmith auth` prints why it did not store the SSO tokens. Previously, headless Linux agents printed `GetPassWarning: Can not control echo on the terminal` after each OIDC exchange. To keep a keyring in CI, set `CLOUDSMITH_KEYRING_BACKEND` to a backend that does not prompt, or to an encrypted backend together with `CLOUDSMITH_KEYRING_KEY`.

@@ -179,6 +179,29 @@ pip install cloudsmith-cli[aws]
 
 This installs `boto3[crt]` for AWS credential chain support, STS token generation, and AWS SSO compatibility.
 
+#### GCP OIDC Support
+
+For Google Cloud environments (GCE, Cloud Run, GKE, Cloud Functions, App Engine, Cloud Build), install with the `gcp` extra to enable automatic credential discovery:
+
+```
+pip install cloudsmith-cli[gcp]
+```
+
+This installs `google-auth` for Application Default Credentials (ADC) resolution and OIDC ID token generation. It works with an attached Google Cloud service account, a service-account key supplied through `GOOGLE_APPLICATION_CREDENTIALS`, or service-account impersonation configured locally:
+
+```sh
+gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL
+cloudsmith whoami --workspace=YOUR_WORKSPACE --oidc-service-slug=YOUR_SERVICE --oidc-detector-order=gcp
+```
+
+Configure a Cloudsmith OIDC provider to trust `https://accounts.google.com`, the service account's numeric unique ID as the subject, and audience `cloudsmith` (override with `--oidc-audience` or `CLOUDSMITH_OIDC_AUDIENCE`). Local impersonation requires the Service Account Token Creator role on the target service account and the IAM Service Account Credentials API enabled.
+
+On workloads with a metadata identity endpoint, the CLI requests an ID token directly. If that endpoint returns HTTP 404 (as on some Cloud Build environments), it uses IAM `generateIdToken` for the same attached service account. This fallback requires the IAM Service Account Credentials API and `iam.serviceAccounts.getOpenIdToken` on that account; the Service Account OpenID Connect Identity Token Creator role grants this permission. Permission and transport failures are reported, not treated as a missing endpoint.
+
+A plain `gcloud auth application-default login` user session cannot mint an ID token for an arbitrary audience. To use it, set `--oidc-audience` to the session's OAuth client ID and configure Cloudsmith to trust that audience and user subject; otherwise use service-account impersonation. `gcloud auth login` alone does not configure ADC. Other ADC types, including direct external-account federation, are skipped rather than incorrectly treated as ID-token-capable credentials.
+
+See Google's [Authenticate with auth libraries](https://docs.cloud.google.com/iam/docs/authenticate-with-auth-libraries#authenticate-standard) guide for credential discovery.
+
 #### All Optional Features
 
 To install all optional dependencies:
@@ -187,7 +210,7 @@ To install all optional dependencies:
 pip install cloudsmith-cli[all]
 ```
 
-**Note:** If you don't install the AWS extra, the AWS OIDC detector will gracefully skip itself with no errors.
+**Note:** If you don't install the AWS or GCP extra, the corresponding OIDC detector will gracefully skip itself with no errors.
 
 #### Bitbucket Pipelines OIDC Support
 
@@ -242,7 +265,7 @@ By default the CLI tries each detector in a fixed priority order and uses the fi
 - **Disable a detector** — set `CLOUDSMITH_OIDC_<DETECTOR>_DISABLED=true` to skip it entirely. Only the literal value `true` (case-insensitive) disables; anything else leaves the detector enabled. For example, `CLOUDSMITH_OIDC_AWS_DISABLED=true` skips the AWS detector so an explicitly-set `CLOUDSMITH_OIDC_TOKEN` is picked up by the generic detector instead.
 - **Reorder evaluation** — use `--oidc-detector-order` (or the `CLOUDSMITH_OIDC_DETECTOR_ORDER` environment variable) with a comma-separated list of detector ids to control both which detectors are considered and the order they are tried in (first match wins). Ids not listed are skipped; unrecognised ids are ignored with a warning. For example, `--oidc-detector-order=generic,aws` tries the generic detector first and considers only those two.
 
-When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `generic`, `github`, `gitlab`.
+When both are set, the order list defines the candidate set and sequence, then the `*_DISABLED` flags are applied on top — so a disabled detector is always skipped even if it appears in the order list. Detector ids are: `aws`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `generic`, `github`, `gitlab`.
 
 Both controls can also be set in `config.ini`, under `[default]` or a profile section:
 
