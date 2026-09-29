@@ -547,9 +547,13 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "boto3", extra = ["crt"] },
+    { name = "google-auth" },
 ]
 aws = [
     { name = "boto3", extra = ["crt"] },
+]
+gcp = [
+    { name = "google-auth" },
 ]
 
 [package.dev-dependencies]
@@ -563,6 +567,7 @@ dev = [
     { name = "boto3", extra = ["crt"] },
     { name = "bumpversion" },
     { name = "freezegun" },
+    { name = "google-auth" },
     { name = "httpretty" },
     { name = "pre-commit" },
     { name = "pylint" },
@@ -587,6 +592,8 @@ requires-dist = [
     { name = "click-spinner", specifier = ">=0.1.7" },
     { name = "cloudsmith-api", specifier = ">=2.0.31,<3.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
+    { name = "google-auth", marker = "extra == 'all'", specifier = ">=2.40.0" },
+    { name = "google-auth", marker = "extra == 'gcp'", specifier = ">=2.40.0" },
     { name = "json5", specifier = ">=0.9.0" },
     { name = "keyring", specifier = ">=25.4.1" },
     { name = "keyrings-alt", specifier = ">=5.0.2" },
@@ -603,7 +610,7 @@ requires-dist = [
     { name = "tomlkit", specifier = ">=0.15.0" },
     { name = "urllib3", specifier = ">=2.5" },
 ]
-provides-extras = ["aws", "all"]
+provides-extras = ["aws", "gcp", "all"]
 
 [package.metadata.requires-dev]
 binary = [
@@ -616,6 +623,7 @@ dev = [
     { name = "boto3", extras = ["crt"], specifier = ">=1.26.0" },
     { name = "bumpversion" },
     { name = "freezegun" },
+    { name = "google-auth", specifier = ">=2.40.0" },
     { name = "httpretty" },
     { name = "pre-commit" },
     { name = "pylint" },
@@ -855,7 +863,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -881,6 +889,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/95/dd/23e2f4e357f8fd3bdff613c1fe4466d21bfb00a6177f238079b17f7b1c84/freezegun-1.5.5.tar.gz", hash = "sha256:ac7742a6cc6c25a2c35e9292dfd554b897b517d2dec26891a2e8debf205cb94a", size = 35914, upload-time = "2025-08-09T10:39:08.338Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5e/2e/b41d8a1a917d6581fc27a35d05561037b048e47df50f27f8ac9c7e27a710/freezegun-1.5.5-py3-none-any.whl", hash = "sha256:cd557f4a75cf074e84bc374249b9dd491eaeacd61376b9eb3c423282211619d2", size = 19266, upload-time = "2025-08-09T10:39:06.636Z" },
+]
+
+[[package]]
+name = "google-auth"
+version = "2.59.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "pyasn1-modules" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3b/0b/9b4e806ebcd29701b5193a162dd9906c4c5a16cbde8476461622d2bfa70e/google_auth-2.59.0.tar.gz", hash = "sha256:eb32f44f89f6b577947ebee5887c1db46e6b1a278889ba369a88179643f32240", size = 381025, upload-time = "2026-09-28T21:49:59.047Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/fd/4208e3ac1d7df39f4e8b044a3943eb8a5a99aaf8699285bf780f614a0b30/google_auth-2.59.0-py3-none-any.whl", hash = "sha256:43e47b1d3067fb90d77bd9ba21f139bb0577b3f2b9f3e2516fc00f37435efcad", size = 262487, upload-time = "2026-09-28T21:49:57.428Z" },
 ]
 
 [[package]]
@@ -972,7 +993,7 @@ name = "importlib-metadata"
 version = "9.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp" },
+    { name = "zipp", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a9/01/15bb152d77b21318514a96f43af312635eb2500c96b55398d020c93d86ea/importlib_metadata-9.0.0.tar.gz", hash = "sha256:a4f57ab599e6a2e3016d7595cfd72eb4661a5106e787a95bcc90c7105b831efc", size = 56405, upload-time = "2026-03-20T06:42:56.999Z" }
 wheels = [
@@ -1135,7 +1156,7 @@ name = "macholib"
 version = "1.16.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "altgraph" },
+    { name = "altgraph", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/10/2f/97589876ea967487978071c9042518d28b958d87b17dceb7cdc1d881f963/macholib-1.16.4.tar.gz", hash = "sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362", size = 59427, upload-time = "2025-11-22T08:28:38.373Z" }
 wheels = [
@@ -1324,6 +1345,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/74/89/1f3e8e1fc3e97de0fa963495832f581f025f29471602a309e48808244292/pre_commit-4.6.2.tar.gz", hash = "sha256:8f5d7bfb021ecdbcd9d49d89847082dd24172ccde534390081a679ad046e2441", size = 198670, upload-time = "2026-08-10T22:07:18.421Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/45/e2/bbb7129c9e7999a6b8ee9cca3b66486c25c423ab5a75f34071798b74ce94/pre_commit-4.6.2-py2.py3-none-any.whl", hash = "sha256:e2dde9a75d3bce11bd3831c26d134df00a2803c1d818be6a0383c3dcda25dc4e", size = 226202, upload-time = "2026-08-10T22:07:16.942Z" },
+]
+
+[[package]]
+name = "pyasn1"
+version = "0.6.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/9a/23310166d960def5897e91fe20e5b724601b02a22e84ba1f94232c0b7f67/pyasn1-0.6.4.tar.gz", hash = "sha256:9c447d8431c947fe4c8febc4ed9e760bc29011a5b01e5c74b67025bd9fb8ce81", size = 151262, upload-time = "2026-07-09T01:12:33.988Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/3b/6163796d69c3977d1e4287bea4a6979161cbbdd170ebb430511e8e1999ce/pyasn1-0.6.4-py3-none-any.whl", hash = "sha256:deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b", size = 84410, upload-time = "2026-07-09T01:12:32.92Z" },
+]
+
+[[package]]
+name = "pyasn1-modules"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/47/8d/d529b5d697919ba8c11ad626e835d4039be708a35b0d22de83a269a6682c/pyasn1_modules-0.4.2-py3-none-any.whl", hash = "sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a", size = 181259, upload-time = "2025-03-28T02:41:19.028Z" },
 ]
 
 [[package]]
@@ -2009,8 +2051,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
+    { name = "jeepney", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
