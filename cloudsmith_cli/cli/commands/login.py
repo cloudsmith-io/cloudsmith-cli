@@ -1,102 +1,26 @@
-"""CLI/Commands - Get an API token."""
+"""CLI/Commands - Notice for the removed login and token commands."""
 
 import click
-import cloudsmith_api
 
-from ...core.api.exceptions import TwoFactorRequiredException
-from ...core.api.user import get_user_token
-from ...core.config import create_config_files, new_config_messaging
-from .. import decorators, utils
-from ..exceptions import handle_api_exceptions
-from ..utils import maybe_spinner
 from .main import main
 
-
-def validate_login(ctx, param, value):
-    """Ensure that login is not blank."""
-    # pylint: disable=unused-argument
-    value = value.strip()
-    if not value:
-        raise click.BadParameter("The value cannot be blank.", param=param)
-    return value
-
-
-@main.command(aliases=["token"])
-@click.option(
-    "-l",
-    "--login",
-    required=True,
-    callback=validate_login,
-    prompt=True,
-    help="Your Cloudsmith login account (email address).",
+REMOVAL_NOTICE = (
+    "The 'cloudsmith login' and 'cloudsmith token' commands are no longer "
+    "available. Username and password login is not supported.\n"
+    "To authenticate, do one of these:\n"
+    "  - Set the CLOUDSMITH_API_KEY environment variable to your API key.\n"
+    "  - Run 'cloudsmith auth' to authenticate with SAML SSO."
 )
-@click.password_option("-p", "--password", help="Your Cloudsmith login password.")
-@decorators.common_cli_config_options
-@decorators.common_cli_output_options
-@decorators.initialise_api
+
+
+@main.command(
+    aliases=["token"],
+    hidden=True,
+    add_help_option=False,
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
 @click.pass_context
-def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
-    """Retrieve your API authentication token/key via login."""
-    use_stderr = utils.should_use_stderr(opts)
-    click.echo(
-        f"Retrieving API token for {click.style(login, bold=True)} ... ",
-        nl=False,
-        err=use_stderr,
-    )
-
-    context_msg = "Failed to retrieve the API token!"
-    try:
-        with (
-            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
-            maybe_spinner(opts),
-        ):
-            api_key = get_user_token(login=login, password=password)
-    except TwoFactorRequiredException as e:
-        click.echo("\r\033[K", nl=False, err=use_stderr)
-        click.echo("Two-factor authentication is required.", err=use_stderr)
-
-        totp_token = click.prompt(
-            "Enter your two-factor authentication code", type=str, err=use_stderr
-        )
-        click.echo(
-            f"Verifying two-factor code for {click.style(login, bold=True)} ... ",
-            nl=False,
-            err=use_stderr,
-        )
-
-        try:
-            with (
-                handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
-                maybe_spinner(opts),
-            ):
-                api_key = get_user_token(
-                    login=login,
-                    password=password,
-                    totp_token=totp_token,
-                    two_factor_token=e.two_factor_token,
-                )
-        except cloudsmith_api.rest.ApiException:
-            click.echo("\r\033[K", nl=False, err=use_stderr)
-            click.secho(
-                "Authentication failed: The entered TOTP token is not valid.",
-                fg="red",
-                err=use_stderr,
-            )
-            ctx.exit(1)
-
-    except cloudsmith_api.rest.ApiException as e:
-        click.echo("\r\033[K", nl=False, err=use_stderr)
-        click.secho(f"Authentication failed: {e!s}", fg="red", err=use_stderr)
-        ctx.exit(1)
-
-    click.secho("OK", fg="green", err=use_stderr)
-
-    if not utils.maybe_print_as_json(opts, {"token": api_key, "login": login}):
-        click.echo(
-            "Your API key/token is: {token}".format(
-                token=click.style(api_key, fg="magenta")
-            )
-        )
-
-    create, has_errors = create_config_files(ctx, opts, api_key=api_key)
-    new_config_messaging(has_errors, opts, create, api_key=api_key)
+def login(ctx):
+    """Show a notice that the login and token commands are removed."""
+    click.echo(REMOVAL_NOTICE, err=True)
+    ctx.exit(1)

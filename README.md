@@ -47,7 +47,6 @@ The CLI currently supports the following commands (and sub-commands):
   - `entitlements`|`ents`:  List entitlements for a repository.
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
-- `login`|`token`:        Retrieve your API authentication token/key via login.
 - `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
 - `metadata`:             Manage arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
   - `add`:                  Attach a new metadata entry to a package.
@@ -336,29 +335,15 @@ cloudsmith auth --owner example --no-browser
 
 #### Getting Your API Key
 
-You can retrieve your API key using the `cloudsmith login` command:
+Get your API key from your user settings in the Cloudsmith web app. If you authenticated with `cloudsmith auth`, you can also use `cloudsmith tokens create` to create an API key.
 
-```
-cloudsmith login
-Login: you@example.com
-Password:
-Repeat for confirmation:
-```
+Give your API key to the CLI in one of these ways:
 
-*Note:* Please ensure you use your email for the 'Login' prompt and not your user slug/identifier.
+- Set the `CLOUDSMITH_API_KEY` environment variable: `export CLOUDSMITH_API_KEY=your_key_here`.
+- Put the key into your `credentials.ini` file.
+- Pass the key to the CLI with the `-k your_key_here` flag.
 
-The resulting output looks something like:
-
-```
-Retrieving API token for 'you@example.com' ... OK
-Your API token is: 1234567890abcdef1234567890abcdef
-```
-
-Once you have your API key you can then put this into your `credentials.ini`, use it as an environment variable `export CLOUDSMITH_API_KEY=your_key_here` or pass it to the CLI using the `-k your_key_here` flag.
-
-For convenience the CLI will ask you if you want to install the default configuration files, complete with your API key, if they don't already exist. Say 'y' or 'yes' to create the configuration files.
-
-If the configuration files already exist, you'll have to manually put the API key into the configuration files, but the CLI will print out their locations.
+*Note:* The `cloudsmith login` and `cloudsmith token` commands are no longer available. Username and password login is not supported.
 
 
 ## Uploading Packages

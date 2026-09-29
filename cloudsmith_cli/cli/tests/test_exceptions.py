@@ -14,15 +14,13 @@ API_KEY_HINT = (
 )
 
 
-def hint_for(credential, info_name="push"):
+def hint_for(credential):
     """Return the 401 hint for a session holding the given credential.
 
     opts.api_key is left as an auto-Mock, so a hint that reads it rather than
     the resolved credential fails these tests.
     """
-    return get_401_error_hint(
-        Mock(info_name=info_name), Mock(credential=credential), Mock()
-    )
+    return get_401_error_hint(Mock(), Mock(credential=credential), Mock())
 
 
 class TestGet401ErrorHint:
@@ -45,10 +43,11 @@ class TestGet401ErrorHint:
         assert hint_for(credential) == API_KEY_HINT
 
     def test_no_credential_suggests_authenticating(self):
-        assert "cloudsmith token" in hint_for(None)
+        hint = hint_for(None)
 
-    def test_no_credential_on_token_command_reports_a_failed_login(self):
-        assert "login failed" in hint_for(None, info_name="token")
+        assert "CLOUDSMITH_API_KEY" in hint
+        assert "cloudsmith auth" in hint
+        assert "cloudsmith token" not in hint
 
 
 def invoke_credentialed_401(runner, config_dir, output_format="pretty"):

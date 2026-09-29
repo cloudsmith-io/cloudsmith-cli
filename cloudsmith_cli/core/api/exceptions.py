@@ -60,9 +60,3 @@ def catch_raise_api_exception():
         raise ApiException(
             exc.status, detail=detail, headers=exc.headers, body=exc.body, fields=fields
         )
-
-
-class TwoFactorRequiredException(Exception):
-    def __init__(self, two_factor_token):
-        self.two_factor_token = two_factor_token
-        super().__init__("Two-factor authentication is required")

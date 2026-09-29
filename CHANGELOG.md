@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the `cloudsmith login` command and its `cloudsmith token` alias. The Cloudsmith API no longer supports username and password login, so these commands fail in all earlier CLI versions. Both commands now print a notice and exit with status 1. To authenticate, set the `CLOUDSMITH_API_KEY` environment variable, or run `cloudsmith auth` to authenticate with SAML SSO.
+
 ### Fixed
 
 - The CLI no longer prompts for a keyring password when no user can answer. A run is non-interactive when `CI` is set or when no controlling terminal is available. In such a run, a keyring call that needs a password that was not supplied fails without a prompt. OIDC tokens then use the on-disk cache, and `cloudsmith auth` prints why it did not store the SSO tokens. Previously, headless Linux agents printed `GetPassWarning: Can not control echo on the terminal` after each OIDC exchange. To keep a keyring in CI, set `CLOUDSMITH_KEYRING_BACKEND` to a backend that does not prompt, or to an encrypted backend together with `CLOUDSMITH_KEYRING_KEY`.

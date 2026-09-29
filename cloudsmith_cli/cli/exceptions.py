@@ -210,18 +210,11 @@ def get_401_error_hint(ctx, opts, exc):
             "try again."
         )
 
-    if ctx.info_name == "token":
-        # This is already the token command
-        return (
-            "The login failed - Either your email address and/or "
-            "your password was incorrect. Please check them and "
-            "try again!"
-        )
-
     return (
         "You don't have an API key or access token set, but it seems this action "
-        "requires authentication - Try getting your API key via "
-        "'cloudsmith token', or access token via 'cloudsmith auth', then try again."
+        "requires authentication - Try setting your API key via "
+        "$CLOUDSMITH_API_KEY, or getting an access token via 'cloudsmith auth', "
+        "then try again."
     )
 
 

@@ -36,18 +36,6 @@ def runner():
 
 
 @pytest.fixture()
-def username():
-    """Return the PYTEST_CLOUDSMITH_USERNAME value."""
-    return _get_env_var_or_skip("PYTEST_CLOUDSMITH_USERNAME")
-
-
-@pytest.fixture()
-def password():
-    """Return the PYTEST_CLOUDSMITH_PASSWORD value."""
-    return _get_env_var_or_skip("PYTEST_CLOUDSMITH_PASSWORD")
-
-
-@pytest.fixture()
 def api_key():
     """Return the PYTEST_CLOUDSMITH_API_KEY value."""
     return _get_env_var_or_skip("PYTEST_CLOUDSMITH_API_KEY")
