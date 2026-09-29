@@ -220,14 +220,22 @@ class DynamicMCPServer:
 
         The OpenAPI spec declares its version prefix out-of-band from the
         path keys: OpenAPI 3 (v2) puts it in ``servers[].url`` (e.g.
-        ``https://api.cloudsmith.io/v2/``) while Swagger 2 (v1) uses
-        ``basePath``. The path keys themselves are version-relative, so we
-        must prepend that prefix or v2 requests hit ``/analytics/...`` instead
-        of ``/v2/analytics/...`` and 404. We keep the configured host (so a
-        custom ``--api-host`` still wins) and only borrow the version path.
+        ``https://api.cloudsmith.io/v2/``). The path keys themselves are
+        version-relative, so we must prepend that prefix or v2 requests hit
+        ``/analytics/...`` instead of ``/v2/analytics/...`` and 404. We keep
+        the configured host (so a custom ``--api-host`` still wins) and only
+        borrow the version path.
+
+        The ``basePath`` branch is a no-op fallback in practice: the v1
+        (Swagger 2) spec is generated with ``basePath`` resolving to ``"/"``,
+        so it contributes no prefix. That is harmless because the v1 API also
+        answers unprefixed. It is kept only as a defensive fallback.
         """
+
         version_path = ""
         servers = self.spec.get("servers")
+        # Only a single server entry is expected today, so we take the first;
+        # revisit this if a spec ever declares multiple servers.
         if servers and servers[0].get("url"):
             version_path = parse.urlsplit(servers[0]["url"]).path
         else:
