@@ -448,6 +448,65 @@ class TestMCPServerVersionPrefix:
             == "https://api.cloudsmith.io/v2/analytics/logs/package/{workspace}/"
         )
 
+    def test_load_openapi_spec_wires_version_aware_base_url(self):
+        """The real ``load_openapi_spec()`` wiring end-to-end.
+        ``create_mcp_http_client`` returns a real ``httpx.AsyncClient``, 
+        so we feed it an ``httpx.MockTransport`` instead of hand-faking the 
+        async client: the real client's ``async with`` and ``raise_for_status()`` 
+        run for free, so a URL that 404s would raise rather than silently pass.
+        """
+        import asyncio
+
+        import httpx
+
+        server = self._server()
+        server.api_config.headers = {}
+
+        specs = {
+            "v1": {
+                "basePath": "/",
+                "paths": {
+                    "/repos/": {
+                        "get": {
+                            "operationId": "repos_list",
+                            "summary": "List repositories",
+                        }
+                    }
+                },
+            },
+            "v2": {
+                "servers": [{"url": "https://api.cloudsmith.io/v2/"}],
+                "paths": {
+                    "/analytics/logs/package/{workspace}/": {
+                        "get": {
+                            "operationId": "analytics_logs_package_list",
+                            "summary": "List package log events",
+                        }
+                    }
+                },
+            },
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            spec = specs["v2"] if "/v2/" in str(request.url) else specs["v1"]
+            return httpx.Response(200, json=spec)
+
+        mock_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        with patch(
+            "cloudsmith_cli.core.mcp.server.create_mcp_http_client",
+            return_value=mock_client,
+        ):
+            asyncio.run(server.load_openapi_spec())
+
+        v2_tool = server.tools["analytics_logs_package_list"]
+        assert (
+            v2_tool.base_url + v2_tool.path
+            == "https://api.cloudsmith.io/v2/analytics/logs/package/{workspace}/"
+        )
+        v1_tool = server.tools["repos_list"]
+        assert v1_tool.base_url + v1_tool.path == "https://api.cloudsmith.io/repos/"
+
 
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
 
