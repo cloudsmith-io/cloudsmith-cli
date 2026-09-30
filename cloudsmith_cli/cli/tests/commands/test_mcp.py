@@ -450,9 +450,9 @@ class TestMCPServerVersionPrefix:
 
     def test_load_openapi_spec_wires_version_aware_base_url(self):
         """The real ``load_openapi_spec()`` wiring end-to-end.
-        ``create_mcp_http_client`` returns a real ``httpx2.AsyncClient``, 
-        so we feed it an ``httpx2.MockTransport`` instead of hand-faking the 
-        async client: the real client's ``async with`` and ``raise_for_status()`` 
+        ``create_mcp_http_client`` returns a real ``httpx2.AsyncClient``,
+        so we feed it an ``httpx2.MockTransport`` instead of hand-faking the
+        async client: the real client's ``async with`` and ``raise_for_status()``
         run for free, so a URL that 404s would raise rather than silently pass.
         """
         import asyncio
