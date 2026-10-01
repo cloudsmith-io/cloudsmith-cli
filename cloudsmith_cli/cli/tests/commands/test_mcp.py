@@ -308,7 +308,9 @@ class TestMCPServerDynamicToolGeneration:
         import asyncio
 
         asyncio.run(
-            server._generate_tools_from_spec()  # pylint: disable=protected-access
+            server._generate_tools_from_spec(  # pylint: disable=protected-access
+                "https://api.cloudsmith.io/v1"
+            )
         )
 
         # Verify tools were created
@@ -367,7 +369,9 @@ class TestMCPServerDynamicToolGeneration:
         import asyncio
 
         asyncio.run(
-            server._generate_tools_from_spec()  # pylint: disable=protected-access
+            server._generate_tools_from_spec(  # pylint: disable=protected-access
+                "https://api.cloudsmith.io/v1"
+            )
         )
 
         # Verify only repos tools were created
@@ -387,125 +391,31 @@ class TestMCPServerDynamicToolGeneration:
         assert server.mcp.version == get_cli_version()
 
 
-class TestMCPServerVersionPrefix:
-    """The version prefix (/v1, /v2) is declared out-of-band from the path
-    keys (servers[].url for v2, basePath for v1), so tool URLs must prepend
-    it or v2 requests hit the wrong path and 404.
-    """
+class TestMCPServerLoadOpenAPISpec:
+    def test_tool_urls_include_api_version(self):
+        import asyncio
 
-    def _server(self):
         import cloudsmith_api
+        import httpx2
 
         api_config = cloudsmith_api.Configuration()
         api_config.host = "https://api.cloudsmith.io"
-        api_config.api_key = {"X-Api-Key": "test-key"}
-        return DynamicMCPServer(api_config=api_config, force_all_tools=True)
-
-    def test_v2_spec_base_url_includes_version_from_servers(self):
-        server = self._server()
-        server.spec = {"servers": [{"url": "https://api.cloudsmith.io/v2/"}]}
-        assert server._spec_base_url() == "https://api.cloudsmith.io/v2"
-
-    def test_v1_spec_base_url_falls_back_to_basepath(self):
-        server = self._server()
-        server.spec = {"basePath": "/"}
-        assert server._spec_base_url() == "https://api.cloudsmith.io"
-
-    def test_spec_base_url_keeps_configured_host_not_spec_host(self):
-        """A custom --api-host must win; only the version path is borrowed."""
-        import cloudsmith_api
-
-        api_config = cloudsmith_api.Configuration()
-        api_config.host = "https://api.eu.cloudsmith.example"
-        api_config.api_key = {"X-Api-Key": "test-key"}
+        api_config.headers = {}
         server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
-        server.spec = {"servers": [{"url": "https://api.cloudsmith.io/v2/"}]}
-        assert server._spec_base_url() == "https://api.eu.cloudsmith.example/v2"
 
-    def test_v2_tools_are_generated_under_v2_path(self):
-        import asyncio
-
-        server = self._server()
-        server.spec = {
-            "servers": [{"url": "https://api.cloudsmith.io/v2/"}],
-            "paths": {
-                "/analytics/logs/package/{workspace}/": {
-                    "get": {
-                        "operationId": "analytics_logs_package_list",
-                        "summary": "List package log events",
-                    }
-                }
-            },
-        }
-        asyncio.run(
-            server._generate_tools_from_spec(  # pylint: disable=protected-access
-                server._spec_base_url()  # pylint: disable=protected-access
-            )
-        )
-        tool = server.tools["analytics_logs_package_list"]
-        assert (
-            tool.base_url + tool.path
-            == "https://api.cloudsmith.io/v2/analytics/logs/package/{workspace}/"
-        )
-
-    def test_load_openapi_spec_wires_version_aware_base_url(self):
-        """The real ``load_openapi_spec()`` wiring end-to-end.
-        ``create_mcp_http_client`` returns a real ``httpx2.AsyncClient``,
-        so we feed it an ``httpx2.MockTransport`` instead of hand-faking the
-        async client: the real client's ``async with`` and ``raise_for_status()``
-        run for free, so a URL that 404s would raise rather than silently pass.
-        """
-        import asyncio
-
-        import httpx2
-
-        server = self._server()
-        server.api_config.headers = {}
-
-        specs = {
-            "v1": {
-                "basePath": "/",
-                "paths": {
-                    "/repos/": {
-                        "get": {
-                            "operationId": "repos_list",
-                            "summary": "List repositories",
-                        }
-                    }
-                },
-            },
-            "v2": {
-                "servers": [{"url": "https://api.cloudsmith.io/v2/"}],
-                "paths": {
-                    "/analytics/logs/package/{workspace}/": {
-                        "get": {
-                            "operationId": "analytics_logs_package_list",
-                            "summary": "List package log events",
-                        }
-                    }
-                },
-            },
-        }
-
-        def handler(request: httpx2.Request) -> httpx2.Response:
-            spec = specs["v2"] if "/v2/" in str(request.url) else specs["v1"]
+        def handler(request):
+            version = "v2" if "/v2/" in str(request.url) else "v1"
+            spec = {"paths": {"/repos/": {"get": {"operationId": f"{version}_list"}}}}
             return httpx2.Response(200, json=spec)
-
-        mock_client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
 
         with patch(
             "cloudsmith_cli.core.mcp.server.create_mcp_http_client",
-            return_value=mock_client,
+            return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
         ):
             asyncio.run(server.load_openapi_spec())
 
-        v2_tool = server.tools["analytics_logs_package_list"]
-        assert (
-            v2_tool.base_url + v2_tool.path
-            == "https://api.cloudsmith.io/v2/analytics/logs/package/{workspace}/"
-        )
-        v1_tool = server.tools["repos_list"]
-        assert v1_tool.base_url + v1_tool.path == "https://api.cloudsmith.io/repos/"
+        assert server.tools["v1_list"].base_url == "https://api.cloudsmith.io/v1"
+        assert server.tools["v2_list"].base_url == "https://api.cloudsmith.io/v2"
 
 
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}

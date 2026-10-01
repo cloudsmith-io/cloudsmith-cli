@@ -213,34 +213,7 @@ class DynamicMCPServer:
                 response = await http_client.get(spec_url)
                 response.raise_for_status()
                 self.spec = response.json()
-                await self._generate_tools_from_spec(self._spec_base_url())
-
-    def _spec_base_url(self) -> str:
-        """Base URL for the currently-loaded spec, including its version path.
-
-        The OpenAPI spec declares its version prefix out-of-band from the
-        path keys: OpenAPI 3 (v2) puts it in ``servers[].url`` (e.g.
-        ``https://api.cloudsmith.io/v2/``). The path keys themselves are
-        version-relative, so we must prepend that prefix or v2 requests hit
-        ``/analytics/...`` instead of ``/v2/analytics/...`` and 404. We keep
-        the configured host (so a custom ``--api-host`` still wins) and only
-        borrow the version path.
-
-        The ``basePath`` branch is a no-op fallback in practice: the v1
-        (Swagger 2) spec is generated with ``basePath`` resolving to ``"/"``,
-        so it contributes no prefix. That is harmless because the v1 API also
-        answers unprefixed. It is kept only as a defensive fallback.
-        """
-
-        version_path = ""
-        servers = self.spec.get("servers")
-        # Only a single server entry is expected today, so we take the first;
-        # revisit this if a spec ever declares multiple servers.
-        if servers and servers[0].get("url"):
-            version_path = parse.urlsplit(servers[0]["url"]).path
-        else:
-            version_path = self.spec.get("basePath", "") or ""
-        return f"{self.api_base_url.rstrip('/')}{version_path}".rstrip("/")
+                await self._generate_tools_from_spec(f"{self.api_base_url}/{version}")
 
     def _get_tool_groups(self, tool_name: str) -> list[str]:
         """
@@ -314,14 +287,11 @@ class DynamicMCPServer:
         # Otherwise disable all categories in the default list
         return not any(group in DEFAULT_DISABLED_CATEGORIES for group in tool_groups)
 
-    async def _generate_tools_from_spec(self, base_url: str | None = None):
+    async def _generate_tools_from_spec(self, base_url: str):
         """Generate MCP tools from OpenAPI specification"""
 
         if not self.spec:
             raise ValueError("OpenAPI spec not loaded")
-
-        if base_url is None:
-            base_url = self.api_base_url
 
         # Parse paths and generate tools
         for path, path_item in self.spec.get("paths", {}).items():
