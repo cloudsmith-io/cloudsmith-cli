@@ -665,9 +665,15 @@ jobs:
     # the action repository also adds a release to its CHANGELOG.md.
     # The action repository requires reviewed pull requests. When the pull
     # request merges, the action repository tests, tags and releases it.
+    # Each run rebuilds one branch from master, so a newer CLI release
+    # replaces a bump that is not merged yet. The bump never repeats an
+    # action version and never pins an older CLI.
     needs: [validate, publish-github]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    concurrency:
+      group: publish-action
+      cancel-in-progress: false
     permissions:
       contents: read
     env:
@@ -691,7 +697,8 @@ jobs:
           ACTION_REPO: ${{ github.repository_owner }}/cloudsmith-cli-action
         run: |
           set -euo pipefail
-          BRANCH="release/cloudsmith-cli-v${VERSION}"
+          BRANCH="release/cloudsmith-cli"
+          TITLE="Bump cloudsmith-cli to v${VERSION}"
           gh auth setup-git
           git clone --depth 1 "https://github.com/${ACTION_REPO}.git" action
           ACTION_VERSION="$(cd action && bash scripts/bump-cli-version.sh "${VERSION}")"
@@ -701,15 +708,17 @@ jobs:
           fi
           git -C action checkout -b "${BRANCH}"
           git -C action add action.yml CHANGELOG.md
-          git -C action commit -m "Bump cloudsmith-cli to v${VERSION}"
+          git -C action commit -m "${TITLE}"
           git -C action push --force origin "${BRANCH}"
-          if [ -z "$(gh pr list --repo "${ACTION_REPO}" --head "${BRANCH}" --state open --json number --jq '.[].number')" ]; then
+          BODY="Automated update that pins the default cli-version to cloudsmith-cli v${VERSION}. When this pull request merges and the tests pass, the action releases v${ACTION_VERSION} and moves its major tag. Merge with a squash merge."
+          PR_NUMBER="$(gh pr list --repo "${ACTION_REPO}" --head "${BRANCH}" --state open --json number --jq '.[].number')"
+          if [ -z "${PR_NUMBER}" ]; then
             gh pr create --repo "${ACTION_REPO}" \
               --head "${BRANCH}" --base master \
-              --title "Bump cloudsmith-cli to v${VERSION}" \
-              --body "Automated update that pins the default cli-version to cloudsmith-cli v${VERSION}. When this pull request merges and the tests pass, the action releases v${ACTION_VERSION} and moves its major tag. Merge with a squash merge."
+              --title "${TITLE}" --body "${BODY}"
           else
-            echo "pull request for ${BRANCH} already open"
+            gh pr edit "${PR_NUMBER}" --repo "${ACTION_REPO}" \
+              --title "${TITLE}" --body "${BODY}"
           fi
 
       - name: Report a skipped action update
