@@ -150,6 +150,7 @@ def _print_verbose_text(data):
 @click.pass_context
 def whoami(ctx, opts):
     """Retrieve your current authentication status."""
+    raise RuntimeError("ENG-14146 test exception - remove me")  # FIXME: temp
     use_stderr = utils.should_use_stderr(opts)
 
     click.echo(
