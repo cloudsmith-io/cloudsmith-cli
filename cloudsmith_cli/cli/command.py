@@ -35,6 +35,19 @@ def _is_json_output_requested(exception):
     return False
 
 
+def _is_debug_requested(args=None):
+    """Determine if --debug was passed (the click context is gone by now).
+
+    ``args`` are the arguments given to ``main``; click falls back to
+    ``sys.argv`` when they are ``None``, so we do the same.
+    """
+    import sys
+
+    if args is None:
+        args = sys.argv[1:]
+    return "--debug" in args
+
+
 def _format_click_exception_as_json(exception):
     """Format a ClickException as a JSON error dict."""
     return {
@@ -178,3 +191,19 @@ class AliasGroup(DYMGroup):
                 raise
             e.show()
             sys.exit(e.exit_code)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # Anything reaching here is unexpected: click's own errors and
+            # handled API errors (which exit via ctx.exit) are dealt with
+            # above or never get this far.
+            if not original_standalone_mode:
+                raise
+            main_args = kwargs.get("args", args[0] if args else None)
+            if _is_debug_requested(main_args):
+                import traceback
+
+                click.echo(traceback.format_exc(), err=True, nl=False)
+            from ..core import telemetry
+
+            if not telemetry.report_exception(e):
+                click.echo(f"Error: {telemetry.format_exception_summary(e)}", err=True)
+            sys.exit(1)
