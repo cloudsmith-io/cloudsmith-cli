@@ -667,7 +667,8 @@ jobs:
     # request merges, the action repository tests, tags and releases it.
     # Each run rebuilds one branch from master, so a newer CLI release
     # replaces a bump that is not merged yet. The bump never repeats an
-    # action version and never pins an older CLI.
+    # action version. It never pins a CLI older than master or the open pull
+    # request already pins.
     needs: [validate, publish-github]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -701,6 +702,16 @@ jobs:
           TITLE="Bump cloudsmith-cli to v${VERSION}"
           gh auth setup-git
           git clone --depth 1 "https://github.com/${ACTION_REPO}.git" action
+          PR_NUMBER="$(gh pr list --repo "${ACTION_REPO}" --head "${BRANCH}" --state open --json number --jq '.[].number')"
+          if [ -n "${PR_NUMBER}" ]; then
+            git -C action fetch --quiet --depth 1 origin "${BRANCH}"
+            PENDING_VERSION="$(git -C action show FETCH_HEAD:action.yml | yq '.inputs["cli-version"].default')"
+            NEWEST_VERSION="$(printf '%s\n' "${PENDING_VERSION}" "${VERSION}" | sort -V | tail -n 1)"
+            if [ "${PENDING_VERSION}" != "${VERSION}" ] && [ "${NEWEST_VERSION}" = "${PENDING_VERSION}" ]; then
+              echo "pull request #${PR_NUMBER} already pins newer cloudsmith-cli v${PENDING_VERSION}; skipping"
+              exit 0
+            fi
+          fi
           ACTION_VERSION="$(cd action && bash scripts/bump-cli-version.sh "${VERSION}")"
           if [ -z "${ACTION_VERSION}" ]; then
             echo "action already pins cloudsmith-cli v${VERSION}; skipping"
@@ -711,7 +722,6 @@ jobs:
           git -C action commit -m "${TITLE}"
           git -C action push --force origin "${BRANCH}"
           BODY="Automated update that pins the default cli-version to cloudsmith-cli v${VERSION}. When this pull request merges and the tests pass, the action releases v${ACTION_VERSION} and moves its major tag. Merge with a squash merge."
-          PR_NUMBER="$(gh pr list --repo "${ACTION_REPO}" --head "${BRANCH}" --state open --json number --jq '.[].number')"
           if [ -z "${PR_NUMBER}" ]; then
             gh pr create --repo "${ACTION_REPO}" \
               --head "${BRANCH}" --base master \
