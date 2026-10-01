@@ -1,1 +1,8 @@
 * @cloudsmith-io/engineering
+
+# An approval from Cloudsmith Bot satisfies code owner review only for these files.
+/uv.lock @cloudsmith-io/engineering @cloudsmith-bot
+/pyproject.toml @cloudsmith-io/engineering @cloudsmith-bot
+/Dockerfile @cloudsmith-io/engineering @cloudsmith-bot
+/dev.Dockerfile @cloudsmith-io/engineering @cloudsmith-bot
+/.github/workflows/ @cloudsmith-io/engineering @cloudsmith-bot

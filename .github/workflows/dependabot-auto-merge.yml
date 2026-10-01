@@ -1,0 +1,66 @@
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions: {}
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.sender.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: read
+    env:
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      # Major updates need a review from a person.
+      - id: checks
+        name: Wait for the required checks
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The required checks start with this workflow. Give them time to
+          # register, because gh pr checks fails when it finds no checks.
+          sleep 60
+          gh pr checks "${PR_URL}" --required --watch --fail-fast
+          BEHIND_BY="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE_REF}...${HEAD_SHA}" --jq .behind_by)"
+          echo "behind-by=${BEHIND_BY}" >> "${GITHUB_OUTPUT}"
+
+      # Cloudsmith Bot can bypass the up-to-date rule of master. A rebase
+      # makes sure that the checks ran against the latest master.
+      - name: Ask Dependabot to rebase
+        if: steps.checks.outcome == 'success' && steps.checks.outputs.behind-by != '0'
+        env:
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN }}
+        run: gh pr comment "${PR_URL}" --body "@dependabot rebase"
+
+      - name: Approve and merge
+        if: steps.checks.outcome == 'success' && steps.checks.outputs.behind-by == '0'
+        env:
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr review --approve "${PR_URL}"
+          gh pr merge --squash --match-head-commit "${HEAD_SHA}" "${PR_URL}"
