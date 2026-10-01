@@ -308,7 +308,9 @@ class TestMCPServerDynamicToolGeneration:
         import asyncio
 
         asyncio.run(
-            server._generate_tools_from_spec()  # pylint: disable=protected-access
+            server._generate_tools_from_spec(  # pylint: disable=protected-access
+                "https://api.cloudsmith.io/v1"
+            )
         )
 
         # Verify tools were created
@@ -367,7 +369,9 @@ class TestMCPServerDynamicToolGeneration:
         import asyncio
 
         asyncio.run(
-            server._generate_tools_from_spec()  # pylint: disable=protected-access
+            server._generate_tools_from_spec(  # pylint: disable=protected-access
+                "https://api.cloudsmith.io/v1"
+            )
         )
 
         # Verify only repos tools were created
@@ -385,6 +389,33 @@ class TestMCPServerDynamicToolGeneration:
 
         assert server.mcp.version
         assert server.mcp.version == get_cli_version()
+
+
+class TestMCPServerLoadOpenAPISpec:
+    def test_tool_urls_include_api_version(self):
+        import asyncio
+
+        import cloudsmith_api
+        import httpx2
+
+        api_config = cloudsmith_api.Configuration()
+        api_config.host = "https://api.cloudsmith.io"
+        api_config.headers = {}
+        server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
+
+        def handler(request):
+            version = "v2" if "/v2/" in str(request.url) else "v1"
+            spec = {"paths": {"/repos/": {"get": {"operationId": f"{version}_list"}}}}
+            return httpx2.Response(200, json=spec)
+
+        with patch(
+            "cloudsmith_cli.core.mcp.server.create_mcp_http_client",
+            return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        ):
+            asyncio.run(server.load_openapi_spec())
+
+        assert server.tools["v1_list"].base_url == "https://api.cloudsmith.io/v1"
+        assert server.tools["v2_list"].base_url == "https://api.cloudsmith.io/v2"
 
 
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
