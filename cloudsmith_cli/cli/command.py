@@ -204,6 +204,7 @@ class AliasGroup(DYMGroup):
                 click.echo(traceback.format_exc(), err=True, nl=False)
             from ..core import telemetry
 
-            if not telemetry.report_exception(e):
-                click.echo(f"Error: {telemetry.format_exception_summary(e)}", err=True)
+            # Reporting is silent: the user sees the same line either way.
+            telemetry.report_exception(e)
+            click.echo(f"Error: {telemetry.format_exception_summary(e)}", err=True)
             sys.exit(1)
