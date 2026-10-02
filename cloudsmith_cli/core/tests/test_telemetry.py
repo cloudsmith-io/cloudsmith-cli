@@ -43,6 +43,20 @@ def test_defaults_to_os_environ(monkeypatch):
     assert telemetry.telemetry_disabled() is True
 
 
+def test_default_dsn_is_a_public_ingest_key():
+    """Guard against committing a secret-bearing (legacy) DSN or a non-Sentry host."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(telemetry.DSN)
+
+    assert parts.scheme == "https"
+    assert parts.username
+    assert parts.password is None  # legacy "key:secret@" DSNs carry a secret
+    assert parts.hostname.endswith(".sentry.io")
+    assert ".ingest." in f".{parts.hostname}"
+    assert parts.path.strip("/").isdigit()
+
+
 def test_dsn_override():
     assert telemetry.get_dsn({telemetry.DSN_ENV: " https://k@h/1 "}) == "https://k@h/1"
     assert telemetry.get_dsn({telemetry.DSN_ENV: ""}) == ""
