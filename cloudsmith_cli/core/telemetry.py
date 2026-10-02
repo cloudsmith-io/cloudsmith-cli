@@ -25,9 +25,11 @@ import sys
 import click
 
 #: Production ingest DSN for the dedicated ``cloudsmith-cli`` Sentry project.
-#: A DSN is a public, write-only ingest key; shipping it is expected. Empty
-#: means "no default destination": nothing is sent unless overridden.
-DSN = ""
+#: Not a secret: a DSN is a public, write-only ingest key, and every client
+#: that reports to Sentry ships one. Abuse (event injection) is contained on
+#: the Sentry side by the project's rate limit and inbound filters; if the key
+#: is abused, rotate it in Sentry and ship the new DSN.
+DSN = "https://0a93d7eb45c68ec0116ff0938d94002e@o89590.ingest.us.sentry.io/4512180867104768"
 #: Developer override for the DSN (e.g. a test project or a local catcher).
 #: Set it empty to disable sending.
 DSN_ENV = "CLOUDSMITH_TELEMETRY_DSN"
