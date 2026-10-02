@@ -16,7 +16,10 @@ def buildkite_env():
         "BUILDKITE": "true",
         "BUILDKITE_JOB_ID": "0184990a-477b-4fa8-9968-496074483cee",
     }
-    with mock.patch.dict("os.environ", env, clear=True):
+    with (
+        mock.patch.dict("os.environ", env, clear=True),
+        mock.patch("shutil.which", return_value="/usr/bin/buildkite-agent"),
+    ):
         yield env
 
 
@@ -41,6 +44,13 @@ class TestDetect:
         with mock.patch.dict("os.environ", buildkite_env, clear=True):
             detector = BuildkiteDetector(context=CredentialContext())
             assert detector.detect() is False
+
+    def test_not_detected_without_agent(self, buildkite_env):
+        with mock.patch("shutil.which", return_value=None) as which:
+            detector = BuildkiteDetector(context=CredentialContext())
+            assert detector.detect() is False
+
+        which.assert_called_once_with("buildkite-agent")
 
 
 class TestGetToken:
@@ -89,3 +99,7 @@ class TestIntegration:
     def test_detect_environment_selects_buildkite(self, buildkite_env):
         detector = detect_environment(CredentialContext())
         assert isinstance(detector, BuildkiteDetector)
+
+    def test_detect_environment_skips_buildkite_without_agent(self, buildkite_env):
+        with mock.patch("shutil.which", return_value=None):
+            assert detect_environment(CredentialContext()) is None
