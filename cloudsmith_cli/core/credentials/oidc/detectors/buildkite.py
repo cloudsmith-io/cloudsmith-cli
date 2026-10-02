@@ -12,6 +12,7 @@ References:
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 
 from .base import EnvironmentDetector
@@ -26,8 +27,10 @@ class BuildkiteDetector(EnvironmentDetector):
     id = "buildkite"
 
     def detect(self) -> bool:
-        return os.environ.get("BUILDKITE") == "true" and bool(
-            os.environ.get("BUILDKITE_JOB_ID")
+        return (
+            os.environ.get("BUILDKITE") == "true"
+            and bool(os.environ.get("BUILDKITE_JOB_ID"))
+            and shutil.which("buildkite-agent") is not None
         )
 
     def get_token(self) -> str:
