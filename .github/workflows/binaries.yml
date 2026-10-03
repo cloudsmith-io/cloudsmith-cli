@@ -61,7 +61,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -121,7 +121,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - if: matrix.mode == 'native'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -131,6 +131,16 @@ jobs:
           TARGET: ${{ matrix.name }}
           ARCHIVE: ${{ matrix.archive }}
         run: echo "name=cloudsmith-$(cat cloudsmith_cli/data/VERSION)-${TARGET}${ARCHIVE}" >> "$GITHUB_OUTPUT"
+
+      # cryptography has no Intel macOS wheel, so uv builds it from source.
+      # A dynamic build loads a libssl.3.dylib that PyInstaller can replace
+      # with an older copy. Static OpenSSL removes that dependency. Remove the
+      # cached build, because uv reuses it even when the build settings change.
+      - if: matrix.name == 'macos-x86_64'
+        shell: bash
+        run: |
+          echo "OPENSSL_STATIC=1" >> "$GITHUB_ENV"
+          uv cache clean cryptography
 
       - if: matrix.mode == 'native'
         shell: bash

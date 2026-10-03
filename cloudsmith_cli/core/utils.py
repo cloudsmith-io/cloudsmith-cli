@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import sys
 from enum import Enum, auto
 
 import click
@@ -59,6 +60,20 @@ def is_interactive(env: dict[str, str], tty_mode: TTYMode) -> bool:
         case TTYMode.DISABLED:
             return False
     return True
+
+
+def controlling_terminal_mode() -> TTYMode:
+    """Return whether a prompt can reach a user through the terminal.
+
+    Stdin can be a pipe while a user is at the terminal, so check the
+    terminal that getpass uses: the console on Windows, else /dev/tty.
+    """
+    terminal = "CONIN$" if sys.platform == "win32" else "/dev/tty"
+    try:
+        with open(terminal, "rb"):
+            return TTYMode.ENABLED
+    except OSError:
+        return TTYMode.DISABLED
 
 
 def get_github_website():
