@@ -24,9 +24,15 @@ def _is_windows() -> bool:
     return os.name == "nt"
 
 
-def _launcher_filename(name: str, *, windows: bool) -> str:
-    """Return the launcher file name for the platform (``.cmd`` on Windows)."""
-    return f"{name}.cmd" if windows else name
+def _launcher_filename(
+    name: str, *, windows: bool, windows_suffix: str = ".cmd"
+) -> str:
+    """Return the launcher file name for the platform (``.cmd`` on Windows).
+
+    Some tools only discover a Windows launcher with a specific extension
+    (NuGet requires ``.exe`` or ``.bat``), so the suffix can be overridden.
+    """
+    return f"{name}{windows_suffix}" if windows else name
 
 
 def _launcher_content(target_cmd: str, *, windows: bool) -> str:
@@ -54,7 +60,13 @@ def _user_bin_dir(windows: bool) -> Path:
     return Path.home() / ".local" / "bin"
 
 
-def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> Path:
+def write_launcher(
+    bin_dir: Path,
+    name: str,
+    target_cmd: str,
+    dry_run=False,
+    windows_suffix: str = ".cmd",
+) -> Path:
     """Write a launcher script for *name* in *bin_dir* that execs *target_cmd*.
 
     Parameters
@@ -66,6 +78,9 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
     target_cmd:
         The command the launcher forwards to (e.g.
         ``cloudsmith credential-helper docker``).
+    windows_suffix:
+        File extension used for the batch launcher on Windows.  The script
+        body is valid for both ``.cmd`` and ``.bat``.
 
     Returns
     -------
@@ -73,15 +88,13 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
         The path of the written file.
     """
     windows = _is_windows()
+    filename = _launcher_filename(name, windows=windows, windows_suffix=windows_suffix)
     if dry_run:
-        if windows:
-            return bin_dir / f"{name}.cmd"
-        else:
-            return bin_dir / name
+        return Path(bin_dir) / filename
     bin_dir = Path(bin_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
 
-    dest = bin_dir / _launcher_filename(name, windows=windows)
+    dest = bin_dir / filename
     dest.write_text(
         _launcher_content(target_cmd, windows=windows), encoding="utf-8", newline=""
     )
@@ -91,7 +104,9 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
     return dest
 
 
-def remove_launcher(bin_dir: Path, name: str, dry_run=False) -> bool:
+def remove_launcher(
+    bin_dir: Path, name: str, dry_run=False, windows_suffix: str = ".cmd"
+) -> bool:
     """Remove a launcher previously created by :func:`write_launcher`.
 
     Parameters
@@ -100,13 +115,17 @@ def remove_launcher(bin_dir: Path, name: str, dry_run=False) -> bool:
         Directory that contains (or contained) the launcher.
     name:
         Base name of the helper binary (without extension).
+    windows_suffix:
+        File extension the launcher was written with on Windows.
 
     Returns
     -------
     bool
         ``True`` if a file was removed, ``False`` if no file was found.
     """
-    target = Path(bin_dir) / _launcher_filename(name, windows=_is_windows())
+    target = Path(bin_dir) / _launcher_filename(
+        name, windows=_is_windows(), windows_suffix=windows_suffix
+    )
 
     if target.exists():
         if not dry_run:
