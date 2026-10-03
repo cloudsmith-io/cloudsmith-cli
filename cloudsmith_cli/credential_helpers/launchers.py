@@ -24,7 +24,9 @@ def _is_windows() -> bool:
     return os.name == "nt"
 
 
-def _launcher_filename(name: str, *, windows: bool, windows_suffix: str = ".cmd") -> str:
+def _launcher_filename(
+    name: str, *, windows: bool, windows_suffix: str = ".cmd"
+) -> str:
     """Return the launcher file name for the platform (``.cmd`` on Windows).
 
     Some tools only discover a Windows launcher with a specific extension

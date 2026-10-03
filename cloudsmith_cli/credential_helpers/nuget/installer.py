@@ -16,11 +16,11 @@ launcher at install time.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 import shlex
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..backends import BackendKind
@@ -35,6 +35,8 @@ from ..launchers import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from ...core.credentials.models import CredentialResult
 
 logger = logging.getLogger(__name__)
@@ -243,7 +245,7 @@ class NuGetInstaller:
             tokens = text.split()
         org = None
         domains: list[str] = []
-        for flag, value in zip(tokens, tokens[1:]):
+        for flag, value in itertools.pairwise(tokens):
             if flag == "--workspace":
                 org = value
             elif flag == "--domain":

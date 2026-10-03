@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added a NuGet credential provider. `cloudsmith credential-helper install nuget` writes a `nuget-plugin-cloudsmith` launcher (`nuget-plugin-cloudsmith.bat` on Windows) beside the `cloudsmith` executable. `dotnet restore`, MSBuild, and Visual Studio discover the launcher on PATH (.NET SDK 9.0.200 or later, NuGet 6.13 or later). They then authenticate to Cloudsmith NuGet feeds with your existing CLI credentials (environment, config, keyring, or OIDC), so no token is stored in `nuget.config`. The helper speaks the cross-platform plugin protocol (`-Plugin`) and the `nuget.exe` protocol (`-Uri`). It returns credentials only for `nuget.cloudsmith.io` and the Workspace's NuGet custom domains, and declines every other feed, such as nuget.org. Pass `--workspace` to discover custom domains when you install the helper and at restore time. Pass `--domain` to trust more hosts. Both values are stored in the launcher so that IDEs and build servers use them without environment variables.
+
 ### Fixed
 
 - MCP tools that use the v2 API, such as `analytics_logs_package_list`, no longer fail with a 404 error. Previously, the MCP server sent these requests without the `/v2` prefix.

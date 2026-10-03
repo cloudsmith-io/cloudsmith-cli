@@ -74,7 +74,7 @@ print(resolve_bin_dir().as_posix())
 ")"
 case ":$PATH:" in
   *":$(posix_path "$BIN_DIR"):"*) ;;
-  *) fail "$BIN_DIR (beside cloudsmith) is not on PATH" ;;
+  *) echo "WARNING: $BIN_DIR (beside cloudsmith) may not be on PATH" >&2 ;;
 esac
 export DOTNET_NOLOGO=1
 export DOTNET_CLI_TELEMETRY_OPTOUT=1

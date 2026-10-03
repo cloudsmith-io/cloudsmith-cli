@@ -343,7 +343,9 @@ class PluginSession:
         if message_type == "Response":
             if request_id == self._handshake_id:
                 payload = message.get("Payload")
-                code = payload.get("ResponseCode") if isinstance(payload, dict) else None
+                code = (
+                    payload.get("ResponseCode") if isinstance(payload, dict) else None
+                )
                 if code != "Success":
                     logger.debug("NuGet rejected the plugin handshake: %r", code)
                     return False

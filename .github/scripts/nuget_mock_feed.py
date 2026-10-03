@@ -61,7 +61,7 @@ def make_handler(args, packages, stats, lock):
             stats[key] = stats.get(key, 0) + 1
 
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, format, *a):  # noqa: A002
+        def log_message(self, format, *a):
             sys.stderr.write(f"[mock] {format % a}\n")
 
         def _send(self, status, body=b"", content_type="application/json"):
@@ -153,7 +153,11 @@ def make_handler(args, packages, stats, lock):
                 )
                 return
 
-            if parts[0] == "flatcontainer" and len(parts) == 3 and parts[2] == "index.json":
+            if (
+                parts[0] == "flatcontainer"
+                and len(parts) == 3
+                and parts[2] == "index.json"
+            ):
                 versions = packages.get(parts[1].lower())
                 if not versions:
                     self._json({"detail": "Not found."}, HTTPStatus.NOT_FOUND)
