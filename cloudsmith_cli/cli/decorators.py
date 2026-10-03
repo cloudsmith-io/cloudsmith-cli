@@ -533,7 +533,7 @@ def resolve_credentials(f):
             opts.oidc_detector_order, oidc_disabled_detectors
         )
 
-        is_auth_command = ctx.command.name in ("authenticate", "login")
+        is_auth_command = ctx.command.name == "authenticate"
         context = CredentialContext(
             session=opts.session,
             api_key_from_flag=opts.api_key_from_flag,

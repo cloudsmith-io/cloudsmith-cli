@@ -1,31 +1,35 @@
 import pytest
 
-from ...commands.login import login
+from ...commands.main import main
 
 
-@pytest.mark.usefixtures("set_api_host_env_var")
-@pytest.mark.integration
-class TestLoginCommand:
-    def test_login_via_prompt(self, runner, username, password, api_key):
-        """Test that a user can `cloudsmith login` with interactive prompts."""
-        expected = f"Your API key/token is: {api_key}"
-        user_input = [
-            username,  # Login:
-            password,  # Password:
-            password,  # Repeat for confirmation:
-            "N",  # No default config file(s) found, do you want to create them? [y/N]:
-        ]
-        result = runner.invoke(login, input="\n".join(user_input))
-        assert not result.exception
-        assert result.exit_code == 0
-        assert expected in result.stdout
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["login"],
+        ["token"],
+        ["login", "-l", "you@example.com", "-p", "secret"],
+        ["token", "-l", "you@example.com", "-p", "secret"],
+        ["login", "--help"],
+        ["token", "-h"],
+    ],
+)
+def test_login_and_token_print_removal_notice(runner, args):
+    result = runner.invoke(main, args)
 
-    def test_login_via_args(self, runner, username, password, api_key):
-        """Test that a user can `cloudsmith login -l <login> -p <password>`."""
-        expected = f"Your API key/token is: {api_key}"
-        # The "input" argument here answers the following prompt:
-        # No default config file(s) found, do you want to create them? [y/N]:
-        result = runner.invoke(login, ["-l", username, "-p", password], input="N\n")
-        assert not result.exception
-        assert result.exit_code == 0
-        assert expected in result.stdout
+    assert result.return_value == 1
+    assert "'cloudsmith login'" in result.stderr
+    assert "'cloudsmith token'" in result.stderr
+    assert "no longer available" in result.stderr
+    assert "CLOUDSMITH_API_KEY" in result.stderr
+    assert "cloudsmith auth" in result.stderr
+    assert result.stdout == ""
+
+
+def test_help_lists_neither_login_nor_token(runner):
+    result = runner.invoke(main, ["--help"])
+    command_names = [line.split()[0] for line in result.stdout.splitlines() if line]
+
+    assert result.exit_code == 0
+    assert "tokens" in command_names
+    assert not {"login", "token", "login|token"} & set(command_names)

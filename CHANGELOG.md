@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the `cloudsmith login` command and its `cloudsmith token` alias. The Cloudsmith API no longer supports username and password login, so these commands fail in all earlier CLI versions. Both commands now print a notice and exit with status 1. To authenticate, set the `CLOUDSMITH_API_KEY` environment variable, or run `cloudsmith auth` to authenticate with SAML SSO.
+
 ### Fixed
 
 - MCP tools that use the v2 API, such as `analytics_logs_package_list`, no longer fail with a 404 error. Previously, the MCP server sent these requests without the `/v2` prefix.

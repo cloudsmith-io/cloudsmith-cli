@@ -97,16 +97,3 @@ def get_api_client(cls: type[T]) -> T:
             client.api_client.set_default_header(k, v)
 
     return client
-
-
-def unset_api_key():
-    """Unset the API key."""
-    config = cloudsmith_api.Configuration()
-
-    try:
-        del config.api_key["X-Api-Key"]
-    except KeyError:
-        pass
-
-    if hasattr(cloudsmith_api.Configuration, "set_default"):
-        cloudsmith_api.Configuration.set_default(config)

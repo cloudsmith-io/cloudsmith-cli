@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 import click
 import click.testing
-import pytest
 
 from ..decorators import report_retry, resolve_credentials
 
@@ -46,8 +45,7 @@ def test_rejected_sso_session_continues_without_early_exception():
     assert result.stdout == "command ran\n"
 
 
-@pytest.mark.parametrize("command_name", ["authenticate", "login"])
-def test_auth_commands_skip_automatic_keyring_refresh(command_name):
+def test_auth_command_skips_automatic_keyring_refresh():
     def resolve(context):
         assert context.skip_keyring_refresh is True
         return None
@@ -57,7 +55,7 @@ def test_auth_commands_skip_automatic_keyring_refresh(command_name):
         side_effect=resolve,
     ):
         result = click.testing.CliRunner().invoke(
-            _credential_command(name=command_name)
+            _credential_command(name="authenticate")
         )
 
     assert result.exit_code == 0
