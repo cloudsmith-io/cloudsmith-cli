@@ -6,23 +6,14 @@ Transport-light protocol logic for NuGet credential providers.  This module is
 intentionally free of Click/sys imports so it can be unit-tested without
 invoking the CLI machinery.
 
-Two protocols are spoken, chosen by the arguments NuGet passes:
-
-``-Plugin``
-    The cross-platform authentication plugin protocol (v2) used by
-    ``dotnet``, MSBuild, NuGet.exe and Visual Studio.  It is a bidirectional
-    conversation of newline-delimited JSON messages on stdin/stdout that opens
-    with a symmetric handshake: each side sends a ``Handshake`` request and
-    answers the other's.
-
-``-Uri <uri>``
-    The ``nuget.exe`` (v1) credential provider protocol: a single request in
-    the arguments, a single JSON document on stdout, and an exit code of 0
-    (success), 1 (not applicable) or 2 (failure).
+NuGet (``dotnet``, MSBuild and Visual Studio) runs the plugin with
+``-Plugin`` and speaks the cross-platform authentication plugin protocol: a
+bidirectional conversation of newline-delimited JSON messages on stdin/stdout
+that opens with a symmetric handshake, where each side sends a ``Handshake``
+request and answers the other's.
 
 See:
     https://learn.microsoft.com/en-us/nuget/reference/extensibility/nuget-cross-platform-plugins
-    https://learn.microsoft.com/en-us/nuget/reference/extensibility/nuget-exe-credential-providers
 """
 
 import json
@@ -41,11 +32,6 @@ MINIMUM_PROTOCOL_VERSION = "2.0.0"
 #: The username sent with the credential; Cloudsmith authenticates the password.
 USERNAME = "token"
 
-#: v1 exit codes, as defined by nuget.exe.
-EXIT_SUCCESS = 0
-EXIT_NOT_APPLICABLE = 1
-EXIT_FAILURE = 2
-
 _REFUSAL_MESSAGE = (
     "Error: Unable to retrieve credentials. "
     "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
@@ -56,55 +42,14 @@ _REFUSAL_MESSAGE = (
 _NOT_APPLICABLE_MESSAGE = "Not a Cloudsmith NuGet feed."
 
 USAGE_MESSAGE = (
-    "This is the Cloudsmith NuGet credential provider. NuGet runs it for you "
-    "once it is installed with `cloudsmith credential-helper install nuget`.\n"
-    "To test it by hand, pass NuGet's arguments after `--`, for example:\n"
-    "  cloudsmith credential-helper nuget -- "
-    "-Uri https://nuget.cloudsmith.io/WORKSPACE/REPO/v3/index.json"
+    "This is the Cloudsmith NuGet credential provider. NuGet runs it with "
+    "-Plugin once it is installed with `cloudsmith credential-helper install nuget`."
 )
 
-# Arguments that take a value in the v1 protocol; every other switch is a flag.
-_VALUE_ARGS = ("uri", "verbosity")
 
-
-def parse_args(args) -> dict:
-    """Parse NuGet's command-line arguments.
-
-    NuGet passes switches such as ``-Plugin``, ``-Uri <uri>``,
-    ``-NonInteractive``, ``-IsRetry`` and ``-Verbosity <level>``.  Matching is
-    case-insensitive and accepts ``-``, ``--`` or ``/`` prefixes, and unknown
-    switches are ignored for forward compatibility, as the protocol requires.
-
-    Returns:
-        dict: Lower-cased switch names mapped to their value (or ``True`` for
-        a flag).
-    """
-    parsed: dict = {}
-    args = list(args)
-    index = 0
-    while index < len(args):
-        arg = args[index]
-        index += 1
-        if not arg or arg[0] not in "-/":
-            continue
-        name = arg.lstrip("-/")
-        if not name:
-            continue
-        # Accept `-uri=value` / `-uri:value` as well as `-uri value`.
-        for sep in ("=", ":"):
-            key, found, value = name.partition(sep)
-            if found and key.lower() in _VALUE_ARGS:
-                parsed[key.lower()] = value
-                break
-        else:
-            name = name.lower()
-            if name in _VALUE_ARGS:
-                if index < len(args):
-                    parsed[name] = args[index]
-                    index += 1
-                continue
-            parsed[name] = True
-    return parsed
+def is_plugin_mode(args) -> bool:
+    """Return True when NuGet asked for the plugin protocol (``-Plugin``)."""
+    return any(arg.lstrip("-/").lower() == "plugin" for arg in args)
 
 
 def is_supported_source(
@@ -133,81 +78,8 @@ def is_supported_source(
     )
 
 
-def get_credentials(uri, credential=None, api_host=None, org=None, extra_domains=()):
-    """
-    Get the credentials for a Cloudsmith NuGet feed.
-
-    Args:
-        uri: The package source URI NuGet needs credentials for
-        credential: Pre-resolved CredentialResult from the provider chain
-        api_host: Cloudsmith API host URL
-        org: Workspace slug whose custom domains to match against
-        extra_domains: Additional hostnames to treat as Cloudsmith feeds
-
-    Returns:
-        dict: ``{"Username": ..., "Password": ...}``, or None
-    """
-    if not credential or not credential.api_key:
-        return None
-
-    if not is_supported_source(
-        uri,
-        credential=credential,
-        api_host=api_host,
-        org=org,
-        extra_domains=extra_domains,
-    ):
-        return None
-
-    return {"Username": USERNAME, "Password": credential.api_key}
-
-
 # ---------------------------------------------------------------------------
-# v1: nuget.exe credential provider
-# ---------------------------------------------------------------------------
-
-
-def execute_v1(
-    uri, credential=None, api_host=None, org=None, extra_domains=()
-) -> tuple[int, str | None, str | None]:
-    """
-    Answer a single nuget.exe (v1) credential request.
-
-    Returns:
-        A (exit_code, stdout_text, stderr_text) tuple.  Exit code 1 tells
-        nuget.exe to try the next provider, 2 that this provider owns the feed
-        but cannot authenticate it.
-    """
-    try:
-        if not is_supported_source(
-            uri,
-            credential=credential,
-            api_host=api_host,
-            org=org,
-            extra_domains=extra_domains,
-        ):
-            return (EXIT_NOT_APPLICABLE, None, None)
-
-        if not credential or not credential.api_key:
-            body = {"Message": _REFUSAL_MESSAGE}
-            return (EXIT_FAILURE, json.dumps(body), _REFUSAL_MESSAGE)
-
-        body = {
-            "Username": USERNAME,
-            "Password": credential.api_key,
-            "Message": "",
-        }
-        return (EXIT_SUCCESS, json.dumps(body), None)
-    except Exception as exc:  # pylint: disable=broad-except
-        # Protocol boundary: a credential provider must never crash a restore
-        # with a traceback.  Network/SDK errors from the custom-domain lookup
-        # degrade to "not applicable" so nuget.exe tries its other providers.
-        logger.debug("nuget credential-provider v1 failed: %s", exc, exc_info=True)
-        return (EXIT_NOT_APPLICABLE, None, None)
-
-
-# ---------------------------------------------------------------------------
-# v2: cross-platform plugin protocol
+# Cross-platform plugin protocol
 # ---------------------------------------------------------------------------
 
 
@@ -427,10 +299,9 @@ def execute(
     Run the NuGet credential provider for the given NuGet arguments.
 
     Args:
-        args: The arguments NuGet passed (e.g. ``["-Plugin"]`` or
-            ``["-Uri", "https://..."]``)
+        args: The arguments NuGet passed (``["-Plugin"]``)
         stdin: A text stream to read plugin messages from
-        stdout: A text stream to write plugin messages or the v1 response to
+        stdout: A text stream to write plugin messages to
         credential: Pre-resolved CredentialResult from the provider chain
         api_host: Cloudsmith API host URL
         org: Workspace slug whose custom domains to match against
@@ -439,30 +310,14 @@ def execute(
     Returns:
         A (exit_code, stderr_text) tuple.
     """
-    parsed = parse_args(args)
+    if not is_plugin_mode(args):
+        return (1, USAGE_MESSAGE)
 
-    if parsed.get("plugin"):
-        return PluginSession(
-            stdin,
-            stdout,
-            credential=credential,
-            api_host=api_host,
-            org=org,
-            extra_domains=extra_domains,
-        ).run()
-
-    uri = parsed.get("uri")
-    if isinstance(uri, str) and uri:
-        code, body, stderr = execute_v1(
-            uri,
-            credential=credential,
-            api_host=api_host,
-            org=org,
-            extra_domains=extra_domains,
-        )
-        if body is not None:
-            stdout.write(body + "\n")
-            stdout.flush()
-        return (code, stderr)
-
-    return (EXIT_NOT_APPLICABLE, USAGE_MESSAGE)
+    return PluginSession(
+        stdin,
+        stdout,
+        credential=credential,
+        api_host=api_host,
+        org=org,
+        extra_domains=extra_domains,
+    ).run()

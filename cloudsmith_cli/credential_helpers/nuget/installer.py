@@ -89,7 +89,7 @@ class NuGetInstaller:
         NuGet starts the plugin from IDEs and build servers whose environment
         may lack ``CLOUDSMITH_WORKSPACE``, so the Workspace used for
         custom-domain matching is pinned here.  ``--`` stops the CLI from
-        parsing NuGet's own ``-Plugin``/``-Uri`` switches as its options.
+        parsing NuGet's own ``-Plugin`` switch as its options.
         """
         args: list[str] = []
         if org:

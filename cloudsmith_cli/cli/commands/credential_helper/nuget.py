@@ -2,12 +2,11 @@
 """
 NuGet credential provider command.
 
-Implements the NuGet cross-platform authentication plugin protocol and the
-nuget.exe credential provider protocol for Cloudsmith feeds.
+Implements the NuGet cross-platform authentication plugin protocol for
+Cloudsmith feeds.
 
 See:
     https://learn.microsoft.com/en-us/nuget/reference/extensibility/nuget-cross-platform-plugins
-    https://learn.microsoft.com/en-us/nuget/reference/extensibility/nuget-exe-credential-providers
 """
 
 import sys
@@ -19,7 +18,7 @@ from ...decorators import common_api_auth_options, resolve_credentials
 
 
 def _utf8(stream, **kwargs):
-    """Switch a text stream to UTF-8, which both NuGet protocols require."""
+    """Switch a text stream to UTF-8, which the NuGet plugin protocol requires."""
     try:
         stream.reconfigure(encoding="utf-8", **kwargs)
     except (AttributeError, ValueError, OSError):
@@ -44,14 +43,10 @@ def nuget(opts, domains, nuget_args):
     """
     NuGet credential provider for Cloudsmith feeds.
 
-    NuGet runs this command through the ``nuget-plugin-cloudsmith`` launcher
-    that ``cloudsmith credential-helper install nuget`` puts on PATH.  NuGet's
-    own arguments follow ``--``:
-
-    \b
-      -Plugin       Speak the cross-platform plugin protocol (dotnet, MSBuild,
-                    NuGet.exe, Visual Studio) on stdin/stdout.
-      -Uri URI      Answer one nuget.exe (v1) credential request with JSON.
+    NuGet (dotnet, MSBuild, Visual Studio) runs this command through the
+    ``nuget-plugin-cloudsmith`` launcher that ``cloudsmith credential-helper
+    install nuget`` puts on PATH, passing ``-Plugin`` after ``--``.  It then
+    speaks the NuGet cross-platform plugin protocol on stdin/stdout.
 
     Provides credentials for all Cloudsmith NuGet feeds: ``*.cloudsmith.io``,
     ``*.cloudsmith.com``, and any NuGet custom domains configured for the
@@ -61,22 +56,8 @@ def nuget(opts, domains, nuget_args):
     its other credential sources.
 
     \b
-    Output (stdout, -Uri):
-        JSON: {"Username": "token", "Password": "<cloudsmith-token>", "Message": ""}
-
-    \b
-    Exit codes (-Uri):
-        0: Success
-        1: Not a Cloudsmith feed (NuGet tries the next provider)
-        2: A Cloudsmith feed, but no credentials are available
-
-    \b
     Examples:
 
-    \b
-        # Manual testing
-        $ cloudsmith credential-helper nuget -- \\
-            -Uri https://nuget.cloudsmith.io/WORKSPACE/REPO/v3/index.json
     \b
         # Called by NuGet via the launcher
         $ nuget-plugin-cloudsmith -Plugin

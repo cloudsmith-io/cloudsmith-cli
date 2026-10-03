@@ -18,17 +18,13 @@ from ...credential_helpers.launchers import _launcher_filename
 from ...credential_helpers.nuget.installer import NuGetInstaller, NuGetInstallError
 from ...credential_helpers.nuget.runtime import (
     _REFUSAL_MESSAGE,
-    EXIT_FAILURE,
-    EXIT_NOT_APPLICABLE,
-    EXIT_SUCCESS,
     PROTOCOL_VERSION,
     USAGE_MESSAGE,
     PluginSession,
     execute,
-    execute_v1,
-    get_credentials,
+    is_plugin_mode,
+    is_supported_source,
     negotiate_version,
-    parse_args,
 )
 from ..commands.credential_helper.manage import install_cmd
 from ..commands.credential_helper.nuget import nuget
@@ -93,140 +89,64 @@ def _responses(sent) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 1. Argument parsing
+# 1. Arguments and domain matching
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     "args,expected",
     [
-        (["-Plugin"], {"plugin": True}),
-        (["--plugin"], {"plugin": True}),
-        (
-            ["-Uri", CLOUDSMITH_FEED, "-NonInteractive", "-IsRetry"],
-            {"uri": CLOUDSMITH_FEED, "noninteractive": True, "isretry": True},
-        ),
-        (
-            ["/uri", CLOUDSMITH_FEED, "-verbosity", "detailed"],
-            {"uri": CLOUDSMITH_FEED, "verbosity": "detailed"},
-        ),
-        ([f"-Uri={CLOUDSMITH_FEED}"], {"uri": CLOUDSMITH_FEED}),
-        ([f"-Uri:{CLOUDSMITH_FEED}"], {"uri": CLOUDSMITH_FEED}),
-        (["stray", "-", "-FutureSwitch"], {"futureswitch": True}),
-        (["-Uri"], {}),
+        (["-Plugin"], True),
+        (["--plugin"], True),
+        (["/plugin"], True),
+        (["-Uri", CLOUDSMITH_FEED], False),
+        ([], False),
     ],
 )
-def test_parse_args(args, expected):
-    """NuGet's switches parse case-insensitively; unknown ones are kept, not fatal."""
-    assert parse_args(args) == expected
+def test_is_plugin_mode(args, expected):
+    """NuGet's -Plugin switch is matched case-insensitively."""
+    assert is_plugin_mode(args) is expected
 
 
-# ---------------------------------------------------------------------------
-# 2. Domain matching
-# ---------------------------------------------------------------------------
+def test_cloudsmith_feeds_are_supported(credential):
+    assert is_supported_source(CLOUDSMITH_FEED, credential=credential)
 
 
-def test_get_credentials_for_a_cloudsmith_feed(credential):
-    assert get_credentials(CLOUDSMITH_FEED, credential=credential) == {
-        "Username": "token",
-        "Password": "k_abc",
-    }
-
-
-def test_get_credentials_declines_a_foreign_feed(credential):
-    assert get_credentials(NUGET_ORG, credential=credential) is None
-
-
-def test_get_credentials_needs_a_credential():
-    assert get_credentials(CLOUDSMITH_FEED, credential=None) is None
+def test_foreign_feeds_are_not_supported(credential):
+    assert not is_supported_source(NUGET_ORG, credential=credential)
+    assert not is_supported_source(None, credential=credential)
 
 
 def test_custom_domains_are_matched_with_the_nuget_backend_kind(credential):
     with patch(FORMAT_DOMAINS, return_value=["nuget.acme.com"]) as mock_domains:
-        creds = get_credentials(CUSTOM_FEED, credential=credential, org="acme")
-
-    assert creds["Password"] == "k_abc"
+        assert is_supported_source(CUSTOM_FEED, credential=credential, org="acme")
     assert mock_domains.call_args.args == ("acme", BackendKind.NUGET)
 
 
 def test_custom_domains_need_a_workspace(credential):
     with patch(FORMAT_DOMAINS, return_value=["nuget.acme.com"]) as mock_domains:
-        assert get_credentials(CUSTOM_FEED, credential=credential) is None
+        assert not is_supported_source(CUSTOM_FEED, credential=credential)
     mock_domains.assert_not_called()
 
 
 def test_extra_domains_are_trusted_without_a_lookup(credential):
     with patch(FORMAT_DOMAINS) as mock_domains:
-        creds = get_credentials(
+        assert is_supported_source(
             CUSTOM_FEED, credential=credential, extra_domains=("NuGet.Acme.com",)
         )
-    assert creds["Password"] == "k_abc"
     mock_domains.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# 3. nuget.exe (v1) protocol
-# ---------------------------------------------------------------------------
-
-
-def test_v1_success(credential):
-    code, stdout, stderr = execute_v1(CLOUDSMITH_FEED, credential=credential)
-
-    assert code == EXIT_SUCCESS
-    assert json.loads(stdout) == {
-        "Username": "token",
-        "Password": "k_abc",
-        "Message": "",
-    }
-    assert stderr is None
-
-
-def test_v1_foreign_feed_is_not_applicable(credential):
-    assert execute_v1(NUGET_ORG, credential=credential) == (
-        EXIT_NOT_APPLICABLE,
-        None,
-        None,
-    )
-
-
-def test_v1_cloudsmith_feed_without_credentials_fails():
-    code, stdout, stderr = execute_v1(CLOUDSMITH_FEED, credential=None)
-
-    assert code == EXIT_FAILURE
-    assert json.loads(stdout) == {"Message": _REFUSAL_MESSAGE}
-    assert stderr == _REFUSAL_MESSAGE
-
-
-def test_v1_lookup_failure_is_not_applicable(credential):
-    with patch(FORMAT_DOMAINS, side_effect=RuntimeError("boom")):
-        code, stdout, _ = execute_v1(CUSTOM_FEED, credential=credential, org="acme")
-    assert (code, stdout) == (EXIT_NOT_APPLICABLE, None)
-
-
-def test_execute_dispatches_uri_to_v1(credential):
+def test_execute_without_plugin_mode_prints_usage(credential):
     stdout = io.StringIO()
-    code, stderr = execute(
-        ["-Uri", CLOUDSMITH_FEED, "-NonInteractive"],
-        io.StringIO(),
-        stdout,
-        credential=credential,
-    )
-    assert code == EXIT_SUCCESS
-    assert stderr is None
-    assert json.loads(stdout.getvalue())["Password"] == "k_abc"
-
-
-def test_execute_without_a_mode_prints_usage(credential):
-    stdout = io.StringIO()
-    assert execute([], io.StringIO(), stdout, credential=credential) == (
-        EXIT_NOT_APPLICABLE,
-        USAGE_MESSAGE,
-    )
+    assert execute(
+        ["-Uri", CLOUDSMITH_FEED], io.StringIO(), stdout, credential=credential
+    ) == (1, USAGE_MESSAGE)
     assert stdout.getvalue() == ""
 
 
 # ---------------------------------------------------------------------------
-# 4. Cross-platform plugin (v2) protocol
+# 2. Cross-platform plugin protocol
 # ---------------------------------------------------------------------------
 
 
@@ -422,7 +342,7 @@ def test_plugin_transport_failure_degrades_to_a_clean_exit(credential):
 
 
 # ---------------------------------------------------------------------------
-# 5. CLI wiring
+# 3. CLI wiring
 # ---------------------------------------------------------------------------
 
 
@@ -449,46 +369,29 @@ def test_cli_accepts_plugin_switch_without_separator(runner):
     assert json.loads(result.stdout.splitlines()[0])["Method"] == "Handshake"
 
 
-def test_cli_speaks_the_v1_protocol_with_baked_args(runner):
+def test_cli_trusts_baked_domains(runner):
+    stdin = json.dumps(_credentials_request(CUSTOM_FEED)) + "\n"
     result = runner.invoke(
         nuget,
-        args=[
-            "-k",
-            "k_abc",
-            "--workspace",
-            "acme",
-            "--domain",
-            "nuget.acme.com",
-            "--",
-            "-Uri",
-            CUSTOM_FEED,
-            "-NonInteractive",
-            "-Verbosity",
-            "detailed",
-        ],
+        args=["-k", "k_abc", "--domain", "nuget.acme.com", "--", "-Plugin"],
+        input=stdin,
         catch_exceptions=False,
     )
+
+    sent = [json.loads(line) for line in result.stdout.splitlines()]
     assert result.exit_code == 0
-    assert json.loads(result.stdout)["Password"] == "k_abc"
-
-
-def test_cli_v1_declines_a_foreign_feed(runner):
-    result = runner.invoke(
-        nuget, args=["-k", "k_abc", "--", "-Uri", NUGET_ORG], catch_exceptions=False
-    )
-    assert result.exit_code == 1
-    assert result.stdout == ""
+    assert _responses(sent)["c"]["Payload"]["Password"] == "k_abc"
 
 
 def test_cli_without_nuget_args_prints_usage(runner):
     result = runner.invoke(nuget, args=["-k", "k_abc"], catch_exceptions=False)
     assert result.exit_code == 1
-    assert "nuget-plugin" not in result.stdout
+    assert result.stdout == ""
     assert "credential-helper install nuget" in result.stderr
 
 
 # ---------------------------------------------------------------------------
-# 6. Installer
+# 4. Installer
 # ---------------------------------------------------------------------------
 
 
