@@ -1,7 +1,10 @@
+import functools
 import getpass
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+
+from .utils import controlling_terminal_mode, is_interactive
 
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 
@@ -95,6 +98,31 @@ def _apply_keyring_file_location(backend):
     backend.file_path = os.path.join(_expand_path(dir_value), filename)
 
 
+def _refuse_password_prompt():
+    from keyring.errors import KeyringError
+
+    raise KeyringError(
+        "The keyring backend needs a password, but this session cannot prompt "
+        "for one. Set CLOUDSMITH_KEYRING_BACKEND to a backend that does not "
+        "prompt, or to an encrypted backend together with CLOUDSMITH_KEYRING_KEY."
+    )
+
+
+def _disable_password_prompts(backend):
+    """Make encrypted backends raise KeyringError where they would prompt.
+
+    The encrypted file backends call these methods only when they have no
+    key. A chain calls a member only when the earlier members did not
+    handle the call, so the error occurs only for a member that is in use.
+    """
+    if is_interactive(os.environ, controlling_terminal_mode()):
+        return
+    for member in getattr(backend, "backends", None) or [backend]:
+        if hasattr(member, "_unlock"):
+            member._unlock = member._get_new_password = _refuse_password_prompt
+
+
+@functools.cache
 def _prepare_keyring_backend():
     """Resolve env var aliases and apply them to the keyring backend.
 
@@ -102,25 +130,36 @@ def _prepare_keyring_backend():
     without calling super(), so KEYRING_PROPERTY_* env vars (e.g. the
     keyring_key password for those encrypted file backends) never reach
     them through the library's own documented mechanism. Apply them here
-    instead, once the backend has been resolved.
+    instead, once the backend has been resolved. For a chain backend,
+    apply them to the member that stores values, not to the chain.
+
+    Run once per process, because each key assignment unlocks the file
+    again, and the unlock is slow.
     """
     import keyring
+    from keyring.errors import KeyringError
 
     _sync_keyring_backend_env()
     _sync_keyring_property_env()
     _sync_keyring_file_path_env()
-    backend = keyring.get_keyring()
-    _apply_keyring_file_location(backend)
-    backend.set_properties_from_env()
+    storage_backend = _effective_backend()
+    _apply_keyring_file_location(storage_backend)
+    try:
+        storage_backend.set_properties_from_env()
+    except ValueError as exc:
+        raise KeyringError(
+            "CLOUDSMITH_KEYRING_KEY does not unlock the keyring file."
+        ) from exc
+    _disable_password_prompts(keyring.get_keyring())
 
 
 def _get_value(key):
     import keyring
     from keyring.errors import KeyringError
 
-    _prepare_keyring_backend()
     username = _get_username()
     try:
+        _prepare_keyring_backend()
         return keyring.get_password(key, username)
     except KeyringError:
         return None
@@ -275,9 +314,9 @@ def _delete_value(key):
     import keyring
     from keyring.errors import KeyringError
 
-    _prepare_keyring_backend()
     username = _get_username()
     try:
+        _prepare_keyring_backend()
         keyring.delete_password(key, username)
         return True
     except KeyringError:
