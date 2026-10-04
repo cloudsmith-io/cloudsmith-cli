@@ -24,6 +24,7 @@ from ....credential_helpers.launchers import (
     _launcher_content,
     _launcher_filename,
     _user_bin_dir,
+    credential_helper_command,
     is_on_path,
     remove_launcher,
     resolve_bin_dir,
@@ -1337,6 +1338,22 @@ def test_pnpm_install_warn_on_auth_configured_partial_write(
 # ---------------------------------------------------------------------------
 # 18. frozen-binary launcher target (PyInstaller standalone)
 # ---------------------------------------------------------------------------
+
+
+def test_credential_helper_command_uses_bare_cloudsmith(monkeypatch):
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    assert credential_helper_command("nuget") == "cloudsmith credential-helper nuget"
+
+
+def test_credential_helper_command_quotes_frozen_executable(tmp_path):
+    exe = tmp_path / "dir with space" / "cloudsmith"
+    with (
+        patch.object(sys, "frozen", True, create=True),
+        patch.object(sys, "executable", str(exe)),
+    ):
+        assert credential_helper_command("docker") == (
+            f'"{exe}" credential-helper docker'
+        )
 
 
 def test_default_install_launcher_uses_bare_command(tmp_path, monkeypatch):

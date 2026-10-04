@@ -14,6 +14,10 @@ import click
 
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.nuget.installer import (
+    NuGetInstaller,
+    NuGetInstallError,
+)
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
@@ -43,6 +47,7 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "nuget": NuGetInstaller,
 }
 
 
@@ -210,6 +215,11 @@ def install_cmd(
     security restriction. The absolute path to the launcher is automatically
     calculated and configured.
 
+    For NuGet, the ``nuget-plugin-cloudsmith`` launcher must be on PATH, where
+    NuGet 6.13+ (.NET SDK 9.0.200+) discovers it; no NuGet config is changed.
+    The resolved Workspace and any ``--domain`` hosts are baked into the
+    launcher so custom domains are recognised wherever NuGet runs it.
+
     Examples:
 
     \b
@@ -260,6 +270,7 @@ def install_cmd(
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        NuGetInstallError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:

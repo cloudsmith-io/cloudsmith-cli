@@ -9,6 +9,7 @@ from ....credential_helpers.default_domains import (
     BUILTIN_DOMAINS,
     DefaultDomain,
     DomainType,
+    default_hosts,
     load_default_domains,
     untrusted_config_declares_domains,
 )
@@ -187,3 +188,27 @@ def test_untrusted_cwd_config_is_not_honoured(tmp_path, monkeypatch):
 
     assert all(domain.host != "evil.example.com" for domain in domains)
     assert untrusted_config_declares_domains() is True
+
+
+def test_default_hosts_lists_the_builtin_hosts_for_a_backend_kind(no_trusted_config):
+    assert default_hosts(BackendKind.NUGET) == ["nuget.cloudsmith.io"]
+
+
+def test_default_hosts_do_not_match_formatless_hosts_for_deb(no_trusted_config):
+    """BackendKind.DEB is 0, so a falsy check would match dl/upload hosts."""
+    assert default_hosts(BackendKind.DEB) == []
+
+
+def test_default_hosts_follow_an_explicit_config_override(
+    tmp_path, no_trusted_config, monkeypatch
+):
+    config = tmp_path / "explicit.ini"
+    config.write_text(
+        "[domains]\n"
+        "nuget.internal.example.com = nuget\n"
+        "packages.internal.example.com = python\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_config.ConfigReader, "config_files", [str(config)])
+
+    assert default_hosts(BackendKind.NUGET) == ["nuget.internal.example.com"]

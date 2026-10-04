@@ -13,6 +13,7 @@ from rich.table import Table
 from . import ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
+from .credentials.models import BASIC_AUTH_USERNAME
 from .session import create_requests_session
 
 
@@ -448,16 +449,13 @@ def stream_download(
             "Authorization"
         ].startswith("Bearer "):
             bearer_token = request_headers["Authorization"].split("Bearer ", 1)[1]
-            auth = ("token", bearer_token)
+            auth = (BASIC_AUTH_USERNAME, bearer_token)
             request_headers = {
                 k: v for k, v in request_headers.items() if k != "Authorization"
             }
         elif "X-Api-Key" in request_headers:
             api_key = request_headers["X-Api-Key"]
-            auth = (
-                "token",
-                api_key,
-            )  # Basic auth: (username='token', password=api_key)
+            auth = (BASIC_AUTH_USERNAME, api_key)
             # Remove X-Api-Key header since we're using Basic Auth instead
             request_headers = {
                 k: v for k, v in request_headers.items() if k != "X-Api-Key"

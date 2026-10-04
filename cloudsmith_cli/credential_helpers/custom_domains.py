@@ -343,6 +343,7 @@ def get_format_domains(
     credential: CredentialResult | None = None,
     api_host: str | None = None,
     refresh: bool = False,
+    strict: bool = False,
     configure_api: bool = True,
 ) -> list[str]:
     """
@@ -354,6 +355,8 @@ def get_format_domains(
         credential: Optional resolved credential for authentication
         api_host: Cloudsmith API host URL
         refresh: When ``True``, bypass the cache and fetch fresh data from the API.
+        strict: When ``True``, a failed lookup re-raises its ``ApiException``,
+            as in :func:`get_custom_domains`.
         configure_api: When ``True`` (default), configure the SDK from
             ``api_host`` and ``credential``. Pass ``False`` when the caller has
             already done so, for the reasons :func:`get_custom_domains` gives.
@@ -367,6 +370,7 @@ def get_format_domains(
         credential=credential,
         api_host=api_host,
         refresh=refresh,
+        strict=strict,
         configure_api=configure_api,
     )
     matching = [

@@ -13,6 +13,7 @@ from .cargo import cargo as cargo_cmd
 from .docker import docker as docker_cmd
 from .generic import generic as generic_cmd
 from .manage import install_cmd, list_cmd, uninstall_cmd
+from .nuget import nuget as nuget_cmd
 from .pnpm import pnpm as pnpm_cmd
 from .terraform import terraform as terraform_cmd
 
@@ -38,6 +39,9 @@ def credential_helper():
         # Install cargo credential helper
         $ cloudsmith credential-helper install cargo
     \b
+        # Install NuGet credential provider
+        $ cloudsmith credential-helper install nuget
+    \b
         # Test Docker credential helper directly
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker
     \b
@@ -54,5 +58,6 @@ credential_helper.add_command(uninstall_cmd, name="uninstall")
 credential_helper.add_command(list_cmd, name="list")
 credential_helper.add_command(cargo_cmd, name="cargo")
 credential_helper.add_command(terraform_cmd, name="terraform")
+credential_helper.add_command(nuget_cmd, name="nuget")
 
 main.add_command(credential_helper, name="credential-helper")

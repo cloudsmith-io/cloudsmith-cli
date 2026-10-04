@@ -62,6 +62,13 @@ Three auth paths feed `core.api.init.initialise_api`:
 
 Tests live alongside code: `cloudsmith_cli/cli/tests/` and `cloudsmith_cli/core/tests/`. The CLI tests use Click's `CliRunner`; API tests stub HTTP with `httpretty` and freeze time with `freezegun`. `bin/` and `.venv/` are excluded from pytest discovery (`norecursedirs` in `pyproject.toml`). Tests that call the live Cloudsmith service carry the `integration` marker.
 
+The live tests run against staging (`api-stg.cloudsmith.io`). The NuGet credential provider test needs this one-off setup:
+
+- Two long-lived private repositories hold `Cloudsmith.Cli.NuGetProbe` 1.0.0 (`netstandard2.0`): `cloudsmith/cli-pytest-nuget` and `cloudsmith-custom-domain/cli-pytest-custom-domain`. The test only reads from them.
+- The custom-domain case uses the `cli-pytest-custom-domain` service account in `cloudsmith-custom-domain`. It needs read access to its repository. Its key is the `PYTEST_CLOUDSMITH_CUSTOM_DOMAIN_API_KEY` secret. The Workspace is the `PYTEST_CLOUDSMITH_CUSTOM_DOMAIN_WORKSPACE` repository variable.
+- Custom-domain tests carry the `custom_domain` marker. Run them alone with `pytest -m custom_domain`. Leave them out with `pytest -m "integration and not custom_domain"`.
+- To recreate the probe package, run `dotnet pack` on a `netstandard2.0` project with `-p:PackageId=Cloudsmith.Cli.NuGetProbe -p:Version=1.0.0`. Then push the `.nupkg` with `cloudsmith push nuget`.
+
 ## Style notes specific to this repo
 
 - `flake8` ignores `E203,E501,D107,D102,W503` and uses `max-line-length=100` (but `black` enforces 88). `isort` profile lists known third-party packages explicitly — when adding a new third-party import, add it to `.isort.cfg`'s `known_third_party` if isort puts it in the wrong group.

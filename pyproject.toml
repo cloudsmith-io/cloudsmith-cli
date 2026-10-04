@@ -123,6 +123,7 @@ norecursedirs = ["bin", ".git", ".venv"]
 testpaths = ["cloudsmith_cli"]
 markers = [
     "integration: tests that call the live Cloudsmith service",
+    "custom_domain: live tests that need the custom-domain Workspace and its API key",
 ]
 
 [tool.coverage.run]

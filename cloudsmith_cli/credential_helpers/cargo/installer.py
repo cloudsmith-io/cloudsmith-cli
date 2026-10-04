@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,7 +28,13 @@ from ...core.cache_utils import merge_config_file
 from ..backends import BackendKind
 from ..common import extract_hostname
 from ..custom_domains import get_format_domains
-from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+from ..launchers import (
+    credential_helper_command,
+    is_on_path,
+    remove_launcher,
+    resolve_bin_dir,
+    write_launcher,
+)
 
 if TYPE_CHECKING:
     from ...core.credentials.models import CredentialResult
@@ -67,7 +72,6 @@ class CargoInstaller:
     """
 
     LAUNCHER_NAME = "cargo-credential-cloudsmith"
-    TARGET_CMD = "cloudsmith credential-helper cargo"
     #: The value written into Cargo's config.  Cargo resolves a bare name
     #: through ``PATH`` (and requires the ``cargo-credential-`` prefix).
     PROVIDER_VALUE = "cargo-credential-cloudsmith"
@@ -80,21 +84,6 @@ class CargoInstaller:
 
     name = "cargo"
     summary = "Cargo credential provider for Cloudsmith registries"
-
-    @classmethod
-    def _resolve_target_cmd(cls) -> str:
-        """Return the command the launcher forwards to.
-
-        A pip/source install resolves the bare ``cloudsmith`` command via
-        ``PATH``.  A frozen standalone binary (PyInstaller) is not guaranteed
-        to be on ``PATH`` under that name, so point the launcher at the
-        absolute executable instead — mirroring the frozen handling in
-        :func:`cloudsmith_cli.cli.commands.mcp._get_server_config`.  The path
-        is quoted so a directory containing spaces still execs correctly.
-        """
-        if getattr(sys, "frozen", False):
-            return f'"{sys.executable}" credential-helper cargo'
-        return cls.TARGET_CMD
 
     # ------------------------------------------------------------------
     # config.toml mutation
@@ -323,7 +312,7 @@ class CargoInstaller:
 
         # Real install
         launcher_path = write_launcher(
-            target_dir, self.LAUNCHER_NAME, self._resolve_target_cmd()
+            target_dir, self.LAUNCHER_NAME, credential_helper_command(self.name)
         )
         actions.append(f"wrote launcher {launcher_path}")
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added a NuGet credential provider. Run `cloudsmith credential-helper install nuget` once. Then `dotnet restore`, MSBuild, and Visual Studio find the provider on PATH (.NET SDK 9.0.200 or later) and authenticate to Cloudsmith feeds with your existing CLI credentials. No token is stored in `nuget.config`. To include your Workspace's NuGet custom domains, add `--workspace`.
+
 ### Fixed
 
 - MCP tools that use the v2 API, such as `analytics_logs_package_list`, no longer fail with a 404 error. Previously, the MCP server sent these requests without the `/v2` prefix.
