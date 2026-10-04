@@ -357,6 +357,31 @@ def test_get_custom_domains_strict_raises_on_failure(
 
 
 @httpretty.activate(allow_net_connect=False)
+def test_get_format_domains_strict_raises_on_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{API_HOST}/orgs/acme/custom-domains/",
+        body=json.dumps({"detail": "error"}),
+        status=403,
+        content_type="application/json",
+    )
+
+    credential = CredentialResult(api_key="k_abc", source_name="test")
+    with pytest.raises(ApiException):
+        get_format_domains(
+            "acme",
+            BackendKind.NUGET,
+            credential=credential,
+            api_host=API_HOST,
+            strict=True,
+        )
+
+
+@httpretty.activate(allow_net_connect=False)
 def test_get_custom_domains_caches_an_empty_listing(tmp_path, monkeypatch):
     """An org with no custom domains answers 200 with an empty array.
 

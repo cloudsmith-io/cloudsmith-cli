@@ -10,6 +10,9 @@ if TYPE_CHECKING:
 
     import requests
 
+# Cloudsmith authenticates the password of a Basic credential and ignores the username.
+BASIC_AUTH_USERNAME = "token"
+
 
 @dataclass
 class CredentialContext:

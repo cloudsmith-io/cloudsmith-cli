@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import click
+import requests
 
 from cloudsmith_cli.core import download
 from cloudsmith_cli.core.credentials.models import CredentialResult
@@ -369,6 +370,25 @@ class TestStreamDownload(unittest.TestCase):
         # Verify file was written
         mock_file.write.assert_any_call(b"data1")
         mock_file.write.assert_any_call(b"data2")
+
+    def test_stream_download_basic_endpoint_sends_token_username(self):
+        """A /basic/ URL moves the API key or SSO token into Basic auth."""
+        self.session.get.side_effect = requests.exceptions.RequestException("stop")
+        for headers, secret in (
+            ({"X-Api-Key": "k_abc"}, "k_abc"),
+            ({"Authorization": "Bearer sso-token"}, "sso-token"),
+        ):
+            with self.assertRaises(click.ClickException):
+                download.stream_download(
+                    "https://dl.cloudsmith.io/basic/acme/repo/file.deb",
+                    "/path/to/file.deb",
+                    self.session,
+                    headers=headers,
+                    overwrite=True,
+                )
+            kwargs = self.session.get.call_args.kwargs
+            self.assertEqual(kwargs["auth"], ("token", secret))
+            self.assertEqual(kwargs["headers"], {})
 
 
 class TestSelectBestPackage(unittest.TestCase):

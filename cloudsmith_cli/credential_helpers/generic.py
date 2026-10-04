@@ -8,6 +8,8 @@ Emits a versioned JSON credential document.
 import json
 import logging
 
+from ..core.credentials.models import BASIC_AUTH_USERNAME
+
 logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = 1
@@ -51,7 +53,7 @@ def build_response(credential):
 
     return {
         "version": PROTOCOL_VERSION,
-        "username": "token",
+        "username": BASIC_AUTH_USERNAME,
         "password": credential.api_key,
     }
 

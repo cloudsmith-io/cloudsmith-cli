@@ -289,6 +289,15 @@ def load_default_domains(config_path: Path | str | None = None) -> list[DefaultD
     return domains
 
 
+def default_hosts(backend_kind: int) -> list[str]:
+    """Return the default hosts that serve `backend_kind`."""
+    return [
+        domain.host
+        for domain in load_default_domains()
+        if domain.backend_kind == backend_kind
+    ]
+
+
 def untrusted_config_declares_domains() -> bool:
     """True if a directory-relative config.ini declares a [domains] section.
 

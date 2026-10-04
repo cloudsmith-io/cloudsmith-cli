@@ -12,6 +12,7 @@ See: https://github.com/docker/docker-credential-helpers
 import json
 import logging
 
+from ...core.credentials.models import BASIC_AUTH_USERNAME
 from ..backends import BackendKind
 from ..common import is_cloudsmith_domain
 
@@ -53,7 +54,7 @@ def get_credentials(server_url, credential=None, api_host=None, org=None):
     ):
         return None
 
-    return {"Username": "token", "Secret": credential.api_key}
+    return {"Username": BASIC_AUTH_USERNAME, "Secret": credential.api_key}
 
 
 def _execute_get(
