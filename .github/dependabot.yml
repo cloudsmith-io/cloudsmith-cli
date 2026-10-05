@@ -12,6 +12,16 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      uv-major:
+        patterns: ["*"]
+        update-types:
+          - "major"
+      uv-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     cooldown:
       default-days: 7
@@ -24,6 +34,16 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      docker-major:
+        patterns: ["*"]
+        update-types:
+          - "major"
+      docker-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     cooldown:
       default-days: 7
@@ -32,6 +52,16 @@ updates:
       interval: "weekly"
     groups:
       actions-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+      actions-major:
+        patterns: ["*"]
+        update-types:
+          - "major"
+      actions-security:
+        applies-to: security-updates
         patterns: ["*"]
         update-types:
           - "minor"
