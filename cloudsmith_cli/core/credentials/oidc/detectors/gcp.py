@@ -59,6 +59,14 @@ class GCPDetector(EnvironmentDetector):
             logger.debug("Error during Google credential detection", exc_info=True)
             return False
 
+        if isinstance(credentials, user_creds.Credentials):
+            audience = self.context.oidc_audience or DEFAULT_AUDIENCE
+            if audience != credentials.client_id:
+                logger.debug(
+                    "Google user ADC audience does not match %s, skipping", audience
+                )
+                return False
+
         if not isinstance(
             credentials,
             (
