@@ -77,6 +77,17 @@ class TestDetect:
         assert detector is not None
         assert detector.id == "generic"
 
+    def test_incompatible_user_adc_does_not_shadow_generic_detector(self, monkeypatch):
+        monkeypatch.setenv("CLOUDSMITH_OIDC_TOKEN", "generic-token")
+        credentials = user_creds.Credentials(None, client_id="oauth-client-id")
+        with mock.patch("google.auth.default", return_value=(credentials, None)):
+            detector = detect_environment(
+                CredentialContext(oidc_detector_order="gcp,generic")
+            )
+        assert detector is not None
+        assert detector.id == "generic"
+        assert detector.get_token() == "generic-token"
+
 
 class TestGetTokenMetadata:
     @pytest.mark.parametrize("audience", [None, "custom-audience"])
@@ -192,10 +203,11 @@ class TestGetTokenUserCredentials:
     @pytest.mark.parametrize("audience", ["cloudsmith", "oauth-client-id"])
     def test_does_not_silently_ignore_requested_audience(self, audience):
         credentials = mock.Mock(spec=user_creds.Credentials)
+        credentials.client_id = "oauth-client-id"
         credentials.id_token = make_token("oauth-client-id")
         with mock.patch("google.auth.default", return_value=(credentials, None)):
             detector = make_detector(oidc_audience=audience)
-            assert detector.detect()
+            assert detector.detect() is (audience == "oauth-client-id")
             if audience == "oauth-client-id":
                 assert detector.get_token() == credentials.id_token
             else:
