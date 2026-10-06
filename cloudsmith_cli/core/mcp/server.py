@@ -213,7 +213,7 @@ class DynamicMCPServer:
                 response = await http_client.get(spec_url)
                 response.raise_for_status()
                 self.spec = response.json()
-                await self._generate_tools_from_spec()
+                await self._generate_tools_from_spec(f"{self.api_base_url}/{version}")
 
     def _get_tool_groups(self, tool_name: str) -> list[str]:
         """
@@ -287,7 +287,7 @@ class DynamicMCPServer:
         # Otherwise disable all categories in the default list
         return not any(group in DEFAULT_DISABLED_CATEGORIES for group in tool_groups)
 
-    async def _generate_tools_from_spec(self):
+    async def _generate_tools_from_spec(self, base_url: str):
         """Generate MCP tools from OpenAPI specification"""
 
         if not self.spec:
@@ -304,7 +304,7 @@ class DynamicMCPServer:
                         path,
                         operation,
                         path_parameters,
-                        self.api_base_url,
+                        base_url,
                     )
                     if tool and self._is_tool_allowed(tool.name):
                         self.tools[tool.name] = tool
