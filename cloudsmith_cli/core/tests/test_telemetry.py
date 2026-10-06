@@ -223,6 +223,7 @@ ENV_API_KEY = "csk-env-0123456789abcdef"
 FILE_API_KEY = "csk-file-fedcba9876543210"
 SLUG = "acme-workspace-slug"
 PASSWORD = "hunter2-very-secret"
+ENTITLEMENT = "Ent1tlementTok3n"
 
 FAKE_MODULE = """
 def push_package(path, api_key):
@@ -230,7 +231,8 @@ def push_package(path, api_key):
     password = {password!r}
     raise FileNotFoundError(
         f"cannot read {{path}} with {{api_key}} via "
-        "https://bob:pw@cloudsmith.acme.internal/api/ for {username}@{hostname}"
+        "https://bob:pw@cloudsmith.acme.internal/api/ for {username}@{hostname} "
+        "from https://dl.cloudsmith.io/{entitlement}/{slug}/repo/raw/x.tgz"
     )
 """
 
@@ -260,7 +262,11 @@ def anonymity_env(tmp_path, monkeypatch):
     module_path = project / "acme_tool.py"
     module_path.write_text(
         FAKE_MODULE.format(
-            slug=SLUG, password=PASSWORD, username=USERNAME, hostname=HOSTNAME
+            slug=SLUG,
+            password=PASSWORD,
+            username=USERNAME,
+            hostname=HOSTNAME,
+            entitlement=ENTITLEMENT,
         )
     )
     spec = importlib.util.spec_from_file_location("acme_tool", module_path)
@@ -292,8 +298,10 @@ def scrubbed_event(anonymity_env, sentry_events):
         FILE_API_KEY,
         SLUG,
         PASSWORD,
+        ENTITLEMENT,
         "bob:pw",
         "acme.internal",
+        "acme-pkg",
     ],
 )
 def test_no_identifier_or_secret_anywhere(scrubbed_event, secret):
@@ -308,20 +316,22 @@ def test_no_real_paths_or_machine_identity(scrubbed_event, anonymity_env, tmp_pa
 
 
 def test_home_paths_are_abbreviated(scrubbed_event):
+    """Frame paths keep their shape; message paths keep only their root."""
     (exc,) = scrubbed_event["exception"]["values"]
     frame = exc["stacktrace"]["frames"][-1]
 
     assert frame["function"] == "push_package"
     assert frame["abs_path"] == "~/projects/tool/acme_tool.py"
-    assert "~/pkgs/acme-pkg-1.0.whl" in exc["value"]
+    assert "cannot read ~/<path> with" in exc["value"]
 
 
 def test_message_keeps_its_shape(scrubbed_event):
     (exc,) = scrubbed_event["exception"]["values"]
 
     assert exc["value"] == (
-        "cannot read ~/pkgs/acme-pkg-1.0.whl with [redacted] via "
-        "https://[redacted]@<host>/api/ for <user>@<host>"
+        "cannot read ~/<path> with [redacted] via "
+        "https://[redacted]@<host>/<path> for <email> "
+        "from https://dl.cloudsmith.io/<path>"
     )
 
 
@@ -446,17 +456,185 @@ def test_secrets():
     [
         (
             "https://bob:pw@api.cloudsmith.io/x",
-            "https://[redacted]@api.cloudsmith.io/x",
+            "https://[redacted]@api.cloudsmith.io/<path>",
         ),
-        ("https://api.cloudsmith.io/v1/", "https://api.cloudsmith.io/v1/"),
-        ("https://dl.cloudsmith.com/x", "https://dl.cloudsmith.com/x"),
-        ("https://cs.acme.internal/v1", "https://<host>/v1"),
-        ("https://evilcloudsmith.io/v1", "https://<host>/v1"),
+        ("https://api.cloudsmith.io/v1/", "https://api.cloudsmith.io/<path>"),
+        ("https://api.cloudsmith.io/", "https://api.cloudsmith.io/"),
+        ("https://dl.cloudsmith.com/x", "https://dl.cloudsmith.com/<path>"),
+        ("https://cs.acme.internal/v1", "https://<host>/<path>"),
+        ("https://evilcloudsmith.io/v1", "https://<host>/<path>"),
+        (
+            "see (https://api.cloudsmith.io/v1/x).",
+            "see (https://api.cloudsmith.io/<path>).",
+        ),
+        ("https://[fe80::1]:8080/a", "https://<host>:8080/<path>"),
         (
             "HTTPSConnectionPool(host='10.0.0.5', port=443)",
             "HTTPSConnectionPool(host='<host>', port=443)",
         ),
+        (
+            "HTTPSConnectionPool(host='api.cloudsmith.io', port=443)",
+            "HTTPSConnectionPool(host='api.cloudsmith.io', port=443)",
+        ),
     ],
 )
 def test_hosts_and_url_credentials(text, expected):
-    assert scrubber().scrub(text) == expected
+    assert scrubber().scrub_message(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Paths on Cloudsmith hosts carry slugs and entitlement tokens.
+        (
+            "GET https://dl.cloudsmith.io/AbCdEf123456/acme-org/repo/raw/p.tgz",
+            "GET https://dl.cloudsmith.io/<path>",
+        ),
+        (
+            "https://api.cloudsmith.io/v1/packages/acme/repo/?token=zzz",
+            "https://api.cloudsmith.io/<path>",
+        ),
+        (
+            "https://bucket.s3.amazonaws.com/x?X-Amz-Credential=AKIAABCDEFGHIJKLMNOP",
+            "https://<host>/<path>",
+        ),
+        # Passwords containing "@" or "/".
+        (
+            "https://user:p@ss@proxy.acme.internal:3128",
+            "https://[redacted]@<host>:3128",
+        ),
+        ("https://user:ab/cd@proxy.acme.internal", "https://[redacted]@<host>"),
+        # Bare hosts, IPs, emails.
+        (
+            "Failed to resolve 'cs.acme.internal' ([Errno 8] nodename)",
+            "Failed to resolve '<name>' ([Errno 8] nodename)",
+        ),
+        ("proxy.acme.internal:3128 refused", "<name>:3128 refused"),
+        ("peer 10.1.2.3 and fe80::1ff:fe23:4567:890a", "peer <ip> and <ip>"),
+        ("user bob.jones@acme.com not found", "user <email> not found"),
+        # Credentials of any origin.
+        (
+            "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.s",
+            "Authorization: [redacted]",
+        ),
+        (
+            "sent Bearer abc123def456 and AKIAABCDEFGHIJKLMNOP",
+            "sent Bearer [redacted] and [redacted]",
+        ),
+        ("jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig", "jwt [redacted]"),
+        (
+            '{"api_key": "s3cr3t", "password": "pw"} token=abc',
+            '{"api_key": "[redacted]", "password": "[redacted]"} token=[redacted]',
+        ),
+        ("X-Api-Key: abcdef", "X-Api-Key: [redacted]"),
+        (
+            "sha 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+            "sha [redacted]",
+        ),
+        # Paths and file names outside the known prefixes.
+        (
+            "No such file: '/mnt/builds/acme-product/acme-product-2.0.rpm'",
+            "No such file: '<path>'",
+        ),
+        ("open /mnt/builds/x.rpm now", "open <path> now"),
+        ("open C:\\Builds\\acme\\x.rpm now", "open <path> now"),
+        (
+            "cannot push dist/acme-1.0.whl to acme-org/secret-repo",
+            "cannot push <path> to <path>",
+        ),
+        ("missing acme-product-2.0.rpm", "missing <name>"),
+    ],
+)
+def test_message_shapes_are_scrubbed(text, expected):
+    assert scrubber().scrub_message(text) == expected
+
+
+def test_message_user_roots_keep_only_the_root():
+    s = scrubber(home=["/home/alice"], path_prefixes=[("/work/proj", "<cwd>")])
+
+    assert s.scrub_message("open '/home/alice/a b.txt'") == "open '~/<path>'"
+    assert s.scrub_message("in /work/proj/dist/x.whl") == "in <cwd>/<path>"
+
+
+def test_message_install_paths_are_kept():
+    s = scrubber(path_prefixes=[("/opt/py/lib/site-packages", "<site>")])
+
+    text = "in /opt/py/lib/site-packages/cloudsmith_cli/core/rest.py line 3"
+    assert s.scrub_message(text) == "in <site>/cloudsmith_cli/core/rest.py line 3"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "'hint'",
+        "'NoneType' object has no attribute 'foo'",
+        "RestClient.request() got an unexpected keyword argument 'x'",
+        "module 'os.path' has no attribute 'nope'",
+        "Expecting value: line 1 column 1 (char 0)",
+        "I/O operation on closed file.",
+        "invalid literal for int() with base 10: 'abc'",
+        "basic authentication failed, e.g. on version 3.11.4",
+        "KeyError: 'x'",
+        "Foo::bar at 12:30:45",
+    ],
+)
+def test_ordinary_messages_survive(text):
+    assert scrubber().scrub_message(text) == text
+
+
+# --- Chained exceptions -----------------------------------------------------
+
+
+class _FakeHttpResponse:
+    status = 404
+    reason = "Not Found"
+    data = b'{"detail": "No repo acme-secret-repo", "email": "bob@acme.com"}'
+
+    def getheaders(self):
+        return {"Set-Cookie": "sessionid=SESSION-COOKIE-123"}
+
+
+def test_chained_api_exceptions_send_no_server_text(sentry_events):
+    """A bug while handling an API error must not leak the HTTP exchange.
+
+    ``catch_raise_api_exception`` raises the CLI's ApiException inside the
+    SDK's, so both are in the chain Sentry reports.
+    """
+    from cloudsmith_api.rest import ApiException as SdkApiException
+
+    from cloudsmith_cli.core.api.exceptions import (
+        ApiException,
+        catch_raise_api_exception,
+    )
+
+    try:
+        try:
+            with catch_raise_api_exception():
+                raise SdkApiException(http_resp=_FakeHttpResponse())
+        except ApiException as exc:
+            raise KeyError("hint") from exc
+    except KeyError as exc:
+        assert telemetry.report_exception(exc) is True
+
+    (event,) = sentry_events
+    values = {v["type"]: v for v in event["exception"]["values"]}
+    assert values["KeyError"]["value"] == "'hint'"
+    assert len(event["exception"]["values"]) == 3
+    serialised = json.dumps(event)
+    for leaked in (
+        "SESSION-COOKIE",
+        "bob@acme.com",
+        "acme-secret-repo",
+        "HTTP response",
+    ):
+        assert leaked not in serialised
+
+
+def test_raw_http_dump_is_cut_from_any_message():
+    s = scrubber()
+    message = "(500)\nReason: x\nHTTP response headers: {'Set-Cookie': 'a'}"
+
+    # pylint: disable=protected-access
+    assert (
+        telemetry._exception_message("other", "Err", message, s) == "(500)\nReason: x\n"
+    )

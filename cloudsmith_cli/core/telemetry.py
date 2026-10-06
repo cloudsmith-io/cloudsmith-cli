@@ -10,8 +10,10 @@ in CI) and is turned off by either of:
 
 Anonymisation is enforced by :func:`scrub_event`, which *rebuilds* the event
 from an allowlist rather than deleting known-bad fields, so anything new the
-SDK starts collecting is dropped by default. Free text (exception messages and
-paths) goes through :func:`scrub_text`.
+SDK starts collecting is dropped by default. Exception messages go through
+:meth:`Scrubber.scrub_message`; frame paths through :meth:`Scrubber.scrub`.
+Messages of SDK exceptions (raw HTTP responses) and of handled API errors
+(server text) are never sent, even when they appear only in the chain.
 
 Keep this module's imports light: it is loaded on the error path only, and
 ``sentry_sdk`` must only ever be imported inside :func:`_send`.
@@ -259,10 +261,14 @@ def _rebuild_event(event, scrubber):
 
 
 def _rebuild_exception(value, scrubber):
+    module = str(value.get("module") or "")
+    type_name = str(value.get("type") or "")
     out = {
-        "type": scrubber.scrub(str(value.get("type") or "")),
-        "module": value.get("module"),
-        "value": scrubber.scrub(str(value.get("value") or ""))[:MAX_MESSAGE_LENGTH],
+        "type": scrubber.scrub(type_name),
+        "module": module or None,
+        "value": _exception_message(
+            module, type_name, str(value.get("value") or ""), scrubber
+        ),
     }
 
     mechanism = value.get("mechanism") or {}
@@ -278,6 +284,34 @@ def _rebuild_exception(value, scrubber):
     return out
 
 
+#: Sentry reports every exception in the ``__context__``/``__cause__`` chain, so
+#: these rules apply to exceptions the CLI handled as well as the one that
+#: escaped.
+_SDK_MODULE_PREFIX = "cloudsmith_api"
+_CLI_MODULE_PREFIX = "cloudsmith_cli"
+#: The generated SDK's ``str()`` appends the raw HTTP exchange.
+_RAW_HTTP_DUMP = re.compile(r"HTTP response (?:headers|body):", re.IGNORECASE)
+
+
+def _exception_message(module, type_name, message, scrubber):
+    """Return the part of an exception's message that may be sent.
+
+    * ``cloudsmith_api`` (generated SDK) exceptions: nothing. Their message
+      is the raw HTTP response - headers (cookies, auth echoes) and body
+      (emails, slugs, any server text).
+    * The CLI's own ``ApiException``: nothing. The SDK takes the message from
+      its ``detail`` attribute, which is server-supplied text naming
+      workspaces, repositories and packages.
+    * Anything else: the scrubbed message, cut before any raw HTTP dump.
+    """
+    if module == _SDK_MODULE_PREFIX or module.startswith(_SDK_MODULE_PREFIX + "."):
+        return ""
+    if type_name == "ApiException" and module.startswith(_CLI_MODULE_PREFIX):
+        return ""
+    message = _RAW_HTTP_DUMP.split(message, maxsplit=1)[0]
+    return scrubber.scrub_message(message)[:MAX_MESSAGE_LENGTH]
+
+
 def _rebuild_frame(frame, scrubber):
     out = {key: frame[key] for key in _FRAME_KEYS if key in frame}
     for key in ("filename", "abs_path"):
@@ -290,11 +324,13 @@ def _rebuild_frame(frame, scrubber):
 
 
 class Scrubber:
-    """Replace identifying or secret substrings in free text.
+    """Replace identifying or secret substrings in text.
 
-    Applied in order: known secret values, URL credentials, non-Cloudsmith
-    hostnames, filesystem prefixes (most specific first), then the OS username
-    and machine hostname as whole words.
+    :meth:`scrub` handles code locations (frame paths) and tags: known secret
+    values, filesystem prefixes (most specific first), then the OS username
+    and machine hostname as whole words. :meth:`scrub_message` additionally
+    removes anything shaped like a credential, URL path, host, email, IP,
+    file name or path from free text.
     """
 
     def __init__(
@@ -369,37 +405,257 @@ class Scrubber:
         )
 
     def scrub(self, text):
+        """Scrub a code location or tag: secrets, path prefixes, identity.
+
+        Used for frame paths, which must stay readable (they point at code,
+        not user data), so no generic name or path collapsing is applied.
+        """
         if not text:
             return text
+        text = self._redact_secrets(text)
+        text = self._replace_prefixes(text)
+        return self._replace_words(text)
+
+    def scrub_message(self, text):
+        """Scrub free text (an exception message) for sending.
+
+        Messages embed whatever the failing code was handling, so beyond the
+        known values this removes anything *shaped* like a credential, URL
+        path, email, IP, hostname, file name or path. Order matters: each
+        step sees the placeholders left by the earlier ones.
+        """
+        if not text:
+            return text
+        text = self._redact_secrets(text)
+        # URLs first: their query strings are dropped whole, not piecemeal.
+        text = _URL.sub(_replace_url, text)
+        for pattern, replacement in _CREDENTIAL_PATTERNS:
+            text = pattern.sub(replacement, text)
+        text = _LONG_TOKEN.sub(_replace_long_token, text)
+        text = _EMAIL.sub("<email>", text)
+        text = _HOST_ASSIGNMENT.sub(_replace_host_assignment, text)
+        text = _IPV4.sub("<ip>", text)
+        text = _IPV6.sub("<ip>", text)
+        text = self._replace_prefixes(text)
+        text = _QUOTED_PATH.sub(_replace_quoted_path, text)
+        text = _ABSOLUTE_PATH.sub(_replace_absolute_path, text)
+        text = _RELATIVE_PATH.sub(_replace_relative_path, text)
+        text = _DOTTED_NAME.sub(_replace_dotted_name, text)
+        return self._replace_words(text)
+
+    def _redact_secrets(self, text):
         for secret in self.secrets:
             text = text.replace(secret, "[redacted]")
-        text = _URL_USERINFO.sub("[redacted]@", text)
-        text = _HOST_REFERENCE.sub(_replace_host, text)
+        return text
+
+    def _replace_prefixes(self, text):
         for pattern, token in self.paths:
             text = pattern.sub(token, text)
+        return text
+
+    def _replace_words(self, text):
         for pattern, token in self.words:
             text = pattern.sub(token, text)
         return text
 
 
 def scrub_text(text):
-    """Scrub ``text`` for the current environment; see :class:`Scrubber`."""
-    return Scrubber.from_environment().scrub(text)
+    """Scrub free ``text`` for the current environment; see :class:`Scrubber`."""
+    return Scrubber.from_environment().scrub_message(text)
 
 
-_URL_USERINFO = re.compile(r"(?<=://)[^/\s@:]+(?::[^/\s@]*)?@")
-#: A host in a URL (``https://[user@]host``) or a urllib3 message
-#: (``host='host'``).
-_HOST_REFERENCE = re.compile(
-    r"(?P<lead>://(?:[^/\s@]*@)?|host=['\"])(?P<host>[A-Za-z0-9.-]+)"
+# --- Message rules ----------------------------------------------------------
+
+_REDACTED = "[redacted]"
+
+#: Shapes of credentials that are not one of the known secret values.
+_CREDENTIAL_PATTERNS = (
+    # An Authorization header, whatever its scheme: the whole value.
+    (
+        re.compile(
+            r"(?i)(\b(?:proxy-)?authorization[\"']?\s*[:=]\s*[\"']?)[^\"'\n,}]+"
+        ),
+        r"\1" + _REDACTED,
+    ),
+    # A scheme-prefixed token outside a header. The digit lookahead keeps
+    # prose such as "basic authentication" intact.
+    (
+        re.compile(r"(?i)\b(bearer|basic)\s+(?=[\w.~+/=-]*\d)[\w.~+/=-]+"),
+        r"\1 " + _REDACTED,
+    ),
+    # JSON Web Tokens.
+    (re.compile(r"\beyJ[\w-]{5,}\.[\w-]{5,}\.[\w-]*"), _REDACTED),
+    # AWS access key IDs.
+    (re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), _REDACTED),
+    # name=value / name: value / "name": "value" for credential-like names,
+    # but not exception names ("KeyError: ...").
+    (
+        re.compile(
+            r"(?i)(?<![\w-])(?![\w-]*(?:error|exception)\b)"
+            r"([\w-]*(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret"
+            r"|passw(?:or)?d|pwd|credential|signature|auth)[\w-]*"
+            r"[\"']?\s*[=:]\s*[\"']?)"
+            r"[^\s\"'&,;}\[\]]+"  # "[" so an earlier [redacted] is not re-hit
+        ),
+        r"\1" + _REDACTED,
+    ),
+)
+
+#: Long opaque strings: API keys, hashes, encoded tokens.
+_LONG_TOKEN = re.compile(r"(?<![\w+=-])[A-Za-z0-9+=_-]{32,}(?![\w+=-])")
+
+
+def _replace_long_token(match):
+    token = match.group(0)
+    if re.fullmatch(r"[0-9a-fA-F]+", token):
+        return _REDACTED
+    has_mixed = (
+        any(c.isdigit() for c in token)
+        and any(c.islower() for c in token)
+        and any(c.isupper() for c in token)
+    )
+    return _REDACTED if has_mixed else token
+
+
+#: A URL, up to whitespace or a quote/angle bracket.
+_URL = re.compile(r"(?i)\b(?P<scheme>[a-z][a-z0-9+.-]*)://(?P<rest>[^\s'\"<>]*)")
+_URL_TRAILING_PUNCTUATION = ".,;:!?)]}"
+
+
+def _replace_url(match):
+    """Keep scheme, an allowed host and the port; drop everything else.
+
+    The path and query are dropped even on Cloudsmith hosts: they carry
+    workspace/repository/package slugs and entitlement tokens. Userinfo runs
+    to the *last* ``@`` so that passwords containing ``@`` or ``/`` are
+    redacted whole (failing safe on the rare URL with ``@`` in its path).
+    """
+    rest = match.group("rest")
+    stripped = rest.rstrip(_URL_TRAILING_PUNCTUATION)
+    trailing, rest = rest[len(stripped) :], stripped
+
+    userinfo = ""
+    if "@" in rest:
+        userinfo = _REDACTED + "@"
+        rest = rest.rsplit("@", 1)[1]
+
+    end = min((i for i in (rest.find(c) for c in "/?#") if i != -1), default=len(rest))
+    authority, tail = rest[:end], rest[end:]
+
+    host, port = authority, ""
+    if authority.startswith("["):  # IPv6 literal
+        host, _, after = authority.partition("]")
+        host += "]"
+        port = after[1:] if after.startswith(":") else ""
+    elif ":" in authority:
+        host, port = authority.rsplit(":", 1)
+    port = f":{port}" if port.isdigit() else ""
+
+    if host and not _is_allowed_host(host):
+        host = "<host>"
+    path = "/<path>" if tail.strip("/") else tail
+    return f"{match.group('scheme')}://{userinfo}{host}{port}{path}{trailing}"
+
+
+def _is_allowed_host(host):
+    host = host.lower().rstrip(".")
+    return any(host == s or host.endswith("." + s) for s in _ALLOWED_HOST_SUFFIXES)
+
+
+_EMAIL = re.compile(r"[\w.+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}")
+
+#: urllib3's ``HTTPSConnectionPool(host='...')``.
+_HOST_ASSIGNMENT = re.compile(r"(?P<lead>\bhost=['\"])(?P<host>[^'\"]+)")
+
+
+def _replace_host_assignment(match):
+    if _is_allowed_host(match.group("host")):
+        return match.group(0)
+    return match.group("lead") + "<host>"
+
+
+_IPV4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w]|\.\d)")
+#: Full or ``::``-compressed IPv6. Requires a hex digit and not being glued to
+#: a word, so ``Foo::bar`` and a lone ``::`` are left alone.
+_IPV6 = re.compile(
+    r"(?i)(?<![\w:])"
+    r"(?=[0-9a-f:]*::|(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4})"
+    r"(?=[0-9a-f:]*[0-9a-f])"
+    r"(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}"
+    r"(?![\w:])"
+)
+
+#: Path-prefix placeholders. Install locations are kept intact (they hold
+#: code, not user data); under user locations only the root is kept.
+_KEPT_ROOTS = ("<prefix>", "<python>", "<site>", "<app>")
+_USER_ROOTS = ("~", "<cwd>", "<tmp>")
+_PATH_ROOT = r"~|<(?:prefix|python|site|app|cwd|tmp)>|[A-Za-z]:"
+
+#: A quoted string containing a path separator (and not a URL): a path, or a
+#: slug such as ``'owner/repo'``.
+_QUOTED_PATH = re.compile(r"(?P<q>['\"])(?P<body>[^'\"\n]*[\\/][^'\"\n]*)(?P=q)")
+#: An unquoted absolute path, optionally under a placeholder root.
+_ABSOLUTE_PATH = re.compile(
+    r"(?<![\w.~<>:/\\-])(?P<root>" + _PATH_ROOT + r")?"
+    r"(?P<sep>[\\/])(?P<rest>[^\s'\"<>|,;()\[\]{}]+)"
+)
+#: An unquoted relative path or slug: ``dist/pkg.whl``, ``owner/repo``.
+_RELATIVE_PATH = re.compile(r"(?<![\w.~<>:/\\-])[\w.-]+(?:[\\/][\w.-]+)+[\\/]?")
+#: Common prose that looks like a relative path.
+_NOT_PATHS = frozenset(
+    ("i/o", "and/or", "n/a", "w/o", "tcp/ip", "read/write", "input/output")
 )
 
 
-def _replace_host(match):
-    host = match.group("host").lower().rstrip(".")
-    if any(host == s or host.endswith("." + s) for s in _ALLOWED_HOST_SUFFIXES):
+def _collapse_path(path):
+    for root in _KEPT_ROOTS:
+        if path.startswith(root):
+            return path
+    for root in _USER_ROOTS:
+        if path.startswith(root) and path[len(root) : len(root) + 1] in ("/", "\\"):
+            return root + path[len(root)] + "<path>"
+    return "<path>"
+
+
+def _replace_quoted_path(match):
+    body = match.group("body")
+    if "://" in body or body.strip().lower() in _NOT_PATHS:
         return match.group(0)
-    return match.group("lead") + "<host>"
+    return match.group("q") + _collapse_path(body.strip()) + match.group("q")
+
+
+def _replace_absolute_path(match):
+    root = match.group("root") or ""
+    return _collapse_path(root + match.group("sep") + match.group("rest"))
+
+
+def _replace_relative_path(match):
+    if match.group(0).lower() in _NOT_PATHS:
+        return match.group(0)
+    return "<path>"
+
+
+#: A dotted name - a hostname or a file name (``cs.acme.internal``,
+#: ``acme-pkg-1.0.whl``). The last label must start with a letter and be two
+#: or more characters, so versions (``3.11``) and ``e.g.`` are left alone.
+_DOTTED_NAME = re.compile(
+    r"(?<![\w.@-])"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+"
+    r"[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9]"
+    r"(?![\w-]|\.\w|\()"  # not mid-name, and not a call: ``Client.request()``
+)
+#: Extensions of code files, whose names point at code rather than user data.
+_CODE_EXTENSIONS = frozenset(("py", "pyc", "pyi", "pyd", "so", "dll", "dylib"))
+
+
+def _replace_dotted_name(match):
+    name = match.group(0)
+    if _is_allowed_host(name) or name.rsplit(".", 1)[-1].lower() in _CODE_EXTENSIONS:
+        return name
+    # Python names - ``os.path``, ``json.decoder.JSONDecodeError`` - are code.
+    if name in sys.modules or name.rsplit(".", 1)[0] in sys.modules:
+        return name
+    return "<name>"
 
 
 def _realpath(path):
