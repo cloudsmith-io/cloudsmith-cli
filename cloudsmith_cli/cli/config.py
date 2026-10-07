@@ -1,5 +1,6 @@
 """CLI - Configuration."""
 
+import configparser
 import os
 import re
 import threading
@@ -192,7 +193,14 @@ class ConfigReader(ConfigFileReader):
             else:
                 cls.config_files.insert(0, path)
 
-        config = cls.read_config()
+        try:
+            config = cls.read_config()
+        except (configparser.Error, UnicodeDecodeError) as exc:
+            # A malformed file is the user's to fix, not a CLI bug: keep the
+            # error as-is for the user, but never send it to error reporting
+            # (see core.telemetry.is_reportable).
+            exc.report_to_telemetry = False
+            raise
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
 
