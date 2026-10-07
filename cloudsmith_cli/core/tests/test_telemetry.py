@@ -114,6 +114,31 @@ def test_opted_out_sends_nothing(sentry_events, monkeypatch, name):
     assert sentry_events == []
 
 
+def test_user_errors_are_not_reported(sentry_events):
+    from cloudsmith_cli.core.api.exceptions import TwoFactorRequiredException
+
+    exc = raise_and_catch(TwoFactorRequiredException("2fa-token"))
+
+    assert telemetry.is_reportable(exc) is False
+    assert telemetry.report_exception(exc) is False
+    assert sentry_events == []
+
+
+def test_user_error_marker_is_inherited(sentry_events):
+    class UserError(Exception):
+        report_to_telemetry = False
+
+    class SpecificUserError(UserError):
+        pass
+
+    assert telemetry.report_exception(raise_and_catch(SpecificUserError())) is False
+    assert sentry_events == []
+
+
+def test_exceptions_are_reportable_by_default():
+    assert telemetry.is_reportable(RuntimeError("boom")) is True
+
+
 def test_empty_dsn_sends_nothing(sentry_events, monkeypatch):
     monkeypatch.setenv(telemetry.DSN_ENV, "")
 

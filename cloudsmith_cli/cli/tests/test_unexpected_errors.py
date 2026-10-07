@@ -15,7 +15,10 @@ import pytest
 
 from cloudsmith_cli.cli.commands.main import main
 from cloudsmith_cli.core import telemetry
-from cloudsmith_cli.core.api.exceptions import ApiException
+from cloudsmith_cli.core.api.exceptions import (
+    ApiException,
+    TwoFactorRequiredException,
+)
 
 API_KEY = "fake-api-key-0123456789"
 
@@ -177,6 +180,15 @@ def test_click_errors_are_not_reported(runner, tmp_path, sentry_events, exc):
         result = runner.invoke(main, whoami_args(tmp_path))
 
     assert result.exit_code != 0
+    assert sentry_events == []
+
+
+def test_user_error_is_not_reported(runner, tmp_path, sentry_events):
+    with whoami_raises(TwoFactorRequiredException("2fa-token")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert "Two-factor authentication is required" in result.stderr
     assert sentry_events == []
 
 
