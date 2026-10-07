@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+### Fixed
+
+## [1.28.0] - 2026-10-07
+
+### Added
+
+- Added `cloudsmith update` to update standalone binary installs in place. The CLI also checks for new versions in the background and prints a notice with the release link and the update command for your install method. See [Updating](https://docs.cloudsmith.com/developer-tools/cli#updating) for more information. (#419)
+
 ### Fixed
 
 - MCP tools that use the v2 API, such as `analytics_logs_package_list`, no longer fail with a 404 error. Previously, the MCP server sent these requests without the `/v2` prefix.
