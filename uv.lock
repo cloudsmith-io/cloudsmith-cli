@@ -521,6 +521,7 @@ wheels = [
 name = "cloudsmith-cli"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "click" },
     { name = "click-configfile" },
     { name = "click-didyoumean" },
@@ -581,6 +582,7 @@ release = [
 requires-dist = [
     { name = "boto3", extras = ["crt"], marker = "extra == 'all'", specifier = ">=1.26.0" },
     { name = "boto3", extras = ["crt"], marker = "extra == 'aws'", specifier = ">=1.26.0" },
+    { name = "certifi", specifier = ">=2024.7.4" },
     { name = "click", specifier = ">=8.2,!=8.3.0" },
     { name = "click-configfile", specifier = ">=0.2.3" },
     { name = "click-didyoumean", specifier = ">=0.0.3" },
