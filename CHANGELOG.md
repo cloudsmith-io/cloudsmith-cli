@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added Google Cloud (GCP) support to OIDC credential auto-discovery. Install with the `gcp` extra (`pip install cloudsmith-cli[gcp]`) to use an attached service account, a `GOOGLE_APPLICATION_CREDENTIALS` service-account key, or local service-account impersonation via ADC. The CLI requests an ID token with audience `cloudsmith` by default, using IAM `generateIdToken` if the metadata identity endpoint returns 404 (requires `iam.serviceAccounts.getOpenIdToken`). User ADC requires its OAuth client ID as the explicitly configured audience. Unsupported ADC types and installations without the extra are skipped. The detector supports the existing order/disable controls using the id `gcp`.
+
 ### Fixed
 
 ## [1.28.0] - 2026-10-07
