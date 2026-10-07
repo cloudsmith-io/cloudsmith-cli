@@ -63,6 +63,11 @@ def catch_raise_api_exception():
 
 
 class TwoFactorRequiredException(Exception):
+    """The account needs a two-factor code: a user-side condition, not a bug."""
+
+    #: Not a CLI bug, so never sent to error reporting (see core.telemetry).
+    report_to_telemetry = False
+
     def __init__(self, two_factor_token):
         self.two_factor_token = two_factor_token
         super().__init__("Two-factor authentication is required")

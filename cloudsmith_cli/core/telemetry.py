@@ -98,6 +98,21 @@ def get_dsn(env: "os._Environ[str] | dict[str, str] | None" = None) -> str:
     return DSN
 
 
+#: Class attribute that marks an exception type as a user error rather than a
+#: CLI bug. Set it to ``False`` on the class; subclasses inherit it.
+REPORTABLE_ATTR = "report_to_telemetry"
+
+
+def is_reportable(exc: BaseException) -> bool:
+    """Tell whether ``exc`` is a CLI bug worth reporting.
+
+    Exception types that represent a user error (e.g. a missing 2FA code) set
+    ``report_to_telemetry = False``. Checked by attribute rather than by
+    importing the types, so this module stays light on the error path.
+    """
+    return getattr(exc, REPORTABLE_ATTR, True) is not False
+
+
 def report_exception(exc: BaseException) -> bool:
     """Report ``exc`` unless opted out; return whether an event was sent.
 
@@ -106,6 +121,8 @@ def report_exception(exc: BaseException) -> bool:
     reporting must not change the outcome of the command that is failing.
     """
     try:
+        if not is_reportable(exc):
+            return False
         if telemetry_disabled():
             return False
         dsn = get_dsn()
