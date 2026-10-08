@@ -4,12 +4,15 @@ WORKDIR /root/cloudsmith-cli
 
 RUN apk add --no-cache binutils
 
+COPY pyproject.toml pyproject.toml
+COPY uv.lock uv.lock
+
+RUN uv sync --locked --no-dev --no-editable --group binary --extra all --python "${PYTHON_VERSION}"
+
+COPY VERSION VERSION
 COPY bin bin
 COPY cloudsmith_cli cloudsmith_cli
 COPY packaging packaging
-COPY pyproject.toml pyproject.toml
-COPY uv.lock uv.lock
-COPY VERSION VERSION
 
 ARG CLOUDSMITH_CLI_VERSION
 ARG PYTHON_VERSION=3.14

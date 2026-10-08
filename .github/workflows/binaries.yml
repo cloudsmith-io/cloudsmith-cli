@@ -59,7 +59,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -194,9 +194,9 @@ jobs:
             -v "${PWD}:/src" -w /src \
             "${BUILD_IMAGE}" bash -c '
               set -euo pipefail
-              dnf install -y python3.12 python3.12-pip python3.12-devel gcc binutils file >/dev/null
-              python3.12 -m pip install "uv==${UV_VERSION}" >/dev/null
-              uv sync --locked --no-dev --no-editable --group binary --extra all --python python3.12
+              dnf install -y python3.14 python3.14-pip python3.14-devel gcc binutils file >/dev/null
+              python3.14 -m pip install "uv==${UV_VERSION}" >/dev/null
+              uv sync --locked --no-dev --no-editable --group binary --extra all --python python3.14
               uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
               MAXV="$(
                 while IFS= read -r -d "" candidate; do
