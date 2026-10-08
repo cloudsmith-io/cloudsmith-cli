@@ -13,7 +13,7 @@ pre-commit install
 
 All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps.
 
-Python `>=3.10` is required (CI tests 3.10–3.14).
+Python `>=3.11` is required (CI tests 3.11–3.14).
 
 ## Common commands
 
