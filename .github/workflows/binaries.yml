@@ -108,7 +108,7 @@ jobs:
     runs-on: ${{ matrix.build_runner }}
     timeout-minutes: 45
     env:
-      PYTHON_VERSION: "3.12"
+      PYTHON_VERSION: "3.14"
       UV_VERSION: "0.11.26"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
