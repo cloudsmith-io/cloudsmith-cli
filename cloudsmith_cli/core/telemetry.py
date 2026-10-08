@@ -3,10 +3,13 @@
 
 Only exceptions that escape every other handler reach here: click's own
 errors and handled API errors never do. Reporting is on by default (including
-in CI) and is turned off by either of:
+in CI) and is turned off by any of:
 
 * ``DO_NOT_TRACK`` - the cross-tool convention (https://consoledonottrack.com).
 * ``CLOUDSMITH_NO_TELEMETRY`` - the tool-specific variable.
+* ``telemetry = false`` in config.ini - so the choice survives a new shell.
+
+Any one opt-out wins; ``telemetry = true`` does not override the env vars.
 
 Anonymisation is enforced by :func:`scrub_event`, which *rebuilds* the event
 from an allowlist rather than deleting known-bad fields, so anything new the
@@ -90,6 +93,36 @@ def telemetry_disabled(env: "os._Environ[str] | dict[str, str] | None" = None) -
     )
 
 
+PROFILE_ENV = "CLOUDSMITH_PROFILE"
+
+
+def config_disabled() -> bool:
+    """Tell whether ``telemetry = false`` is set in config.ini.
+
+    Checked two ways, and either one saying ``false`` wins:
+
+    * the options the command loaded, which honour ``--config-file`` and
+      ``--profile`` - but only exist if the command loads config at all;
+    * a fresh read of config.ini (``[default]`` plus ``$CLOUDSMITH_PROFILE``),
+      which covers commands that never load config or failed before doing so.
+
+    Fails closed: if the config cannot be read we cannot confirm the user has
+    not opted out, so we do not report.
+    """
+    try:
+        from ..cli import config
+
+        opts = getattr(config.OPTIONS, "value", None)
+        if opts is not None and opts.telemetry is False:
+            return True
+
+        probe = config.Options()
+        config.ConfigReader.load_config(probe, profile=os.environ.get(PROFILE_ENV))
+        return probe.telemetry is False
+    except Exception:  # pylint: disable=broad-exception-caught
+        return True
+
+
 def get_dsn(env: "os._Environ[str] | dict[str, str] | None" = None) -> str:
     """Return the DSN to report to; empty means do not report."""
     env = os.environ if env is None else env
@@ -123,7 +156,7 @@ def report_exception(exc: BaseException) -> bool:
     try:
         if not is_reportable(exc):
             return False
-        if telemetry_disabled():
+        if telemetry_disabled() or config_disabled():
             return False
         dsn = get_dsn()
         if not dsn:

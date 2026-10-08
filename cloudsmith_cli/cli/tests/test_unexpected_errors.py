@@ -111,6 +111,40 @@ def test_opted_out_sends_nothing_and_prints_the_same_line(
     assert sentry_events == []
 
 
+@pytest.mark.parametrize("profile", [None, "work"])
+def test_config_key_off_sends_nothing_and_prints_the_same_line(
+    runner, tmp_path, sentry_events, profile
+):
+    """telemetry = false in the file passed with --config-file (and --profile)."""
+    config = tmp_path / "config.ini"
+    if profile:
+        config.write_text(f"[default]\n[profile:{profile}]\ntelemetry = false\n")
+    else:
+        config.write_text("[default]\ntelemetry = false\n")
+    args = ["whoami", "--config-file", str(config), "--api-key", API_KEY]
+    if profile:
+        args += ["--profile", profile]
+
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, args)
+
+    assert result.exit_code == 1
+    assert result.stderr.strip().endswith("Error: RuntimeError: boom")
+    assert sentry_events == []
+
+
+def test_config_key_on_still_reports(runner, tmp_path, sentry_events):
+    config = tmp_path / "config.ini"
+    config.write_text("[default]\ntelemetry = true\n")
+
+    with whoami_raises(RuntimeError("boom")):
+        runner.invoke(
+            main, ["whoami", "--config-file", str(config), "--api-key", API_KEY]
+        )
+
+    assert len(sentry_events) == 1
+
+
 def test_ci_still_reports(runner, tmp_path, monkeypatch, sentry_events):
     monkeypatch.setenv("CI", "true")
 
