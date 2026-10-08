@@ -7,7 +7,7 @@ import math
 import os
 import shlex
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import click
 
@@ -681,7 +681,7 @@ def wait_for_package_sync(
             fg="cyan",
         )
 
-    start = datetime.now(tz=timezone.utc)
+    start = datetime.now(tz=UTC)
     context_msg = "Failed to synchronise file!"
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=context_msg, reraise_on_error=skip_errors
@@ -738,7 +738,7 @@ def wait_for_package_sync(
                 if left > 0:
                     pb.update(left)
 
-    end = datetime.now(tz=timezone.utc)
+    end = datetime.now(tz=UTC)
     seconds = (end - start).total_seconds()
 
     click.echo(err=use_stderr)

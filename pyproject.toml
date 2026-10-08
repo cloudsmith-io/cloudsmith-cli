@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Cloudsmith Ltd", email = "support@cloudsmith.io" },
 ]
-requires-python = ">=3.10.0"
+requires-python = ">=3.11.0"
 keywords = ["cloudsmith", "cli", "devops"]
 classifiers = [
     # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
@@ -28,7 +28,6 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

@@ -2,7 +2,7 @@ import getpass
 import importlib
 import os
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import ANY, Mock, call, patch
 
 import jwt
@@ -13,7 +13,6 @@ from keyrings.alt.file import EncryptedKeyring as AltEncryptedKeyring
 from keyrings.cryptfile.cryptfile import CryptFileKeyring
 
 from .. import keyring as core_keyring
-from ..utils import TTYMode
 from ..keyring import (
     delete_oidc_token,
     delete_sso_tokens,
@@ -30,6 +29,7 @@ from ..keyring import (
     store_sso_tokens,
     update_refresh_attempted_at,
 )
+from ..utils import TTYMode
 
 
 @pytest.fixture
@@ -104,7 +104,7 @@ class TestKeyring:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_update_refresh_attempted_at(self, mock_get_user, mock_set_password):
-        attempted_at = datetime.now(tz=timezone.utc).isoformat()
+        attempted_at = datetime.now(tz=UTC).isoformat()
 
         update_refresh_attempted_at(self.api_host)
 
@@ -116,11 +116,11 @@ class TestKeyring:
 
     def test_get_refresh_attempted_at(self, mock_get_user, mock_get_password):
         mock_get_password.return_value = datetime(
-            2024, 6, 1, 10, 0, tzinfo=timezone.utc
+            2024, 6, 1, 10, 0, tzinfo=UTC
         ).isoformat()
 
         assert get_refresh_attempted_at(self.api_host) == datetime(
-            2024, 6, 1, hour=10, minute=0, tzinfo=timezone.utc
+            2024, 6, 1, hour=10, minute=0, tzinfo=UTC
         )
         mock_get_password.assert_called_once_with(
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
@@ -155,7 +155,7 @@ class TestKeyring:
     def test_should_refresh_access_token_with_new_token(
         self, mock_get_user, mock_get_password
     ):
-        mock_get_password.return_value = datetime.now(tz=timezone.utc).isoformat()
+        mock_get_password.return_value = datetime.now(tz=UTC).isoformat()
 
         assert not should_refresh_access_token(self.api_host)
         mock_get_password.assert_called_once_with(
@@ -168,7 +168,7 @@ class TestKeyring:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=30)
+            datetime.now(tz=UTC) - timedelta(minutes=30)
         ).isoformat()
 
         assert not should_refresh_access_token(self.api_host)
@@ -182,7 +182,7 @@ class TestKeyring:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=31)
+            datetime.now(tz=UTC) - timedelta(minutes=31)
         ).isoformat()
 
         assert should_refresh_access_token(self.api_host)
@@ -205,7 +205,7 @@ class TestKeyring:
     ):
         mock_get_password.return_value = attempted_at
         access_token = jwt.encode(
-            {"exp": datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)},
+            {"exp": datetime.fromisoformat(expires_at).replace(tzinfo=UTC)},
             "not-used-for-verification",
             algorithm="HS256",
         )
@@ -436,7 +436,7 @@ class TestProfileScopedKeys:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=31)
+            datetime.now(tz=UTC) - timedelta(minutes=31)
         ).isoformat()
 
         assert should_refresh_access_token(self.api_host, profile="staging")
