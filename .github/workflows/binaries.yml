@@ -176,6 +176,7 @@ jobs:
               python -m pip install --root-user-action=ignore "uv==${UV_VERSION}" >/dev/null
               uv sync --locked --no-dev --no-editable --group binary --extra all
               uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+              uv run staticx dist/cloudsmith dist/cloudsmith
               tar -czf "out/${ART}" -C dist cloudsmith
             '
 
@@ -198,6 +199,7 @@ jobs:
               python3.14 -m pip install "uv==${UV_VERSION}" >/dev/null
               uv sync --locked --no-dev --no-editable --group binary --extra all --python python3.14
               uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+              uv run staticx dist/cloudsmith dist/cloudsmith
               MAXV="$(
                 while IFS= read -r -d "" candidate; do
                   if file "${candidate}" | grep -q ELF; then

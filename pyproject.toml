@@ -92,6 +92,7 @@ dev = [
     "ty",
     "httpretty",
     "bumpversion",
+    "staticx>=0.14.2 ; sys_platform == 'linux'",
 ]
 binary = [
     "pyinstaller==6.22.3",
