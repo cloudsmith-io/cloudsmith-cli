@@ -27,6 +27,24 @@ no_dep_error() {
   fi
 }
 
+# Print only the exception/error lines of a failed command (enough to diagnose
+# e.g. a TLS or import failure) rather than the whole output, which can carry
+# response bodies. The API key is masked in case anything echoed it.
+error_summary() {
+  printf '%s\n' "$1" \
+    | grep -E '(Error|Exception|error)([:( ]|$)' \
+    | tail -n 5 \
+    | awk '{
+        k = ENVIRON["CLOUDSMITH_API_KEY"]
+        if (k != "") {
+          while ((i = index($0, k)) > 0) {
+            $0 = substr($0, 1, i - 1) "***" substr($0, i + length(k))
+          }
+        }
+        print "  | " $0
+      }' >&2
+}
+
 # Run a read-only online command; a 429 is the shared org throttling, not a
 # binary failure, so warn and pass.
 # Asserts success without printing the raw response (PII / repo names). The
@@ -38,8 +56,12 @@ online_call() {
       echo "WARN: rate-limited (429) on ${_label}; shared org throttling, not a binary failure" >&2
       return 0
     fi
-    [ "${SMOKETEST_DEBUG:-0}" = "1" ] && printf '%s\n' "$_out" >&2
-    fail "online ${_label} failed (set SMOKETEST_DEBUG=1 for output)"
+    if [ "${SMOKETEST_DEBUG:-0}" = "1" ]; then
+      printf '%s\n' "$_out" >&2
+    else
+      error_summary "$_out"
+    fi
+    fail "online ${_label} failed (set SMOKETEST_DEBUG=1 for full output)"
   }
   no_dep_error "$_out" "$_label"
   if [ "${SMOKETEST_DEBUG:-0}" = "1" ]; then
@@ -216,10 +238,10 @@ run_online() {
     online_call "list repos" list repos "$CLOUDSMITH_NAMESPACE"
   fi
 
-  # Fetches the OpenAPI spec over httpx and builds pydantic tool models:
+  # Fetches the OpenAPI spec over httpx2 and builds pydantic tool models:
   # exercises pydantic-core (deeper than the initialize handshake) plus the
-  # native jsonschema/rpds-py validation path and httpx TLS.
-  echo "== mcp list_tools (pydantic-core + jsonschema/rpds-py + httpx TLS) =="
+  # native jsonschema/rpds-py validation path and httpx2 TLS (certifi bundle).
+  echo "== mcp list_tools (pydantic-core + jsonschema/rpds-py + httpx2 TLS) =="
   online_call "mcp list_tools" mcp list_tools
 
   # requests/urllib3 + certifi CA bundle + the semver version-compare path.

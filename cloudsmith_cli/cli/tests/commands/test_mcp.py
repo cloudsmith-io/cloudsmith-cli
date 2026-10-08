@@ -409,7 +409,7 @@ class TestMCPServerLoadOpenAPISpec:
             return httpx2.Response(200, json=spec)
 
         with patch(
-            "cloudsmith_cli.core.mcp.server.create_mcp_http_client",
+            "cloudsmith_cli.core.mcp.server.create_http_client",
             return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
         ):
             asyncio.run(server.load_openapi_spec())
