@@ -77,6 +77,7 @@ class ConfigSchema:
         oidc_disabled_detectors = ConfigParam(name="oidc_disabled_detectors", type=str)
         metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
         check_for_update = ConfigParam(name="check_for_update", type=bool, default=True)
+        telemetry = ConfigParam(name="telemetry", type=bool, default=True)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -622,6 +623,18 @@ class Options:  # pylint: disable=too-many-public-methods
         if value is None:
             return
         self._set_option("check_for_update", bool(value))
+
+    @property
+    def telemetry(self):
+        """Get value for the telemetry (anonymous error reporting) toggle."""
+        return self._get_option("telemetry", default=True)
+
+    @telemetry.setter
+    def telemetry(self, value):
+        """Set value for the telemetry (anonymous error reporting) toggle."""
+        if value is None:
+            return
+        self._set_option("telemetry", bool(value))
 
     @property
     def output(self):
