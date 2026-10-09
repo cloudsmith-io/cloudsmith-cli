@@ -97,7 +97,6 @@ def parse_table(output):
 def assert_output_is_equal_to_repo_config(output, organisation, repo_config_file_path):
     output_table = parse_table(output)
     repo_config = json.loads(repo_config_file_path.read_text())
-    assert output_table["Name"] == repo_config["name"]
     assert output_table["Type"] == repo_config["repository_type_str"]
     assert (
         output_table["Owner / Repository (Identifier)"]

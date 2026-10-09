@@ -16,27 +16,25 @@ from .main import main
 def print_repositories(opts, data, page_info=None, show_list_info=True, page_all=False):
     """Print repositories as a table or output in another format."""
     headers = [
-        "Name",
+        "Owner / Repository (Identifier)",
         "Type",
         "Packages",
         "Groups",
         "Downloads",
         "Size",
-        "Owner / Repository (Identifier)",
     ]
 
     rows = [
         [
-            click.style(repo["name"], fg="cyan"),
+            "{owner_slug}/{slug}".format(
+                owner_slug=click.style(repo["namespace"], fg="magenta"),
+                slug=click.style(repo["slug"], fg="green"),
+            ),
             click.style(repo["repository_type_str"], fg="yellow"),
             click.style(str(repo["package_count"]), fg="blue"),
             click.style(str(repo["package_group_count"]), fg="blue"),
             click.style(str(repo["num_downloads"]), fg="blue"),
             click.style(str(repo["size_str"]), fg="blue"),
-            "{owner_slug}/{slug}".format(
-                owner_slug=click.style(repo["namespace"], fg="magenta"),
-                slug=click.style(repo["slug"], fg="green"),
-            ),
         ]
         for repo in sorted(data, key=itemgetter("namespace", "slug"))
     ]
