@@ -5,7 +5,7 @@ import binascii
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 
 import requests
@@ -57,7 +57,7 @@ def get_access_token_expiry(access_token):
         payload = json.loads(base64.urlsafe_b64decode(encoded_payload + padding))
         expires_at = payload.get("exp")
         if expires_at is not None:
-            return datetime.fromtimestamp(float(expires_at), tz=timezone.utc)
+            return datetime.fromtimestamp(float(expires_at), tz=UTC)
     except (
         binascii.Error,
         IndexError,
@@ -85,7 +85,7 @@ def access_token_is_valid(access_token, now=None):
     if expires_at is None:
         return True
 
-    return expires_at + TOKEN_EXPIRY_LEEWAY > (now or datetime.now(tz=timezone.utc))
+    return expires_at + TOKEN_EXPIRY_LEEWAY > (now or datetime.now(tz=UTC))
 
 
 def _load_sso_tokens(api_host, profile):
