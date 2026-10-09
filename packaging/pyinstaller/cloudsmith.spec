@@ -29,6 +29,10 @@ hiddenimports += collect_submodules("keyring.backends")
 hiddenimports += collect_submodules("keyrings.cryptfile")
 hiddenimports += collect_submodules("keyrings.alt")
 hiddenimports += ["boto3", "botocore.exceptions"]
+# Error reporting imports sentry_sdk lazily on the error path only, so the
+# analysis would not see it; the SDK also loads transport/integration modules
+# by name.
+hiddenimports += collect_submodules("sentry_sdk")
 
 # keyring discovers backends via importlib.metadata entry points, so the
 # extra backend packages need their dist metadata bundled too, not just
