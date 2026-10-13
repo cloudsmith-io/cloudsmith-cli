@@ -1,9 +1,11 @@
+# Copyright 2026 Cloudsmith Ltd
 """API - Shared client for v2 endpoints not yet present in cloudsmith_api."""
 
 import json
 from urllib.parse import urlparse
 
 import cloudsmith_api
+import requests
 
 from .. import ratelimits
 from ..rest import RestClient
@@ -12,12 +14,22 @@ from .exceptions import ApiException, catch_raise_api_exception
 REQUEST_TIMEOUT_SECONDS = 30
 
 
+class _V2Session(requests.Session):
+    """A session that drops the API key on a redirect to another host."""
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        if self.should_strip_auth(response.request.url, prepared_request.url):
+            prepared_request.headers.pop("X-Api-Key", None)
+
+
 class V2Client:
     """Small client for v2 endpoints not yet present in cloudsmith_api."""
 
     def __init__(self):
         self.config = cloudsmith_api.Configuration()
         self.rest_client = RestClient(
+            session=_V2Session(),
             error_retry_cb=getattr(self.config, "error_retry_cb", None),
             respect_retry_after_header=getattr(self.config, "rate_limit", True),
         )

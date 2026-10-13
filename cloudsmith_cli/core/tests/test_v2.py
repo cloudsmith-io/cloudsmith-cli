@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """Tests for the shared v2 API client."""
 
 import json
@@ -51,6 +52,20 @@ def test_request_url_does_not_send_credentials_to_another_origin(url):
         v2.request_url(v2.get_client(), "GET", url)
 
     assert not httpretty.latest_requests()
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_request_does_not_send_the_api_key_through_a_redirect_to_another_host():
+    """A redirect to another host does not get the API key."""
+    other_url = "https://other.example.com/v2/things/"
+    httpretty.register_uri(
+        httpretty.GET, RESOURCE_URL, status=302, location=other_url, body=""
+    )
+    httpretty.register_uri(httpretty.GET, other_url, body="{}", status=200)
+
+    v2.request(v2.get_client(), "GET", "things")
+
+    assert "X-Api-Key" not in httpretty.last_request().headers
 
 
 @httpretty.activate(allow_net_connect=False)

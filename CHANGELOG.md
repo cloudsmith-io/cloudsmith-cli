@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- The package metadata commands now stop waiting for the v2 API after 30 seconds. Previously, an API that did not respond made them wait without a limit.
+- The package metadata commands no longer wait without a limit for a v2 API that does not respond. Each attempt now stops after 30 seconds. The CLI then retries the request as `--error-retry-max` sets.
 
 ## [1.28.0] - 2026-10-07
 
