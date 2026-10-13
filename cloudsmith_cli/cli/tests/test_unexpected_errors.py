@@ -144,6 +144,32 @@ def test_entitlement_tokens_given_as_options_are_redacted(
         assert token not in serialised
 
 
+@pytest.mark.parametrize("password", ["hunter2", "hunter2,x"])
+def test_password_option_is_redacted(runner, tmp_path, sentry_events, password):
+    """Short, or containing a comma: still redacted as a whole."""
+    with patch(
+        "cloudsmith_cli.cli.commands.login.get_user_token",
+        side_effect=ValueError(f"cannot log in with {password}"),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "login",
+                "--login",
+                "user@example.com",
+                "--password",
+                password,
+                "--config-file",
+                str(tmp_path),
+            ],
+        )
+
+    assert result.exit_code == 1
+    (event,) = sentry_events
+    assert "hunter2" not in json.dumps(event)
+    assert event["exception"]["values"][-1]["value"] == "cannot log in with [redacted]"
+
+
 @pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
 def test_opted_out_sends_nothing_and_prints_the_same_line(
     runner, tmp_path, monkeypatch, sentry_events, name

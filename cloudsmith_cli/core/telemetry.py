@@ -54,6 +54,10 @@ _ALLOWED_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
 #: Env vars whose values are treated as secrets wherever they appear.
 _SECRET_ENV_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.IGNORECASE)
 _MIN_SECRET_LENGTH = 8
+#: Values of credential-named command options (``--password``, ``--token``)
+#: are known to be secrets, so they only need to be long enough not to match
+#: ordinary words by chance - a short password must still be redacted.
+_MIN_OPTION_SECRET_LENGTH = 4
 #: Usernames/hostnames shorter than this are not scrubbed as words, to avoid
 #: mangling ordinary text.
 _MIN_IDENTIFIER_LENGTH = 3
@@ -398,11 +402,13 @@ class Scrubber:
         usernames=(),
         hostnames=(),
         secrets=(),
+        option_secrets=(),
         case_insensitive=False,
     ):
         flags = re.IGNORECASE if case_insensitive else 0
         self.secrets = sorted(
-            {s for s in secrets if s and len(s) >= _MIN_SECRET_LENGTH},
+            {s for s in secrets if s and len(s) >= _MIN_SECRET_LENGTH}
+            | {s for s in option_secrets if s and len(s) >= _MIN_OPTION_SECRET_LENGTH},
             key=len,
             reverse=True,
         )
@@ -457,7 +463,8 @@ class Scrubber:
             usernames=[_safe(_username, default="")]
             + [os.environ.get(k, "") for k in ("USER", "USERNAME", "LOGNAME")],
             hostnames=[hostname, hostname.split(".")[0]],
-            secrets=_secret_values() + _option_secrets(exc),
+            secrets=_secret_values(),
+            option_secrets=_option_secrets(exc),
             case_insensitive=os.name == "nt" or sys.platform == "darwin",
         )
 
@@ -813,6 +820,11 @@ def _option_secrets(exc):
     while ctx is not None:
         for name, value in ctx.params.items():
             if isinstance(value, str) and _SECRET_ENV_NAME.search(name):
-                values.extend(part.strip() for part in value.split(","))
+                # The whole value first, so a comma inside a password cannot
+                # split it into pieces too short to redact; then the parts,
+                # for list-valued options such as ``--tokens a,b``.
+                values.append(value)
+                if "," in value:
+                    values.extend(part.strip() for part in value.split(","))
         ctx = ctx.parent
     return values

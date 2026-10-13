@@ -543,6 +543,18 @@ def test_secrets():
     assert s.scrub("a short word") == "a short word"
 
 
+def test_option_secrets_have_a_lower_minimum_length():
+    """A short --password is still a password; the env-var minimum does not apply."""
+    s = scrubber(secrets=["envval7"], option_secrets=["hunter2", "pw4!", "abc"])
+
+    assert s.scrub("login failed for hunter2") == "login failed for [redacted]"
+    assert s.scrub("pw4! rejected") == "[redacted] rejected"
+    # Below the option minimum: too likely to match ordinary text.
+    assert s.scrub("abc") == "abc"
+    # The env-var minimum is unchanged.
+    assert s.scrub("envval7") == "envval7"
+
+
 @pytest.mark.parametrize(
     "text,expected",
     [
