@@ -242,14 +242,8 @@ def _safe(func, default):
         return default
 
 
-def command_path(exc: BaseException) -> str | None:
-    """Return the canonical command path (e.g. ``repositories gpg create``).
-
-    The click context has been torn down by the time the exception reaches
-    ``AliasGroup.main``, so find the deepest one still referenced by the
-    traceback. Only command *names* are used - they are defined in code and
-    resolved from aliases - never the program name or any argument.
-    """
+def _deepest_context(exc):
+    """Return the deepest click context that the traceback of ``exc`` holds."""
     ctx = None
     tb = exc.__traceback__
     while tb is not None:
@@ -259,6 +253,18 @@ def command_path(exc: BaseException) -> str | None:
                 ctx = frame_locals[name]
                 break
         tb = tb.tb_next
+    return ctx
+
+
+def command_path(exc: BaseException) -> str | None:
+    """Return the canonical command path (e.g. ``repositories gpg create``).
+
+    The click context has been torn down by the time the exception reaches
+    ``AliasGroup.main``, so find the deepest one still referenced by the
+    traceback. Only command *names* are used - they are defined in code and
+    resolved from aliases - never the program name or any argument.
+    """
+    ctx = _deepest_context(exc)
 
     names = []
     while ctx is not None and ctx.parent is not None:
@@ -271,13 +277,14 @@ def command_path(exc: BaseException) -> str | None:
 # --- Scrubbing --------------------------------------------------------------
 
 
-def scrub_event(event, hint=None):  # pylint: disable=unused-argument
+def scrub_event(event, hint=None):
     """``before_send`` hook: return an allowlisted, scrubbed copy of ``event``.
 
     Fails closed: if anything goes wrong, the event is dropped (``None``).
     """
     try:
-        return _rebuild_event(event, Scrubber.from_environment())
+        exc = (hint or {}).get("exc_info", (None, None, None))[1]
+        return _rebuild_event(event, Scrubber.from_environment(exc))
     except Exception:  # pylint: disable=broad-exception-caught
         return None
 
@@ -426,7 +433,7 @@ class Scrubber:
         ]
 
     @classmethod
-    def from_environment(cls):
+    def from_environment(cls, exc=None):
         """Build a scrubber for the current user, machine and credentials."""
         import tempfile
 
@@ -450,7 +457,7 @@ class Scrubber:
             usernames=[_safe(_username, default="")]
             + [os.environ.get(k, "") for k in ("USER", "USERNAME", "LOGNAME")],
             hostnames=[hostname, hostname.split(".")[0]],
-            secrets=_secret_values(),
+            secrets=_secret_values() + _option_secrets(exc),
             case_insensitive=os.name == "nt" or sys.platform == "darwin",
         )
 
@@ -520,6 +527,13 @@ _REDACTED = "[redacted]"
 
 #: Shapes of credentials that are not one of the known secret values.
 _CREDENTIAL_PATTERNS = (
+    # Cloudsmith API keys: csa_/CSA_, 30 hex characters, 6-character checksum.
+    (
+        re.compile(r"(?<![A-Za-z0-9])(?:csa|CSA)_[0-9a-fA-F]{30}[A-Za-z0-9+/_-]{6}"),
+        _REDACTED,
+    ),
+    # Legacy Cloudsmith API keys: 40 hex characters.
+    (re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{40}(?![0-9A-Fa-f])"), _REDACTED),
     # An Authorization header, whatever its scheme: the whole value.
     (
         re.compile(
@@ -781,4 +795,16 @@ def _secret_values():
             value = _safe(get, default=None)
             if isinstance(value, str):
                 values.append(value)
+    return values
+
+
+def _option_secrets(exc):
+    """Values of credential-named options, e.g. ``--token``, of the failing command."""
+    values = []
+    ctx = _deepest_context(exc) if exc is not None else None
+    while ctx is not None:
+        for name, value in ctx.params.items():
+            if isinstance(value, str) and _SECRET_ENV_NAME.search(name):
+                values.extend(part.strip() for part in value.split(","))
+        ctx = ctx.parent
     return values

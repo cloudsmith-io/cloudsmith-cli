@@ -97,6 +97,53 @@ def test_command_path_is_canonical_and_argument_free(runner, tmp_path, sentry_ev
     assert "acme-repo" not in json.dumps(event)
 
 
+ENTITLEMENT_TOKEN = "Ent1tlementTok01"
+OTHER_ENTITLEMENT_TOKEN = "Ent1tlementTok02"
+
+
+@pytest.mark.parametrize(
+    "api_call,command_args,tokens",
+    [
+        (
+            "cloudsmith_cli.core.api.entitlements.create_entitlement",
+            ["entitlements", "create", "acme-org/acme-repo", "--name", "ci"],
+            ["--token", ENTITLEMENT_TOKEN],
+        ),
+        (
+            "cloudsmith_cli.core.api.metrics.get_repository_entitlements_metrics",
+            ["metrics", "entitlements", "acme-org/acme-repo"],
+            ["--tokens", f"{ENTITLEMENT_TOKEN},{OTHER_ENTITLEMENT_TOKEN}"],
+        ),
+    ],
+)
+def test_entitlement_tokens_given_as_options_are_redacted(
+    runner, tmp_path, sentry_events, api_call, command_args, tokens
+):
+    token_values = tokens[1].split(",")
+    message = "rejected " + " and ".join(token_values)
+
+    with patch(api_call, side_effect=ValueError(message)):
+        result = runner.invoke(
+            main,
+            [
+                *command_args,
+                *tokens,
+                "--config-file",
+                str(tmp_path),
+                "--credentials-file",
+                str(tmp_path),
+                "--api-key",
+                API_KEY,
+            ],
+        )
+
+    assert result.exit_code == 1
+    (event,) = sentry_events
+    serialised = json.dumps(event)
+    for token in token_values:
+        assert token not in serialised
+
+
 @pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
 def test_opted_out_sends_nothing_and_prints_the_same_line(
     runner, tmp_path, monkeypatch, sentry_events, name

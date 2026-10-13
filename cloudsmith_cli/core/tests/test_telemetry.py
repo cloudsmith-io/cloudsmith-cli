@@ -623,6 +623,14 @@ def test_hosts_and_url_credentials(text, expected):
             "sha 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
             "sha [redacted]",
         ),
+        # Cloudsmith API keys in every format, wherever they appear.
+        ("csa_8ccebb9d331459d1f3d0126407d358z3z_dw", "[redacted]"),
+        ("value=csa_8ccebb9d331459d1f3d0126407d358z3z_dw", "value=[redacted]"),
+        ("key CSA_f45d43b314ab75f0b39e67e6a49f7e+/vDuA", "key [redacted]"),
+        (
+            "Token(value=deadbeefcafe0123456789abcdef0123456789ab)",
+            "Token(value=[redacted])",
+        ),
         # Paths and file names outside the known prefixes.
         (
             "No such file: '/mnt/builds/acme-product/acme-product-2.0.rpm'",
