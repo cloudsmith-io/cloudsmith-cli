@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The package metadata commands no longer wait without a limit for a v2 API that does not respond. A connection that takes more than 30 seconds fails. A request that gets no data for 30 seconds also fails, except a request to add or validate metadata. The CLI then retries the request as `--error-retry-max` sets.
-- The package metadata commands no longer send the API key to another host when the API redirects a request there.
+- The CLI no longer sends the API key to another host when a request is redirected there. This applies to all API calls, uploads and downloads.
 
 ## [1.28.0] - 2026-10-07
 
