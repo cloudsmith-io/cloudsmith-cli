@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `--include-connected` to `cloudsmith list packages`. The flag includes packages from the active connected repositories of the repository. The table output adds an `Origin Repository` column that shows where each package is stored. The JSON output gives this value in `origin_repository`, which is `null` for local packages. Download URLs such as `cdn_url` point at the requesting repository, not the origin repository.
 - Added Buildkite support to OIDC credential auto-discovery. In Buildkite jobs, the CLI requests an ID token from `buildkite-agent` using audience `cloudsmith` by default. The detector supports the existing order/disable controls using the id `buildkite`.
 
+### Changed
+
+- The minimum version of `cloudsmith-api` is now 2.0.38.
+
 ### Fixed
 
 ## [1.28.0] - 2026-10-07
