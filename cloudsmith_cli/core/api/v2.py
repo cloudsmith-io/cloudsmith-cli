@@ -8,6 +8,7 @@ import cloudsmith_api
 import requests
 
 from .. import ratelimits
+from ..credentials.models import CredentialResult
 from ..rest import RestClient
 from .exceptions import ApiException, catch_raise_api_exception
 
@@ -26,8 +27,9 @@ class _V2Session(requests.Session):
 class V2Client:
     """Small client for v2 endpoints not yet present in cloudsmith_api."""
 
-    def __init__(self):
+    def __init__(self, credential):
         self.config = cloudsmith_api.Configuration()
+        self.credential = credential
         self.rest_client = RestClient(
             session=_V2Session(),
             error_retry_cb=getattr(self.config, "error_retry_cb", None),
@@ -35,9 +37,9 @@ class V2Client:
         )
 
 
-def get_client():
-    """Get a v2 API client for the configured host and credentials."""
-    return V2Client()
+def get_client(credential: CredentialResult | None):
+    """Get a v2 API client for the configured host and the resolved credential."""
+    return V2Client(credential)
 
 
 def _build_url(config, *parts):
@@ -46,26 +48,16 @@ def _build_url(config, *parts):
     return f"{host}/v2/{suffix}/"
 
 
-def _build_headers(config):
-    """Build request headers from the configured cloudsmith_api.Configuration.
-
-    Mirrors the auth resolution performed by core/api/init.py: an Authorization
-    header (SSO bearer or Basic) takes precedence; otherwise we fall back to
-    the X-Api-Key header.
-    """
+def _build_headers(client):
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    headers.update(getattr(config, "headers", None) or {})
+    headers.update(getattr(client.config, "headers", None) or {})
 
-    user_agent = getattr(config, "user_agent", None)
+    user_agent = getattr(client.config, "user_agent", None)
     if user_agent:
         headers["User-Agent"] = user_agent
 
-    if headers.get("Authorization"):
-        headers.pop("X-Api-Key", None)
-    else:
-        api_key = (config.api_key or {}).get("X-Api-Key")
-        if api_key:
-            headers["X-Api-Key"] = api_key
+    if client.credential:
+        headers.update(client.credential.auth_headers())
 
     return headers
 
@@ -91,7 +83,7 @@ def request_url(client, method, url, query_params=None, body=None):
             method,
             url,
             query_params=query_params,
-            headers=_build_headers(client.config),
+            headers=_build_headers(client),
             body=body,
             _request_timeout=REQUEST_TIMEOUT_SECONDS,
         )
