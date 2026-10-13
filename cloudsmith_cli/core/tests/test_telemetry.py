@@ -631,6 +631,29 @@ def test_hosts_and_url_credentials(text, expected):
             "Token(value=deadbeefcafe0123456789abcdef0123456789ab)",
             "Token(value=[redacted])",
         ),
+        # Long opaque tokens in a single case.
+        (
+            "token abcdefghijklmnopqrstuvwxyz1234567890 rejected",
+            "token [redacted] rejected",
+        ),
+        (
+            "secret JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP failed",
+            "secret [redacted] failed",
+        ),
+        # A part mixing letters and digits marks the whole string as a token.
+        (
+            "missing MAX_UPLOAD_CHUNK_SIZE_BYTES_FOR_V2_ENDPOINT",
+            "missing [redacted]",
+        ),
+        # Readable identifiers stay: letters only, or separated word/number parts.
+        (
+            "no attr this_is_a_really_long_python_identifier_name",
+            "no attr this_is_a_really_long_python_identifier_name",
+        ),
+        (
+            "no attr test_python_m_exits_1_on_unexpected_exception",
+            "no attr test_python_m_exits_1_on_unexpected_exception",
+        ),
         # Paths and file names outside the known prefixes.
         (
             "No such file: '/mnt/builds/acme-product/acme-product-2.0.rpm'",

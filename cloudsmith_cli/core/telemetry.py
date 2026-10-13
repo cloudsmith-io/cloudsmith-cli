@@ -570,15 +570,23 @@ _LONG_TOKEN = re.compile(r"(?<![\w+=-])[A-Za-z0-9+=_-]{32,}(?![\w+=-])")
 
 
 def _replace_long_token(match):
+    """Redact a long opaque string, but keep readable identifiers.
+
+    Anything with both letters and digits is treated as a token, in any case:
+    single-case tokens (lowercase alphanumerics, uppercase base32) are common.
+    The one exception is a separated identifier whose parts are each all
+    letters or all digits (``test_exits_1_on_error``); a part mixing the two
+    (``x86``, ``V2``, ``k3y``) still marks the whole string as a token.
+    """
     token = match.group(0)
     if re.fullmatch(r"[0-9a-fA-F]+", token):
         return _REDACTED
-    has_mixed = (
-        any(c.isdigit() for c in token)
-        and any(c.islower() for c in token)
-        and any(c.isupper() for c in token)
-    )
-    return _REDACTED if has_mixed else token
+    if not (re.search(r"\d", token) and re.search(r"[A-Za-z]", token)):
+        return token
+    parts = [part for part in re.split(r"[_-]+", token) if part]
+    if len(parts) > 1 and all(p.isalpha() or p.isdigit() for p in parts):
+        return token
+    return _REDACTED
 
 
 #: A URL, up to whitespace or a quote/angle bracket.

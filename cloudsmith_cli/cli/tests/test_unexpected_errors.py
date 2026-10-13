@@ -218,9 +218,10 @@ def test_reporting_failure_does_not_change_the_outcome(
     assert "sentry is down" not in result.output
 
 
-def test_debug_also_prints_traceback(runner, tmp_path):
+@pytest.mark.parametrize("flag", ["--debug", "-d"])
+def test_debug_also_prints_traceback(runner, tmp_path, flag):
     with whoami_raises(RuntimeError("boom")):
-        result = runner.invoke(main, whoami_args(tmp_path, "--debug"))
+        result = runner.invoke(main, whoami_args(tmp_path, flag))
 
     assert result.exit_code == 1
     assert "Traceback (most recent call last)" in result.stderr
