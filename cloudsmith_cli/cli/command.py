@@ -45,7 +45,7 @@ def _is_debug_requested(args=None):
 
     if args is None:
         args = sys.argv[1:]
-    return "--debug" in args
+    return any(arg in ("-d", "--debug") for arg in args)
 
 
 def _format_click_exception_as_json(exception):
