@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 
-def _is_windows() -> bool:
+def is_windows() -> bool:
     """Return True when running on Windows."""
     return os.name == "nt"
 
@@ -72,7 +72,7 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
     Path
         The path of the written file.
     """
-    windows = _is_windows()
+    windows = is_windows()
     if dry_run:
         if windows:
             return bin_dir / f"{name}.cmd"
@@ -106,7 +106,7 @@ def remove_launcher(bin_dir: Path, name: str, dry_run=False) -> bool:
     bool
         ``True`` if a file was removed, ``False`` if no file was found.
     """
-    target = Path(bin_dir) / _launcher_filename(name, windows=_is_windows())
+    target = Path(bin_dir) / _launcher_filename(name, windows=is_windows())
 
     if target.exists():
         if not dry_run:
@@ -156,7 +156,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
         return candidate.resolve()
 
     # Option 3: user-local bin
-    return _user_bin_dir(_is_windows()).resolve()
+    return _user_bin_dir(is_windows()).resolve()
 
 
 def is_on_path(directory: Path) -> bool:

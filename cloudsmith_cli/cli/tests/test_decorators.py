@@ -32,7 +32,6 @@ def test_rejected_sso_session_continues_without_early_exception():
     def reject(context):
         context.keyring_refresh_failed = True
         context.keyring_refresh_rejected = True
-        return None
 
     with patch(
         "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
@@ -50,7 +49,6 @@ def test_rejected_sso_session_continues_without_early_exception():
 def test_auth_commands_skip_automatic_keyring_refresh(command_name):
     def resolve(context):
         assert context.skip_keyring_refresh is True
-        return None
 
     with patch(
         "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
