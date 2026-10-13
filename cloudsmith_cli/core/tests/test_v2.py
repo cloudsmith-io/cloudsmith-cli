@@ -108,11 +108,24 @@ def test_request_does_not_send_credentials_through_a_redirect_to_another_host(
     assert "Authorization" not in headers
 
 
+@pytest.mark.parametrize(
+    "method, expected_timeout",
+    [
+        ("GET", v2.REQUEST_TIMEOUT_SECONDS),
+        ("PATCH", v2.REQUEST_TIMEOUT_SECONDS),
+        ("DELETE", v2.REQUEST_TIMEOUT_SECONDS),
+        ("POST", (v2.REQUEST_TIMEOUT_SECONDS, None)),
+    ],
+)
 @httpretty.activate(allow_net_connect=False)
-def test_request_sets_a_timeout(monkeypatch):
-    """A stalled API does not block the CLI forever."""
+def test_request_sets_a_timeout(monkeypatch, method, expected_timeout):
+    """A stalled API does not block the CLI forever.
+
+    A POST gets no read timeout, because the retry after a read timeout
+    sends the POST again and can create a second entry.
+    """
     httpretty.register_uri(
-        httpretty.GET, RESOURCE_URL, body=json.dumps({"results": []}), status=200
+        method, RESOURCE_URL, body=json.dumps({"results": []}), status=200
     )
     timeouts = []
     original_request = RestClient.request
@@ -123,9 +136,9 @@ def test_request_sets_a_timeout(monkeypatch):
 
     monkeypatch.setattr(RestClient, "request", _record_timeout)
 
-    v2.request(v2.get_client(API_KEY), "GET", "things")
+    v2.request(v2.get_client(API_KEY), method, "things")
 
-    assert timeouts == [v2.REQUEST_TIMEOUT_SECONDS]
+    assert timeouts == [expected_timeout]
 
 
 @httpretty.activate(allow_net_connect=False)

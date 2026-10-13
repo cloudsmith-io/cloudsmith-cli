@@ -580,11 +580,10 @@ class TestValidateMetadata:
 
 class TestAuthHeaders:
     @staticmethod
-    def _override_config(monkeypatch, *, api_key=None, headers=None):
+    def _override_config(monkeypatch, *, headers=None):
         import cloudsmith_api
 
         cfg = cloudsmith_api.Configuration()
-        cfg.api_key = api_key if api_key is not None else cfg.api_key
         cfg.headers = headers if headers is not None else cfg.headers
         monkeypatch.setattr(cloudsmith_api.Configuration, "_default", cfg)
 
@@ -593,7 +592,7 @@ class TestAuthHeaders:
         saml_token = CredentialResult(
             api_key="sso-token", source_name="keyring", auth_type="bearer"
         )
-        initialise_api(host=API_HOST, credential=saml_token)
+        initialise_api(host=API_HOST)
         httpretty.register_uri(
             httpretty.GET,
             LIST_URL,
