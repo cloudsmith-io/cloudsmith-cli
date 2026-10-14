@@ -300,7 +300,9 @@ def validate_metadata_payload(
 
     try:
         with maybe_spinner(opts):
-            api_validate_metadata(content=content, content_type=content_type)
+            api_validate_metadata(
+                credential=opts.credential, content=content, content_type=content_type
+            )
     except ApiException as exc:
         http_status = getattr(exc, "status", None)
         detail = (
@@ -385,6 +387,7 @@ def attach_metadata_to_package(
         with maybe_spinner(opts):
             entry = api_create_metadata(
                 slug_perm,
+                credential=opts.credential,
                 content=content,
                 content_type=content_type,
                 source_identity=source_identity,

@@ -66,3 +66,32 @@ class TestCreateRequestsSession:
     def test_sets_extra_headers(self):
         session = create_requests_session(headers={"X-Custom": "value"})
         assert session.headers["X-Custom"] == "value"
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_drops_the_api_key_on_a_redirect_to_another_host(self):
+        """The v1 client, uploads and downloads keep the API key off other hosts."""
+        api_url = "https://api.example.com/v1/things/"
+        other_url = "https://other.example.com/things/"
+        httpretty.register_uri(
+            httpretty.GET, api_url, status=302, location=other_url, body=""
+        )
+        httpretty.register_uri(httpretty.GET, other_url, body="{}", status=200)
+
+        session = create_requests_session()
+        session.get(api_url, headers={"X-Api-Key": "test-api-key"}, timeout=5)
+
+        assert "X-Api-Key" not in httpretty.last_request().headers
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_keeps_the_api_key_on_a_redirect_to_the_same_host(self):
+        """A redirect on the API host still gets the API key."""
+        api_url = "https://api.example.com/v1/things"
+        httpretty.register_uri(
+            httpretty.GET, api_url, status=301, location=f"{api_url}/", body=""
+        )
+        httpretty.register_uri(httpretty.GET, f"{api_url}/", body="{}", status=200)
+
+        session = create_requests_session()
+        session.get(api_url, headers={"X-Api-Key": "test-api-key"}, timeout=5)
+
+        assert httpretty.last_request().headers.get("X-Api-Key") == "test-api-key"
