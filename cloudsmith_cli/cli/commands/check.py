@@ -127,6 +127,4 @@ def service(ctx, opts):
         click.secho("(up-to-date)", fg="green")
 
         click.echo()
-        click.secho(
-            "The API library used by this CLI tool seems to be up-to-date.", fg="green"
-        )
+        click.secho("The API library used by this CLI tool is up-to-date.", fg="green")
