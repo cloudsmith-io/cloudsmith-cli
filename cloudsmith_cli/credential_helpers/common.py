@@ -8,7 +8,7 @@ Provides domain checking used by all credential helpers.
 import logging
 from pathlib import Path
 
-from .custom_domains import get_custom_domains, get_format_domains
+from .domains import get_format_domains, get_workspace_domains
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,8 @@ def is_cloudsmith_domain(
     else:
         hosts = {
             d.host.lower()
-            for d in get_custom_domains(org, credential=credential, api_host=api_host)
-            if d.is_active
+            for d in get_workspace_domains(
+                org, credential=credential, api_host=api_host
+            )
         }
     return hostname in hosts
