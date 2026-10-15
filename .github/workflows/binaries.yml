@@ -189,13 +189,14 @@ jobs:
           docker run --rm \
             -e ART="${ART}" \
             -e UV_VERSION \
-            -e UV_PYTHON_DOWNLOADS=never \
+            -e PYTHON_VERSION \
             -e PYINSTALLER_CONFIG_DIR=/tmp/pyinstaller \
             -v "${PWD}:/src" -w /src \
             "${BUILD_IMAGE}" bash -c '
               set -euo pipefail
-              python3.14 -m pip install "uv==${UV_VERSION}" >/dev/null
-              uv sync --locked --no-dev --no-editable --group binary --extra all --python python3.14
+              dnf install -y python3.12 python3.12-pip gcc binutils file >/dev/null
+              python3.12 -m pip install "uv==${UV_VERSION}" >/dev/null
+              uv sync --locked --no-dev --no-editable --group binary --extra all --managed-python --python "${PYTHON_VERSION}"
               uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
               MAXV="$(
                 while IFS= read -r -d "" candidate; do
@@ -208,8 +209,8 @@ jobs:
               )"
               test -n "${MAXV}"
               echo "glibc floor: ${MAXV}"
-              if [ "$(printf "2.38\n%s\n" "${MAXV}" | sort -V | tail -1)" != "2.38" ]; then
-                echo "FAIL: glibc floor ${MAXV} exceeds 2.38"
+              if [ "$(printf "2.28\n%s\n" "${MAXV}" | sort -V | tail -1)" != "2.28" ]; then
+                echo "FAIL: glibc floor ${MAXV} exceeds 2.28"
                 exit 1
               fi
               tar -czf "out/${ART}" -C dist cloudsmith
