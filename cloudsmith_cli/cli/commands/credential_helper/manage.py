@@ -9,6 +9,7 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import click
 
@@ -44,6 +45,17 @@ _INSTALLERS: dict[str, type] = {
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
 }
+
+
+def _resolve_bin_dir(helper: str, bin_dir: str | None) -> str | None:
+    """Return *bin_dir*, defaulting to ``~/.cloudsmith/bin`` when unset.
+
+    Terraform is left as ``None`` so its installer uses Terraform's plugin
+    directory (Terraform does not search PATH for credentials helpers).
+    """
+    if bin_dir is not None or helper == "terraform":
+        return bin_dir
+    return str(Path.home() / ".cloudsmith" / "bin")
 
 
 def _get_installer(name: str):
@@ -149,7 +161,10 @@ def _terraform_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 @click.command("install")
 @click.argument("helper")
 @click.option(
-    "--bin-dir", default=None, help="Directory to install the launcher binary."
+    "--bin-dir",
+    default=None,
+    help="Directory to install the launcher binary. "
+    "[default: ~/.cloudsmith/bin, or Terraform's plugin directory]",
 )
 @click.option(
     "--domain",
@@ -236,7 +251,7 @@ def install_cmd(
     installer = _get_installer(helper)
 
     install_kwargs = {
-        "bin_dir": bin_dir,
+        "bin_dir": _resolve_bin_dir(helper, bin_dir),
         "domains": domains,
         "dry_run": dry_run,
         "discover": not no_discover,
@@ -309,7 +324,10 @@ def install_cmd(
 @click.command("uninstall")
 @click.argument("helper")
 @click.option(
-    "--bin-dir", default=None, help="Directory where the launcher binary was installed."
+    "--bin-dir",
+    default=None,
+    help="Directory where the launcher binary was installed. "
+    "[default: ~/.cloudsmith/bin, or Terraform's plugin directory]",
 )
 @click.option(
     "--dry-run",
@@ -337,7 +355,9 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
     """
     installer = _get_installer(helper)
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(
+            bin_dir=_resolve_bin_dir(helper, bin_dir), dry_run=dry_run
+        )
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"

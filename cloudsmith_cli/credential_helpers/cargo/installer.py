@@ -27,9 +27,15 @@ import tomlkit
 
 from ...core.cache_utils import merge_config_file
 from ..backends import BackendKind
-from ..common import extract_hostname
+from ..common import extract_hostname, path_warning
 from ..custom_domains import get_format_domains
-from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+from ..launchers import (
+    is_on_path,
+    is_windows,
+    remove_launcher,
+    resolve_bin_dir,
+    write_launcher,
+)
 
 if TYPE_CHECKING:
     from ...core.credentials.models import CredentialResult
@@ -347,8 +353,7 @@ class CargoInstaller:
 
         if not is_on_path(target_dir):
             actions.append(
-                f"WARNING: {target_dir} is not on PATH — "
-                f"add it to your PATH so Cargo can find {self.LAUNCHER_NAME}"
+                path_warning(target_dir, "Cargo", self.LAUNCHER_NAME, is_windows())
             )
 
         return actions

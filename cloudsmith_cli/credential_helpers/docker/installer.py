@@ -17,8 +17,15 @@ from typing import TYPE_CHECKING
 
 from ...core.cache_utils import merge_config_file
 from ..backends import BackendKind
+from ..common import path_warning
 from ..custom_domains import get_format_domains
-from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+from ..launchers import (
+    is_on_path,
+    is_windows,
+    remove_launcher,
+    resolve_bin_dir,
+    write_launcher,
+)
 
 if TYPE_CHECKING:
     from ...core.credentials.models import CredentialResult
@@ -226,8 +233,7 @@ class DockerInstaller:
 
         if not is_on_path(target_dir):
             actions.append(
-                f"WARNING: {target_dir} is not on PATH — "
-                "add it to your PATH so Docker can find docker-credential-cloudsmith"
+                path_warning(target_dir, "Docker", self.LAUNCHER_NAME, is_windows())
             )
 
         return actions
