@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The minimum version of `cloudsmith-api` is now 2.0.38.
 - `cloudsmith repos list` now shows the repository identifier (`WORKSPACE/REPOSITORY`) in the first column. The table no longer shows the repository display name. (#465)
-- The standalone binaries now include the Python 3.14 runtime. The Linux glibc binaries now need glibc 2.35 or later. (#467)
+- The standalone binaries now include the Python 3.14 runtime. (#467)
 
 ### Removed
 
