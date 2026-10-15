@@ -6,10 +6,26 @@ Provides domain checking used by all credential helpers.
 """
 
 import logging
+from pathlib import Path
 
 from .custom_domains import get_custom_domains, get_format_domains
 
 logger = logging.getLogger(__name__)
+
+
+def path_warning(
+    target_dir: Path, helper_format: str, launcher: str, windows: bool
+) -> str:
+    # if not windows, assume POSIX
+    if windows:
+        hint = f'$env:Path += ";{target_dir}"'
+    else:
+        hint = f'export PATH="$PATH:{target_dir}"'
+    return (
+        f"WARNING: {target_dir} is not on PATH\n"
+        f"add it to your PATH so {helper_format} can find {launcher}:\n\n"
+        f"    {hint}"
+    )
 
 
 def extract_hostname(url):
