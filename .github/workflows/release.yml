@@ -535,8 +535,8 @@ jobs:
   publish-homebrew:
     # Renders packaging/homebrew/cloudsmith-cli.rb.tmpl against the archives
     # that publish-cloudsmith just made live and opens a bump pull request
-    # against the Homebrew tap (<owner>/homebrew-cloudsmith-cli); the tap
-    # requires reviewed pull requests, so merge it there with a squash merge.
+    # against the Homebrew tap (<owner>/homebrew-cloudsmith-cli). When the tap
+    # checks pass, the job squash-merges the pull request with --admin.
     # Without TAP_PUSH_TOKEN the rendered formula is only staged as a
     # workflow artifact.
     needs: [validate, publish-cloudsmith]
@@ -619,7 +619,7 @@ jobs:
             echo "verified ${URL}"
           done
 
-      - name: Open a bump pull request against the tap repository
+      - name: Open and merge a bump pull request against the tap repository
         if: env.HAS_TAP_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
@@ -654,10 +654,16 @@ jobs:
             gh pr create --repo "${TAP_REPO}" \
               --head "${BRANCH}" --base main \
               --title "Bump cloudsmith-cli to v${VERSION}" \
-              --body "Automated formula update for cloudsmith-cli v${VERSION}. The release workflow verified the formula checksums against the published downloads. Merge with a squash merge."
+              --body "Automated formula update for cloudsmith-cli v${VERSION}. The release workflow verified the formula checksums against the published downloads. The workflow merges it when the checks pass."
           else
             echo "pull request for ${BRANCH} already open"
           fi
+          # The tap checks start when the pull request opens. Give them time to
+          # register, because gh pr checks fails when it finds no checks.
+          sleep 60
+          gh pr checks "${BRANCH}" --repo "${TAP_REPO}" --watch --fail-fast
+          gh pr merge "${BRANCH}" --repo "${TAP_REPO}" --admin --squash \
+            --match-head-commit "$(git -C tap rev-parse HEAD)"
 
       - name: Report a skipped tap update
         if: env.HAS_TAP_TOKEN != 'true'
