@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- `cloudsmith domains list` and the credential helpers now get the domains from `GET /v2/workspaces/{workspace}/domains/` on the configured API host. This list includes the Cloudsmith-owned hosts, so the CLI no longer contains a list of Cloudsmith hostnames. The CLI keeps a separate domain cache for each API host.
+- `cloudsmith domains list` keeps version 1 of its JSON document. The API does not give `primary` and `created_at`, so these fields are now always `null`. The hosts are in the preference order of the API. `domain_type` can also be `cloudsmith_api`.
+- Without a Workspace, `cloudsmith domains list` lists the domains that earlier runs cached. If no domains are cached, it gets the domains of a Workspace that the credential is a member of. Without a credential, the list is empty.
+- `cloudsmith credential-helper install` now configures the Cloudsmith-owned hosts that the API lists for the Workspace. It uses its built-in default host, such as `docker.cloudsmith.io`, only when it cannot get the domains from the API.
+
+### Removed
+
+- The CLI no longer reads a `[domains]` section from `config.ini`. The configured API host supplies the domains.
+
 ## [1.29.0] - 2026-10-15
 
 ### Added

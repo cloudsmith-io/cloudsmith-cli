@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from cloudsmith_cli.credential_helpers.backends import BackendKind
-from cloudsmith_cli.credential_helpers.custom_domains import get_format_domains
+from cloudsmith_cli.credential_helpers.domains import get_format_domains
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.launchers import (
     remove_launcher,
@@ -104,8 +104,8 @@ class PNPMInstaller:
 
         actions: list[str] = []
 
-        # Start with the default host plus any explicitly requested domains.
-        hosts: list[str] = [self.DEFAULT_HOST, *domains]
+        hosts: list[str] = [*domains]
+        discovered: list[str] = []
 
         if discover:
             if dry_run:
@@ -127,7 +127,9 @@ class PNPMInstaller:
                         f"WARNING: custom-domain auto-discovery failed: {exc}"
                     )
                     discovered = []
-                new_hosts = [h for h in discovered if h not in hosts]
+                new_hosts = [
+                    h for h in discovered if h not in (*hosts, self.DEFAULT_HOST)
+                ]
                 hosts.extend(discovered)
                 actions.append(f"discovered {len(new_hosts)} new pnpm custom domain(s)")
             else:
@@ -135,6 +137,11 @@ class PNPMInstaller:
                     "skipped auto-discovery"
                     " (no organization/credentials; pass --no-discover to silence)"
                 )
+
+        # The API lists the Cloudsmith-owned hosts with the custom domains, so
+        # the default host is needed only when discovery gave no hosts.
+        if not discovered:
+            hosts.insert(0, self.DEFAULT_HOST)
 
         # De-duplicate while preserving order
         seen: set[str] = set()
