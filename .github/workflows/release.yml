@@ -619,11 +619,16 @@ jobs:
             echo "verified ${URL}"
           done
 
+      - name: Set up commit signing as Cloudsmith Bot
+        if: env.HAS_TAP_TOKEN == 'true'
+        uses: ./.github/actions/setup-cloudsmith-bot-git
+        with:
+          ssh-signing-key: ${{ secrets.CLOUDSMITH_BOT_SSH_KEY }}
+
       - name: Open a bump pull request against the tap repository
         if: env.HAS_TAP_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
-          CLOUDSMITH_BOT_SSH_KEY: ${{ secrets.CLOUDSMITH_BOT_SSH_KEY }}
           TAP_REPO: ${{ github.repository_owner }}/homebrew-cloudsmith-cli
         run: |
           set -euo pipefail
@@ -637,15 +642,6 @@ jobs:
             echo "tap already up to date; skipping"
             exit 0
           fi
-          SIGNING_KEY="${RUNNER_TEMP}/cloudsmith-bot-signing-key"
-          printf '%s\n' "${CLOUDSMITH_BOT_SSH_KEY}" > "${SIGNING_KEY}"
-          chmod 600 "${SIGNING_KEY}"
-          ssh-keygen -y -f "${SIGNING_KEY}" > "${SIGNING_KEY}.pub"
-          git -C tap config user.name "Cloudsmith Bot"
-          git -C tap config user.email "vftbot@cloudsmith.io"
-          git -C tap config gpg.format ssh
-          git -C tap config user.signingkey "${SIGNING_KEY}.pub"
-          git -C tap config commit.gpgsign true
           git -C tap checkout -b "${BRANCH}"
           git -C tap add Formula/cloudsmith-cli.rb Aliases/cloudsmith
           git -C tap commit -m "Bump cloudsmith-cli to v${VERSION}"
@@ -662,6 +658,93 @@ jobs:
       - name: Report a skipped tap update
         if: env.HAS_TAP_TOKEN != 'true'
         run: echo "TAP_PUSH_TOKEN not configured; formula staged as a workflow artifact only."
+
+  publish-action:
+    # Opens a pull request against <owner>/cloudsmith-cli-action that pins the
+    # default cli-version of the action to this release. The bump script in
+    # the action repository also adds a release to its CHANGELOG.md.
+    # The action repository requires reviewed pull requests. When the pull
+    # request merges, the action repository tests, tags and releases it.
+    # Each run rebuilds one branch from master, so a newer CLI release
+    # replaces a bump that is not merged yet. The bump never repeats an
+    # action version. It never pins a CLI older than master or the open pull
+    # request already pins. When the pull request closes during the update,
+    # the update starts again from master.
+    needs: [validate, publish-github]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: publish-action
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: read
+    env:
+      HAS_ACTION_TOKEN: ${{ secrets.ACTION_PUSH_TOKEN != '' }}
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up commit signing as Cloudsmith Bot
+        if: env.HAS_ACTION_TOKEN == 'true'
+        uses: ./.github/actions/setup-cloudsmith-bot-git
+        with:
+          ssh-signing-key: ${{ secrets.CLOUDSMITH_BOT_SSH_KEY }}
+
+      - name: Open a CLI bump pull request against the action repository
+        if: env.HAS_ACTION_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ACTION_PUSH_TOKEN }}
+          ACTION_REPO: ${{ github.repository_owner }}/cloudsmith-cli-action
+        run: |
+          set -euo pipefail
+          BRANCH="release/cloudsmith-cli"
+          TITLE="Bump cloudsmith-cli to v${VERSION}"
+          gh auth setup-git
+          for attempt in 1 2 3; do
+            rm -rf action
+            git clone --depth 1 "https://github.com/${ACTION_REPO}.git" action
+            PR_NUMBER="$(gh pr list --repo "${ACTION_REPO}" --head "${BRANCH}" --state open --json number --jq '.[].number')"
+            if [ -n "${PR_NUMBER}" ]; then
+              git -C action fetch --quiet --depth 1 origin "${BRANCH}"
+              PENDING_VERSION="$(git -C action show FETCH_HEAD:action.yml | yq '.inputs["cli-version"].default')"
+              NEWEST_VERSION="$(printf '%s\n' "${PENDING_VERSION}" "${VERSION}" | sort -V | tail -n 1)"
+              if [ "${PENDING_VERSION}" != "${VERSION}" ] && [ "${NEWEST_VERSION}" = "${PENDING_VERSION}" ]; then
+                echo "pull request #${PR_NUMBER} already pins newer cloudsmith-cli v${PENDING_VERSION}; skipping"
+                exit 0
+              fi
+            fi
+            ACTION_VERSION="$(cd action && bash scripts/bump-cli-version.sh "${VERSION}")"
+            if [ -z "${ACTION_VERSION}" ]; then
+              echo "action already pins cloudsmith-cli v${VERSION}; skipping"
+              exit 0
+            fi
+            git -C action checkout -b "${BRANCH}"
+            git -C action add action.yml CHANGELOG.md
+            git -C action commit -m "${TITLE}"
+            git -C action push --force origin "${BRANCH}"
+            BODY="Automated update that pins the default cli-version to cloudsmith-cli v${VERSION}. When this pull request merges and the tests pass, the action releases v${ACTION_VERSION} and moves its major tag. Merge with a squash merge."
+            if [ -z "${PR_NUMBER}" ]; then
+              gh pr create --repo "${ACTION_REPO}" \
+                --head "${BRANCH}" --base master \
+                --title "${TITLE}" --body "${BODY}"
+              exit 0
+            fi
+            if [ "$(gh pr view "${PR_NUMBER}" --repo "${ACTION_REPO}" --json state --jq .state)" = OPEN ]; then
+              gh pr edit "${PR_NUMBER}" --repo "${ACTION_REPO}" \
+                --title "${TITLE}" --body "${BODY}"
+              exit 0
+            fi
+            echo "pull request #${PR_NUMBER} closed during attempt ${attempt}; starting again from master"
+          done
+          echo "pull request for ${BRANCH} kept closing during the update" >&2
+          exit 1
+
+      - name: Report a skipped action update
+        if: env.HAS_ACTION_TOKEN != 'true'
+        run: echo "ACTION_PUSH_TOKEN not configured; action update skipped."
 
   publish-github:
     needs:

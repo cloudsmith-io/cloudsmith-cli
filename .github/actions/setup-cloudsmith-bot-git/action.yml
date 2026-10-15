@@ -1,0 +1,27 @@
+name: Set up Cloudsmith Bot git signing
+description: >-
+  Configure git to commit as Cloudsmith Bot and to sign each commit with the
+  SSH key of the bot.
+
+inputs:
+  ssh-signing-key:
+    description: Private SSH key that signs the commits of Cloudsmith Bot.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CLOUDSMITH_BOT_SSH_KEY: ${{ inputs.ssh-signing-key }}
+      run: |
+        set -euo pipefail
+        SIGNING_KEY="${RUNNER_TEMP}/cloudsmith-bot-signing-key"
+        printf '%s\n' "${CLOUDSMITH_BOT_SSH_KEY}" > "${SIGNING_KEY}"
+        chmod 600 "${SIGNING_KEY}"
+        ssh-keygen -y -f "${SIGNING_KEY}" > "${SIGNING_KEY}.pub"
+        git config --global user.name "Cloudsmith Bot"
+        git config --global user.email "vftbot@cloudsmith.io"
+        git config --global gpg.format ssh
+        git config --global user.signingkey "${SIGNING_KEY}.pub"
+        git config --global commit.gpgsign true
