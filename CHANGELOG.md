@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith domains list` keeps version 1 of its JSON document. The API does not give `primary` and `created_at`, so these fields are now always `null`. The hosts are in the preference order of the API. `domain_type` can also be `cloudsmith_api`.
 - Without a Workspace, `cloudsmith domains list` lists the domains that earlier runs cached. If no domains are cached, it gets the domains of a Workspace that the credential is a member of. Without a credential, the list is empty.
 - `cloudsmith credential-helper install` now configures the Cloudsmith-owned hosts that the API lists for the Workspace. It uses its built-in default host, such as `docker.cloudsmith.io`, only when it cannot get the domains from the API.
+- `cloudsmith credential-helper install terraform` now writes `-w <workspace>` into the `terraformrc` args, not `--org`. A block that has `--org` continues to work. The install also writes `--api-host` when you set an API host, so the helper finds the domains on that API host. Without a Workspace, the install tells you how to set one.
 
 ### Removed
 

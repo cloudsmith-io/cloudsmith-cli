@@ -4,7 +4,7 @@
 Covers the pure ``terraformrc`` block helpers (add/update/remove/conflict), the
 ``TerraformInstaller`` (launcher into the plugin dir + terraformrc block), and
 the ``credential-helper install/uninstall terraform`` CLI wiring — including
-that the resolved ``--org``/``-P`` land in the terraformrc ``args`` list.
+that the resolved ``-w``/``-P`` land in the terraformrc ``args`` list.
 """
 
 from __future__ import annotations
@@ -402,8 +402,14 @@ def test_installer_status_type_contract(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_cli_install_bakes_org_and_profile_into_args(runner, tmp_path, monkeypatch):
-    """`install terraform --org --P` writes those into the terraformrc args list."""
+@pytest.mark.parametrize("workspace_flag", [["-w", "acme"], ["--org=acme"]])
+def test_cli_install_bakes_workspace_and_profile_into_args(
+    runner, tmp_path, monkeypatch, workspace_flag
+):
+    """`install terraform -w -P` writes `-w` and `-P` into the terraformrc args.
+
+    The legacy `--org` alias is written as `-w` too.
+    """
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
 
@@ -413,7 +419,7 @@ def test_cli_install_bakes_org_and_profile_into_args(runner, tmp_path, monkeypat
         install_cmd,
         [
             "terraform",
-            "--org=acme",
+            *workspace_flag,
             "-P",
             "ci",
             "--no-discover",
@@ -425,7 +431,56 @@ def test_cli_install_bakes_org_and_profile_into_args(runner, tmp_path, monkeypat
 
     assert result.exit_code == 0, result.output
     rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
-    assert 'args = ["--org", "acme", "-P", "ci"]' in rc
+    assert 'args = ["-w", "acme", "-P", "ci"]' in rc
+
+
+def test_cli_install_bakes_api_host_into_args(runner, tmp_path, monkeypatch):
+    """The helper looks up domains on the API host that the install used."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        [
+            "terraform",
+            "-w",
+            "acme",
+            "--api-host",
+            "https://api.example.com",
+            "--no-discover",
+            "-k",
+            "k_flag",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
+    assert 'args = ["-w", "acme", "--api-host", "https://api.example.com"]' in rc
+
+
+def test_cli_install_without_workspace_says_how_to_set_one(
+    runner, tmp_path, monkeypatch
+):
+    """Without a Workspace, the helper cannot match custom domains."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+
+    from ...cli.commands.credential_helper.manage import install_cmd
+
+    result = runner.invoke(
+        install_cmd,
+        ["terraform", "--repo", "my-repo", "--no-discover", "-k", "k_flag"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "CLOUDSMITH_WORKSPACE" in result.output
+    assert '"-w", "<your-workspace>"' in result.output
 
 
 @pytest.mark.parametrize(
@@ -452,7 +507,7 @@ def test_cli_install_bakes_repo_into_args(runner, tmp_path, monkeypatch, repo_fl
 
     assert result.exit_code == 0, result.output
     rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
-    assert 'args = ["--org", "acme", "-r", "my-repo"]' in rc
+    assert 'args = ["-w", "acme", "-r", "my-repo"]' in rc
 
 
 def test_cli_install_bakes_config_and_credentials_files_into_args(
