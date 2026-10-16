@@ -23,7 +23,6 @@ from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     _launcher_content,
     _launcher_filename,
-    _user_bin_dir,
     is_on_path,
     remove_launcher,
     resolve_bin_dir,
@@ -209,23 +208,33 @@ def test_resolve_bin_dir_override_relative_current_dir(tmp_path, monkeypatch):
     assert result == expected
 
 
-@pytest.mark.parametrize(
-    "windows,expected_suffix",
-    [
-        (False, (".local", "bin")),
-        (True, ("Cloudsmith", "bin")),
-    ],
-)
-def test_user_bin_dir(tmp_path, monkeypatch, windows, expected_suffix):
-    """_user_bin_dir returns the per-platform user bin location.
-
-    Parameterised on ``windows`` (not ``os.name``) to avoid building a
-    ``WindowsPath`` on a posix host.
-    """
+def test_resolve_bin_dir_defaults_to_cloudsmith_bin(tmp_path, monkeypatch):
+    """Without an override the launcher goes to ``~/.cloudsmith/bin``."""
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    result = _user_bin_dir(windows)
-    assert result.parts[-2:] == expected_suffix
+    assert resolve_bin_dir() == tmp_path / ".cloudsmith" / "bin"
+
+
+def test_list_finds_a_launcher_installed_to_the_default_dir(
+    runner, tmp_path, monkeypatch
+):
+    """`list` looks for launchers where `install` puts them by default."""
+    from ....cli.commands.credential_helper.manage import install_cmd, list_cmd
+
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    result = runner.invoke(
+        install_cmd, ["docker", "--no-discover"], catch_exceptions=False
+    )
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
+
+    docker = next(
+        e for e in json.loads(result.stdout)["data"] if e["helper"] == "docker"
+    )
+    assert docker["launcher"] == str(
+        tmp_path / ".cloudsmith" / "bin" / "docker-credential-cloudsmith"
+    )
 
 
 # ---------------------------------------------------------------------------
