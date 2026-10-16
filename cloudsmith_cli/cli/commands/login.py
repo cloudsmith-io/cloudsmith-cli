@@ -22,14 +22,15 @@ def validate_login(ctx, param, value):
 
 
 DEPRECATION_WARNING = (
-    "DEPRECATION WARNING: 'cloudsmith {name}' is deprecated and will be removed in "
-    "a future release. Username and password login is going away.\n"
+    "DEPRECATION WARNING: 'cloudsmith {name}' is deprecated, because Cloudsmith is "
+    "switching off username and password login.\n"
     "To authenticate instead, do one of these:\n"
     "  - Get your API key from the Cloudsmith web app (your user menu, then "
     "Personal API Keys) and set the CLOUDSMITH_API_KEY environment variable or "
     "add it to credentials.ini.\n"
     "  - Run 'cloudsmith auth' to authenticate with SAML SSO.\n"
-    "See https://docs.cloudsmith.com/accounts-and-teams/api-key for details."
+    "The date this command stops working will be announced in the Cloudsmith "
+    "changelog: https://cloudsmith.com/changelog"
 )
 
 
@@ -84,9 +85,9 @@ class DeprecatedLoginCommand(click.Command):
 def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     """[DEPRECATED] Retrieve your API authentication token/key via login.
 
-    Username and password login will be removed in a future release. Get your
-    API key from the Cloudsmith web app instead, or run 'cloudsmith auth' to
-    authenticate with SAML SSO.
+    Cloudsmith is switching off username and password login. The date will be
+    announced in the Cloudsmith changelog. Get your API key from the Cloudsmith
+    web app instead, or run 'cloudsmith auth' to authenticate with SAML SSO.
     """
     use_stderr = utils.should_use_stderr(opts)
     click.echo(

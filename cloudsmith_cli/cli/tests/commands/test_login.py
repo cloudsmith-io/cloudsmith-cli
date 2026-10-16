@@ -97,6 +97,7 @@ class TestLoginDeprecation:
         )
         assert "Personal API Keys" in result.stderr
         assert "cloudsmith auth" in result.stderr
+        assert "https://cloudsmith.com/changelog" in result.stderr
         assert "DEPRECATION WARNING" not in result.stdout
         assert "Your API key/token is: fake-api-key" in result.stdout
 
