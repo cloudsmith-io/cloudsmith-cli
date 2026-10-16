@@ -33,6 +33,26 @@ DEPRECATION_WARNING = (
 )
 
 
+REMOVED_MESSAGE = (
+    "Username and password login has been removed, so this command no longer "
+    "works. Get your API key from the Cloudsmith web app (your user menu, then "
+    "Personal API Keys) and set the CLOUDSMITH_API_KEY environment variable, or "
+    "run 'cloudsmith auth' to authenticate with SAML SSO."
+)
+
+#: Statuses the token endpoint returns once the server has switched password
+#: login off (410) or removed the route entirely (404).
+REMOVED_STATUSES = (404, 410)
+
+
+def summarise_removed_login(exc, detail, fields):
+    """Replace the raw error with a removal notice once the endpoint is off."""
+    # pylint: disable=unused-argument
+    if exc.status in REMOVED_STATUSES:
+        return REMOVED_MESSAGE
+    return None
+
+
 class DeprecatedLoginCommand(click.Command):
     """Command that prints the deprecation warning before any prompt."""
 
@@ -78,7 +98,12 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     context_msg = "Failed to retrieve the API token!"
     try:
         with (
-            handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+            handle_api_exceptions(
+                ctx,
+                opts=opts,
+                context_msg=context_msg,
+                summarise_error=summarise_removed_login,
+            ),
             maybe_spinner(opts),
         ):
             api_key = get_user_token(login=login, password=password)
@@ -97,7 +122,12 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
 
         try:
             with (
-                handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+                handle_api_exceptions(
+                    ctx,
+                    opts=opts,
+                    context_msg=context_msg,
+                    summarise_error=summarise_removed_login,
+                ),
                 maybe_spinner(opts),
             ):
                 api_key = get_user_token(

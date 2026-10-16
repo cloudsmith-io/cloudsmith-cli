@@ -229,6 +229,10 @@ def get_401_error_hint(ctx, opts, exc):
 def get_404_error_hint(ctx, opts, exc):
     """Get the hint for a 404/NotFound error."""
     # pylint: disable=unused-argument
+    if ctx.info_name in ("login", "token"):
+        # The token endpoint itself is gone, not a user/org
+        return None
+
     # pylint: disable=fixme
     # TODO(ls): Expand this to be contextual (we could look at the
     # arguments for the command).

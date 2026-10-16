@@ -1,9 +1,11 @@
 import json
-from unittest.mock import patch
+from contextlib import ExitStack
+from unittest.mock import Mock, patch
 
 import pytest
 
-from ...commands.login import login
+from ....core.api.exceptions import ApiException, TwoFactorRequiredException
+from ...commands.login import REMOVED_MESSAGE, login
 from ...commands.main import main
 
 
@@ -35,11 +37,20 @@ class TestLoginCommand:
         assert expected in result.stdout
 
 
-def invoke_main_login(runner, config_dir, name, *extra_args, user_input=None):
+def invoke_main_login(
+    runner,
+    config_dir,
+    name,
+    *extra_args,
+    user_input=None,
+    get_user_token=None,
+    mock_config_files=True,
+):
     """Run `cloudsmith <name>` through the registered command tree.
 
     The config and credentials paths point at an empty directory so a real
     config.ini or credentials.ini on the machine cannot change the result.
+    ``get_user_token`` replaces the API call (default: return a fake key).
     """
     args = [
         name,
@@ -51,17 +62,23 @@ def invoke_main_login(runner, config_dir, name, *extra_args, user_input=None):
         "https://api.example.invalid",
         *extra_args,
     ]
-    with (
-        patch(
-            "cloudsmith_cli.cli.commands.login.get_user_token",
-            return_value="fake-api-key",
-        ),
-        patch(
-            "cloudsmith_cli.cli.commands.login.create_config_files",
-            return_value=(False, False),
-        ),
-        patch("cloudsmith_cli.cli.commands.login.new_config_messaging"),
-    ):
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "cloudsmith_cli.cli.commands.login.get_user_token",
+                get_user_token or Mock(return_value="fake-api-key"),
+            )
+        )
+        if mock_config_files:
+            stack.enter_context(
+                patch(
+                    "cloudsmith_cli.cli.commands.login.create_config_files",
+                    return_value=(False, False),
+                )
+            )
+            stack.enter_context(
+                patch("cloudsmith_cli.cli.commands.login.new_config_messaging")
+            )
         return runner.invoke(main, args, input=user_input)
 
 
@@ -97,6 +114,7 @@ class TestLoginDeprecation:
         )
 
     def test_json_output_stays_parseable(self, runner, tmp_path, name):
+        """Config-file prompts and messages must not leak into JSON stdout."""
         result = invoke_main_login(
             runner,
             tmp_path,
@@ -107,10 +125,13 @@ class TestLoginDeprecation:
             "secret",
             "--output-format",
             "json",
+            user_input="N\n",
+            mock_config_files=False,
         )
 
         assert result.exit_code == 0
         assert "DEPRECATION WARNING" in result.stderr
+        assert "do you want to create them?" in result.stderr
         assert json.loads(result.stdout)["data"]["token"] == "fake-api-key"
 
     def test_help_marks_the_command_deprecated(self, runner, tmp_path, name):
@@ -127,3 +148,92 @@ def test_shell_completion_parsing_does_not_warn(capsys):
     captured = capsys.readouterr()
     assert "DEPRECATION WARNING" not in captured.err
     assert "DEPRECATION WARNING" not in captured.out
+
+
+@pytest.mark.parametrize("name", ["login", "token"])
+@pytest.mark.parametrize("status", [404, 410])
+class TestLoginSwitchedOff:
+    """Once the server switches the endpoint off, say so instead of a raw error."""
+
+    @staticmethod
+    def switched_off(status):
+        return Mock(side_effect=ApiException(status, detail="Gone."))
+
+    def test_reports_removal(self, runner, tmp_path, name, status):
+        result = invoke_main_login(
+            runner,
+            tmp_path,
+            name,
+            "-l",
+            "you@example.com",
+            "-p",
+            "secret",
+            get_user_token=self.switched_off(status),
+        )
+
+        assert result.return_value == status
+        assert REMOVED_MESSAGE in result.output
+        assert f"status: {status}" not in result.output
+        assert "usually means the user/org is wrong" not in result.output
+
+    def test_json_reports_removal(self, runner, tmp_path, name, status):
+        result = invoke_main_login(
+            runner,
+            tmp_path,
+            name,
+            "-l",
+            "you@example.com",
+            "-p",
+            "secret",
+            "--output-format",
+            "json",
+            get_user_token=self.switched_off(status),
+        )
+
+        error = json.loads(result.stdout)
+        assert result.return_value == status
+        assert error["detail"] == REMOVED_MESSAGE
+        assert error["meta"]["code"] == status
+        assert error["help"]["hint"] is None
+
+    def test_reports_removal_after_two_factor(self, runner, tmp_path, name, status):
+        get_user_token = Mock(
+            side_effect=[
+                TwoFactorRequiredException("2fa-token"),
+                ApiException(status, detail="Gone."),
+            ]
+        )
+
+        result = invoke_main_login(
+            runner,
+            tmp_path,
+            name,
+            "-l",
+            "you@example.com",
+            "-p",
+            "secret",
+            user_input="123456\n",
+            get_user_token=get_user_token,
+        )
+
+        assert result.return_value == status
+        assert REMOVED_MESSAGE in result.output
+
+
+@pytest.mark.parametrize("status", [401, 500, 503])
+def test_other_errors_keep_the_standard_rendering(runner, tmp_path, status):
+    """An outage or bad credentials must not be reported as a removal."""
+    result = invoke_main_login(
+        runner,
+        tmp_path,
+        "login",
+        "-l",
+        "you@example.com",
+        "-p",
+        "secret",
+        get_user_token=Mock(side_effect=ApiException(status, detail="Nope.")),
+    )
+
+    assert result.return_value == status
+    assert REMOVED_MESSAGE not in result.output
+    assert f"status: {status}" in result.output

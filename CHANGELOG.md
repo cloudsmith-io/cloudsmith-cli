@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
-- `cloudsmith login` and its `cloudsmith token` alias are deprecated and will be removed in a future release, because Cloudsmith is removing username and password login. Both commands still work, but they now print a deprecation warning to stderr before they prompt for credentials. Get your API key from the Cloudsmith web app (your user menu, then **Personal API Keys**) and set `CLOUDSMITH_API_KEY`, or run `cloudsmith auth` to authenticate with SAML SSO.
+- `cloudsmith login` and its `cloudsmith token` alias are deprecated and will be removed in a future release, because Cloudsmith is removing username and password login. Both commands still work while the server allows password login, but they now print a deprecation warning to stderr before they prompt for credentials. Once the server switches password login off (`410 Gone`, or `404` after the endpoint is removed), they fail with a message that explains how to get an API key instead. Other errors, such as outages or wrong credentials, are reported as before. Get your API key from the Cloudsmith web app (your user menu, then **Personal API Keys**) and set `CLOUDSMITH_API_KEY`, or run `cloudsmith auth` to authenticate with SAML SSO.
 
 ### Changed
 
 - The hint shown for a `401 - Unauthorized` error when no credentials are set no longer suggests `cloudsmith token`. It now suggests `$CLOUDSMITH_API_KEY` or `cloudsmith auth`.
+
+### Fixed
+
+- `cloudsmith login`, and `cloudsmith auth` and `cloudsmith tokens` with `--save-config`, no longer write config file prompts and messages to stdout when `--output-format json` or `pretty_json` is set. They now go to stderr, so stdout holds only the JSON.
 
 ## [1.29.0] - 2026-10-15
 
