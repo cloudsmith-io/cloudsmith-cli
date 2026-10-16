@@ -49,10 +49,10 @@ _REFUSAL_MESSAGE = (
 )
 
 _MISSING_ORG_MESSAGE = (
-    "Error: No organisation configured. "
-    "Provide the Cloudsmith organisation via the --org flag, the "
-    "CLOUDSMITH_ORG environment variable, or the 'org' key in config.ini so "
-    "the token can be scoped as '{org}/{repo}/{token}'."
+    "Error: No Workspace configured. "
+    "Provide the Cloudsmith Workspace via the -w/--workspace flag, the "
+    "CLOUDSMITH_WORKSPACE environment variable, or the 'workspace' key in "
+    "config.ini so the token can be scoped as '{workspace}/{repo}/{token}'."
 )
 
 _MISSING_REPO_MESSAGE = (

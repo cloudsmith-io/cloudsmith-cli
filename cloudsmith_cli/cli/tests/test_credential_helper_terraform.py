@@ -258,6 +258,13 @@ def test_execute_get_refuses_cloudsmith_host_without_an_org(credential):
     assert (exit_code, stdout, stderr) == (1, None, _MISSING_ORG_MESSAGE)
 
 
+def test_missing_workspace_message_names_the_workspace_options():
+    """The error names the Workspace option, variable and config key."""
+    assert "--workspace" in _MISSING_ORG_MESSAGE
+    assert "CLOUDSMITH_WORKSPACE" in _MISSING_ORG_MESSAGE
+    assert "'workspace' key in config.ini" in _MISSING_ORG_MESSAGE
+
+
 def test_execute_get_refuses_cloudsmith_host_without_a_repo(credential):
     """A Cloudsmith host needs a repo to build the scoped token: exit 1 with an
     actionable error, not a malformed ``org/None/token`` credential."""
@@ -529,7 +536,7 @@ def test_cli_org_is_required_for_a_cloudsmith_host(runner):
     """A Cloudsmith host without an org is a non-zero exit, not a token.
 
     The token is scoped as ``{org}/{repo}/{token}``, so an org must be
-    configured (``--org``/``CLOUDSMITH_ORG``/``org`` in config.ini) before a
+    configured (``-w``/``CLOUDSMITH_WORKSPACE``/``workspace`` in config.ini) before a
     credential can be emitted.
     """
     with patch(
@@ -539,14 +546,14 @@ def test_cli_org_is_required_for_a_cloudsmith_host(runner):
         result = runner.invoke(
             terraform,
             args=["-k", "k_abc", "--repo", "myrepo", "get", CLOUDSMITH_HOST],
-            env={"CLOUDSMITH_ORG": ""},
+            env={"CLOUDSMITH_ORG": "", "CLOUDSMITH_WORKSPACE": ""},
             catch_exceptions=False,
         )
 
     assert result.exit_code == 1
     # No token must leak on stdout on the refusal path.
     assert result.stdout == ""
-    assert "organisation" in result.output.lower()
+    assert "workspace" in result.output.lower()
 
 
 def test_cli_repo_from_env_var(runner):
