@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The CLI no longer reads a `[domains]` section from `config.ini`. The configured API host supplies the domains.
 
+### Fixed
+
+- The docker, pnpm, cargo and terraform launchers of the standalone binary now quote the path of the binary correctly. A path with `$` or a backtick no longer breaks the launcher on Linux and macOS.
+
 ## [1.29.0] - 2026-10-15
 
 ### Added

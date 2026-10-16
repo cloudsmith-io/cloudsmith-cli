@@ -15,6 +15,7 @@ from ....core.api.init import initialise_api
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.backends import BackendKind
 from ....credential_helpers.common import (
+    REFUSAL_MESSAGE,
     is_cloudsmith_domain,
     is_standard_cloudsmith_domain,
 )
@@ -28,7 +29,6 @@ from ....credential_helpers.domains import (
     write_cache,
 )
 from ....credential_helpers.docker.runtime import (
-    _REFUSAL_MESSAGE,
     execute,
 )
 from ....credential_helpers.docker.runtime import (
@@ -133,7 +133,7 @@ def test_execute_get_boundary_guard(scenario):
 
     assert code == 1
     assert stdout is None
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 # ---------------------------------------------------------------------------
