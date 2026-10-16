@@ -5,6 +5,37 @@ import pytest
 from ...commands.upstream import UPSTREAM_FORMATS, upstream
 from ..utils import random_str
 
+#: The canonical public upstream for each format. These are already indexed,
+#: so the API validates them quickly, and none needs credentials. The API
+#: strips trailing slashes, so none is written with one. Formats without a
+#: single canonical source (generic, swift) use a small placeholder page.
+UPSTREAM_URLS = {
+    "alpine": "https://dl-cdn.alpinelinux.org/alpine",
+    "cargo": "https://index.crates.io",
+    "conda": "https://conda.anaconda.org/conda-forge",
+    "cran": "https://cloud.r-project.org",
+    "dart": "https://pub.dev",
+    "deb": "http://archive.ubuntu.com/ubuntu",
+    "docker": "https://index.docker.io",
+    "generic": "https://example.org",
+    "go": "https://proxy.golang.org",
+    "helm": "https://charts.bitnami.com/bitnami",
+    "hex": "https://repo.hex.pm",
+    "huggingface": "https://huggingface.co",
+    "maven": "https://repo1.maven.org/maven2",
+    "nix": "https://channels.nixos.org/nixos-26.05",
+    "npm": "https://registry.npmjs.org",
+    "nuget": "https://api.nuget.org/v3/index.json",
+    "python": "https://pypi.org",
+    "rpm": "https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/35/Everything/x86_64/os",
+    "ruby": "https://rubygems.org",
+    "swift": "https://example.org",
+}
+
+
+def test_every_upstream_format_has_an_upstream_url():
+    assert set(UPSTREAM_URLS) == set(UPSTREAM_FORMATS)
+
 
 def assert_succeeded(result):
     """Fail with the CLI's own output when a command did not succeed.
@@ -25,18 +56,7 @@ def test_upstream_commands(
     upstream_config = {
         # "name" and "upstream_url" are the only required properties for most formats.
         "name": f"cli-test-upstream-{upstream_format}",
-        # This obviously isn't an upstream url and will not work on the server,
-        # but we aren't testing the server. It must be a domain the API accepts
-        # as an upstream URL, which excludes Cloudsmith's own domains.
-        #
-        # nix is the exception: the server validates that a nix upstream_url
-        # points at a real channel under https://channels.nixos.org/, so it
-        # needs a URL that passes that check rather than the generic placeholder.
-        "upstream_url": (
-            "https://channels.nixos.org/nixos-25.05"
-            if upstream_format == "nix"
-            else "https://example.org"
-        ),
+        "upstream_url": UPSTREAM_URLS[upstream_format],
         # distro_version is only required for rpm and will be ignored for other formats.
         "distro_version": "fedora/35",
         # distro_versions is only required for deb and will be ignored for other formats.
