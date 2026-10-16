@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
-- `cloudsmith login` and its `cloudsmith token` alias are deprecated, because Cloudsmith is switching off username and password login. The date they stop working will be announced in the [Cloudsmith changelog](https://cloudsmith.com/changelog). Both commands still work until then, but they now print a deprecation warning to stderr before they prompt for credentials. Once the server switches password login off (`410 Gone`, or `404` after the endpoint is removed), they fail with a message that explains how to get an API key instead. Other errors, such as outages or wrong credentials, are reported as before. Get your API key from the Cloudsmith web app (your user menu, then **Personal API Keys**) and set `CLOUDSMITH_API_KEY`, or run `cloudsmith auth` to authenticate with SAML SSO.
+- `cloudsmith login` and its `cloudsmith token` alias are deprecated, and will stop working when Cloudsmith disables username and password login. The date will be announced in the [Cloudsmith changelog](https://cloudsmith.com/changelog). Until then, both commands work as before, but they print a deprecation warning to stderr before they prompt for credentials. Once the server disables password login (`410 Gone`, or `404` after the endpoint is deleted), they fail with a message that explains how to get an API key instead. Other errors, such as outages or wrong credentials, are reported as before. To replace them, set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app (your user menu, then **Personal API Keys**), or run `cloudsmith auth` to log in with SAML SSO.
 
 ### Changed
 
-- The hint shown for a `401 - Unauthorized` error when no credentials are set no longer suggests `cloudsmith token`. It now suggests `$CLOUDSMITH_API_KEY` or `cloudsmith auth`.
+- The hint shown for a `401 - Unauthorized` error when no API key or SSO session is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`.
 
 ### Fixed
 

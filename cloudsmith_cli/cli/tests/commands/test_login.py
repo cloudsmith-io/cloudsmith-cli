@@ -92,13 +92,11 @@ class TestLoginDeprecation:
         )
 
         assert result.exit_code == 0
-        assert f"DEPRECATION WARNING: 'cloudsmith {name}' is deprecated" in (
-            result.stderr
-        )
+        assert f"Warning: `cloudsmith {name}` is deprecated" in result.stderr
         assert "Personal API Keys" in result.stderr
         assert "cloudsmith auth" in result.stderr
         assert "https://cloudsmith.com/changelog" in result.stderr
-        assert "DEPRECATION WARNING" not in result.stdout
+        assert "is deprecated" not in result.stdout
         assert "Your API key/token is: fake-api-key" in result.stdout
 
     def test_warns_before_prompting_for_credentials(self, runner, tmp_path, name):
@@ -110,9 +108,7 @@ class TestLoginDeprecation:
         )
 
         assert result.exit_code == 0
-        assert result.output.index("DEPRECATION WARNING") < result.output.index(
-            "Login:"
-        )
+        assert result.output.index("is deprecated") < result.output.index("Login:")
 
     def test_json_output_stays_parseable(self, runner, tmp_path, name):
         """Config-file prompts and messages must not leak into JSON stdout."""
@@ -131,7 +127,7 @@ class TestLoginDeprecation:
         )
 
         assert result.exit_code == 0
-        assert "DEPRECATION WARNING" in result.stderr
+        assert "is deprecated" in result.stderr
         assert "do you want to create them?" in result.stderr
         assert json.loads(result.stdout)["data"]["token"] == "fake-api-key"
 
@@ -147,8 +143,8 @@ def test_shell_completion_parsing_does_not_warn(capsys):
     login.make_context("login", ["-l", "you@example.com"], resilient_parsing=True)
 
     captured = capsys.readouterr()
-    assert "DEPRECATION WARNING" not in captured.err
-    assert "DEPRECATION WARNING" not in captured.out
+    assert "is deprecated" not in captured.err
+    assert "is deprecated" not in captured.out
 
 
 @pytest.mark.parametrize("name", ["login", "token"])

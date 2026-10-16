@@ -22,32 +22,29 @@ def validate_login(ctx, param, value):
 
 
 DEPRECATION_WARNING = (
-    "DEPRECATION WARNING: 'cloudsmith {name}' is deprecated, because Cloudsmith is "
-    "switching off username and password login.\n"
-    "To authenticate instead, do one of these:\n"
-    "  - Get your API key from the Cloudsmith web app (your user menu, then "
-    "Personal API Keys) and set the CLOUDSMITH_API_KEY environment variable or "
-    "add it to credentials.ini.\n"
-    "  - Run 'cloudsmith auth' to authenticate with SAML SSO.\n"
-    "The date this command stops working will be announced in the Cloudsmith "
-    "changelog: https://cloudsmith.com/changelog"
+    "Warning: `cloudsmith {name}` is deprecated and will stop working when "
+    "Cloudsmith disables username and password login. The date will be announced "
+    "at https://cloudsmith.com/changelog\n"
+    "Use an API key or SSO instead: set `CLOUDSMITH_API_KEY` to an API key from "
+    "the Cloudsmith web app (your user menu, then Personal API Keys), or run "
+    "`cloudsmith auth` to log in with SAML SSO."
 )
 
 
 REMOVED_MESSAGE = (
-    "Username and password login has been removed, so this command no longer "
-    "works. Get your API key from the Cloudsmith web app (your user menu, then "
-    "Personal API Keys) and set the CLOUDSMITH_API_KEY environment variable, or "
-    "run 'cloudsmith auth' to authenticate with SAML SSO."
+    "Could not retrieve API key: username and password login is disabled.\n"
+    "Fix: set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app "
+    "(your user menu, then Personal API Keys), or run `cloudsmith auth` to log in "
+    "with SAML SSO."
 )
 
-#: Statuses the token endpoint returns once the server has switched password
-#: login off (410) or removed the route entirely (404).
+#: Statuses the token endpoint returns once the server has disabled password
+#: login (410) or deleted the route entirely (404).
 REMOVED_STATUSES = (404, 410)
 
 
 def summarise_removed_login(exc, detail, fields):
-    """Replace the raw error with a removal notice once the endpoint is off."""
+    """Replace the raw error with a clear notice once the endpoint is disabled."""
     # pylint: disable=unused-argument
     if exc.status in REMOVED_STATUSES:
         return REMOVED_MESSAGE
@@ -83,20 +80,23 @@ class DeprecatedLoginCommand(click.Command):
 @decorators.initialise_api
 @click.pass_context
 def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
-    """[DEPRECATED] Retrieve your API authentication token/key via login.
+    """[DEPRECATED] Retrieve your API key with your email address and password.
 
-    Cloudsmith is switching off username and password login. The date will be
-    announced in the Cloudsmith changelog. Get your API key from the Cloudsmith
-    web app instead, or run 'cloudsmith auth' to authenticate with SAML SSO.
+    This command will stop working when Cloudsmith disables username and
+    password login. The date will be announced at
+    https://cloudsmith.com/changelog
+
+    Set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app instead,
+    or run `cloudsmith auth` to log in with SAML SSO.
     """
     use_stderr = utils.should_use_stderr(opts)
     click.echo(
-        f"Retrieving API token for {click.style(login, bold=True)} ... ",
+        f"Retrieving API key for {click.style(login, bold=True)} ... ",
         nl=False,
         err=use_stderr,
     )
 
-    context_msg = "Failed to retrieve the API token!"
+    context_msg = "Could not retrieve API key"
     try:
         with (
             handle_api_exceptions(

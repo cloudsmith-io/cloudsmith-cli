@@ -55,7 +55,7 @@ class TestGet401ErrorHint:
 
     @pytest.mark.parametrize("info_name", ["login", "token"])
     def test_no_credential_on_login_command_reports_a_failed_login(self, info_name):
-        assert "login failed" in hint_for(None, info_name=info_name)
+        assert "Could not log in" in hint_for(None, info_name=info_name)
 
 
 def invoke_credentialed_401(runner, config_dir, output_format="pretty"):

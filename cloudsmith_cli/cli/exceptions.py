@@ -213,16 +213,14 @@ def get_401_error_hint(ctx, opts, exc):
     if ctx.info_name in ("login", "token"):
         # This is already the (deprecated) login command
         return (
-            "The login failed - Either your email address and/or "
-            "your password was incorrect. Please check them and "
-            "try again!"
+            "Could not log in with this email address and password. Check both "
+            "and run the command again."
         )
 
     return (
-        "You don't have an API key or access token set, but it seems this action "
-        "requires authentication - Try setting your API key via "
-        "$CLOUDSMITH_API_KEY, or getting an access token via 'cloudsmith auth', "
-        "then try again."
+        "This command requires authentication, and no API key or SSO session was "
+        "found. Set `CLOUDSMITH_API_KEY` to your API key, or run `cloudsmith auth` "
+        "to log in with SAML SSO."
     )
 
 
