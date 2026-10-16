@@ -1,0 +1,145 @@
+name: nuget-e2e
+
+on:
+  push:
+    branches:
+      - iduffy/nuget-e2e
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: ${{ matrix.os }} / ${{ matrix.case }} / ${{ matrix.mode }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2025]
+        case: [standard, custom, explicit]
+        mode: [source, frozen]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      RAW_API_HOST: ${{ vars.PYTEST_CLOUDSMITH_API_HOST }}
+      CLOUDSMITH_API_KEY: ${{ matrix.case != 'standard' && secrets.PYTEST_CLOUDSMITH_CUSTOM_DOMAIN_API_KEY || secrets.PYTEST_CLOUDSMITH_API_KEY }}
+      CLOUDSMITH_NO_KEYRING: "1"
+      WORKSPACE: ${{ matrix.case != 'standard' && vars.PYTEST_CLOUDSMITH_CUSTOM_DOMAIN_WORKSPACE || vars.PYTEST_CLOUDSMITH_ORGANIZATION }}
+      REPO: ${{ matrix.case != 'standard' && 'cli-pytest-custom-domain' || 'cli-pytest-nuget' }}
+      CASE: ${{ matrix.case }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install the CLI from source
+        if: matrix.mode == 'source'
+        run: |
+          set -euo pipefail
+          uv sync --locked --no-dev --python 3.14
+          if [ "$RUNNER_OS" = Windows ]; then bin=Scripts; else bin=bin; fi
+          echo "$GITHUB_WORKSPACE/.venv/$bin" >> "$GITHUB_PATH"
+
+      - name: Build the frozen CLI
+        if: matrix.mode == 'frozen'
+        env:
+          PYINSTALLER_CONFIG_DIR: ${{ runner.temp }}/pyinstaller
+        run: |
+          set -euo pipefail
+          uv sync --locked --no-dev --no-editable --group binary --extra all --python 3.14
+          uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
+          mv dist/cloudsmith "$RUNNER_TEMP/cloudsmith-frozen"
+          echo "$RUNNER_TEMP/cloudsmith-frozen" >> "$GITHUB_PATH"
+
+      - name: Find the feed
+        run: |
+          set -euo pipefail
+          export CLOUDSMITH_API_HOST="${RAW_API_HOST%/v1}"
+          echo "CLOUDSMITH_API_HOST=$CLOUDSMITH_API_HOST" >> "$GITHUB_ENV"
+          which cloudsmith
+          cloudsmith --version
+          cloudsmith domains list --workspace "$WORKSPACE" > domains.json
+          feed=$(python - <<'EOF'
+          import json, os
+          data = json.load(open("domains.json"))
+          data = data.get("data", data)
+          rows = [d for d in data["domains"] if d["format"] == "nuget"]
+          if os.environ["CASE"] != "standard":
+              host = next(d["host"] for d in rows if d["type"] == "custom")
+              print(f"https://{host}/{os.environ['REPO']}/v3/index.json")
+          else:
+              host = next(d["host"] for d in rows if d["type"] == "default")
+              print(f"https://{host}/{os.environ['WORKSPACE']}/{os.environ['REPO']}/v3/index.json")
+          EOF
+          )
+          echo "FEED=$feed" >> "$GITHUB_ENV"
+
+      - name: Write a consumer project with no feed credentials
+        run: |
+          set -euo pipefail
+          mkdir -p consumer
+          cat > consumer/Consumer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+            <ItemGroup><PackageReference Include="Cloudsmith.Cli.NuGetProbe" Version="1.0.0" /></ItemGroup>
+          </Project>
+          EOF
+          cat > nuget.config <<EOF
+          <configuration><packageSources><clear /><add key="cloudsmith" value="$FEED" /></packageSources></configuration>
+          EOF
+
+      - name: Restore fails without the plugin
+        run: |
+          set +e
+          out=$(NUGET_PACKAGES="$RUNNER_TEMP/pkgs-denied" dotnet restore consumer --configfile nuget.config 2>&1)
+          code=$?
+          echo "$out"
+          test "$code" -ne 0
+          echo "$out" | grep -q 401
+
+      - name: Install the plugin
+        run: |
+          set -euo pipefail
+          bin_dir="$RUNNER_TEMP/nuget-bin"
+          if [ "$CASE" = explicit ]; then
+            # An unreachable API host proves that the plugin makes no domain lookup.
+            host=$(python -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["FEED"]).hostname)')
+            CLOUDSMITH_API_HOST=https://api.invalid \
+              cloudsmith credential-helper install nuget --domain "$host" --no-discover --bin-dir "$bin_dir"
+          else
+            # CLOUDSMITH_API_HOST comes from the environment, so the launcher bakes it in.
+            cloudsmith credential-helper install nuget --workspace "$WORKSPACE" --bin-dir "$bin_dir"
+          fi
+          if [ "$CASE" = custom ]; then
+            # --debug turns on the HTTP trace during the live domain lookup.
+            sed -i.bak 's/ credential-helper nuget/ --debug credential-helper nuget/' "$bin_dir"/nuget-plugin-cloudsmith*
+            rm "$bin_dir"/*.bak
+          fi
+          ls -la "$RUNNER_TEMP/nuget-bin"
+          cat "$RUNNER_TEMP/nuget-bin"/nuget-plugin-cloudsmith*
+          echo "$RUNNER_TEMP/nuget-bin" >> "$GITHUB_PATH"
+          cloudsmith credential-helper list
+
+      - name: Restore succeeds with the plugin
+        env:
+          NUGET_PLUGINS_CACHE_PATH: ${{ runner.temp }}/plugins-cache
+        run: |
+          set -euo pipefail
+          # Only the launcher knows the API host and the Workspace.
+          env -u CLOUDSMITH_API_HOST -u WORKSPACE NUGET_PACKAGES="$RUNNER_TEMP/pkgs-allowed" \
+            dotnet restore consumer --configfile nuget.config -v normal
+          test -d "$RUNNER_TEMP/pkgs-allowed/cloudsmith.cli.nugetprobe/1.0.0"
