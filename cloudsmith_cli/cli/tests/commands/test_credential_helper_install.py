@@ -20,10 +20,12 @@ from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
+    UnsafeLauncherValue,
     _launcher_content,
-    _launcher_filename,
     _user_bin_dir,
+    install_time_settings,
     is_on_path,
+    launcher_filename,
     remove_launcher,
     resolve_bin_dir,
     write_launcher,
@@ -87,13 +89,69 @@ def test_launcher_filename_and_content(
     ``NotImplementedError`` on Python < 3.12).
     """
     assert (
-        _launcher_filename(f"{format}-credential-cloudsmith", windows=windows)
+        launcher_filename(f"{format}-credential-cloudsmith", windows=windows)
         == expected_name
     )
     assert (
         _launcher_content(f"cloudsmith credential-helper {format}", windows=windows)
         == expected_content
     )
+
+
+@pytest.mark.parametrize(
+    "profile,value,expected",
+    [
+        ("C:\\Users\\jo", "C:\\Users\\jo\\a b&c!", "C:\\Users\\jo\\a b&c!"),
+        (
+            "C:\\Users\\José",
+            "c:\\users\\josé\\cs\\config.ini",
+            "%USERPROFILE%\\cs\\config.ini",
+        ),
+    ],
+)
+def test_windows_launcher_settings_are_ascii(monkeypatch, profile, value, expected):
+    """cmd.exe reads a batch file in the console code page, not UTF-8.
+
+    Only a non-ASCII path under the user profile is written as %USERPROFILE%,
+    because another account that runs NuGet has a different profile.
+    """
+    monkeypatch.setenv("USERPROFILE", profile)
+    content = _launcher_content("cmd", windows=True, env={"CLOUDSMITH_X": value})
+    assert content == (
+        "@echo off\r\nsetlocal DisableDelayedExpansion\r\n"
+        f'set "CLOUDSMITH_X={expected}"\r\ncmd %*\r\n'
+    )
+
+
+@pytest.mark.parametrize("value", ["%PATH%", "D:\\Données"])
+def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, value):
+    monkeypatch.setenv("USERPROFILE", "C:\\Users\\José")
+    with pytest.raises(UnsafeLauncherValue, match="CLOUDSMITH_PROFILE"):
+        _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
+
+
+def test_install_time_settings_resolve_paths_from_the_given_values(
+    monkeypatch, tmp_path
+):
+    """Only the given values count; the process environment is not read."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("KEYRING_ROOT", "/var/keyring")
+    monkeypatch.setenv("CLOUDSMITH_KEYRING_BACKEND", "not.from.the.environment")
+
+    settings = install_time_settings(
+        {
+            "CLOUDSMITH_PROFILE": None,
+            "CLOUDSMITH_NO_KEYRING": "1",
+            "CLOUDSMITH_KEYRING_DIR": "$KEYRING_ROOT/store",
+            "CLOUDSMITH_KEYRING_FILE_PATH": "keyring.cfg",
+        }
+    )
+
+    assert settings == {
+        "CLOUDSMITH_NO_KEYRING": "1",
+        "CLOUDSMITH_KEYRING_DIR": "/var/keyring/store",
+        "CLOUDSMITH_KEYRING_FILE_PATH": str(tmp_path / "keyring.cfg"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1393,7 +1451,7 @@ def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
     monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
     bin_dir = tmp_path / "bin"
     monkeypatch.setenv("PATH", str(bin_dir))
-    exe = tmp_path / "cloudsmith"
+    exe = tmp_path / "price$USD dir" / "cloudsmith"
 
     with (
         patch.object(sys, "frozen", True, create=True),
@@ -1402,5 +1460,4 @@ def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
         DockerInstaller().install(bin_dir=str(bin_dir), discover=False)
 
     body = (bin_dir / "docker-credential-cloudsmith").read_text(encoding="utf-8")
-    assert str(exe) in body
-    assert "exec cloudsmith credential-helper" not in body
+    assert f"exec '{exe}' credential-helper docker \"$@\"" in body

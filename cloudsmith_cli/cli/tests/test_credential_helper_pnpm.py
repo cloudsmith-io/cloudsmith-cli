@@ -20,8 +20,8 @@ import pytest
 
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
+from ...credential_helpers.common import REFUSAL_MESSAGE
 from ...credential_helpers.pnpm.runtime import (
-    _REFUSAL_MESSAGE,
     execute,
     get_pnpm_credentials,
 )
@@ -159,14 +159,14 @@ def test_execute_refuses_without_credentials():
     """No credential is a hard refusal (exit 1) with a refusal message on stderr."""
     exit_code, stdout, stderr = execute(CLOUDSMITH_HOST, credential=None)
 
-    assert (exit_code, stdout, stderr) == (1, None, _REFUSAL_MESSAGE)
+    assert (exit_code, stdout, stderr) == (1, None, REFUSAL_MESSAGE)
 
 
 def test_execute_refuses_for_a_foreign_registry(credential):
     """A registry we don't serve is not our concern — exit 1, no leaked token."""
     exit_code, stdout, stderr = execute(FOREIGN_HOST, credential=credential)
 
-    assert (exit_code, stdout, stderr) == (1, None, _REFUSAL_MESSAGE)
+    assert (exit_code, stdout, stderr) == (1, None, REFUSAL_MESSAGE)
 
 
 def test_execute_degrades_cleanly_on_domain_lookup_failure(credential):
@@ -180,7 +180,7 @@ def test_execute_degrades_cleanly_on_domain_lookup_failure(credential):
         )
 
     assert (exit_code, stdout) == (1, None)
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 # ---------------------------------------------------------------------------

@@ -8,16 +8,11 @@ Emits a versioned JSON credential document.
 import json
 import logging
 
+from .common import REFUSAL_MESSAGE
+
 logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = 1
-
-_REFUSAL_MESSAGE = (
-    "Error: Unable to retrieve credentials. "
-    "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
-    "credentials.ini, the system keyring, or an OIDC service. "
-    "Verify current authentication with `cloudsmith whoami --verbose`."
-)
 
 
 class PartialInstallError(Exception):
@@ -71,9 +66,9 @@ def execute(credential=None) -> tuple[int, str | None, str | None]:
     try:
         response = build_response(credential)
         if response is None:
-            return (1, None, _REFUSAL_MESSAGE)
+            return (1, None, REFUSAL_MESSAGE)
 
         return (0, json.dumps(response), None)
     except Exception as exc:  # pylint: disable=broad-except
         logger.debug("generic credential-helper failed: %s", exc, exc_info=True)
-        return (1, None, _REFUSAL_MESSAGE)
+        return (1, None, REFUSAL_MESSAGE)

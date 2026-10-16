@@ -13,16 +13,9 @@ import json
 import logging
 
 from ..backends import BackendKind
-from ..common import is_cloudsmith_domain
+from ..common import REFUSAL_MESSAGE, is_cloudsmith_domain
 
 logger = logging.getLogger(__name__)
-
-_REFUSAL_MESSAGE = (
-    "Error: Unable to retrieve credentials. "
-    "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
-    "credentials.ini, the system keyring, or an OIDC service. "
-    "Verify current authentication with `cloudsmith whoami --verbose`."
-)
 
 
 def get_credentials(server_url, credential=None, api_host=None, org=None):
@@ -69,7 +62,7 @@ def _execute_get(
             server_url, credential=credential, api_host=api_host, org=org
         )
         if creds is None:
-            return (1, None, _REFUSAL_MESSAGE)
+            return (1, None, REFUSAL_MESSAGE)
 
         return (0, json.dumps(creds), None)
     except Exception as exc:  # pylint: disable=broad-except
@@ -80,7 +73,7 @@ def _execute_get(
         # This is the ONLY intentional broad except in this feature.
         # (Exception does not catch KeyboardInterrupt/SystemExit, which is correct.)
         logger.debug("docker credential-helper get failed: %s", exc, exc_info=True)
-        return (1, None, _REFUSAL_MESSAGE)
+        return (1, None, REFUSAL_MESSAGE)
 
 
 def execute(

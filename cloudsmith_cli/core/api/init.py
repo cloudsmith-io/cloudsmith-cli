@@ -48,11 +48,11 @@ def initialise_api(
             config.api_key.pop("X-Api-Key", None)
             config.headers["Authorization"] = f"Bearer {credential.api_key}"
             if config.debug:
-                click.echo("SSO access token config value set")
+                click.echo("SAML access token config value set", err=True)
         else:
             config.api_key["X-Api-Key"] = credential.api_key
             if config.debug:
-                click.echo("User API key config value set")
+                click.echo("User API key config value set", err=True)
 
     auth_header = headers and config.headers.get("Authorization")
     if auth_header and " " in auth_header:
@@ -63,7 +63,7 @@ def initialise_api(
             config.username, config.password = values.split(":")
 
             if config.debug:
-                click.echo("Username and password config values set")
+                click.echo("Username and password config values set", err=True)
 
     # Important! Some of the attributes set above (e.g. error_retry_max) are not
     # present in the cloudsmith_api.Configuration class declaration.
