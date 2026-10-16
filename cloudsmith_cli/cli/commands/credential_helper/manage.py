@@ -12,9 +12,16 @@ import sys
 from pathlib import Path
 
 import click
+from click.core import ParameterSource
 
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.launchers import (
+    ENV_ONLY_SETTINGS,
+    UnsafeLauncherValue,
+    install_time_settings,
+)
+from cloudsmith_cli.credential_helpers.nuget.installer import NuGetInstaller
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
@@ -44,6 +51,7 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "nuget": NuGetInstaller,
 }
 
 
@@ -116,6 +124,61 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
     if creds_file:
         args.extend(["--credentials-file", creds_file])
     return tuple(args)
+
+
+def _env_only_setting_options(f):
+    """Add hidden options that read the settings in ``ENV_ONLY_SETTINGS``.
+
+    These settings have no flag, but ``install`` reads them through Click like
+    every other setting that a launcher keeps.
+    """
+    for env_var in reversed(ENV_ONLY_SETTINGS):
+        flag = env_var.removeprefix("CLOUDSMITH_").lower().replace("_", "-")
+        option = click.option(
+            f"--{flag}-env", env_var.lower(), envvar=env_var, hidden=True
+        )
+        f = option(f)
+    return f
+
+
+def _launcher_settings_from_cli(ctx, opts, env_only_settings) -> dict[str, str]:
+    """Return the ``CLOUDSMITH_*`` settings that a launcher keeps.
+
+    Only values from a flag or an environment variable are kept, because the
+    helper reads the config files itself.  Secrets such as the API key are
+    never kept.  The proxy comes only from config, because a proxy URL can
+    hold credentials and other users can read the launcher.
+    """
+    supplied = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
+
+    def from_flag_or_env(param: str, value):
+        return value if ctx.get_parameter_source(param) in supplied else None
+
+    return install_time_settings(
+        {
+            "CLOUDSMITH_WORKSPACE": from_flag_or_env("org", opts.org),
+            "CLOUDSMITH_PROFILE": ctx.meta.get("profile"),
+            "CLOUDSMITH_CONFIG_FILE": ctx.meta.get("config_file"),
+            "CLOUDSMITH_CREDENTIALS_FILE": ctx.meta.get("creds_file"),
+            "CLOUDSMITH_API_HOST": from_flag_or_env("api_host", opts.api_host),
+            "CLOUDSMITH_WITHOUT_API_SSL_VERIFY": from_flag_or_env(
+                "without_api_ssl_verify",
+                "false" if opts.api_ssl_verify else "true",
+            ),
+            "CLOUDSMITH_OIDC_AUDIENCE": from_flag_or_env(
+                "oidc_audience", opts.oidc_audience
+            ),
+            "CLOUDSMITH_SERVICE_SLUG": from_flag_or_env(
+                "oidc_service_slug", opts.oidc_service_slug
+            ),
+            **{
+                env_var: from_flag_or_env(
+                    env_var.lower(), env_only_settings[env_var.lower()]
+                )
+                for env_var in ENV_ONLY_SETTINGS
+            },
+        }
+    )
 
 
 _REPO_FLAGS = ("-r", "--repo", "--repository")
@@ -200,6 +263,7 @@ def _terraform_next_steps(helper_args: tuple[str, ...]) -> list[str]:
     "list (as `-r <repo>`) so `terraform init` needs no CLOUDSMITH_REPO env "
     "var. Terraform does not pass the repository to a credentials helper.",
 )
+@_env_only_setting_options
 @common_cli_config_options
 @common_cli_output_options
 @common_api_auth_options
@@ -215,6 +279,7 @@ def install_cmd(
     no_discover: bool,
     refresh: bool,
     repo: str | None,
+    **env_only_settings: str | None,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
@@ -269,12 +334,18 @@ def install_cmd(
         helper_args = _terraform_helper_args(ctx, opts, repo)
         install_kwargs["helper_args"] = helper_args
 
+    if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
+        install_kwargs["launcher_env"] = _launcher_settings_from_cli(
+            ctx, opts, env_only_settings
+        )
+
     try:
         actions = installer.install(**install_kwargs)
     except (
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        UnsafeLauncherValue,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:

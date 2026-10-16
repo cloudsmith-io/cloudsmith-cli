@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added a NuGet credential provider. Run `cloudsmith credential-helper install nuget --workspace <workspace>` once. Then `dotnet restore`, MSBuild and Visual Studio authenticate to Cloudsmith feeds with your CLI credentials. NuGet finds the provider on PATH. This needs .NET SDK 9.0.200 or later. The provider also covers the NuGet custom domains of the Workspace. To name feed hosts yourself, use `--domain`. To skip the domain lookup, use `--no-discover`. No token is stored in `nuget.config`.
+
 ### Changed
 
 - `cloudsmith domains list` and the credential helpers now get the domains from `GET /v2/workspaces/{workspace}/domains/` on the configured API host. This list includes the Cloudsmith-owned hosts, so the CLI no longer contains a list of Cloudsmith hostnames. The CLI keeps a separate domain cache for each API host.
