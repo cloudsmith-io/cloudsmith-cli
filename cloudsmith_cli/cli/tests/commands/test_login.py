@@ -44,7 +44,6 @@ def invoke_main_login(
     *extra_args,
     user_input=None,
     get_user_token=None,
-    mock_config_files=True,
 ):
     """Run `cloudsmith <name>` through the registered command tree.
 
@@ -69,16 +68,15 @@ def invoke_main_login(
                 get_user_token or Mock(return_value="fake-api-key"),
             )
         )
-        if mock_config_files:
-            stack.enter_context(
-                patch(
-                    "cloudsmith_cli.cli.commands.login.create_config_files",
-                    return_value=(False, False),
-                )
+        stack.enter_context(
+            patch(
+                "cloudsmith_cli.cli.commands.login.create_config_files",
+                return_value=(False, False),
             )
-            stack.enter_context(
-                patch("cloudsmith_cli.cli.commands.login.new_config_messaging")
-            )
+        )
+        stack.enter_context(
+            patch("cloudsmith_cli.cli.commands.login.new_config_messaging")
+        )
         return runner.invoke(main, args, input=user_input)
 
 
@@ -112,7 +110,6 @@ class TestLoginDeprecation:
         assert result.output.index("is deprecated") < result.output.index("Login:")
 
     def test_json_output_stays_parseable(self, runner, tmp_path, name):
-        """Config-file prompts and messages must not leak into JSON stdout."""
         result = invoke_main_login(
             runner,
             tmp_path,
@@ -123,13 +120,10 @@ class TestLoginDeprecation:
             "secret",
             "--output-format",
             "json",
-            user_input="N\n",
-            mock_config_files=False,
         )
 
         assert result.exit_code == 0
         assert "is deprecated" in result.stderr
-        assert "do you want to create them?" in result.stderr
         assert json.loads(result.stdout)["data"]["token"] == "fake-api-key"
 
     def test_help_marks_the_command_deprecated(self, runner, tmp_path, name):

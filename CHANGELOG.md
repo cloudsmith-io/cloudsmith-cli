@@ -15,10 +15,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The hint shown for a `401 - Unauthorized` error when no API key or SSO session is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`.
 
-### Fixed
-
-- `cloudsmith login`, and `cloudsmith auth` and `cloudsmith tokens` with `--save-config`, no longer write config file prompts and messages to stdout when `--output-format json` or `pretty_json` is set. They now go to stderr, so stdout holds only the JSON.
-
 ## [1.29.0] - 2026-10-15
 
 ### Added
