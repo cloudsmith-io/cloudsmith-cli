@@ -219,8 +219,8 @@ def get_401_error_hint(ctx, opts, exc):
 
     return (
         "This command requires authentication, and no API key or SSO session was "
-        "found. Set `CLOUDSMITH_API_KEY` to your API key, or run `cloudsmith auth` "
-        "to log in with SAML SSO."
+        "found. Set `CLOUDSMITH_API_KEY` to your API key, or run "
+        "`cloudsmith auth --workspace <workspace>` to log in with SAML SSO."
     )
 
 

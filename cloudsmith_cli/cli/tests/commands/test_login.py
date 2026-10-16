@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from ....core.api.exceptions import ApiException, TwoFactorRequiredException
-from ...commands.login import REMOVED_MESSAGE, login
+from ...commands.login import API_KEY_DOCS_URL, REMOVED_MESSAGE, login
 from ...commands.main import main
 
 
@@ -96,6 +96,7 @@ class TestLoginDeprecation:
         assert "Personal API Keys" in result.stderr
         assert "cloudsmith auth" in result.stderr
         assert "https://cloudsmith.com/changelog" in result.stderr
+        assert f"More: {API_KEY_DOCS_URL}" in result.stderr
         assert "is deprecated" not in result.stdout
         assert "Your API key/token is: fake-api-key" in result.stdout
 
@@ -136,6 +137,7 @@ class TestLoginDeprecation:
 
         assert result.exit_code == 0
         assert "[DEPRECATED]" in result.stdout
+        assert API_KEY_DOCS_URL in result.stdout
 
 
 def test_shell_completion_parsing_does_not_warn(capsys):
@@ -170,6 +172,7 @@ class TestLoginSwitchedOff:
 
         assert result.return_value == status
         assert REMOVED_MESSAGE in result.output
+        assert f"More: {API_KEY_DOCS_URL}" in result.output
         assert f"status: {status}" not in result.output
         assert "usually means the user/org is wrong" not in result.output
 
