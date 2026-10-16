@@ -183,7 +183,9 @@ def list_metadata(
             slug_perm = api_get_package_slug_perm(
                 owner=owner, repo=repo, identifier=package
             )
-            entry = api_get_metadata(slug_perm, metadata_slug_perm)
+            entry = api_get_metadata(
+                slug_perm, metadata_slug_perm, credential=opts.credential
+            )
 
         click.secho("OK", fg="green", err=use_stderr)
         _print_metadata_entry(opts, entry)
@@ -208,6 +210,7 @@ def list_metadata(
             page=page,
             page_size=page_size,
             package_slug_perm=slug_perm,
+            credential=opts.credential,
             source_kind=source_kind,
             classification=classification,
         )
@@ -328,6 +331,7 @@ def add_metadata(
         )
         entry = api_create_metadata(
             slug_perm,
+            credential=opts.credential,
             content=metadata.content,
             content_type=metadata.content_type,
             source_identity=metadata.source_identity,
@@ -434,7 +438,9 @@ def update_metadata(
         slug_perm = api_get_package_slug_perm(
             owner=owner, repo=repo, identifier=package
         )
-        entry = api_update_metadata(slug_perm, metadata_slug_perm, **patch_kwargs)
+        entry = api_update_metadata(
+            slug_perm, metadata_slug_perm, credential=opts.credential, **patch_kwargs
+        )
 
     click.secho("OK", fg="green", err=use_stderr)
     _print_metadata_entry(opts, entry)
@@ -496,7 +502,7 @@ def remove_metadata(ctx, opts, owner_repo_package, metadata_slug_perm, yes):
         slug_perm = api_get_package_slug_perm(
             owner=owner, repo=repo, identifier=package
         )
-        api_delete_metadata(slug_perm, metadata_slug_perm)
+        api_delete_metadata(slug_perm, metadata_slug_perm, credential=opts.credential)
 
     click.secho("OK", fg="green", err=use_stderr)
 

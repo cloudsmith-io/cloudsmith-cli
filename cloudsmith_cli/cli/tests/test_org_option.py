@@ -139,7 +139,6 @@ def test_workspace_environment_takes_precedence(org_reporting_command, monkeypat
 def test_credential_warning_writer_uses_stderr_without_debug(org_reporting_command):
     def emit_warning(context):
         context.warning_writer("OIDC diagnostic")
-        return None
 
     with patch(
         "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
