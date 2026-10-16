@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Deprecated
+
+- `cloudsmith login` and its `cloudsmith token` alias are deprecated and will be removed in a future release, because Cloudsmith is removing username and password login. Both commands still work, but they now print a deprecation warning to stderr before they prompt for credentials. Get your API key from the Cloudsmith web app (your user menu, then **Personal API Keys**) and set `CLOUDSMITH_API_KEY`, or run `cloudsmith auth` to authenticate with SAML SSO.
+
+### Changed
+
+- The hint shown for a `401 - Unauthorized` error when no credentials are set no longer suggests `cloudsmith token`. It now suggests `$CLOUDSMITH_API_KEY` or `cloudsmith auth`.
+
 ## [1.29.0] - 2026-10-15
 
 ### Added

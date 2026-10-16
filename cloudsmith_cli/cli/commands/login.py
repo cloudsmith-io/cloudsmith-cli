@@ -21,7 +21,33 @@ def validate_login(ctx, param, value):
     return value
 
 
-@main.command(aliases=["token"])
+DEPRECATION_WARNING = (
+    "DEPRECATION WARNING: 'cloudsmith {name}' is deprecated and will be removed in "
+    "a future release. Username and password login is going away.\n"
+    "To authenticate instead, do one of these:\n"
+    "  - Get your API key from the Cloudsmith web app (your user menu, then "
+    "Personal API Keys) and set the CLOUDSMITH_API_KEY environment variable or "
+    "add it to credentials.ini.\n"
+    "  - Run 'cloudsmith auth' to authenticate with SAML SSO.\n"
+    "See https://docs.cloudsmith.com/accounts-and-teams/api-key for details."
+)
+
+
+class DeprecatedLoginCommand(click.Command):
+    """Command that prints the deprecation warning before any prompt."""
+
+    def parse_args(self, ctx, args):
+        # Click prompts for --login and --password while parsing, so the
+        # warning must be printed here rather than in the command body.
+        # Shell completion also parses (resiliently) and must stay quiet.
+        if not ctx.resilient_parsing:
+            click.secho(
+                DEPRECATION_WARNING.format(name=ctx.info_name), fg="yellow", err=True
+            )
+        return super().parse_args(ctx, args)
+
+
+@main.command(cls=DeprecatedLoginCommand, aliases=["token"])
 @click.option(
     "-l",
     "--login",
@@ -36,7 +62,12 @@ def validate_login(ctx, param, value):
 @decorators.initialise_api
 @click.pass_context
 def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
-    """Retrieve your API authentication token/key via login."""
+    """[DEPRECATED] Retrieve your API authentication token/key via login.
+
+    Username and password login will be removed in a future release. Get your
+    API key from the Cloudsmith web app instead, or run 'cloudsmith auth' to
+    authenticate with SAML SSO.
+    """
     use_stderr = utils.should_use_stderr(opts)
     click.echo(
         f"Retrieving API token for {click.style(login, bold=True)} ... ",
