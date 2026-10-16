@@ -6,6 +6,16 @@ from ...commands.upstream import UPSTREAM_FORMATS, upstream
 from ..utils import random_str
 
 
+def assert_succeeded(result):
+    """Fail with the CLI's own output when a command did not succeed.
+
+    API errors exit through ``ctx.exit(status)``, which a ``CliRunner`` call on
+    an ``AliasGroup`` reports in ``return_value`` rather than ``exit_code``.
+    """
+    assert result.exit_code == 0, result.output
+    assert not result.return_value, result.output
+
+
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
 @pytest.mark.integration
 @pytest.mark.parametrize("upstream_format", UPSTREAM_FORMATS)
@@ -16,7 +26,8 @@ def test_upstream_commands(
         # "name" and "upstream_url" are the only required properties for most formats.
         "name": f"cli-test-upstream-{upstream_format}",
         # This obviously isn't an upstream url and will not work on the server,
-        # but we aren't testing the server.
+        # but we aren't testing the server. It must be a domain the API accepts
+        # as an upstream URL, which excludes Cloudsmith's own domains.
         #
         # nix is the exception: the server validates that a nix upstream_url
         # points at a real channel under https://channels.nixos.org/, so it
@@ -24,7 +35,7 @@ def test_upstream_commands(
         "upstream_url": (
             "https://channels.nixos.org/nixos-25.05"
             if upstream_format == "nix"
-            else "https://www.cloudsmith.io"
+            else "https://example.org"
         ),
         # distro_version is only required for rpm and will be ignored for other formats.
         "distro_version": "fedora/35",
@@ -43,7 +54,7 @@ def test_upstream_commands(
         args=[upstream_format, "ls", org_repo, "-F", "json"],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     result_data = json.loads(result.output)["data"]
     assert not result_data  # No upstreams have been created yet
 
@@ -60,7 +71,7 @@ def test_upstream_commands(
         ],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     result_data = json.loads(result.output)["data"]
     assert result_data["name"] == upstream_config["name"]
     assert result_data["upstream_url"] == upstream_config["upstream_url"]
@@ -71,7 +82,7 @@ def test_upstream_commands(
         args=[upstream_format, "ls", org_repo, "-F", "json"],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     result_data = json.loads(result.output)["data"]
     assert (
         len(result_data) == 1
@@ -86,7 +97,7 @@ def test_upstream_commands(
         args=[upstream_format, "ls", org_repo, "--page-all", "-F", "json"],
         catch_exceptions=False,
     )
-    assert page_all.exit_code == 0
+    assert_succeeded(page_all)
     page_all_data = json.loads(page_all.output)["data"]
     assert len(page_all_data) == 1  # Should return the same single upstream
     assert "Invalid value for '--page-all'" not in page_all.output
@@ -130,7 +141,7 @@ def test_upstream_commands(
         ],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     result_data = json.loads(result.output)["data"]
     assert result_data["name"] == upstream_config["name"]
     assert result_data["upstream_url"] == upstream_config["upstream_url"]
@@ -141,7 +152,7 @@ def test_upstream_commands(
         args=[upstream_format, "ls", org_repo, "-F", "json"],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     result_data = json.loads(result.output)["data"]
     assert (
         len(result_data) == 1
@@ -156,7 +167,7 @@ def test_upstream_commands(
         args=[upstream_format, "delete", org_repo_slug_perm, "-y", "-F", "json"],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     assert not result.output
 
     # Invoke the upstream list command yet again
@@ -165,6 +176,6 @@ def test_upstream_commands(
         args=[upstream_format, "ls", org_repo, "-F", "json"],
         catch_exceptions=False,
     )
-    assert result.exit_code == 0
+    assert_succeeded(result)
     result_data = json.loads(result.output)["data"]
     assert not result_data  # We should have no upstreams at this point
