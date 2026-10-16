@@ -128,7 +128,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
     if override is not None:
         return Path(override).resolve()
 
-    return Path.home() / ".cloudsmith" / "bin"
+    return (Path.home() / ".cloudsmith" / "bin").resolve()
 
 
 def is_on_path(directory: Path) -> bool:
