@@ -14,8 +14,8 @@ import tomlkit
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
 from ...credential_helpers.cargo.installer import CargoInstaller
+from ...credential_helpers.common import REFUSAL_MESSAGE
 from ...credential_helpers.cargo.runtime import (
-    _REFUSAL_MESSAGE,
     SUPPORTED_VERSIONS,
     execute,
     get_credentials,
@@ -190,7 +190,7 @@ def test_get_reports_not_found_when_no_credential_resolves():
 
     assert messages[1] == {"Err": {"kind": "not-found"}}
     assert code == 1
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 def test_get_reports_not_found_for_a_credential_without_an_api_key():
@@ -299,7 +299,7 @@ def test_transport_failure_degrades_to_a_clean_exit(credential):
     code, stderr = execute(io.StringIO(""), BrokenPipe(), credential=credential)
 
     assert code == 1
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 def test_domain_lookup_failure_degrades_to_a_clean_exit(credential):
@@ -310,7 +310,7 @@ def test_domain_lookup_failure_degrades_to_a_clean_exit(credential):
     ):
         code, stderr, messages = _session(_request(), credential=credential)
 
-    assert (code, stderr) == (1, _REFUSAL_MESSAGE)
+    assert (code, stderr) == (1, REFUSAL_MESSAGE)
     assert messages == [hello()]
 
 
