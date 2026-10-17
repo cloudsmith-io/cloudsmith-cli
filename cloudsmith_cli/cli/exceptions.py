@@ -210,24 +210,27 @@ def get_401_error_hint(ctx, opts, exc):
             "try again."
         )
 
-    if ctx.info_name == "token":
-        # This is already the token command
+    if ctx.info_name in ("login", "token"):
+        # This is already the (deprecated) login command
         return (
-            "The login failed - Either your email address and/or "
-            "your password was incorrect. Please check them and "
-            "try again!"
+            "Could not log in with this email address and password. Check both "
+            "and run the command again."
         )
 
     return (
-        "You don't have an API key or access token set, but it seems this action "
-        "requires authentication - Try getting your API key via "
-        "'cloudsmith token', or access token via 'cloudsmith auth', then try again."
+        "This command requires authentication, and no API key or SSO session was "
+        "found. Set `CLOUDSMITH_API_KEY` to your API key, or run "
+        "`cloudsmith auth --workspace <workspace>` to log in with SAML SSO."
     )
 
 
 def get_404_error_hint(ctx, opts, exc):
     """Get the hint for a 404/NotFound error."""
     # pylint: disable=unused-argument
+    if ctx.info_name in ("login", "token"):
+        # The token endpoint itself is gone, not a user/org
+        return None
+
     # pylint: disable=fixme
     # TODO(ls): Expand this to be contextual (we could look at the
     # arguments for the command).

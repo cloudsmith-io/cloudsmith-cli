@@ -3,6 +3,8 @@
 import json
 from unittest.mock import Mock, patch
 
+import pytest
+
 from cloudsmith_cli.cli.commands.main import main
 from cloudsmith_cli.cli.exceptions import get_401_error_hint, handle_api_exceptions
 from cloudsmith_cli.core.api.exceptions import ApiException
@@ -45,10 +47,15 @@ class TestGet401ErrorHint:
         assert hint_for(credential) == API_KEY_HINT
 
     def test_no_credential_suggests_authenticating(self):
-        assert "cloudsmith token" in hint_for(None)
+        hint = hint_for(None)
 
-    def test_no_credential_on_token_command_reports_a_failed_login(self):
-        assert "login failed" in hint_for(None, info_name="token")
+        assert "CLOUDSMITH_API_KEY" in hint
+        assert "cloudsmith auth" in hint
+        assert "cloudsmith token" not in hint
+
+    @pytest.mark.parametrize("info_name", ["login", "token"])
+    def test_no_credential_on_login_command_reports_a_failed_login(self, info_name):
+        assert "Could not log in" in hint_for(None, info_name=info_name)
 
 
 def invoke_credentialed_401(runner, config_dir, output_format="pretty"):
