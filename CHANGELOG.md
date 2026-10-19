@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cloudsmith credential-helper list` now finds a launcher that `install` wrote to the default directory, `~/.cloudsmith/bin`. Before, `list` looked in the directory of the `cloudsmith` executable and reported the helper as not installed.
+
 ## [1.29.0] - 2026-10-15
 
 ### Added
