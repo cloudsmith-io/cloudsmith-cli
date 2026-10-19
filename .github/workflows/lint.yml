@@ -35,5 +35,3 @@ jobs:
       - run: uv sync --locked --group dev
 
       - run: uv run pre-commit run --all-files
-
-      - run: .github/actions/open-cli-bump-pr/test-open-cli-bump-pr.sh

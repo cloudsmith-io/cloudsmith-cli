@@ -546,11 +546,8 @@ jobs:
         repository:
           - homebrew-cloudsmith-cli
           - cloudsmith-cli-action
-    env:
-      HAS_DOWNSTREAM_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN != '' }}
     steps:
       - name: Send the release event
-        if: env.HAS_DOWNSTREAM_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN }}
           REPOSITORY: ${{ github.repository_owner }}/${{ matrix.repository }}
@@ -559,10 +556,6 @@ jobs:
           gh api "repos/${REPOSITORY}/dispatches" \
             -f event_type=cloudsmith-cli-release \
             -f "client_payload[version]=${VERSION}"
-
-      - name: Report a skipped event
-        if: env.HAS_DOWNSTREAM_TOKEN != 'true'
-        run: echo "DOWNSTREAM_RELEASE_PUSH_TOKEN not configured; release event not sent."
 
   publish-github:
     needs:
