@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The hint shown for a `401 - Unauthorized` error when no API key or SAML session is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`.
 
+### Fixed
+
+- `cloudsmith credential-helper list` now finds a launcher that `install` wrote to the default directory, `~/.cloudsmith/bin`. Before, `list` looked in the directory of the `cloudsmith` executable and reported the helper as not installed.
+
 ## [1.29.0] - 2026-10-15
 
 ### Added
