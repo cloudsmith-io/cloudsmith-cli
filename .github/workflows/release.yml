@@ -537,7 +537,7 @@ jobs:
     # that publish-cloudsmith just made live and opens a bump pull request
     # against the Homebrew tap (<owner>/homebrew-cloudsmith-cli). When the tap
     # checks pass, the job squash-merges the pull request with --admin.
-    # Without TAP_PUSH_TOKEN the rendered formula is only staged as a
+    # Without DOWNSTREAM_RELEASE_PUSH_TOKEN the rendered formula is only staged as a
     # workflow artifact.
     needs: [validate, publish-cloudsmith]
     runs-on: ubuntu-24.04
@@ -547,7 +547,7 @@ jobs:
     env:
       CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
-      HAS_TAP_TOKEN: ${{ secrets.TAP_PUSH_TOKEN != '' }}
+      HAS_DOWNSTREAM_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN != '' }}
       VERSION: ${{ needs.validate.outputs.version }}
       # Targets shipped via Homebrew (subset of BINARY_TARGETS; Homebrew on
       # Linux is glibc-based, so the gnu builds).
@@ -620,15 +620,15 @@ jobs:
           done
 
       - name: Set up commit signing as Cloudsmith Bot
-        if: env.HAS_TAP_TOKEN == 'true'
+        if: env.HAS_DOWNSTREAM_TOKEN == 'true'
         uses: ./.github/actions/setup-cloudsmith-bot-git
         with:
           ssh-signing-key: ${{ secrets.CLOUDSMITH_BOT_SSH_KEY }}
 
       - name: Open and merge a bump pull request against the tap repository
-        if: env.HAS_TAP_TOKEN == 'true'
+        if: env.HAS_DOWNSTREAM_TOKEN == 'true'
         env:
-          GH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+          GH_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN }}
           TAP_REPO: ${{ github.repository_owner }}/homebrew-cloudsmith-cli
         run: |
           set -euo pipefail
@@ -662,8 +662,8 @@ jobs:
             --match-head-commit "$(git -C tap rev-parse HEAD)"
 
       - name: Report a skipped tap update
-        if: env.HAS_TAP_TOKEN != 'true'
-        run: echo "TAP_PUSH_TOKEN not configured; formula staged as a workflow artifact only."
+        if: env.HAS_DOWNSTREAM_TOKEN != 'true'
+        run: echo "DOWNSTREAM_RELEASE_PUSH_TOKEN not configured; formula staged as a workflow artifact only."
 
   publish-action:
     # Opens a pull request against <owner>/cloudsmith-cli-action that pins the
@@ -686,7 +686,7 @@ jobs:
     permissions:
       contents: read
     env:
-      HAS_ACTION_TOKEN: ${{ secrets.ACTION_PUSH_TOKEN != '' }}
+      HAS_DOWNSTREAM_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN != '' }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -694,15 +694,15 @@ jobs:
           persist-credentials: false
 
       - name: Set up commit signing as Cloudsmith Bot
-        if: env.HAS_ACTION_TOKEN == 'true'
+        if: env.HAS_DOWNSTREAM_TOKEN == 'true'
         uses: ./.github/actions/setup-cloudsmith-bot-git
         with:
           ssh-signing-key: ${{ secrets.CLOUDSMITH_BOT_SSH_KEY }}
 
       - name: Open a CLI bump pull request against the action repository
-        if: env.HAS_ACTION_TOKEN == 'true'
+        if: env.HAS_DOWNSTREAM_TOKEN == 'true'
         env:
-          GH_TOKEN: ${{ secrets.ACTION_PUSH_TOKEN }}
+          GH_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN }}
           ACTION_REPO: ${{ github.repository_owner }}/cloudsmith-cli-action
         run: |
           set -euo pipefail
@@ -749,8 +749,8 @@ jobs:
           exit 1
 
       - name: Report a skipped action update
-        if: env.HAS_ACTION_TOKEN != 'true'
-        run: echo "ACTION_PUSH_TOKEN not configured; action update skipped."
+        if: env.HAS_DOWNSTREAM_TOKEN != 'true'
+        run: echo "DOWNSTREAM_RELEASE_PUSH_TOKEN not configured; action update skipped."
 
   publish-github:
     needs:
