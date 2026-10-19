@@ -1,0 +1,60 @@
+name: Open a Cloudsmith CLI bump pull request
+description: >-
+  Run a bump command in a clone of the calling repository and open or update a
+  pull request from Cloudsmith Bot that moves it to a Cloudsmith CLI release.
+  The command runs in the root of the clone, with VERSION in the environment.
+
+inputs:
+  version:
+    description: The Cloudsmith CLI version to move to, for example 1.29.1.
+    required: true
+  bump-command:
+    description: The shell command that changes the files of the repository.
+    required: true
+  merge:
+    description: Set to true to squash-merge the pull request when its checks pass.
+    required: false
+    default: "false"
+  token:
+    description: >-
+      A Cloudsmith Bot token that can push branches and open pull requests. A
+      pull request from GITHUB_TOKEN does not start the checks of the repository.
+    required: true
+  ssh-signing-key:
+    description: The private SSH key that signs the commits of Cloudsmith Bot.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up commit signing as Cloudsmith Bot
+      shell: bash
+      env:
+        CLOUDSMITH_BOT_SSH_KEY: ${{ inputs.ssh-signing-key }}
+      run: |
+        set -euo pipefail
+        SIGNING_KEY="${RUNNER_TEMP}/cloudsmith-bot-signing-key"
+        printf '%s\n' "${CLOUDSMITH_BOT_SSH_KEY}" > "${SIGNING_KEY}"
+        chmod 600 "${SIGNING_KEY}"
+        ssh-keygen -y -f "${SIGNING_KEY}" > "${SIGNING_KEY}.pub"
+        git config --global user.name "Cloudsmith Bot"
+        git config --global user.email "vftbot@cloudsmith.io"
+        git config --global gpg.format ssh
+        git config --global user.signingkey "${SIGNING_KEY}.pub"
+        git config --global commit.gpgsign true
+
+    - name: Open the bump pull request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        VERSION: ${{ inputs.version }}
+        BUMP_COMMAND: ${{ inputs.bump-command }}
+        MERGE: ${{ inputs.merge }}
+      run: |
+        set -euo pipefail
+        gh auth setup-git
+        OPTIONS=()
+        if [ "${MERGE}" = "true" ]; then
+          OPTIONS+=(--merge)
+        fi
+        "${GITHUB_ACTION_PATH}/open-cli-bump-pr.sh" "${OPTIONS[@]}" "${GITHUB_REPOSITORY}" "${VERSION}" "${BUMP_COMMAND}"
