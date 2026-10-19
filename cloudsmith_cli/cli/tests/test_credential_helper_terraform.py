@@ -20,6 +20,7 @@ from unittest.mock import patch
 import click.testing
 import pytest
 
+from ...core.api.exceptions import ApiException
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
 from ...credential_helpers.terraform.runtime import (
@@ -29,6 +30,7 @@ from ...credential_helpers.terraform.runtime import (
     execute,
     get_token,
 )
+from ...credential_helpers.domains import domain_from_payload
 from ..commands.credential_helper.terraform import terraform
 
 CLOUDSMITH_HOST = "terraform.cloudsmith.io"
@@ -114,12 +116,25 @@ def test_execute_get_returns_token_object_for_cloudsmith_host(credential):
     assert json.loads(stdout) == {"token": "acme/myrepo/k_abc"}
 
 
+def _terraform_domain(host, scope):
+    return domain_from_payload(
+        {"domain_name": host, "domain_type": "NATIVE_TERRAFORM", "domain_scope": scope},
+        "acme",
+    )
+
+
 def test_execute_get_omits_org_from_token_for_a_custom_domain(credential):
     """A custom domain is already bound to one organisation, so its token must
     omit the org and be scoped as ``{repo}/{token}`` (not ``{org}/{repo}/...``)."""
-    with patch(
-        "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
-        return_value=True,
+    with (
+        patch(
+            "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+            return_value=True,
+        ),
+        patch(
+            "cloudsmith_cli.credential_helpers.terraform.runtime.get_workspace_domains",
+            return_value=[_terraform_domain("tf.acme.com", "WORKSPACE")],
+        ),
     ):
         exit_code, stdout, stderr = execute(
             "get",
@@ -131,6 +146,64 @@ def test_execute_get_omits_org_from_token_for_a_custom_domain(credential):
 
     assert (exit_code, stderr) == (0, None)
     assert json.loads(stdout) == {"token": "myrepo/k_abc"}
+
+
+def test_execute_get_keeps_the_org_in_the_token_for_a_cloudsmith_owned_host(
+    credential,
+):
+    """A Cloudsmith-owned host serves every Workspace, so its token names the org.
+
+    The API, not the hostname suffix, says which hosts Cloudsmith owns.
+    """
+    with (
+        patch(
+            "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+            return_value=True,
+        ),
+        patch(
+            "cloudsmith_cli.credential_helpers.terraform.runtime.get_workspace_domains",
+            return_value=[_terraform_domain("terraform.example.com", "GLOBAL")],
+        ),
+    ):
+        exit_code, stdout, stderr = execute(
+            "get",
+            "terraform.example.com",
+            credential=credential,
+            org="acme",
+            repo="myrepo",
+        )
+
+    assert (exit_code, stderr) == (0, None)
+    assert json.loads(stdout) == {"token": "acme/myrepo/k_abc"}
+
+
+def test_execute_get_refuses_when_the_domain_scope_lookup_fails(
+    credential, tmp_path, monkeypatch
+):
+    """A failed scope lookup is a refusal, never a token in the wrong format."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+    with (
+        patch(
+            "cloudsmith_cli.credential_helpers.terraform.runtime.is_cloudsmith_domain",
+            return_value=True,
+        ),
+        patch(
+            "cloudsmith_cli.core.api.workspaces.list_domains",
+            side_effect=ApiException(503),
+        ),
+    ):
+        exit_code, stdout, stderr = execute(
+            "get",
+            "terraform.example.com",
+            credential=credential,
+            org="acme",
+            repo="myrepo",
+        )
+
+    assert (exit_code, stdout, stderr) == (1, None, _REFUSAL_MESSAGE)
 
 
 def test_execute_get_custom_domain_does_not_require_an_org_in_the_token(credential):
