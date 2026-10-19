@@ -213,8 +213,9 @@ def get_401_error_hint(ctx, opts, exc):
     if ctx.info_name in ("login", "token"):
         # This is already the (deprecated) login command
         return (
-            "Could not log in with this email address and password. Check both "
-            "and run the command again."
+            "The login failed - Either your email address and/or "
+            "your password was incorrect. Please check them and "
+            "try again!"
         )
 
     return (
