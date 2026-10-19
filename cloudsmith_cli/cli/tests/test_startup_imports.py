@@ -17,6 +17,8 @@ HEAVY_PREFIXES = (
     "rich",
     "urllib3",
     "semver",
+    # Error reporting imports it on the error path only.
+    "sentry_sdk",
 )
 
 

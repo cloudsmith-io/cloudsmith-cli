@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 
@@ -9,4 +9,4 @@ def random_str():
 
 def random_bool():
     """Return a random bool."""
-    return datetime.now(tz=timezone.utc).microsecond % 2 == 0
+    return datetime.now(tz=UTC).microsecond % 2 == 0

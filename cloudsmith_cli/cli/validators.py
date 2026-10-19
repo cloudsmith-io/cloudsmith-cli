@@ -2,7 +2,7 @@
 
 import base64
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 import click
@@ -299,7 +299,7 @@ def validate_optional_timestamp(ctx, param, value):
         try:
             return (
                 datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
-                .replace(tzinfo=timezone.utc)
+                .replace(tzinfo=UTC)
                 .replace(hour=0, minute=0, second=0)
             )
         except ValueError:

@@ -2,7 +2,7 @@ import functools
 import getpass
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from .utils import controlling_terminal_mode, is_interactive
 
@@ -225,7 +225,7 @@ def update_refresh_attempted_at(api_host, refresh_time=None, profile=None):
     from keyring.errors import KeyringError
 
     if refresh_time is None:
-        refresh_time = datetime.now(tz=timezone.utc)
+        refresh_time = datetime.now(tz=UTC)
 
     refresh_attempted_at_value = refresh_time.isoformat()
 
@@ -260,7 +260,7 @@ def should_refresh_access_token(api_host, access_token=None, profile=None):
 
         expires_at = get_access_token_expiry(access_token)
         if expires_at is not None:
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(tz=UTC)
             if expires_at > now + timedelta(minutes=30):
                 return False
             if expires_at <= now:
@@ -273,9 +273,7 @@ def should_refresh_access_token(api_host, access_token=None, profile=None):
     token_refreshed_at = get_refresh_attempted_at(api_host, profile=profile)
 
     if token_refreshed_at:
-        return token_refreshed_at < (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=30)
-        )
+        return token_refreshed_at < (datetime.now(tz=UTC) - timedelta(minutes=30))
 
     return True
 

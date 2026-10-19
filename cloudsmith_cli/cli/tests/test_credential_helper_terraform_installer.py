@@ -15,7 +15,8 @@ from pathlib import Path
 import click.testing
 import pytest
 
-from ...credential_helpers.terraform import installer as installer_mod, terraformrc
+from ...credential_helpers.terraform import installer as installer_mod
+from ...credential_helpers.terraform import terraformrc
 from ...credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
     TerraformInstaller,

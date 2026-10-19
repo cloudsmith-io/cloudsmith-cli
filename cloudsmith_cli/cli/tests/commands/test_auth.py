@@ -2,7 +2,7 @@
 
 import json
 import webbrowser
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import ANY, MagicMock, patch
 
 import jwt
@@ -269,7 +269,7 @@ class TestAuthenticateCommand:
         assert call_kwargs.get("owner") == "testorg"
 
     def test_usable_session_avoids_workspace_and_browser(self, runner):
-        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
         access_token = jwt.encode(
             {"exp": expires_at},
             "not-used-for-verification",
@@ -301,7 +301,7 @@ class TestAuthenticateCommand:
 
     @pytest.mark.parametrize("output_format", ["json", "pretty_json"])
     def test_json_renewal_report_is_machine_readable(self, runner, output_format):
-        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
         renewal = SsoRenewalResult(
             status=SsoRenewalStatus.CURRENT,
             access_token=jwt.encode(

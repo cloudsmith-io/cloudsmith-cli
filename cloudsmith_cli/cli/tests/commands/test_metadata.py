@@ -2,7 +2,7 @@
 
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import click
 from click.testing import CliRunner
@@ -248,7 +248,7 @@ class TestMetadataListSingle(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
-        mock_get.assert_called_once_with("pkg-slug-perm", "meta-slug")
+        mock_get.assert_called_once_with("pkg-slug-perm", "meta-slug", credential=ANY)
         mock_list.assert_not_called()
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_metadata")
@@ -654,7 +654,9 @@ class TestMetadataRemove(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
-        mock_delete.assert_called_once_with("pkg-slug-perm", "meta-slug")
+        mock_delete.assert_called_once_with(
+            "pkg-slug-perm", "meta-slug", credential=ANY
+        )
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_delete_metadata")
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")
@@ -680,7 +682,9 @@ class TestMetadataRemove(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0, msg=result.output)
-        mock_delete.assert_called_once_with("pkg-slug-perm", "meta-slug")
+        mock_delete.assert_called_once_with(
+            "pkg-slug-perm", "meta-slug", credential=ANY
+        )
 
     @patch("cloudsmith_cli.cli.commands.metadata.api_delete_metadata")
     @patch("cloudsmith_cli.cli.commands.metadata.api_get_package_slug_perm")

@@ -34,7 +34,7 @@ class RateLimitsInfo:
             info.remaining = int(data["remaining"])
         if "reset" in data:
             info.reset = datetime.datetime.fromtimestamp(
-                int(data["reset"]), tz=datetime.timezone.utc
+                int(data["reset"]), tz=datetime.UTC
             )
         if "throttled" in data:
             info.throttled = bool(data["throttled"])

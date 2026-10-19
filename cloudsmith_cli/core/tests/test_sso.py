@@ -1,6 +1,6 @@
 """Tests for shared SSO session renewal."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, call, patch
 
 import jwt
@@ -42,7 +42,7 @@ def test_successful_renewal_stores_rotated_tokens():
 @freeze_time("2024-06-01 10:00:00")
 def test_transient_failure_reuses_usable_access_token():
     access_token = jwt.encode(
-        {"exp": datetime(2024, 6, 1, 9, 59, 31, tzinfo=timezone.utc)},
+        {"exp": datetime(2024, 6, 1, 9, 59, 31, tzinfo=UTC)},
         "not-used-for-verification",
         algorithm="HS256",
     )

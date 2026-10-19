@@ -2,8 +2,6 @@ import json
 from contextlib import ExitStack
 from unittest.mock import patch
 
-import pytest
-
 from ....cli.commands.update import update
 from ....core import installation
 

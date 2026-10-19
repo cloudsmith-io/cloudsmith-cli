@@ -149,7 +149,10 @@ def _terraform_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 @click.command("install")
 @click.argument("helper")
 @click.option(
-    "--bin-dir", default=None, help="Directory to install the launcher binary."
+    "--bin-dir",
+    default=None,
+    help="Directory to install the launcher binary. "
+    "[default: ~/.cloudsmith/bin, or Terraform's plugin directory]",
 )
 @click.option(
     "--domain",
@@ -309,7 +312,10 @@ def install_cmd(
 @click.command("uninstall")
 @click.argument("helper")
 @click.option(
-    "--bin-dir", default=None, help="Directory where the launcher binary was installed."
+    "--bin-dir",
+    default=None,
+    help="Directory where the launcher binary was installed. "
+    "[default: ~/.cloudsmith/bin, or Terraform's plugin directory]",
 )
 @click.option(
     "--dry-run",

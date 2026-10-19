@@ -5,7 +5,7 @@ Those fields have to survive the on-disk cache: a run served from the cache
 must rank domains identically to the run that populated it.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from ....credential_helpers.backends import BackendKind
@@ -100,7 +100,7 @@ def test_precedence_fields_survive_the_api_and_the_cache(tmp_path):
             "validated": True,
             "primary": False,
             "repository": {"name": "Prod", "slug": "prod"},
-            "created_at": datetime(2025, 3, 4, 9, 22, 30, tzinfo=timezone.utc),
+            "created_at": datetime(2025, 3, 4, 9, 22, 30, tzinfo=UTC),
         },
         "acme",
     )
