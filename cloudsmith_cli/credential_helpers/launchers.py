@@ -5,7 +5,7 @@ Creates a thin shell script (Unix) or .cmd batch file (Windows) named
 ``docker-credential-cloudsmith`` (or similar) that forwards every call to the
 single ``cloudsmith`` binary already installed on the user's PATH.
 
-The platform-specific bits (file name, script body, user bin directory) live in
+The platform-specific bits (file name, script body) live in
 small pure helpers parameterised on ``windows`` so they can be unit-tested
 without monkeypatching ``os.name`` — faking ``os.name`` on a posix host makes
 ``pathlib.Path`` raise ``NotImplementedError`` on Python < 3.12.
@@ -14,12 +14,10 @@ without monkeypatching ``os.name`` — faking ``os.name`` on a posix host makes
 from __future__ import annotations
 
 import os
-import shutil
-import sys
 from pathlib import Path
 
 
-def _is_windows() -> bool:
+def is_windows() -> bool:
     """Return True when running on Windows."""
     return os.name == "nt"
 
@@ -41,19 +39,6 @@ def _launcher_content(target_cmd: str, *, windows: bool) -> str:
     return f'#!/bin/sh\nexec {target_cmd} "$@"\n'
 
 
-def _user_bin_dir(windows: bool) -> Path:
-    """Return the user-local bin directory for the platform.
-
-    Unix → ``~/.local/bin``; Windows → ``%LOCALAPPDATA%\\Cloudsmith\\bin``
-    (falling back to the home directory when ``LOCALAPPDATA`` is unset).
-    """
-    if windows:
-        localappdata = os.environ.get("LOCALAPPDATA")
-        base = Path(localappdata) if localappdata else Path.home()
-        return base / "Cloudsmith" / "bin"
-    return Path.home() / ".local" / "bin"
-
-
 def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> Path:
     """Write a launcher script for *name* in *bin_dir* that execs *target_cmd*.
 
@@ -72,7 +57,7 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
     Path
         The path of the written file.
     """
-    windows = _is_windows()
+    windows = is_windows()
     if dry_run:
         if windows:
             return bin_dir / f"{name}.cmd"
@@ -106,7 +91,7 @@ def remove_launcher(bin_dir: Path, name: str, dry_run=False) -> bool:
     bool
         ``True`` if a file was removed, ``False`` if no file was found.
     """
-    target = Path(bin_dir) / _launcher_filename(name, windows=_is_windows())
+    target = Path(bin_dir) / _launcher_filename(name, windows=is_windows())
 
     if target.exists():
         if not dry_run:
@@ -122,9 +107,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
     ----------------
     1. *override* → resolved to an absolute path (relative paths are resolved
        against the current working directory).
-    2. The directory of the running ``cloudsmith`` executable — if that
-        directory is writable.
-    3. The user-local bin directory (see :func:`_user_bin_dir`).
+    2. ``~/.cloudsmith/bin``, which a package manager upgrade never replaces.
 
     The chosen directory is **not** created here; that happens when the
     launcher is written via :func:`write_launcher`.
@@ -145,18 +128,7 @@ def resolve_bin_dir(override: str | None = None) -> Path:
     if override is not None:
         return Path(override).resolve()
 
-    # Option 2: beside the running cloudsmith binary (if writable)
-    cloudsmith_path = shutil.which("cloudsmith")
-    if cloudsmith_path:
-        candidate = Path(os.path.dirname(os.path.realpath(cloudsmith_path)))
-    else:
-        candidate = Path(os.path.dirname(os.path.realpath(sys.argv[0])))
-
-    if os.access(candidate, os.W_OK | os.X_OK):
-        return candidate.resolve()
-
-    # Option 3: user-local bin
-    return _user_bin_dir(_is_windows()).resolve()
+    return (Path.home() / ".cloudsmith" / "bin").resolve()
 
 
 def is_on_path(directory: Path) -> bool:

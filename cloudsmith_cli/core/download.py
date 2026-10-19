@@ -3,6 +3,7 @@
 import fnmatch
 import hashlib
 import os
+import sys
 
 import click
 import requests
@@ -309,7 +310,7 @@ def _display_multiple_packages(packages: list[dict]) -> None:
             _format_date(pkg.get("uploaded_at", "")),
         )
 
-    Console().print(table)
+    Console(width=(None if sys.stdout.isatty() else 1000)).print(table)
     click.echo()
 
 

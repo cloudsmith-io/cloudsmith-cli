@@ -50,7 +50,7 @@ class TestCheckServiceCommand:
         assert output[6] == (
             f"The API library used by this CLI tool is built against service version: {api_binding_version}"
             if api_binding_version < service_version
-            else "The API library used by this CLI tool seems to be up-to-date."
+            else "The API library used by this CLI tool is up-to-date."
         )
 
     @pytest.mark.integration
@@ -72,6 +72,5 @@ class TestCheckServiceCommand:
             output[6].startswith(
                 "The API library used by this CLI tool is built against service version:"
             )
-            or output[6]
-            == "The API library used by this CLI tool seems to be up-to-date."
+            or output[6] == "The API library used by this CLI tool is up-to-date."
         )

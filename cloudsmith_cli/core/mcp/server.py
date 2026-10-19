@@ -2,16 +2,20 @@ import asyncio
 import copy
 import inspect
 import json
+import os
+import ssl
 from typing import Any
 from urllib import parse
 
+import certifi
 import cloudsmith_api
-import httpx
+import httpx2
 import toon
 from mcp import types
-from mcp.server.fastmcp import FastMCP
-from mcp.shared._httpx_utils import create_mcp_http_client
+from mcp.server.mcpserver import MCPServer
+from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT, MCP_DEFAULT_TIMEOUT
 
+from ..version import get_version as get_cli_version
 from .data import OpenAPITool
 
 ALLOWED_METHODS = ["get", "post", "put", "delete", "patch"]
@@ -71,8 +75,90 @@ DEFAULT_DISABLED_CATEGORIES = [
 
 SERVER_NAME = "Cloudsmith MCP Server"
 
+# Environment variables that point at a CA bundle (file) or hashed CA directory.
+# SSL_CERT_FILE/SSL_CERT_DIR are the OpenSSL/httpx convention;
+# REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE are what the requests-based parts of the CLI
+# already honour, so a user who set them gets the same trust for MCP calls.
+CA_BUNDLE_ENV_VARS = (
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "REQUESTS_CA_BUNDLE",
+    "CURL_CA_BUNDLE",
+)
 
-class CustomFastMCP(FastMCP):
+
+def _resolve_ca_location(api_config: cloudsmith_api.Configuration) -> str:
+    """Return the CA bundle file or directory MCP HTTP calls should trust.
+
+    httpx2 (used by mcp>=2) defaults to the OS trust store via truststore,
+    which relies on OpenSSL's compiled-in certificate paths. In the frozen
+    Linux binaries those paths come from the build image and frequently do
+    not exist on the host, so TLS fails. Resolve the same trust the rest of
+    the CLI uses instead: an explicit SDK ssl_ca_cert, then the CA bundle
+    environment variables, then certifi's bundle.
+    """
+    configured = getattr(api_config, "ssl_ca_cert", None)
+    if configured:
+        return configured
+
+    for name in CA_BUNDLE_ENV_VARS:
+        value = os.environ.get(name)
+        if value:
+            return value
+
+    return certifi.where()
+
+
+def create_ssl_context(
+    api_config: cloudsmith_api.Configuration,
+) -> ssl.SSLContext | bool:
+    """Build the TLS verification setting for MCP HTTP clients.
+
+    Mirrors the CLI's requests session: honours ``verify_ssl`` and the
+    client certificate settings, and trusts the CA bundle from
+    ``_resolve_ca_location``. Returns ``False`` when verification is disabled.
+    """
+    if getattr(api_config, "verify_ssl", True) is False:
+        return False
+
+    ca_location = _resolve_ca_location(api_config)
+    if os.path.isdir(ca_location):
+        ctx = ssl.create_default_context(capath=ca_location)
+    else:
+        ctx = ssl.create_default_context(cafile=ca_location)
+
+    cert_file = getattr(api_config, "cert_file", None)
+    if cert_file:
+        ctx.load_cert_chain(cert_file, getattr(api_config, "key_file", None))
+
+    return ctx
+
+
+def create_http_client(
+    api_config: cloudsmith_api.Configuration,
+    headers: dict[str, str] | None = None,
+    timeout: httpx2.Timeout | float | None = None,
+    verify: ssl.SSLContext | bool | None = None,
+) -> httpx2.AsyncClient:
+    """Create an httpx2 client that honours the CLI's TLS and proxy settings.
+
+    Uses the same default timeouts as mcp's ``create_mcp_http_client``.
+    """
+    if timeout is None:
+        timeout = httpx2.Timeout(MCP_DEFAULT_TIMEOUT, read=MCP_DEFAULT_SSE_READ_TIMEOUT)
+    if verify is None:
+        verify = create_ssl_context(api_config)
+
+    kwargs: dict[str, Any] = {"timeout": timeout, "verify": verify}
+    if headers is not None:
+        kwargs["headers"] = headers
+    proxy = getattr(api_config, "proxy", None)
+    if proxy:
+        kwargs["proxy"] = proxy
+    return httpx2.AsyncClient(**kwargs)
+
+
+class CustomFastMCP(MCPServer):
     """Custom FastMCP that overrides tool listing to clean up schemas to not overwhelm the LLM context"""
 
     def __init__(self, *args, **kwargs):
@@ -90,7 +176,7 @@ class CustomFastMCP(FastMCP):
             cleaned_tool = types.Tool(
                 name=tool.name,
                 description=tool.description,
-                inputSchema=self._clean_schema(tool.inputSchema),
+                input_schema=self._clean_schema(tool.input_schema),
                 annotations=tool.annotations,
             )
             cleaned_tools.append(cleaned_tool)
@@ -187,7 +273,7 @@ class DynamicMCPServer:
         mcp_kwargs = {"log_level": "ERROR"}
         if debug_mode:
             mcp_kwargs["log_level"] = "DEBUG"
-        self.mcp = CustomFastMCP(SERVER_NAME, **mcp_kwargs)
+        self.mcp = CustomFastMCP(SERVER_NAME, version=get_cli_version(), **mcp_kwargs)
         self.api_config = api_config
         self.api_base_url = api_config.host
         self.use_toon = use_toon
@@ -197,6 +283,13 @@ class DynamicMCPServer:
         self.force_all_tools = force_all_tools
         self.tools: dict[str, OpenAPITool] = {}
         self.spec = {}
+        self._ssl_context: ssl.SSLContext | bool | None = None
+
+    def _create_http_client(self, **kwargs) -> httpx2.AsyncClient:
+        """Create an HTTP client, reusing one TLS context per server."""
+        if self._ssl_context is None:
+            self._ssl_context = create_ssl_context(self.api_config)
+        return create_http_client(self.api_config, verify=self._ssl_context, **kwargs)
 
     async def load_openapi_spec(self):
         """Load OpenAPI spec and generate tools dynamically"""
@@ -204,7 +297,7 @@ class DynamicMCPServer:
         if not self.api_base_url:
             raise Exception("The Cloudsmith API has to be set")
 
-        async with create_mcp_http_client(
+        async with self._create_http_client(
             timeout=30.0, headers=self._get_additional_headers()
         ) as http_client:
             for version, endpoint in API_VERSIONS_TO_DISCOVER.items():
@@ -212,7 +305,7 @@ class DynamicMCPServer:
                 response = await http_client.get(spec_url)
                 response.raise_for_status()
                 self.spec = response.json()
-                await self._generate_tools_from_spec()
+                await self._generate_tools_from_spec(f"{self.api_base_url}/{version}")
 
     def _get_tool_groups(self, tool_name: str) -> list[str]:
         """
@@ -286,7 +379,7 @@ class DynamicMCPServer:
         # Otherwise disable all categories in the default list
         return not any(group in DEFAULT_DISABLED_CATEGORIES for group in tool_groups)
 
-    async def _generate_tools_from_spec(self):
+    async def _generate_tools_from_spec(self, base_url: str):
         """Generate MCP tools from OpenAPI specification"""
 
         if not self.spec:
@@ -303,7 +396,7 @@ class DynamicMCPServer:
                         path,
                         operation,
                         path_parameters,
-                        self.api_base_url,
+                        base_url,
                     )
                     if tool and self._is_tool_allowed(tool.name):
                         self.tools[tool.name] = tool
@@ -385,8 +478,8 @@ class DynamicMCPServer:
         # Register with MCP server - this uses the decorator approach
         self.mcp.tool(
             annotations=types.ToolAnnotations(
-                destructiveHint=api_tool.is_destructive,
-                readOnlyHint=api_tool.is_read_only,
+                destructive_hint=api_tool.is_destructive,
+                read_only_hint=api_tool.is_read_only,
             )
         )(dynamic_tool_func)
 
@@ -471,7 +564,7 @@ class DynamicMCPServer:
             }
         )
 
-        http_client = create_mcp_http_client(headers=headers)
+        http_client = self._create_http_client(headers=headers)
 
         # Build URL with path parameters
         url = tool.base_url + tool.path
@@ -519,7 +612,7 @@ class DynamicMCPServer:
 
         except (json.JSONDecodeError, toon.ToonDecodeError):
             return response.text
-        except httpx.HTTPError as e:
+        except httpx2.HTTPError as e:
             return f"HTTP error: {e!s}"
         finally:
             await http_client.aclose()

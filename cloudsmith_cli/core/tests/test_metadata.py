@@ -18,6 +18,7 @@ META = "meta-slug"
 LIST_URL = f"{API_HOST}/v2/metadata/packages/{PKG}/"
 DETAIL_URL = f"{API_HOST}/v2/metadata/packages/{PKG}/{META}/"
 VALIDATE_URL = f"{API_HOST}/v2/metadata/validate/"
+CREDENTIAL = CredentialResult(api_key="test-api-key", source_name="test")
 
 
 @pytest.fixture(autouse=True)
@@ -40,14 +41,7 @@ def _setup_api(monkeypatch):
         lambda self, how: None,
         raising=False,
     )
-    initialise_api(
-        host=API_HOST,
-        credential=CredentialResult(
-            api_key="test-api-key",
-            source_name="test",
-            auth_type="api_key",
-        ),
-    )
+    initialise_api(host=API_HOST, credential=CREDENTIAL)
 
 
 def _last_request():
@@ -72,7 +66,7 @@ class TestListMetadata:
             },
         )
 
-        results, page_info = metadata.list_metadata(PKG)
+        results, page_info = metadata.list_metadata(PKG, credential=CREDENTIAL)
 
         assert results == body["results"]
         assert page_info.is_valid
@@ -93,7 +87,12 @@ class TestListMetadata:
         )
 
         metadata.list_metadata(
-            PKG, source_kind="custom", classification="GENERIC", page=2, page_size=50
+            PKG,
+            credential=CREDENTIAL,
+            source_kind="custom",
+            classification="GENERIC",
+            page=2,
+            page_size=50,
         )
 
         qs = _last_request().querystring  # pylint: disable=no-member
@@ -112,7 +111,7 @@ class TestListMetadata:
             content_type="application/json",
         )
 
-        metadata.list_metadata(PKG, page=0, page_size=0)
+        metadata.list_metadata(PKG, page=0, page_size=0, credential=CREDENTIAL)
 
         qs = _last_request().querystring  # pylint: disable=no-member
         assert "page" not in qs
@@ -130,7 +129,9 @@ class TestListMetadata:
             content_type="application/json",
         )
 
-        metadata.list_metadata(PKG, source_kind="   ", classification="")
+        metadata.list_metadata(
+            PKG, source_kind="   ", classification="", credential=CREDENTIAL
+        )
 
         qs = _last_request().querystring  # pylint: disable=no-member
         assert "source_kind" not in qs
@@ -147,7 +148,7 @@ class TestListMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.list_metadata(PKG)
+            metadata.list_metadata(PKG, credential=CREDENTIAL)
 
         assert exc_info.value.status == 404
         assert exc_info.value.detail == "Not found."
@@ -174,7 +175,7 @@ class TestListMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.list_metadata(PKG, source_kind="bogus")
+            metadata.list_metadata(PKG, source_kind="bogus", credential=CREDENTIAL)
 
         qs = _last_request().querystring  # pylint: disable=no-member
         assert qs["source_kind"] == ["bogus"]
@@ -204,7 +205,7 @@ class TestGetMetadata:
             content_type="application/json",
         )
 
-        result = metadata.get_metadata(PKG, META)
+        result = metadata.get_metadata(PKG, META, credential=CREDENTIAL)
 
         assert result == body
         sent = _last_request()
@@ -222,7 +223,7 @@ class TestGetMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.get_metadata(PKG, META)
+            metadata.get_metadata(PKG, META, credential=CREDENTIAL)
 
         assert exc_info.value.status == 404
         assert exc_info.value.detail == "Not found."
@@ -242,7 +243,7 @@ class TestGetMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.get_metadata(PKG, META)
+            metadata.get_metadata(PKG, META, credential=CREDENTIAL)
 
         assert exc_info.value.status == 422
         assert exc_info.value.fields == {
@@ -268,6 +269,7 @@ class TestCreateMetadata:
 
         result = metadata.create_metadata(
             PKG,
+            credential=CREDENTIAL,
             content={"foo": "bar"},
             content_type="application/json",
             source_identity="cloudsmith-cli@1.16.0",
@@ -294,6 +296,7 @@ class TestCreateMetadata:
         with pytest.raises(ApiException) as exc_info:
             metadata.create_metadata(
                 PKG,
+                credential=CREDENTIAL,
                 content={"x": 1},
                 content_type="application/json",
                 source_identity="customer:test",
@@ -317,6 +320,7 @@ class TestCreateMetadata:
         with pytest.raises(ApiException) as exc_info:
             metadata.create_metadata(
                 PKG,
+                credential=CREDENTIAL,
                 content="not-an-object",
                 content_type="application/json",
                 source_identity="customer:test",
@@ -339,7 +343,9 @@ class TestUpdateMetadata:
             content_type="application/json",
         )
 
-        result = metadata.update_metadata(PKG, META, source_identity="customer:new")
+        result = metadata.update_metadata(
+            PKG, META, source_identity="customer:new", credential=CREDENTIAL
+        )
 
         assert result == updated
         assert json.loads(_last_request().body) == {"source_identity": "customer:new"}
@@ -347,7 +353,7 @@ class TestUpdateMetadata:
     @httpretty.activate(allow_net_connect=False)
     def test_rejects_empty_patch(self):
         with pytest.raises(ValueError):
-            metadata.update_metadata(PKG, META)
+            metadata.update_metadata(PKG, META, credential=CREDENTIAL)
 
     @httpretty.activate(allow_net_connect=False)
     def test_404_on_unknown_metadata(self):
@@ -360,7 +366,9 @@ class TestUpdateMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.update_metadata(PKG, META, content={"k": "v"})
+            metadata.update_metadata(
+                PKG, META, content={"k": "v"}, credential=CREDENTIAL
+            )
         assert exc_info.value.status == 404
 
     @httpretty.activate(allow_net_connect=False)
@@ -380,7 +388,9 @@ class TestUpdateMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.update_metadata(PKG, META, content={"k": "v"})
+            metadata.update_metadata(
+                PKG, META, content={"k": "v"}, credential=CREDENTIAL
+            )
 
         assert exc_info.value.status == 422
         assert exc_info.value.fields == {
@@ -393,7 +403,7 @@ class TestDeleteMetadata:
     def test_success_returns_none(self):
         httpretty.register_uri(httpretty.DELETE, DETAIL_URL, status=204)
 
-        assert metadata.delete_metadata(PKG, META) is None
+        assert metadata.delete_metadata(PKG, META, credential=CREDENTIAL) is None
         assert _last_request().method == "DELETE"
 
     @httpretty.activate(allow_net_connect=False)
@@ -407,7 +417,7 @@ class TestDeleteMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.delete_metadata(PKG, META)
+            metadata.delete_metadata(PKG, META, credential=CREDENTIAL)
         assert exc_info.value.status == 404
 
     @httpretty.activate(allow_net_connect=False)
@@ -425,7 +435,7 @@ class TestDeleteMetadata:
         )
 
         with pytest.raises(ApiException) as exc_info:
-            metadata.delete_metadata(PKG, META)
+            metadata.delete_metadata(PKG, META, credential=CREDENTIAL)
 
         assert exc_info.value.status == 422
         assert exc_info.value.fields == {"non_field_errors": ["Metadata is read-only."]}
@@ -438,7 +448,9 @@ class TestValidateMetadata:
 
         assert (
             metadata.validate_metadata(
-                content={"foo": "bar"}, content_type="application/json"
+                credential=CREDENTIAL,
+                content={"foo": "bar"},
+                content_type="application/json",
             )
             is True
         )
@@ -468,7 +480,9 @@ class TestValidateMetadata:
 
         with pytest.raises(ApiException) as exc_info:
             metadata.validate_metadata(
-                content="not-an-object", content_type="application/json"
+                credential=CREDENTIAL,
+                content="not-an-object",
+                content_type="application/json",
             )
 
         assert exc_info.value.status == 422
@@ -499,6 +513,7 @@ class TestValidateMetadata:
 
         with pytest.raises(ApiException) as exc_info:
             metadata.validate_metadata(
+                credential=CREDENTIAL,
                 content={"bad": "payload"},
                 content_type="application/vnd.jfrog.buildinfo+json",
             )
@@ -531,6 +546,7 @@ class TestValidateMetadata:
 
         with pytest.raises(ApiException) as exc_info:
             metadata.validate_metadata(
+                credential=CREDENTIAL,
                 content={"foo": "bar"},
                 content_type="application/vnd.cloudsmith.system+json",
             )
@@ -553,7 +569,9 @@ class TestValidateMetadata:
 
         with pytest.raises(ApiException) as exc_info:
             metadata.validate_metadata(
-                content={"foo": "bar"}, content_type="application/json"
+                credential=CREDENTIAL,
+                content={"foo": "bar"},
+                content_type="application/json",
             )
 
         assert exc_info.value.status == 401
@@ -562,21 +580,19 @@ class TestValidateMetadata:
 
 class TestAuthHeaders:
     @staticmethod
-    def _override_config(monkeypatch, *, api_key=None, headers=None):
+    def _override_config(monkeypatch, *, headers=None):
         import cloudsmith_api
 
         cfg = cloudsmith_api.Configuration()
-        cfg.api_key = api_key if api_key is not None else cfg.api_key
         cfg.headers = headers if headers is not None else cfg.headers
         monkeypatch.setattr(cloudsmith_api.Configuration, "_default", cfg)
 
     @httpretty.activate(allow_net_connect=False)
-    def test_sso_authorization_header_takes_precedence(self, monkeypatch):
-        self._override_config(
-            monkeypatch,
-            api_key={"X-Api-Key": "test-api-key"},
-            headers={"Authorization": "Bearer sso-token"},
+    def test_saml_access_token_is_sent_as_a_bearer_token(self):
+        saml_token = CredentialResult(
+            api_key="sso-token", source_name="keyring", auth_type="bearer"
         )
+        initialise_api(host=API_HOST)
         httpretty.register_uri(
             httpretty.GET,
             LIST_URL,
@@ -585,7 +601,7 @@ class TestAuthHeaders:
             content_type="application/json",
         )
 
-        metadata.list_metadata(PKG)
+        metadata.list_metadata(PKG, credential=saml_token)
 
         sent = _last_request()
         assert sent.headers.get("Authorization") == "Bearer sso-token"
@@ -605,7 +621,7 @@ class TestAuthHeaders:
             content_type="application/json",
         )
 
-        metadata.list_metadata(PKG)
+        metadata.list_metadata(PKG, credential=CREDENTIAL)
 
         sent = _last_request()
         assert sent.headers.get("X-Custom-Header") == "custom-value"

@@ -2,6 +2,8 @@
 
 import hashlib
 import os
+import sys
+from enum import Enum, auto
 
 import click
 
@@ -9,6 +11,69 @@ import click
 def get_help_website():
     """Get the URL for the help website."""
     return "https://docs.cloudsmith.com/developer-tools/cli"
+
+
+class ColorMode(Enum):
+    AUTO = auto()
+    ALWAYS = auto()
+    NEVER = auto()
+
+
+class TTYMode(Enum):
+    ENABLED = auto()
+    DISABLED = auto()
+
+
+def color_enabled(env: dict[str, str], colorMode: ColorMode, ttyMode: TTYMode) -> bool:
+    """Suppresses ANSI colour based on environment and CLI input"""
+    match colorMode:
+        case ColorMode.ALWAYS:
+            return True
+        case ColorMode.NEVER:
+            return False
+        case ColorMode.AUTO:
+            pass
+
+    if env.get("NO_COLOR"):
+        return False
+    if env.get("CLOUDSMITH_FORCE_COLOR") == "true":
+        return True
+    if env.get("TERM") == "dumb":
+        return False
+
+    match ttyMode:
+        case TTYMode.ENABLED:
+            return True
+        case TTYMode.DISABLED:
+            return False
+    return True
+
+
+def is_interactive(env: dict[str, str], tty_mode: TTYMode) -> bool:
+    """Suppresses interactive prompts for user input based on conditions in the shell environment"""
+    if env.get("CI"):
+        return False
+
+    match tty_mode:
+        case TTYMode.ENABLED:
+            return True
+        case TTYMode.DISABLED:
+            return False
+    return True
+
+
+def controlling_terminal_mode() -> TTYMode:
+    """Return whether a prompt can reach a user through the terminal.
+
+    Stdin can be a pipe while a user is at the terminal, so check the
+    terminal that getpass uses: the console on Windows, else /dev/tty.
+    """
+    terminal = "CONIN$" if sys.platform == "win32" else "/dev/tty"
+    try:
+        with open(terminal, "rb"):
+            return TTYMode.ENABLED
+    except OSError:
+        return TTYMode.DISABLED
 
 
 def get_github_website():

@@ -27,9 +27,15 @@ import tomlkit
 
 from ...core.cache_utils import merge_config_file
 from ..backends import BackendKind
-from ..common import extract_hostname
-from ..custom_domains import get_format_domains
-from ..launchers import is_on_path, remove_launcher, resolve_bin_dir, write_launcher
+from ..common import extract_hostname, path_warning
+from ..domains import get_format_domains
+from ..launchers import (
+    is_on_path,
+    is_windows,
+    remove_launcher,
+    resolve_bin_dir,
+    write_launcher,
+)
 
 if TYPE_CHECKING:
     from ...core.credentials.models import CredentialResult
@@ -227,8 +233,8 @@ class CargoInstaller:
 
         actions: list[str] = []
 
-        # Start with the default host plus any explicitly requested domains.
-        hosts: list[str] = [self.DEFAULT_HOST, *domains]
+        hosts: list[str] = [*domains]
+        discovered: list[str] = []
 
         # --- Custom-domain auto-discovery (best-effort) ---
         if discover:
@@ -259,7 +265,9 @@ class CargoInstaller:
                         f"WARNING: custom-domain auto-discovery failed: {exc}"
                     )
                     discovered = []
-                new_hosts = [h for h in discovered if h not in hosts]
+                new_hosts = [
+                    h for h in discovered if h not in (*hosts, self.DEFAULT_HOST)
+                ]
                 hosts.extend(discovered)
                 actions.append(
                     f"discovered {len(new_hosts)} new Cargo custom domain(s)"
@@ -269,6 +277,11 @@ class CargoInstaller:
                     "skipped auto-discovery"
                     " (no organization/credentials; pass --no-discover to silence)"
                 )
+
+        # The API lists the Cloudsmith-owned hosts with the custom domains, so
+        # the default host is needed only when discovery gave no hosts.
+        if not discovered:
+            hosts.insert(0, self.DEFAULT_HOST)
 
         # De-duplicate while preserving order
         seen: set[str] = set()
@@ -347,8 +360,7 @@ class CargoInstaller:
 
         if not is_on_path(target_dir):
             actions.append(
-                f"WARNING: {target_dir} is not on PATH — "
-                f"add it to your PATH so Cargo can find {self.LAUNCHER_NAME}"
+                path_warning(target_dir, "Cargo", self.LAUNCHER_NAME, is_windows())
             )
 
         return actions

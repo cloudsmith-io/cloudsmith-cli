@@ -2,6 +2,7 @@
 
 import json
 import platform
+import sys
 from contextlib import contextmanager
 from datetime import date, datetime
 
@@ -75,7 +76,7 @@ def rich_print_table(headers, rows, title=None, show_lines=False):
     from rich.console import Console
     from rich.table import Table
 
-    console = Console()
+    console = Console(width=(None if sys.stdout.isatty() else 1000))
     table = Table(title=title, show_lines=show_lines)
 
     for header in headers:
@@ -231,8 +232,12 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
 @contextmanager
 def maybe_spinner(opts):
     """Only activate the spinner if not in debug mode or using json output."""
-    if should_use_stderr(opts) or get_output_format(opts) in ("json", "pretty_json"):
-        # No spinner
+    if (
+        getattr(opts, "debug", False)
+        or should_use_stderr(opts)
+        or get_output_format(opts) in ("json", "pretty_json")
+    ):
+        # No spinner (debug logs / machine output must not be clobbered)
         yield
     else:
         with spinner() as spin:

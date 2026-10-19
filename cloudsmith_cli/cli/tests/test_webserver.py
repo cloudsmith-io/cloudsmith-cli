@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import click
 import pytest
+from keyring.errors import KeyringError
 
 from ...core.api.exceptions import ApiException
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
@@ -137,11 +138,26 @@ class TestAuthenticationWebRequestHandlerKeyring:
                 profile="staging",
             )
 
-    def test_message_shown_when_keyring_disabled(self, mock_handler):
-        """Verify message is shown when store_sso_tokens returns False."""
+    @pytest.mark.parametrize(
+        "store_result,message",
+        [
+            (
+                {"return_value": False},
+                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+            ),
+            (
+                {"side_effect": KeyringError("no prompt")},
+                "SSO tokens not stored: no prompt",
+            ),
+        ],
+    )
+    def test_message_shown_when_tokens_not_stored(
+        self, mock_handler, store_result, message
+    ):
+        """Verify message is shown when store_sso_tokens does not store tokens."""
         with (
             patch(
-                "cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=False
+                "cloudsmith_cli.cli.webserver.store_sso_tokens", **store_result
             ) as mock_store,
             patch("click.echo") as mock_echo,
             patch.object(mock_handler, "_return_success_response"),
@@ -164,14 +180,11 @@ class TestAuthenticationWebRequestHandlerKeyring:
 
             mock_handler.do_GET()
 
-            # store_sso_tokens should be called (returns False)
+            # store_sso_tokens should be called
             mock_store.assert_called_once()
 
             # Message should be displayed to stderr
-            mock_echo.assert_called_once_with(
-                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                err=True,
-            )
+            mock_echo.assert_called_once_with(message, err=True)
 
     def test_access_token_stored_on_server_instance(self, mock_handler):
         """Verify the SSO access token is stored on the server instance for direct use."""

@@ -1,5 +1,6 @@
 """CLI - Configuration."""
 
+import configparser
 import os
 import re
 import threading
@@ -75,6 +76,8 @@ class ConfigSchema:
         oidc_detector_order = ConfigParam(name="oidc_detector_order", type=str)
         oidc_disabled_detectors = ConfigParam(name="oidc_disabled_detectors", type=str)
         metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
+        check_for_update = ConfigParam(name="check_for_update", type=bool, default=True)
+        telemetry = ConfigParam(name="telemetry", type=bool, default=True)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -191,7 +194,14 @@ class ConfigReader(ConfigFileReader):
             else:
                 cls.config_files.insert(0, path)
 
-        config = cls.read_config()
+        try:
+            config = cls.read_config()
+        except (configparser.Error, UnicodeDecodeError) as exc:
+            # A malformed file is the user's to fix, not a CLI bug: keep the
+            # error as-is for the user, but never send it to error reporting
+            # (see core.telemetry.is_reportable).
+            exc.report_to_telemetry = False
+            raise
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
 
@@ -601,6 +611,30 @@ class Options:  # pylint: disable=too-many-public-methods
                 "Expected one of: 'error', 'warn', '0'."
             )
         self._set_option("metadata_failure_mode", normalised)
+
+    @property
+    def check_for_update(self):
+        """Get value for the once-a-day update check toggle."""
+        return self._get_option("check_for_update", default=True)
+
+    @check_for_update.setter
+    def check_for_update(self, value):
+        """Set value for the once-a-day update check toggle."""
+        if value is None:
+            return
+        self._set_option("check_for_update", bool(value))
+
+    @property
+    def telemetry(self):
+        """Get value for the telemetry (anonymous error reporting) toggle."""
+        return self._get_option("telemetry", default=True)
+
+    @telemetry.setter
+    def telemetry(self, value):
+        """Set value for the telemetry (anonymous error reporting) toggle."""
+        if value is None:
+            return
+        self._set_option("telemetry", bool(value))
 
     @property
     def output(self):

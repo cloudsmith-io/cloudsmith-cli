@@ -236,6 +236,8 @@ def list_packages(owner, repo, **kwargs):
     api_kwargs.update(utils.get_page_kwargs(**kwargs))
     api_kwargs.update(utils.get_query_kwargs(**kwargs))
     api_kwargs.update(utils.get_sort_kwargs(**kwargs))
+    if kwargs.get("include_connected"):
+        api_kwargs["include_connected_repositories"] = True
 
     with catch_raise_api_exception():
         data, _, headers = client.packages_list_with_http_info(

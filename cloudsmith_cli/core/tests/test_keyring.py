@@ -1,27 +1,35 @@
 import getpass
 import importlib
 import os
-from datetime import datetime, timedelta, timezone
-from unittest.mock import ANY, Mock, patch
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from unittest.mock import ANY, Mock, call, patch
 
+import jwt
 import pytest
 from freezegun import freeze_time
+from keyring.backends.chainer import ChainerBackend
+from keyrings.alt.file import EncryptedKeyring as AltEncryptedKeyring
 from keyrings.cryptfile.cryptfile import CryptFileKeyring
 
 from .. import keyring as core_keyring
 from ..keyring import (
+    delete_oidc_token,
     delete_sso_tokens,
     get_access_token,
+    get_oidc_token,
     get_refresh_attempted_at,
     get_refresh_token,
     has_sso_tokens,
     should_refresh_access_token,
     should_use_keyring,
     store_access_token,
+    store_oidc_token,
     store_refresh_token,
     store_sso_tokens,
     update_refresh_attempted_at,
 )
+from ..utils import TTYMode
 
 
 @pytest.fixture
@@ -58,7 +66,9 @@ def mock_delete_password():
 def mock_get_keyring():
     import keyring
 
+    core_keyring._prepare_keyring_backend.cache_clear()
     with patch.object(keyring, "get_keyring") as get_keyring_mock:
+        get_keyring_mock.return_value.backends = []
         yield get_keyring_mock
 
 
@@ -94,7 +104,7 @@ class TestKeyring:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_update_refresh_attempted_at(self, mock_get_user, mock_set_password):
-        attempted_at = datetime.now(tz=timezone.utc).isoformat()
+        attempted_at = datetime.now(tz=UTC).isoformat()
 
         update_refresh_attempted_at(self.api_host)
 
@@ -106,11 +116,11 @@ class TestKeyring:
 
     def test_get_refresh_attempted_at(self, mock_get_user, mock_get_password):
         mock_get_password.return_value = datetime(
-            2024, 6, 1, 10, 0, tzinfo=timezone.utc
+            2024, 6, 1, 10, 0, tzinfo=UTC
         ).isoformat()
 
         assert get_refresh_attempted_at(self.api_host) == datetime(
-            2024, 6, 1, hour=10, minute=0, tzinfo=timezone.utc
+            2024, 6, 1, hour=10, minute=0, tzinfo=UTC
         )
         mock_get_password.assert_called_once_with(
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
@@ -145,7 +155,7 @@ class TestKeyring:
     def test_should_refresh_access_token_with_new_token(
         self, mock_get_user, mock_get_password
     ):
-        mock_get_password.return_value = datetime.now(tz=timezone.utc).isoformat()
+        mock_get_password.return_value = datetime.now(tz=UTC).isoformat()
 
         assert not should_refresh_access_token(self.api_host)
         mock_get_password.assert_called_once_with(
@@ -158,7 +168,7 @@ class TestKeyring:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=30)
+            datetime.now(tz=UTC) - timedelta(minutes=30)
         ).isoformat()
 
         assert not should_refresh_access_token(self.api_host)
@@ -172,13 +182,37 @@ class TestKeyring:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=31)
+            datetime.now(tz=UTC) - timedelta(minutes=31)
         ).isoformat()
 
         assert should_refresh_access_token(self.api_host)
         mock_get_password.assert_called_once_with(
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com",
             "test_user",
+        )
+
+    @freeze_time("2024-06-01 10:00:00")
+    @pytest.mark.parametrize(
+        "expires_at,attempted_at,expected",
+        [
+            ("2024-06-01 10:31:00", None, False),
+            ("2024-06-01 10:30:00", None, True),
+            ("2024-06-01 09:59:00", "2024-06-01T09:59:00+00:00", True),
+        ],
+    )
+    def test_jwt_refresh_uses_expiry_and_ignores_throttle_after_expiration(
+        self, mock_get_password, expires_at, attempted_at, expected
+    ):
+        mock_get_password.return_value = attempted_at
+        access_token = jwt.encode(
+            {"exp": datetime.fromisoformat(expires_at).replace(tzinfo=UTC)},
+            "not-used-for-verification",
+            algorithm="HS256",
+        )
+
+        assert (
+            should_refresh_access_token(self.api_host, access_token=access_token)
+            is expected
         )
 
     def test_store_refresh_token(self, mock_get_user, mock_set_password):
@@ -219,25 +253,22 @@ class TestKeyring:
             result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
 
         assert result is True
-        assert mock_set_password.call_count == 3
-        mock_set_password.assert_any_call(
-            "cloudsmith_cli-access_token-https://example.com",
-            "test_user",
-            "access_token",
-        )
         refresh_key = (
             "cloudsmith_cli-access_token_refresh_attempted_at-https://example.com"
         )
-        mock_set_password.assert_any_call(
-            refresh_key,
-            "test_user",
-            ANY,
-        )
-        mock_set_password.assert_any_call(
-            "cloudsmith_cli-refresh_token-https://example.com",
-            "test_user",
-            "refresh_token",
-        )
+        assert mock_set_password.call_args_list == [
+            call(
+                "cloudsmith_cli-refresh_token-https://example.com",
+                "test_user",
+                "refresh_token",
+            ),
+            call(
+                "cloudsmith_cli-access_token-https://example.com",
+                "test_user",
+                "access_token",
+            ),
+            call(refresh_key, "test_user", ANY),
+        ]
 
     def test_store_sso_tokens_returns_false_when_keyring_disabled(
         self, mock_get_user, mock_set_password
@@ -405,7 +436,7 @@ class TestProfileScopedKeys:
         self, mock_get_user, mock_get_password
     ):
         mock_get_password.return_value = (
-            datetime.now(tz=timezone.utc) - timedelta(minutes=31)
+            datetime.now(tz=UTC) - timedelta(minutes=31)
         ).isoformat()
 
         assert should_refresh_access_token(self.api_host, profile="staging")
@@ -935,3 +966,137 @@ class TestDeleteSsoTokens:
         with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
             assert has_sso_tokens(self.api_host) is False
         mock_get_password.assert_not_called()
+
+
+OIDC_ARGS = ("https://example.com", "my-org", "my-service")
+
+
+def _keyring_env(tmp_path, **overrides):
+    return {"XDG_DATA_HOME": str(tmp_path), **overrides}
+
+
+@contextmanager
+def _keyring_session(backend, env, has_terminal=False, typed_password=None):
+    import keyring
+
+    if typed_password is None:
+        prompt = {"side_effect": AssertionError("prompted for a keyring password")}
+    else:
+        prompt = {"return_value": typed_password}
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch.object(keyring, "get_keyring", return_value=backend),
+        patch.object(keyring.core, "_keyring_backend", backend),
+        patch.object(
+            core_keyring,
+            "controlling_terminal_mode",
+            return_value=TTYMode.ENABLED if has_terminal else TTYMode.DISABLED,
+        ),
+        patch.object(getpass, "getpass", **prompt) as getpass_mock,
+    ):
+        yield getpass_mock
+    if typed_password is None:
+        getpass_mock.assert_not_called()
+
+
+def _write_oidc_entry(backend, tmp_path):
+    oidc_key = core_keyring.OIDC_TOKEN_KEY.format(
+        api_host=OIDC_ARGS[0], org=OIDC_ARGS[1], service_slug=OIDC_ARGS[2]
+    )
+    with patch.dict(os.environ, _keyring_env(tmp_path), clear=True):
+        backend.keyring_key = "earlier-password"
+        backend.set_password(oidc_key, "test_user", "token-data")
+
+
+def _chain(*members):
+    class Chain(ChainerBackend):
+        backends = list(members)
+
+    return Chain()
+
+
+class TestNonInteractivePasswordPrompt:
+    """Tests that a run without a user never prompts for a keyring password."""
+
+    @pytest.mark.parametrize("backend_cls", [CryptFileKeyring, AltEncryptedKeyring])
+    def test_store_without_terminal_skips_keyring(
+        self, tmp_path, mock_get_user, backend_cls
+    ):
+        backend = backend_cls()
+        with _keyring_session(backend, _keyring_env(tmp_path)):
+            assert store_oidc_token(*OIDC_ARGS, "token-data") is False
+            assert not os.path.exists(backend.file_path)
+
+    @pytest.mark.parametrize("backend_cls", [CryptFileKeyring, AltEncryptedKeyring])
+    def test_supplied_key_uses_keyring_without_terminal(
+        self, tmp_path, mock_get_user, backend_cls
+    ):
+        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="supplied-password")
+        with _keyring_session(backend_cls(), env):
+            assert store_oidc_token(*OIDC_ARGS, "token-data") is True
+            assert get_oidc_token(*OIDC_ARGS) == "token-data"
+
+    def test_wrong_key_reports_not_found(self, tmp_path, mock_get_user):
+        _write_oidc_entry(CryptFileKeyring(), tmp_path)
+        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="wrong-password")
+        with _keyring_session(CryptFileKeyring(), env):
+            assert get_oidc_token(*OIDC_ARGS) is None
+            assert delete_oidc_token(*OIDC_ARGS) is False
+
+    def test_key_unlocks_once_per_process(self, tmp_path, mock_get_user):
+        _write_oidc_entry(CryptFileKeyring(), tmp_path)
+        backend = CryptFileKeyring()
+        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="earlier-password")
+        with (
+            _keyring_session(backend, env),
+            patch.object(backend, "_unlock", wraps=backend._unlock) as unlock_mock,
+        ):
+            store_oidc_token(*OIDC_ARGS, "token-data")
+            get_oidc_token(*OIDC_ARGS)
+            get_oidc_token(*OIDC_ARGS)
+        assert unlock_mock.call_count == 1
+
+    def test_terminal_without_ci_prompts_as_before(self, tmp_path, mock_get_user):
+        with _keyring_session(
+            CryptFileKeyring(),
+            _keyring_env(tmp_path),
+            has_terminal=True,
+            typed_password="typed-password",
+        ) as getpass_mock:
+            assert store_oidc_token(*OIDC_ARGS, "token-data") is True
+        assert getpass_mock.called
+
+
+class TestChainedBackendProperties:
+    """Tests for keyring settings and password prompts in a chain backend."""
+
+    def test_settings_reach_the_storage_member(self, tmp_path, mock_get_user):
+        _write_oidc_entry(AltEncryptedKeyring(), tmp_path)
+        storage_member = CryptFileKeyring()
+        chain = _chain(storage_member, AltEncryptedKeyring())
+        env = _keyring_env(
+            tmp_path,
+            CLOUDSMITH_KEYRING_KEY="supplied-password",
+            CLOUDSMITH_KEYRING_DIR=str(tmp_path / "secure"),
+        )
+        with _keyring_session(chain, env):
+            assert store_oidc_token(*OIDC_ARGS, "token-data") is True
+            assert get_oidc_token(*OIDC_ARGS) == "token-data"
+        assert (tmp_path / "secure" / storage_member.filename).is_file()
+
+    def test_lower_member_with_an_existing_file_is_skipped(
+        self, tmp_path, mock_get_user
+    ):
+        _write_oidc_entry(AltEncryptedKeyring(), tmp_path)
+        chain = _chain(CryptFileKeyring(), AltEncryptedKeyring())
+        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="supplied-password")
+        with _keyring_session(chain, env):
+            assert get_oidc_token(*OIDC_ARGS) is None
+
+    def test_write_fallback_cannot_prompt_for_a_new_file(self, tmp_path, mock_get_user):
+        primary = Mock()
+        primary.set_password.side_effect = NotImplementedError
+        fallback = CryptFileKeyring()
+        with _keyring_session(_chain(primary, fallback), _keyring_env(tmp_path)):
+            assert store_oidc_token(*OIDC_ARGS, "token-data") is False
+            assert not os.path.exists(fallback.file_path)

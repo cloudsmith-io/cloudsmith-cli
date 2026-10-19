@@ -8,14 +8,14 @@
       "build_image": "almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
       "test_runner": "ubuntu-24.04",
       "test_kind": "docker",
-      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05",
+      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6 amazonlinux:2023@sha256:8ed3c0a996841537f75607e7d1de2114d8150391f75792e8da9268738547e73f",
       "archive": ".tar.gz"
     },
     {
       "name": "linux-x86_64-musl",
       "build_runner": "ubuntu-24.04",
       "mode": "alpine",
-      "build_image": "python:3.12-alpine@sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd",
+      "build_image": "python:3.14-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72",
       "test_runner": "ubuntu-24.04",
       "test_kind": "docker",
       "test_images": "alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc",
@@ -28,14 +28,14 @@
       "build_image": "almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb",
       "test_runner": "ubuntu-24.04-arm",
       "test_kind": "docker",
-      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05",
+      "test_images": "debian:11-slim@sha256:ff4b13408ab702565720c6b23582ebda7bfdddfe9ce2b8c5b49e6d40430fdb05 almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6 amazonlinux:2023@sha256:8ed3c0a996841537f75607e7d1de2114d8150391f75792e8da9268738547e73f",
       "archive": ".tar.gz"
     },
     {
       "name": "linux-aarch64-musl",
       "build_runner": "ubuntu-24.04-arm",
       "mode": "alpine",
-      "build_image": "python:3.12-alpine@sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd",
+      "build_image": "python:3.14-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72",
       "test_runner": "ubuntu-24.04-arm",
       "test_kind": "docker",
       "test_images": "alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc",

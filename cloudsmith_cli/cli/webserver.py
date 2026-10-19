@@ -240,13 +240,18 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         if self.server_instance:
             self.server_instance.sso_access_token = access_token
 
-        if not store_sso_tokens(
-            self.api_host, access_token, refresh_token, profile=self.profile
-        ):
-            click.echo(
-                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
-                err=True,
-            )
+        from keyring.errors import KeyringError
+
+        try:
+            if not store_sso_tokens(
+                self.api_host, access_token, refresh_token, profile=self.profile
+            ):
+                click.echo(
+                    "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                    err=True,
+                )
+        except KeyringError as exc:
+            click.echo(f"SSO tokens not stored: {exc}", err=True)
 
         if self.refresh_api_on_success and self.server_instance:
             self.server_instance.refresh_api_config_after_auth()

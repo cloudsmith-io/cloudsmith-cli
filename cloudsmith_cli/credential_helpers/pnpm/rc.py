@@ -1,7 +1,6 @@
 # Copyright 2026 Cloudsmith Ltd
 from pathlib import Path
-
-from typing_extensions import Self
+from typing import Self
 
 
 class AuthKeyConflictError(KeyError):

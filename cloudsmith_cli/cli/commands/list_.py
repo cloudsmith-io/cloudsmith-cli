@@ -157,8 +157,20 @@ def entitlements_(*args, **kwargs):  # pylint: disable=missing-docstring
     ),
     help=("Sort packages by field. Prefix with '-' for descending order."),
 )
+@click.option(
+    "--include-connected",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include packages from active connected repositories and show the "
+        "origin repository of each package. Download URLs (e.g. cdn_url, "
+        "signature_url) point at the requesting repository, not the origin."
+    ),
+)
 @click.pass_context
-def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
+def packages(
+    ctx, opts, owner_repo, page, page_size, query, sort, include_connected, page_all
+):
     """
     List packages for a repository.
 
@@ -195,6 +207,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
 
     --query 'name:^foo$ filename:.zip$ architecture:~x86'
 
+    \b
     You can sort the results using --sort with these fields:
       - date/-date: Sort by creation date
       - downloads/-downloads: Sort by download count
@@ -230,6 +243,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
             repo=repo,
             query=query,
             sort=sort,
+            include_connected=include_connected,
         )
 
     if not use_stderr:
@@ -239,6 +253,7 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
         return
 
     headers = ["Name", "Version", "Status", "Owner / Repository (Identifier)"]
+    sorted_packages = sorted(packages_, key=itemgetter("namespace", "slug"))
     rows = [
         [
             click.style(_get_package_name(package), fg="cyan"),
@@ -250,8 +265,12 @@ def packages(ctx, opts, owner_repo, page, page_size, query, sort, page_all):
                 slug=click.style(package["slug"], fg="green"),
             ),
         ]
-        for package in sorted(packages_, key=itemgetter("namespace", "slug"))
+        for package in sorted_packages
     ]
+    if include_connected:
+        headers.append("Origin Repository")
+        for row, package in zip(rows, sorted_packages):
+            row.append(click.style(_get_origin_repository(package), fg="magenta"))
 
     if packages_:
         click.echo()
@@ -316,3 +335,8 @@ def _get_package_status(package):
 def _get_package_version(package):
     """Get the version for a package (if any)."""
     return package["version"] or "None"
+
+
+def _get_origin_repository(package):
+    """Get the repository that a package physically lives in."""
+    return package["origin_repository"] or package["repository"]

@@ -11,6 +11,15 @@ from urllib3.util.retry import Retry
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
+class ApiKeySafeSession(requests.Session):
+    """A session that drops the API key on a redirect to another host."""
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        if self.should_strip_auth(response.request.url, prepared_request.url):
+            prepared_request.headers.pop("X-Api-Key", None)
+
+
 class RetryWithCallback(Retry):
     """A urllib3 Retry with a callback on retries."""
 
@@ -104,7 +113,7 @@ def create_requests_session(
     if proxy is None and config is not None:
         proxy = config.proxy
 
-    session = session or requests.Session()
+    session = session or ApiKeySafeSession()
     session.verify = ssl_verify
     session.cert = ssl_cert
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0", "wheel==0.47.0"]
+requires = ["setuptools==84.0.0", "wheel==0.48.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Cloudsmith Ltd", email = "support@cloudsmith.io" },
 ]
-requires-python = ">=3.10.0"
+requires-python = ">=3.11.0"
 keywords = ["cloudsmith", "cli", "devops"]
 classifiers = [
     # As from http://pypi.python.org/pypi?%3Aaction=list_classifiers
@@ -28,7 +28,6 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -38,12 +37,15 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
+    # The MCP server pins its TLS trust to certifi's bundle (see
+    # core/mcp/server.py) rather than httpx2's OS-trust-store default.
+    "certifi>=2024.7.4",
     "click>=8.2,!=8.3.0",
     "click-configfile>=0.2.3",
     "click-didyoumean>=0.0.3",
     "click-spinner>=0.1.7",
     "json5>=0.9.0",  # For parsing JSONC (JSON with comments) in VS Code settings
-    "cloudsmith-api>=2.0.31,<3.0",  # Compatible up to (but excluding) 3.0+
+    "cloudsmith-api>=2.0.38,<3.0",  # Compatible up to (but excluding) 3.0+
     "keyring>=25.4.1",
     "keyrings-alt>=5.0.2",
     "keyrings-cryptfile>=1.3.9",
@@ -51,13 +53,13 @@ dependencies = [
     # downstream installers do not consume uv.lock and could otherwise select
     # vulnerable transitive versions allowed by MCP's broader constraints.
     "cryptography>=50.0.0",
-    "mcp==1.28.1",
+    "mcp==2.3.0",
     "pydantic-settings>=2.14.2",
     # The crypto extra must be declared here: the OIDC flow verifies JWT
     # signatures, and a bare PyJWT requirement would let the
     # standalone-binary build resolve without the cryptography wheels.
     "PyJWT[crypto]>=2.13.0",
-    "python-toon==0.1.2",
+    "python-toon==0.2.0",
     "requests>=2.18.4",
     "requests_toolbelt>=1.0.0",
     "rich>=13.0.0",
@@ -65,14 +67,17 @@ dependencies = [
     "starlette>=1.3.1",
     "urllib3>=2.5",
     "tomlkit>=0.15.0",
+    "sentry-sdk>=2,<3",
 ]
 
 [project.optional-dependencies]
 aws = ["boto3[crt]>=1.26.0"]
-all = ["boto3[crt]>=1.26.0"]
+gcp = ["google-auth>=2.40.0"]
+all = ["boto3[crt]>=1.26.0", "google-auth>=2.40.0"]
 
 [project.scripts]
 cloudsmith = "cloudsmith_cli.cli.commands.main:main"
+terraform-credentials-cloudsmith = "cloudsmith_cli.wrapper:main_entry"
 
 [project.urls]
 Homepage = "https://github.com/cloudsmith-io/cloudsmith-cli"
@@ -80,6 +85,7 @@ Homepage = "https://github.com/cloudsmith-io/cloudsmith-cli"
 [dependency-groups]
 dev = [
     "boto3[crt]>=1.26.0",
+    "google-auth>=2.40.0",
     "pre-commit",
     "pylint",
     "pytest-cov",
@@ -89,17 +95,17 @@ dev = [
     "bumpversion",
 ]
 binary = [
-    "pyinstaller==6.20.0",
-    "pyinstaller-hooks-contrib==2026.5",
-    "setuptools==83.0.0",
-    "wheel==0.47.0",
+    "pyinstaller==6.22.3",
+    "pyinstaller-hooks-contrib==2026.8",
+    "setuptools==84.0.0",
+    "wheel==0.48.0",
 ]
 release = [
-    "build==1.5.0",
+    "build==1.6.1",
     "check-wheel-contents==0.6.3",
-    "setuptools==83.0.0",
-    "twine==6.2.0",
-    "wheel==0.47.0",
+    "setuptools==84.0.0",
+    "twine==7.0.0",
+    "wheel==0.48.0",
 ]
 
 [tool.setuptools.dynamic]
@@ -162,7 +168,7 @@ ignore = ["TRY002", "BLE001", "PERF203"]
 # lazily (see cli/commands/registry.py and cli/tests/test_startup_imports.py).
 banned-module-level-imports = [
     "cloudsmith_api",
-    "httpx",
+    "httpx2",
     "keyring",
     "mcp",
     "requests",

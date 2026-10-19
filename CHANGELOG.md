@@ -7,13 +7,79 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- `cloudsmith domains list` and the credential helpers now get the domains from `GET /v2/workspaces/{workspace}/domains/` on the configured API host. This list includes the Cloudsmith-owned hosts, so the CLI no longer contains a list of Cloudsmith hostnames. The CLI keeps a separate domain cache for each API host.
+- `cloudsmith domains list` keeps version 1 of its JSON document. The API does not give `primary` and `created_at`, so these fields are now always `null`. The hosts are in the preference order of the API. `domain_type` can also be `cloudsmith_api`.
+- Without a Workspace, `cloudsmith domains list` lists the domains that earlier runs cached. If no domains are cached, it gets the domains of a Workspace that the credential is a member of. Without a credential, the list is empty.
+- `cloudsmith credential-helper install` now configures the Cloudsmith-owned hosts that the API lists for the Workspace. It uses its built-in default host, such as `docker.cloudsmith.io`, only when it cannot get the domains from the API.
+
+### Removed
+
+- The CLI no longer reads a `[domains]` section from `config.ini`. The configured API host supplies the domains.
+
+### Fixed
+
+- `cloudsmith credential-helper list` now finds a launcher that `install` wrote to the default directory, `~/.cloudsmith/bin`. Before, `list` looked in the directory of the `cloudsmith` executable and reported the helper as not installed.
+
+## [1.29.0] - 2026-10-15
+
+### Added
+
+- Added Google Cloud (GCP) support to OIDC credential auto-discovery. Install with the `gcp` extra (`pip install cloudsmith-cli[gcp]`) to use an attached service account, a `GOOGLE_APPLICATION_CREDENTIALS` service-account key, or local service-account impersonation via ADC. The CLI requests an ID token with audience `cloudsmith` by default, using IAM `generateIdToken` if the metadata identity endpoint returns 404 (requires `iam.serviceAccounts.getOpenIdToken`). User ADC requires its OAuth client ID as the explicitly configured audience. Unsupported ADC types and installations without the extra are skipped. The detector supports the existing order/disable controls using the id `gcp`.
+- Added `--include-connected` to `cloudsmith list packages`. The flag includes packages from the active connected repositories of the repository. The table output adds an `Origin Repository` column that shows where each package is stored. The JSON output gives this value in `origin_repository`, which is `null` for local packages. Download URLs such as `cdn_url` point at the requesting repository, not the origin repository.
+- Added Buildkite support to OIDC credential auto-discovery. In Buildkite jobs, the CLI requests an ID token from `buildkite-agent` using audience `cloudsmith` by default. The detector supports the existing order/disable controls using the id `buildkite`.
+- Added anonymous error reporting. When a command fails with an unexpected error, the CLI sends a report to Cloudsmith through Sentry. Usage errors and errors that the API returns are not reported. A report contains the exception type, the error message, the stack trace, the command name, the CLI version and install method, the operating system, the CPU architecture, and the Python version. Before the CLI sends a report, it removes API keys, entitlement tokens, passwords, email addresses, IP addresses, file paths, your user and machine names, and host names that are not Cloudsmith hosts. The CLI never sends environment variables, local variables, or source code, and the command name does not include the command arguments. The error message can include workspace, repository, and package names. A failed command waits a maximum of 2 seconds for the report to send. Reporting is on by default, also in CI. To turn it off, set `DO_NOT_TRACK=1` or `CLOUDSMITH_NO_TELEMETRY=1`, or set `telemetry = false` in `config.ini`.
+
+### Changed
+
+- The minimum version of `cloudsmith-api` is now 2.0.38.
+- `cloudsmith repos list` now shows the repository identifier (`WORKSPACE/REPOSITORY`) in the first column. The table no longer shows the repository display name. (#465)
+- The standalone binaries now include the Python 3.14 runtime. (#467)
+
+### Removed
+
+- Removed support for Python 3.10. The Python package now requires Python 3.11 or later. (#469)
+
+### Fixed
+
+- The package metadata commands no longer wait without a limit for a v2 API that does not respond. A connection that takes more than 30 seconds fails. A request that gets no data for 30 seconds also fails, except a request to add or validate metadata. The CLI then retries the request as `--error-retry-max` sets.
+- The CLI no longer sends the API key to another host when a request is redirected there. This applies to all API calls, uploads and downloads.
+
+## [1.28.0] - 2026-10-07
+
+### Added
+
+- Added `cloudsmith update` to update standalone binary installs in place. The CLI also checks for new versions in the background and prints a notice with the release link and the update command for your install method. See [Updating](https://docs.cloudsmith.com/developer-tools/cli#updating) for more information. (#419)
+
+### Fixed
+
+- MCP tools that use the v2 API, such as `analytics_logs_package_list`, no longer fail with a 404 error. Previously, the MCP server sent these requests without the `/v2` prefix.
+- The CLI no longer prompts for a keyring password when no user can answer. A run is non-interactive when `CI` is set or when no controlling terminal is available. In such a run, a keyring call that needs a password that was not supplied fails without a prompt. OIDC tokens then use the on-disk cache, and `cloudsmith auth` prints why it did not store the SSO tokens. Previously, headless Linux agents printed `GetPassWarning: Can not control echo on the terminal` after each OIDC exchange. To keep a keyring in CI, set `CLOUDSMITH_KEYRING_BACKEND` to a backend that does not prompt, or to an encrypted backend together with `CLOUDSMITH_KEYRING_KEY`.
+- `CLOUDSMITH_KEYRING_KEY`, `CLOUDSMITH_KEYRING_DIR`, and `CLOUDSMITH_KEYRING_FILE_PATH` now apply to the default keyring on headless Linux. That keyring is a chain of backends. Previously, the CLI applied these settings to the chain and not to the encrypted backend that stores the values, so the settings had no effect.
+- A `CLOUDSMITH_KEYRING_KEY` that does not unlock the keyring file no longer stops commands such as `logout` and `whoami` with a `ValueError`. The CLI treats the keyring as not available. The CLI also unlocks an encrypted keyring file once for each run, not once for each keyring call.
+
+## [1.27.0] - 2026-09-08
+
 ### Added
 
 - Added `-w` and `--workspace` as the shared Workspace option used by authentication, OIDC, and custom-domain discovery. Set `CLOUDSMITH_WORKSPACE` or `workspace` in `config.ini` to configure it once for every command.
+- Added a Terraform credentials helper for Cloudsmith registries. `cloudsmith credential-helper install terraform` writes a `terraform-credentials-cloudsmith` launcher into Terraform's plugin directory (`~/.terraform.d/plugins` by default; override with `--bin-dir`) and adds a `credentials_helper "cloudsmith"` block to `~/.terraformrc`, so `terraform init` authenticates against a Cloudsmith Terraform registry with no token on disk, using your existing CLI credentials (env, config, keyring, or OIDC). The resolved `--org`, `-r/--repo`, `-P/--profile`, and any non-default `--config-file`/`--credentials-file` are baked into the terraformrc `args` list, so `terraform init` resolves the same credentials as the install invocation with no environment variables. `get` returns `{"token": "..."}` for a Cloudsmith host (including custom domains) and `{}` for any other host so Terraform falls back to its own credential sources; `store`/`forget` are unsupported (`store` drains its stdin payload before erroring, per the protocol). Missing credentials for a Cloudsmith host produce an actionable error rather than a traceback. Manage with `cloudsmith credential-helper uninstall terraform` and `cloudsmith credential-helper list`.
+- Added `--color {auto,always,never}` and support for `NO_COLOR`, `CLOUDSMITH_FORCE_COLOR`, and `TERM=dumb` to control ANSI output.
+- Failed OIDC token exchanges now print diagnostics for the configured Workspace, service, API host, detector, and decoded JWT header and claims without printing the raw token.
 
 ### Changed
 
 - `cloudsmith domains list` now includes the Workspace slug in a `workspace` field.
+- `cloudsmith auth` now reuses an existing SSO session when it can be renewed.
+- `cloudsmith auth` now reports the SSO access-token expiry in normal and JSON output.
+- SAML two-factor codes are now visible while entered, making numeric input errors easier to spot.
+
+### Fixed
+
+- SSO access tokens now refresh based on their JWT expiry. Transient refresh failures retain usable tokens, while expired or rejected sessions fall back to other authentication.
+- SAML authentication now tries callback ports `12400` through `12404` instead of failing when port `12400` is occupied.
+- Raised minimum dependency versions to incorporate current security fixes for Cryptography, PyJWT, MCP, Pydantic Settings, and Starlette.
 
 ## [1.26.0] - 2026-08-26
 

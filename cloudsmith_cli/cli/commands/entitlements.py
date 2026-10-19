@@ -775,14 +775,15 @@ def restrict(
 
     Full CLI example:
 
-      $ cloudsmith entitlements restrict cloudsmith/testing-private/9xGSdAxlIqIV \
-        --limit-bandwidth=1 \
-        --limit-bandwidth-unit=gigabyte \
-        --limit-num-clients=10 \
-        --limit-num-downloads=1000 \
-        --limit-package-query="package-darwin-amd64 OR package-windows-amd64 OR package-linux-amd64" \
-        --limit-path-query=tag:latest \
-        --limit-date-range-from=2020-01-01T00:00:00Z \
+    \b
+      $ cloudsmith entitlements restrict cloudsmith/testing-private/9xGSdAxlIqIV \\
+        --limit-bandwidth=1 \\
+        --limit-bandwidth-unit=gigabyte \\
+        --limit-num-clients=10 \\
+        --limit-num-downloads=1000 \\
+        --limit-package-query="package-darwin-amd64 OR package-windows-amd64 OR package-linux-amd64" \\
+        --limit-path-query=tag:latest \\
+        --limit-date-range-from=2020-01-01T00:00:00Z \\
         --limit-date-range-to=2077-01-01T00:00:00Z
     """
     owner, repo, identifier = owner_repo_identifier

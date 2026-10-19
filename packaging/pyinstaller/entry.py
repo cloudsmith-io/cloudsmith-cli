@@ -47,6 +47,39 @@ def _check_extra_keyring_backends(failed: list) -> None:
     )
 
 
+def _check_mcp_tls_trust(failed: list) -> None:
+    """Verify the MCP HTTP client's CA bundle is bundled and loadable.
+
+    httpx2's default TLS context reads the OS trust store through OpenSSL's
+    compiled-in paths, which in the frozen glibc binaries point at the build
+    image's layout and miss the host's CAs. The MCP server therefore pins
+    trust to certifi's bundle; this proves that bundle made it into the freeze
+    and yields a verifying context, without needing network access. CA
+    environment overrides are cleared so the bundled default is what's tested.
+    """
+    import ssl
+
+    import cloudsmith_api
+
+    from cloudsmith_cli.core.mcp.server import CA_BUNDLE_ENV_VARS, create_ssl_context
+
+    saved = {
+        name: os.environ.pop(name) for name in CA_BUNDLE_ENV_VARS if name in os.environ
+    }
+    try:
+        ctx = create_ssl_context(cloudsmith_api.Configuration())
+    except Exception as exc:  # pylint: disable=broad-except
+        failed.append(f"mcp TLS trust: {exc!r}")
+        return
+    finally:
+        os.environ.update(saved)
+
+    if not isinstance(ctx, ssl.SSLContext) or ctx.verify_mode != ssl.CERT_REQUIRED:
+        failed.append(f"mcp TLS trust: unexpected verify setting {ctx!r}")
+    elif ctx.cert_store_stats().get("x509_ca", 0) == 0:
+        failed.append("mcp TLS trust: CA bundle loaded no certificates")
+
+
 def _selftest() -> int:
     """Import every bundled ``cloudsmith_cli`` module; fail on any ImportError.
 
@@ -59,7 +92,8 @@ def _selftest() -> int:
     never reachable as a normal CLI command. Data-file and dynamic-dispatch
     paths (which importing a module does not exercise) are covered by the
     functional smoketest steps, not here - except for the extra keyring
-    backends, whose entry-point discovery is checked below.
+    backends, whose entry-point discovery is checked below, and the MCP CA
+    bundle, which is loaded below.
     """
     failed = []
 
@@ -80,6 +114,7 @@ def _selftest() -> int:
         failed.append("walk_packages enumerated 0 modules (frozen sweep broken)")
 
     _check_extra_keyring_backends(failed)
+    _check_mcp_tls_trust(failed)
 
     for line in failed:
         print(f"SELFTEST missing: {line}")

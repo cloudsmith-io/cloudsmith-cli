@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import click
 import pytest
@@ -187,6 +187,7 @@ class TestPush(unittest.TestCase):
 
             mock_create_metadata.assert_called_once_with(
                 "slug-perm-abc",
+                credential=ANY,
                 content={"git_sha": "abc123"},
                 content_type="application/vnd.jfrog.buildinfo+json",
                 source_identity="github-actions@example",
@@ -204,7 +205,7 @@ class TestPush(unittest.TestCase):
         ):
             upload_files_and_create_package(
                 self.mock_ctx,
-                MagicMock(spec=[]),
+                MagicMock(spec=["credential"]),
                 self.package_type,
                 [self.owner, self.repo],
                 self.dry_run,
@@ -232,7 +233,7 @@ class TestPush(unittest.TestCase):
             "content": {"git_sha": "abc123"},
         }
 
-        opts = MagicMock(spec=[])
+        opts = MagicMock(spec=["credential"])
 
         with (
             patch("cloudsmith_cli.cli.commands.push.validate_create_package"),
@@ -321,7 +322,7 @@ class TestPush(unittest.TestCase):
                 status=422, detail="Schema validation failed"
             )
 
-            opts = MagicMock(spec=[])
+            opts = MagicMock(spec=["credential"])
 
             # Push must complete without raising, returning the slug pair.
             result = upload_files_and_create_package(
@@ -385,6 +386,7 @@ class TestPush(unittest.TestCase):
             patched_env.pop("CLOUDSMITH_METADATA_FAILURE_MODE", None)
             opts = SimpleNamespace(
                 output=None,
+                credential=None,
                 push_metadata_info=None,
                 verbose=False,
                 debug=False,
@@ -444,6 +446,7 @@ class TestPush(unittest.TestCase):
         ):
             opts = SimpleNamespace(
                 output=None,
+                credential=None,
                 push_metadata_info=None,
                 verbose=False,
                 debug=False,
@@ -503,7 +506,7 @@ class TestPush(unittest.TestCase):
                 {"CLOUDSMITH_METADATA_FAILURE_MODE": "warn"},
             ),
         ):
-            opts = MagicMock(spec=[])
+            opts = MagicMock(spec=["credential"])
             result = upload_files_and_create_package(
                 self.mock_ctx,
                 opts,
@@ -558,7 +561,7 @@ class TestPush(unittest.TestCase):
                 {"CLOUDSMITH_METADATA_FAILURE_MODE": "warn"},
             ),
         ):
-            opts = MagicMock(spec=[])
+            opts = MagicMock(spec=["credential"])
             result = upload_files_and_create_package(
                 self.mock_ctx,
                 opts,
@@ -608,6 +611,7 @@ class TestPush(unittest.TestCase):
             patched_env.pop("CLOUDSMITH_METADATA_FAILURE_MODE", None)
             opts = SimpleNamespace(
                 output=None,
+                credential=None,
                 push_metadata_info=None,
                 verbose=False,
                 debug=False,
@@ -895,7 +899,7 @@ class TestPush(unittest.TestCase):
             for package_file in ("path-1", "path-2"):
                 upload_files_and_create_package(
                     self.mock_ctx,
-                    MagicMock(spec=[]),
+                    MagicMock(spec=["credential"]),
                     self.package_type,
                     [self.owner, self.repo],
                     self.dry_run,
@@ -947,7 +951,7 @@ class TestPush(unittest.TestCase):
             ):
                 upload_files_and_create_package(
                     self.mock_ctx,
-                    MagicMock(spec=[]),
+                    MagicMock(spec=["credential"]),
                     self.package_type,
                     [self.owner, self.repo],
                     self.dry_run,
@@ -996,7 +1000,7 @@ class TestPush(unittest.TestCase):
         ):
             upload_files_and_create_package(
                 self.mock_ctx,
-                MagicMock(spec=[]),
+                MagicMock(spec=["credential"]),
                 self.package_type,
                 [self.owner, self.repo],
                 self.dry_run,
@@ -1018,7 +1022,7 @@ class TestPush(unittest.TestCase):
 
     def test_metadata_retry_hint_emitted_on_attach_warn_failure(self):
         """Attach failure (warn mode, file payload) routes to the hint helper."""
-        opts = SimpleNamespace(output=None, push_metadata_info=None)
+        opts = SimpleNamespace(output=None, credential=None, push_metadata_info=None)
         metadata = ResolvedMetadata(
             provided=True,
             content={"x": 1},
@@ -1083,7 +1087,7 @@ class TestPush(unittest.TestCase):
 
     def test_metadata_retry_hint_emitted_on_validation_warn_failure(self):
         """Pre-validation warn failure routes to the hint helper after create."""
-        opts = SimpleNamespace(output=None, push_metadata_info=None)
+        opts = SimpleNamespace(output=None, credential=None, push_metadata_info=None)
         metadata = ResolvedMetadata(
             provided=True,
             content={"x": 1},
@@ -1276,6 +1280,7 @@ def _hint_opts(output=None):
 def _api_opts(output="json"):
     return SimpleNamespace(
         output=output,
+        credential=None,
         push_metadata_info=None,
         verbose=False,
         debug=False,

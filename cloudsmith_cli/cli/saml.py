@@ -34,11 +34,11 @@ def create_configured_session(opts):
     return session
 
 
-def get_idp_url(api_host, owner, session):
+def get_idp_url(api_host, owner, session, redirect_url):
     org_saml_url = "{api_host}/orgs/{owner}/saml/?{params}".format(
         api_host=api_host,
         owner=owner,
-        params=urlencode({"redirect_url": "http://localhost:12400"}),
+        params=urlencode({"redirect_url": redirect_url}),
     )
 
     org_saml_response = session.get(org_saml_url, timeout=30)
