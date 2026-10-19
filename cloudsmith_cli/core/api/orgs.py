@@ -13,21 +13,17 @@ def get_orgs_api():
     return get_api_client(cloudsmith_api.OrgsApi)
 
 
-def list_custom_domains(owner):
-    """List custom domains for an organization (raw SDK model dicts)."""
+def list_orgs(page, page_size):
+    """List the organizations that the credential is a member of."""
     client = get_orgs_api()
 
     with catch_raise_api_exception():
-        (
-            domains,
-            _,
-            headers,
-        ) = client.orgs_custom_domains_list_with_http_info(  # pylint: disable=no-member
-            org=owner
+        orgs, _, headers = client.orgs_list_with_http_info(
+            page=page, page_size=page_size
         )
 
     ratelimits.maybe_rate_limit(client, headers)
-    return [domain.to_dict() for domain in domains]
+    return [org.to_dict() for org in orgs]
 
 
 def list_vulnerability_policies(owner, page, page_size):

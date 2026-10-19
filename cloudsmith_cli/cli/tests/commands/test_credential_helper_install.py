@@ -18,7 +18,6 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
 from ....core.credentials.models import CredentialResult
-from ....credential_helpers.default_domains import DomainType
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     _launcher_content,
@@ -642,6 +641,54 @@ _INSTALLER_GET_FORMAT_DOMAINS = (
 )
 
 
+def test_docker_install_uses_the_cloudsmith_owned_host_the_api_lists(
+    tmp_path, monkeypatch
+):
+    """Another API host lists its own Docker host, so the default is not added."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setattr(
+        _INSTALLER_GET_FORMAT_DOMAINS,
+        lambda *_a, **_kw: ["docker.acme.com", "docker.example.com"],
+    )
+
+    DockerInstaller().install(
+        bin_dir=str(bin_dir),
+        org="acme",
+        credential=CredentialResult(api_key="k_test", source_name="test"),
+    )
+
+    cfg = json.loads((docker_dir / "config.json").read_text())
+    assert sorted(cfg["credHelpers"]) == ["docker.acme.com", "docker.example.com"]
+
+
+def test_pnpm_install_uses_the_cloudsmith_owned_host_the_api_lists(
+    tmp_path, monkeypatch
+):
+    """Another API host lists its own npm host, so the default is not added."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.pnpm.installer.get_format_domains",
+        lambda *_a, **_kw: ["npm.acme.com", "npm.example.com"],
+    )
+
+    PNPMInstaller().install(
+        bin_dir=str(bin_dir),
+        org="acme",
+        credential=CredentialResult(api_key="k_test", source_name="test"),
+    )
+
+    assert npm_path.read_text() == (
+        f"//npm.acme.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
+        f"//npm.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+    )
+
+
 @pytest.mark.parametrize(
     "scenario",
     [
@@ -671,7 +718,7 @@ def test_autodiscovery(tmp_path, monkeypatch, scenario):
 
         def _fake_get_format_domains(*_a, **kwargs):
             captured.update(kwargs)
-            return ["docker.acme.com"]
+            return ["docker.acme.com", "docker.cloudsmith.io"]
 
         monkeypatch.setattr(_INSTALLER_GET_FORMAT_DOMAINS, _fake_get_format_domains)
         installer = DockerInstaller()
@@ -774,58 +821,41 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
     """refresh=False uses the on-disk cache; refresh=True bypasses it and hits the API."""
     import time
 
-    from ....credential_helpers.custom_domains import (
-        CustomDomain,
+    from ....credential_helpers.domains import (
+        domain_from_payload,
         get_cache_path,
-        get_custom_domains,
+        get_workspace_domains,
         write_cache,
     )
 
     monkeypatch.setattr(
-        "cloudsmith_cli.credential_helpers.custom_domains.get_default_config_path",
+        "cloudsmith_cli.credential_helpers.domains.get_default_config_path",
         lambda: str(tmp_path),
     )
 
+    def _payload(name):
+        return {
+            "domain_name": name,
+            "domain_type": "NATIVE_DOCKER",
+            "domain_scope": "WORKSPACE",
+            "repository": None,
+        }
+
     cache_path = get_cache_path("acme")
-    cached_domain = CustomDomain(
-        host="docker.acme.com",
-        backend_kind=6,
-        enabled=True,
-        validated=True,
-        org="acme",
-        domain_type=DomainType.NATIVE_API,
-    )
-    write_cache(cache_path, [cached_domain])
+    write_cache(cache_path, "acme", [_payload("docker.acme.com")])
     os.utime(cache_path, (time.time(), time.time()))
 
-    fresh_domain = CustomDomain(
-        host="new.acme.com",
-        backend_kind=6,
-        enabled=True,
-        validated=True,
-        org="acme",
-        domain_type=DomainType.NATIVE_API,
-    )
     api_calls = []
 
     def _fake_list(*_a, **_kw):
         api_calls.append(True)
-        return [
-            {
-                "host": "new.acme.com",
-                "backend_kind": 6,
-                "enabled": True,
-                "validated": True,
-                "domain_type": 3,
-                "primary": True,
-            }
-        ]
+        return [_payload("new.acme.com")]
 
     with patch(
-        "cloudsmith_cli.core.api.orgs.list_custom_domains",
+        "cloudsmith_cli.core.api.workspaces.list_domains",
         _fake_list,
     ):
-        result = get_custom_domains(
+        result = get_workspace_domains(
             "acme",
             credential=CredentialResult(api_key="k", source_name="test"),
             refresh=refresh,
@@ -834,13 +864,13 @@ def test_refresh_flag(tmp_path, monkeypatch, refresh):
     if refresh:
         # API must have been called
         assert api_calls, "API must be called when refresh=True"
-        assert result == [fresh_domain]
+        assert result == [domain_from_payload(_payload("new.acme.com"), "acme")]
     else:
         # API must NOT have been called
         assert not api_calls, (
             "API must not be called when refresh=False with valid cache"
         )
-        assert result == [cached_domain]
+        assert result == [domain_from_payload(_payload("docker.acme.com"), "acme")]
 
 
 # ---------------------------------------------------------------------------

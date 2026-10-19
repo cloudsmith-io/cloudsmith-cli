@@ -32,7 +32,12 @@ import json
 import logging
 
 from ..backends import BackendKind
-from ..common import is_cloudsmith_domain, is_standard_cloudsmith_domain
+from ..common import (
+    extract_hostname,
+    is_cloudsmith_domain,
+    is_standard_cloudsmith_domain,
+)
+from ..domains import get_workspace_domains
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +96,20 @@ def get_token(hostname, credential=None, api_host=None, org=None):
     return credential.api_key
 
 
+def _is_cloudsmith_owned(hostname, credential, api_host, org) -> bool:
+    """Whether the API lists `hostname` as a Cloudsmith-owned Terraform host."""
+    if not org:
+        return False
+    host = extract_hostname(hostname)
+    return any(
+        domain.host.lower() == host and not domain.is_custom
+        for domain in get_workspace_domains(
+            org, credential=credential, api_host=api_host, strict=True
+        )
+        if domain.backend_kind == BackendKind.TERRAFORM
+    )
+
+
 def _execute_get(
     hostname, credential, api_host, org, repo
 ) -> tuple[int, str | None, str | None]:
@@ -142,7 +161,7 @@ def _execute_get(
     # Scope the token to a single repository. Standard domains also carry the
     # org ("{org}/{repo}/{token}"); custom domains are already org-bound, so
     # they omit it ("{repo}/{token}").
-    if standard_domain:
+    if standard_domain or _is_cloudsmith_owned(hostname, credential, api_host, org):
         scoped_token = f"{org}/{repo}/{token}"
     else:
         scoped_token = f"{repo}/{token}"
