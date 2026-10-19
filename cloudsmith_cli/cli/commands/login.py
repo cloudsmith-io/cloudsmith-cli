@@ -21,7 +21,7 @@ def validate_login(ctx, param, value):
     return value
 
 
-#: Docs section on getting an API key and logging in with SAML SSO instead.
+#: Docs section on getting an API key and logging in with SAML instead.
 API_KEY_DOCS_URL = (
     "https://docs.cloudsmith.com/developer-tools/cli#getting-your-api-key"
 )
@@ -30,9 +30,9 @@ DEPRECATION_WARNING = (
     "Warning: `cloudsmith {name}` is deprecated and will stop working when "
     "Cloudsmith disables username and password login. The date will be announced "
     "at https://cloudsmith.com/changelog\n"
-    "Use an API key or SSO instead: set `CLOUDSMITH_API_KEY` to an API key from "
+    "Use an API key or SAML instead: set `CLOUDSMITH_API_KEY` to an API key from "
     "the Cloudsmith web app (your user menu, then Personal API Keys), or run "
-    "`cloudsmith auth --workspace <workspace>` to log in with SAML SSO.\n"
+    "`cloudsmith auth --workspace <workspace>` to log in with SAML.\n"
     f"More: {API_KEY_DOCS_URL}"
 )
 
@@ -41,7 +41,7 @@ REMOVED_MESSAGE = (
     "Could not retrieve API key: username and password login is disabled.\n"
     "Fix: set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app "
     "(your user menu, then Personal API Keys), or run "
-    "`cloudsmith auth --workspace <workspace>` to log in with SAML SSO.\n"
+    "`cloudsmith auth --workspace <workspace>` to log in with SAML.\n"
     f"More: {API_KEY_DOCS_URL}"
 )
 
@@ -94,7 +94,7 @@ def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     https://cloudsmith.com/changelog
 
     Set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app instead,
-    or run `cloudsmith auth --workspace <workspace>` to log in with SAML SSO.
+    or run `cloudsmith auth --workspace <workspace>` to log in with SAML.
 
     More: https://docs.cloudsmith.com/developer-tools/cli#getting-your-api-key
     """

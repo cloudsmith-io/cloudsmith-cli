@@ -93,6 +93,9 @@ class TestLoginDeprecation:
         assert f"Warning: `cloudsmith {name}` is deprecated" in result.stderr
         assert "Personal API Keys" in result.stderr
         assert "cloudsmith auth" in result.stderr
+        assert "Use an API key or SAML instead" in result.stderr
+        assert "log in with SAML." in result.stderr
+        assert "sso" not in result.stderr.lower()
         assert "https://cloudsmith.com/changelog" in result.stderr
         assert f"More: {API_KEY_DOCS_URL}" in result.stderr
         assert "is deprecated" not in result.stdout
@@ -132,6 +135,8 @@ class TestLoginDeprecation:
         assert result.exit_code == 0
         assert "[DEPRECATED]" in result.stdout
         assert API_KEY_DOCS_URL in result.stdout
+        assert "log in with SAML." in result.stdout
+        assert "sso" not in result.stdout.lower()
 
 
 def test_shell_completion_parsing_does_not_warn(capsys):
@@ -166,6 +171,8 @@ class TestLoginSwitchedOff:
 
         assert result.return_value == status
         assert REMOVED_MESSAGE in result.output
+        assert "log in with SAML." in result.output
+        assert "sso" not in result.output.lower()
         assert f"More: {API_KEY_DOCS_URL}" in result.output
         assert f"status: {status}" not in result.output
         assert "usually means the user/org is wrong" not in result.output

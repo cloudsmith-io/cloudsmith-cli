@@ -201,7 +201,7 @@ def get_401_error_hint(ctx, opts, exc):
     credential = getattr(opts, "credential", None)
 
     if credential and credential.auth_type == "bearer":
-        return "Since you have an SSO access token set, this probably means that it has expired. Try getting a new token with 'cloudsmith auth', then try again."
+        return "Since you have a SAML access token set, this probably means that it has expired. Try getting a new token with 'cloudsmith auth', then try again."
 
     if credential:
         return (
@@ -218,9 +218,9 @@ def get_401_error_hint(ctx, opts, exc):
         )
 
     return (
-        "This command requires authentication, and no API key or SSO session was "
+        "This command requires authentication, and no API key or SAML session was "
         "found. Set `CLOUDSMITH_API_KEY` to your API key, or run "
-        "`cloudsmith auth --workspace <workspace>` to log in with SAML SSO."
+        "`cloudsmith auth --workspace <workspace>` to log in with SAML."
     )
 
 
