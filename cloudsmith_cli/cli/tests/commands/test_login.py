@@ -96,6 +96,7 @@ class TestLoginDeprecation:
         assert "Use an API key or SAML instead" in result.stderr
         assert "log in with SAML." in result.stderr
         assert "sso" not in result.stderr.lower()
+        assert "will stop working on November 20, 2026" in result.stderr
         assert "https://cloudsmith.com/changelog" in result.stderr
         assert f"More: {API_KEY_DOCS_URL}" in result.stderr
         assert "is deprecated" not in result.stdout

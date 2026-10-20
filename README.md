@@ -371,7 +371,7 @@ Give your API key to the CLI in one of these ways:
 - Put the key into your `credentials.ini` file.
 - Pass the key to the CLI with the `-k your_key_here` flag.
 
-*Note:* The `cloudsmith login` command and its `cloudsmith token` alias are deprecated. They retrieve your API key with your email address and password, and they will stop working when Cloudsmith disables username and password login. The date will be announced in the [Cloudsmith changelog](https://cloudsmith.com/changelog). After that, both commands fail with a message that explains how to get an API key instead.
+*Note:* The `cloudsmith login` command and its `cloudsmith token` alias are deprecated. They retrieve your API key with your email address and password, and they will stop working on November 20, 2026, when Cloudsmith disables username and password login. See the [Cloudsmith changelog](https://cloudsmith.com/changelog). After that, both commands fail with a message that explains how to get an API key instead.
 
 
 ## Uploading Packages

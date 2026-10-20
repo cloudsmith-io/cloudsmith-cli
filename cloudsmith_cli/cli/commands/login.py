@@ -27,9 +27,9 @@ API_KEY_DOCS_URL = (
 )
 
 DEPRECATION_WARNING = (
-    "Warning: `cloudsmith {name}` is deprecated and will stop working when "
-    "Cloudsmith disables username and password login. The date will be announced "
-    "at https://cloudsmith.com/changelog\n"
+    "Warning: `cloudsmith {name}` is deprecated and will stop working on "
+    "November 20, 2026, when Cloudsmith disables username and password login. "
+    "See https://cloudsmith.com/changelog\n"
     "Use an API key or SAML instead: set `CLOUDSMITH_API_KEY` to an API key from "
     "the Cloudsmith web app (your user menu, then Personal API Keys), or run "
     "`cloudsmith auth --workspace <workspace>` to log in with SAML.\n"
@@ -89,9 +89,8 @@ class DeprecatedLoginCommand(click.Command):
 def login(ctx, opts, login, password):  # pylint: disable=redefined-outer-name
     """[DEPRECATED] Retrieve your API key with your email address and password.
 
-    This command will stop working when Cloudsmith disables username and
-    password login. The date will be announced at
-    https://cloudsmith.com/changelog
+    This command will stop working on November 20, 2026, when Cloudsmith
+    disables username and password login. See https://cloudsmith.com/changelog
 
     Set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app instead,
     or run `cloudsmith auth --workspace <workspace>` to log in with SAML.
