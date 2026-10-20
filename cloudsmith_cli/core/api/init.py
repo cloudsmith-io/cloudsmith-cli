@@ -15,6 +15,7 @@ def initialise_api(
     credential=None,
     proxy=None,
     ssl_verify=True,
+    ssl_verify_strict=True,
     user_agent=None,
     headers=None,
     rate_limit=True,
@@ -39,6 +40,7 @@ def initialise_api(
     config.error_retry_codes = error_retry_codes
     config.error_retry_cb = error_retry_cb
     config.verify_ssl = ssl_verify
+    config.ssl_verify_strict = ssl_verify_strict
     config.client_side_validation = False
 
     if credential:

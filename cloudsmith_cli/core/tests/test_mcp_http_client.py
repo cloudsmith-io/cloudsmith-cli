@@ -88,6 +88,19 @@ class TestCreateSSLContext:
 
         spy.assert_called_once_with(capath=str(tmp_path))
 
+    def test_strict_verification_by_default(self, api_config):
+        ctx = create_ssl_context(api_config)
+
+        assert ctx.verify_flags == ssl.create_default_context().verify_flags
+
+    def test_strict_verification_disabled(self, api_config):
+        api_config.ssl_verify_strict = False
+
+        ctx = create_ssl_context(api_config)
+
+        assert not ctx.verify_flags & ssl.VERIFY_X509_STRICT
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+
     def test_verification_disabled(self, api_config):
         api_config.verify_ssl = False
 

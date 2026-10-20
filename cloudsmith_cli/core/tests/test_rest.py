@@ -1,5 +1,8 @@
+import ssl
+
 import httpretty
 import pytest
+import requests
 
 from ..api.init import initialise_api
 from ..rest import RestClient
@@ -95,3 +98,47 @@ class TestCreateRequestsSession:
         session.get(api_url, headers={"X-Api-Key": "test-api-key"}, timeout=5)
 
         assert httpretty.last_request().headers.get("X-Api-Key") == "test-api-key"
+
+
+class TestSSLVerifyStrict:
+    @staticmethod
+    def _pool_kwargs(session, verify=True):
+        request = requests.Request("GET", "https://api.example.com/").prepare()
+        adapter = session.get_adapter(request.url)
+        _, pool_kwargs = adapter.build_connection_pool_key_attributes(request, verify)
+        return pool_kwargs
+
+    def test_strict_by_default(self):
+        session = create_requests_session()
+
+        assert "ssl_context" not in self._pool_kwargs(session)
+
+    def test_disabling_strict_clears_the_flag_but_still_verifies(self):
+        session = create_requests_session(ssl_verify_strict=False)
+
+        ctx = self._pool_kwargs(session)["ssl_context"]
+        assert not ctx.verify_flags & ssl.VERIFY_X509_STRICT
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname
+
+    def test_each_ca_bundle_gets_its_own_context(self):
+        session = create_requests_session(ssl_verify_strict=False)
+
+        first = self._pool_kwargs(session, verify="/ca/first.pem")["ssl_context"]
+        second = self._pool_kwargs(session, verify="/ca/second.pem")["ssl_context"]
+        assert first is not second
+        assert (
+            self._pool_kwargs(session, verify="/ca/first.pem")["ssl_context"] is first
+        )
+
+    def test_context_not_used_when_verification_disabled(self):
+        session = create_requests_session(ssl_verify_strict=False)
+
+        assert "ssl_context" not in self._pool_kwargs(session, verify=False)
+
+    def test_falls_back_to_the_sdk_configuration(self):
+        initialise_api(ssl_verify_strict=False)
+
+        session = create_requests_session()
+
+        assert "ssl_context" in self._pool_kwargs(session)

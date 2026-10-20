@@ -47,7 +47,9 @@ def invoke_update(
                 return_value=self_update_supported,
             )
         )
-        stack.enter_context(patch(f"{_MOD}.create_requests_session"))
+        stack.enter_context(
+            patch("cloudsmith_cli.core.session.create_requests_session")
+        )
         stack.enter_context(
             patch(
                 f"{_MOD}.update_check.fetch_latest_manifest",
@@ -148,7 +150,9 @@ class TestStandaloneSelfUpdate:
                     return_value=True,
                 )
             )
-            stack.enter_context(patch(f"{_MOD}.create_requests_session"))
+            stack.enter_context(
+                patch("cloudsmith_cli.core.session.create_requests_session")
+            )
             stack.enter_context(
                 patch(
                     f"{_MOD}.update_check.fetch_latest_manifest",
@@ -193,7 +197,9 @@ class TestStandaloneSelfUpdate:
                     return_value=True,
                 )
             )
-            stack.enter_context(patch(f"{_MOD}.create_requests_session"))
+            stack.enter_context(
+                patch("cloudsmith_cli.core.session.create_requests_session")
+            )
             stack.enter_context(
                 patch(
                     f"{_MOD}.update_check.fetch_latest_manifest",
@@ -288,7 +294,9 @@ class TestChecksRegardlessOfState:
             stack.enter_context(
                 patch(f"{_MOD}.installation.detect_target", return_value=None)
             )
-            stack.enter_context(patch(f"{_MOD}.create_requests_session"))
+            stack.enter_context(
+                patch("cloudsmith_cli.core.session.create_requests_session")
+            )
             stack.enter_context(
                 patch(f"{_MOD}.update_check.record_checked_and_notified")
             )
@@ -302,3 +310,33 @@ class TestChecksRegardlessOfState:
 
         assert result.exit_code == 0
         assert fetch.call_args.kwargs["target"] == update_check.VERSION_PROBE_TARGET
+
+
+def test_ssl_settings_reach_the_session(runner):
+    with ExitStack() as stack:
+        stack.enter_context(patch(f"{_MOD}.get_version", return_value=CURRENT))
+        stack.enter_context(
+            patch(
+                f"{_MOD}.installation.detect_channel",
+                return_value=installation.CHANNEL_PIP,
+            )
+        )
+        create_session = stack.enter_context(
+            patch("cloudsmith_cli.core.session.create_requests_session")
+        )
+        stack.enter_context(patch(f"{_MOD}.update_check.record_checked_and_notified"))
+        stack.enter_context(
+            patch(
+                f"{_MOD}.update_check.fetch_latest_manifest",
+                return_value=_manifest(CURRENT),
+            )
+        )
+        result = runner.invoke(
+            update,
+            ["--without-ssl-verify", "--without-ssl-verify-strict"],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    assert create_session.call_args.kwargs["ssl_verify"] is False
+    assert create_session.call_args.kwargs["ssl_verify_strict"] is False

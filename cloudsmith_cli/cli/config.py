@@ -64,6 +64,10 @@ class ConfigSchema:
         api_host = ConfigParam(name="api_host", type=str)
         api_proxy = ConfigParam(name="api_proxy", type=str)
         api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool, default=True)
+        ssl_verify = ConfigParam(name="ssl_verify", type=bool)
+        ssl_verify_strict = ConfigParam(
+            name="ssl_verify_strict", type=bool, default=True
+        )
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
@@ -223,6 +227,8 @@ class ConfigReader(ConfigFileReader):
             preferred_workspace = preferred_workspace.strip()
         has_preferred_workspace = bool(preferred_workspace)
         for k, v in values.items():
+            if k == "api_ssl_verify" and values.get("ssl_verify") is not None:
+                continue
             if has_preferred_workspace and k in ("org", "organization", "oidc_org"):
                 continue
             if v is None:
@@ -413,14 +419,34 @@ class Options:  # pylint: disable=too-many-public-methods
         self._set_option("api_proxy", value)
 
     @property
+    def ssl_verify(self):
+        """Get value for SSL verification."""
+        return self._get_option("ssl_verify", default=True)
+
+    @ssl_verify.setter
+    def ssl_verify(self, value):
+        """Set value for SSL verification."""
+        self._set_option("ssl_verify", value, allow_clear=False)
+
+    @property
     def api_ssl_verify(self):
-        """Get value for API SSL verify."""
-        return self._get_option("api_ssl_verify", default=True)
+        """Get SSL verification using the legacy API-prefixed name."""
+        return self.ssl_verify
 
     @api_ssl_verify.setter
     def api_ssl_verify(self, value):
-        """Set value for API SSL verify."""
-        self._set_option("api_ssl_verify", value, allow_clear=False)
+        """Set SSL verification using the legacy API-prefixed name."""
+        self.ssl_verify = value
+
+    @property
+    def ssl_verify_strict(self):
+        """Get value for strict X.509 SSL verification."""
+        return self._get_option("ssl_verify_strict", default=True)
+
+    @ssl_verify_strict.setter
+    def ssl_verify_strict(self, value):
+        """Set value for strict X.509 SSL verification."""
+        self._set_option("ssl_verify_strict", value, allow_clear=False)
 
     @property
     def api_user_agent(self):

@@ -4,7 +4,6 @@
 import click
 
 from ...core import installation, self_update, update_check
-from ...core.session import create_requests_session
 from ...core.version import get_version, parse_version
 from .. import decorators, utils
 from ..utils import maybe_spinner
@@ -108,6 +107,7 @@ def _print_manual_update(opts, current, latest, manifest, data):
 )
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
+@decorators.initialise_session
 @click.pass_context
 def update(ctx, opts, assume_yes):
     """Update the Cloudsmith CLI to the latest released version.
@@ -126,7 +126,7 @@ def update(ctx, opts, assume_yes):
             "Cannot detect a supported platform for the standalone binary."
         )
 
-    session = create_requests_session(user_agent=opts.api_user_agent)
+    session = opts.session
     manifest = _fetch_manifest(opts, session, target)
     latest = manifest["version"]
 
