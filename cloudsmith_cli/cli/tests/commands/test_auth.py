@@ -18,7 +18,7 @@ from .conftest import MockToken
 
 @pytest.fixture(autouse=True)
 def no_existing_sso_session(monkeypatch):
-    """Keep browser-flow tests independent of locally stored SSO sessions."""
+    """Keep browser-flow tests independent of locally stored SAML sessions."""
     monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
     monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
     with patch(
@@ -291,7 +291,7 @@ class TestAuthenticateCommand:
 
         assert result.exit_code == 0
         assert result.stdout == (
-            "SSO session renewed.\nAccess token expires at 2030-01-02T03:04:05Z.\n"
+            "SAML session renewed.\nAccess token expires at 2030-01-02T03:04:05Z.\n"
         )
         assert "Workspace" not in result.output
         browser.open.assert_not_called()

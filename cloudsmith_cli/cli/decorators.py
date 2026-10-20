@@ -21,13 +21,13 @@ from ..core.credentials.oidc.detectors import (
 from . import config, utils
 
 
-def _expired_sso_renewal_message(error):
-    """Describe a failed SSO renewal that left only an expired access token."""
+def _expired_saml_renewal_message(error):
+    """Describe a failed SAML renewal that left only an expired access token."""
     cause = f": {error}\n" if error else ". "
     message = (
-        f"The SSO session could not be renewed and its access token has expired{cause}"
+        f"The SAML session could not be renewed and its access token has expired{cause}"
         "Check your connection, then run 'cloudsmith auth'; "
-        "continuing without SSO authentication."
+        "continuing without SAML authentication."
     )
     hint = describe_certificate_error(error) if error else None
     return f"{message}\nHint: {hint}" if hint else message
@@ -602,23 +602,23 @@ def resolve_credentials(f):
                     "Using the existing access token until it expires."
                     if credential.source_name == "keyring"
                     else (
-                        "The SSO session could not be renewed. "
+                        "The SAML session could not be renewed. "
                         "Falling back to alternative authentication."
                     )
                 )
             elif context.keyring_refresh_rejected:
                 message = (
-                    "Your SSO session has expired. Run 'cloudsmith auth' to "
-                    "authenticate again; continuing without SSO authentication."
+                    "Your SAML session has expired. Run 'cloudsmith auth' to "
+                    "authenticate again; continuing without SAML authentication."
                 )
             elif context.keyring_refresh_unrenewable:
                 message = (
-                    "The SSO session has no refresh token and its access token "
+                    "The SAML session has no refresh token and its access token "
                     "has expired. Run 'cloudsmith auth' to authenticate again; "
-                    "continuing without SSO authentication."
+                    "continuing without SAML authentication."
                 )
             else:
-                message = _expired_sso_renewal_message(context.keyring_refresh_error)
+                message = _expired_saml_renewal_message(context.keyring_refresh_error)
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential

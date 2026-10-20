@@ -53,7 +53,7 @@ def _create_auth_server(opts, owner, session, enable_token_creation, profile):
 
 
 def _renew_existing_sso_session(opts, profile):
-    """Return a usable existing SSO session, or fall back to browser auth."""
+    """Return a usable existing SAML session, or fall back to browser auth."""
     renewal = renew_sso_session(opts.api_config.host, opts.session, profile=profile)
     if renewal.status in (
         SsoRenewalStatus.RENEWED,
@@ -64,7 +64,7 @@ def _renew_existing_sso_session(opts, profile):
         renewal.error, requests.RequestException
     ):
         raise click.ClickException(
-            "The SSO session has expired and Cloudsmith could not be reached: "
+            "The SAML session has expired and Cloudsmith could not be reached: "
             f"{renewal.error}\n"
             "Check your connection, then run 'cloudsmith auth' again."
         ) from renewal.error
@@ -72,7 +72,7 @@ def _renew_existing_sso_session(opts, profile):
 
 
 def _report_active_sso_session(opts, renewal, use_stderr=False):
-    """Report the usable SSO session without exposing its access token."""
+    """Report the usable SAML session without exposing its access token."""
     expires_at = get_access_token_expiry(renewal.access_token)
     data = {
         "authenticated": True,
@@ -85,16 +85,16 @@ def _report_active_sso_session(opts, renewal, use_stderr=False):
         return
 
     if renewal.status == SsoRenewalStatus.RENEWED:
-        click.secho("SSO session renewed.", fg="green", err=use_stderr)
+        click.secho("SAML session renewed.", fg="green", err=use_stderr)
     elif renewal.error:
         click.secho(
-            "The SSO session could not be renewed; the existing access token "
+            "The SAML session could not be renewed; the existing access token "
             "remains active.",
             fg="yellow",
             err=use_stderr,
         )
     else:
-        click.secho("SSO session is active.", fg="green", err=use_stderr)
+        click.secho("SAML session is active.", fg="green", err=use_stderr)
     if expires_at:
         click.echo(
             f"Access token expires at {utils.fmt_datetime(expires_at)}.",
@@ -271,10 +271,10 @@ def authenticate(
         err=use_stderr,
     )
 
-    # Determine if we need to refresh API after SSO (required for token operations)
+    # Determine if we need to refresh API after SAML (required for token operations)
     enable_token_creation = token or request_api_key_flag
 
-    context_message = "Failed to authenticate via SSO!"
+    context_message = "Failed to authenticate via SAML!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
         _perform_saml_authentication(
             opts,

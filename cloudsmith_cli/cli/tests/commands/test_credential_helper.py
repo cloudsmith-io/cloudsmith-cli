@@ -396,7 +396,7 @@ def test_get_workspace_domains_bearer_credential_sends_authorization_header(
     """A bearer credential authenticates the lookup with its own header scheme.
 
     The credential object flows through to the API layer unmodified, so an
-    SSO access token goes out as ``Authorization: Bearer``, never ``X-Api-Key``.
+    SAML access token goes out as ``Authorization: Bearer``, never ``X-Api-Key``.
     """
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.domains.get_default_config_path",

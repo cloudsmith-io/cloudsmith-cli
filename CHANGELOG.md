@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install terraform` now writes `-w <workspace>` into the `terraformrc` args, not `--org`. A block that has `--org` continues to work. The install also writes `--api-host` when you set an API host, so the helper finds the domains on that API host. Without a Workspace, the install tells you how to set one.
 - `cloudsmith credential-helper install` and `uninstall` now use `~/.cloudsmith/bin` when you do not give `--bin-dir`. Before, they used the directory of the `cloudsmith` executable, which a package manager can overwrite or make read-only. Terraform still uses its plugin directory. If the directory is not on `PATH`, `install` shows the command that adds it. To remove a helper that an earlier version installed, give its directory with `--bin-dir`.
 - The hint shown for a `401 - Unauthorized` error when no API key or SAML session is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`.
+- Messages, help text and the README now say SAML instead of SSO. JSON keys and values, such as `"method": "sso"`, do not change.
 
 ### Deprecated
 

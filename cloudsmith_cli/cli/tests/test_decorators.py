@@ -50,12 +50,12 @@ def test_rejected_sso_session_continues_without_early_exception():
         result = click.testing.CliRunner().invoke(_credential_command())
 
     assert result.exit_code == 0
-    assert "Your SSO session has expired" in result.stderr
-    assert "continuing without SSO authentication" in result.stderr
+    assert "Your SAML session has expired" in result.stderr
+    assert "continuing without SAML authentication" in result.stderr
     assert result.stdout == "command ran\n"
 
 
-def test_failed_sso_renewal_explains_the_certificate_error():
+def test_failed_saml_renewal_explains_the_certificate_error():
     def fail(context):
         context.keyring_refresh_failed = True
         context.keyring_refresh_error = certificate_error(

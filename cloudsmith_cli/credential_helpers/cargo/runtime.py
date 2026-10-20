@@ -111,7 +111,7 @@ def _authorization_value(credential) -> str:
 
     Cargo forwards the credential provider's ``token`` field verbatim as the
     Authorization header. Cloudsmith API credentials use the ``token`` scheme,
-    while SSO credentials use ``Bearer``.
+    while SAML credentials use ``Bearer``.
     """
     scheme = "Bearer" if credential.auth_type == "bearer" else "token"
     return f"{scheme} {credential.api_key}"

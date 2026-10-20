@@ -155,7 +155,7 @@ def test_index_url_keeps_its_sparse_prefix_out_of_the_host_match(credential):
 
 
 def test_get_returns_bearer_scheme_for_sso_credential():
-    """An SSO credential is returned with the Bearer authorization scheme."""
+    """A SAML credential is returned with the Bearer authorization scheme."""
     credential = CredentialResult(
         api_key="jwt_token",
         source_name="keyring",

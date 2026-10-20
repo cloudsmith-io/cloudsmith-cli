@@ -104,7 +104,7 @@ class TestKeyringProvider:
         "error",
         [
             RuntimeError("temporarily unavailable"),
-            ValueError("Cloudsmith did not return a new SSO access token."),
+            ValueError("Cloudsmith did not return a new SAML access token."),
         ],
         ids=["transient-error", "missing-access-response"],
     )

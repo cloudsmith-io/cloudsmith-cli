@@ -54,7 +54,7 @@ class TestLogoutCommand:
             HOST, profile=None, include_legacy=False
         )
         assert "Removed credentials from:" in result.output
-        assert "Removed SSO tokens from system keyring" in result.output
+        assert "Removed SAML tokens from system keyring" in result.output
 
     def test_misconfigured_api_host_is_normalized(self, runner, mock_deps):
         _, mock_keyring = mock_deps
@@ -90,7 +90,7 @@ class TestLogoutCommand:
             call(HOST, profile="staging", include_legacy=False),
             call(HOST),
         ]
-        assert "Removed SSO tokens from system keyring" in result.output
+        assert "Removed SAML tokens from system keyring" in result.output
 
     def test_dry_run(self, runner, mock_deps):
         mock_creds, mock_keyring = mock_deps
@@ -118,7 +118,7 @@ class TestLogoutCommand:
                 "find_existing_files",
                 "credentials.ini was not modified",
             ),
-            ("--config-only", "has_sso_tokens", "SSO tokens were not modified"),
+            ("--config-only", "has_sso_tokens", "SAML tokens were not modified"),
         ],
     )
     def test_scoped_flags(self, runner, mock_deps, flag, skipped_attr, note_fragment):
@@ -183,4 +183,4 @@ class TestLogoutCommand:
         result = runner.invoke(logout, ["--api-host", HOST])
 
         assert result.exit_code == 0
-        assert "Failed to remove SSO tokens" in result.output
+        assert "Failed to remove SAML tokens" in result.output

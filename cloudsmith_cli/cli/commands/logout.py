@@ -34,7 +34,7 @@ def _clear_credentials(dry_run, use_stderr):
 
 
 def _clear_keyring(api_host, dry_run, use_stderr, profile=None):
-    """Clear SSO tokens from keyring. Returns result dict.
+    """Clear SAML tokens from keyring. Returns result dict.
 
     Remove the profile's own entries. The legacy unscoped entries hold
     the default profile's session, so remove them only when the profile
@@ -49,18 +49,18 @@ def _clear_keyring(api_host, dry_run, use_stderr, profile=None):
         return {"action": "disabled"}
 
     if not keyring.has_sso_tokens(api_host, profile=profile):
-        click.echo("No SSO tokens found in system keyring.", err=use_stderr)
+        click.echo("No SAML tokens found in system keyring.", err=use_stderr)
         return {"action": "not_found"}
 
     if dry_run:
-        click.echo("Would remove SSO tokens from system keyring.", err=use_stderr)
+        click.echo("Would remove SAML tokens from system keyring.", err=use_stderr)
         return {"action": "would_remove"}
 
     deleted = keyring.delete_sso_tokens(api_host, profile=profile, include_legacy=False)
     if not deleted:
         deleted = keyring.delete_sso_tokens(api_host)
     action = "removed" if deleted else "failed"
-    msg = f"{'Removed' if deleted else 'Failed to remove'} SSO tokens from system keyring."
+    msg = f"{'Removed' if deleted else 'Failed to remove'} SAML tokens from system keyring."
     click.secho(msg, fg=None if deleted else "red", err=use_stderr)
     return {"action": action} if deleted else {"action": action, "message": msg}
 
@@ -78,7 +78,7 @@ def _collect_warnings(keyring_only, config_only):
     """Collect advisory warnings based on flags and environment."""
     warnings = []
     if config_only:
-        warnings.append("SSO tokens were not modified (--config-only).")
+        warnings.append("SAML tokens were not modified (--config-only).")
     if keyring_only:
         warnings.append("credentials.ini was not modified (--keyring-only).")
     if os.environ.get("CLOUDSMITH_API_KEY"):
@@ -100,7 +100,7 @@ def _collect_warnings(keyring_only, config_only):
     "--keyring-only",
     is_flag=True,
     default=False,
-    help="Only clear SSO tokens from the system keyring.",
+    help="Only clear SAML tokens from the system keyring.",
 )
 @click.option(
     "--config-only",
@@ -118,7 +118,7 @@ def _collect_warnings(keyring_only, config_only):
 @decorators.common_cli_output_options
 @click.pass_context
 def logout(ctx, opts, api_host, keyring_only, config_only, dry_run):
-    """Clear stored authentication credentials and SSO tokens."""
+    """Clear stored authentication credentials and SAML tokens."""
     if keyring_only and config_only:
         raise click.UsageError(
             "--keyring-only and --config-only are mutually exclusive."

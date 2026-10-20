@@ -43,7 +43,7 @@ def upload_and_capture_headers(tmp_path, credential, api_key=None):
 class TestMultiPartUploadAuth:
     """The multi-part upload endpoint answers 404 for an unauthenticated
     request, so credentials must come from the resolved credential chain
-    rather than opts.api_key, which OIDC and SSO never populate.
+    rather than opts.api_key, which OIDC and SAML never populate.
     """
 
     def test_uses_resolved_credential_not_opts_api_key(self, tmp_path):
