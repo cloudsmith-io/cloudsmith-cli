@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Without a Workspace, `cloudsmith domains list` lists the domains that earlier runs cached. If no domains are cached, it gets the domains of a Workspace that the credential is a member of. Without a credential, the list is empty.
 - `cloudsmith credential-helper install` now configures the Cloudsmith-owned hosts that the API lists for the Workspace. It uses its built-in default host, such as `docker.cloudsmith.io`, only when it cannot get the domains from the API.
 - `cloudsmith credential-helper install` and `uninstall` now use `~/.cloudsmith/bin` when you do not give `--bin-dir`. Before, they used the directory of the `cloudsmith` executable, which a package manager can overwrite or make read-only. Terraform still uses its plugin directory. If the directory is not on `PATH`, `install` shows the command that adds it. To remove a helper that an earlier version installed, give its directory with `--bin-dir`.
+- The hint shown for a `401 - Unauthorized` error when no API key or SAML session is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`.
+
+### Deprecated
+
+- `cloudsmith login` and its `cloudsmith token` alias are deprecated, and will stop working on November 20, 2026, when Cloudsmith disables username and password login. See the [Cloudsmith changelog](https://cloudsmith.com/changelog). Until then, both commands work as before, but they print a deprecation warning to stderr before they prompt for credentials. Once the server disables password login (`410 Gone`, or `404` after the endpoint is deleted), they fail with a message that explains how to get an API key instead. Other errors, such as outages or wrong credentials, are reported as before. To replace them, set `CLOUDSMITH_API_KEY` to an API key from the Cloudsmith web app (your user menu, then **Personal API Keys**), or run `cloudsmith auth --workspace <workspace>` to log in with SAML. See [Getting your API key](https://docs.cloudsmith.com/developer-tools/cli#getting-your-api-key).
 
 ### Removed
 
