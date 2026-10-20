@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The docker, pnpm, cargo and terraform launchers of the standalone binary now quote the path of the binary correctly. A path with `$` or a backtick no longer breaks the launcher on Linux and macOS.
 - `cloudsmith credential-helper list` now finds a launcher that `install` wrote to the default directory, `~/.cloudsmith/bin`. Before, `list` looked in the directory of the `cloudsmith` executable and reported the helper as not installed.
 
 ## [1.29.0] - 2026-10-15

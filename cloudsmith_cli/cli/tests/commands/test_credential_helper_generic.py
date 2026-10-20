@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 from ....cli.commands.credential_helper.generic import generic
 from ....core.credentials.models import CredentialResult
-from ....credential_helpers.generic import _REFUSAL_MESSAGE, PROTOCOL_VERSION, execute
+from ....credential_helpers.common import REFUSAL_MESSAGE
+from ....credential_helpers.generic import PROTOCOL_VERSION, execute
 
 TOKEN = "k_secret_token_value"
 
@@ -54,7 +55,7 @@ def test_execute_empty_api_key_refuses():
 
     assert code == 1
     assert stdout is None
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 def test_execute_degrades_on_unexpected_exception():
@@ -71,7 +72,7 @@ def test_execute_degrades_on_unexpected_exception():
 
     assert code == 1
     assert stdout is None
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 def test_token_only_ever_appears_on_stdout():
@@ -109,7 +110,7 @@ def test_cli_refusal_exits_1_with_empty_stdout(runner):
     """A refusal must not emit a partial document on stdout."""
     with patch(
         "cloudsmith_cli.cli.commands.credential_helper.generic.execute",
-        return_value=(1, None, _REFUSAL_MESSAGE),
+        return_value=(1, None, REFUSAL_MESSAGE),
     ):
         result = runner.invoke(generic, args=HERMETIC_ARGS, catch_exceptions=False)
 

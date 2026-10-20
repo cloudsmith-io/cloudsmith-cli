@@ -19,19 +19,12 @@ import json
 import logging
 
 from ..backends import BackendKind
-from ..common import is_cloudsmith_domain
+from ..common import REFUSAL_MESSAGE, is_cloudsmith_domain
 
 logger = logging.getLogger(__name__)
 
 #: Protocol versions this provider implements, announced in the hello message.
 SUPPORTED_VERSIONS = (1,)
-
-_REFUSAL_MESSAGE = (
-    "Error: Unable to retrieve credentials. "
-    "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
-    "credentials.ini, the system keyring, or an OIDC service. "
-    "Verify current authentication with `cloudsmith whoami --verbose`."
-)
 
 
 def hello() -> dict:
@@ -257,9 +250,9 @@ def execute(stdin, stdout, credential=None, api_host=None, org=None):
         # TypeError from json.dumps — all degrade to a clean exit.
         # (Exception does not catch KeyboardInterrupt/SystemExit, which is correct.)
         logger.debug("cargo credential-provider session failed: %s", exc, exc_info=True)
-        return (1, _REFUSAL_MESSAGE)
+        return (1, REFUSAL_MESSAGE)
 
     if refused:
-        return (1, _REFUSAL_MESSAGE)
+        return (1, REFUSAL_MESSAGE)
 
     return (0, None)
