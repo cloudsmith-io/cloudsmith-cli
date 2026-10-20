@@ -324,7 +324,8 @@ You can specify the following configuration options:
 
 - `api_host`: The API host to connect to.
 - `api_proxy`: The API proxy to connect through.
-- `api_ssl_verify`: Whether or not to use SSL verification for requests.
+- `ssl_verify`: Whether or not to verify SSL certificates for HTTPS requests, including API, SAML, uploads, downloads, and MCP (default: `true`). Use `CLOUDSMITH_SSL_VERIFY=1` to enable verification or `CLOUDSMITH_SSL_VERIFY=0` / `--without-ssl-verify` to disable it. Disabling verification is dangerous; prefer disabling only strict checks where possible. The config key `api_ssl_verify`, flag `--without-api-ssl-verify` / `-S`, and environment variable `CLOUDSMITH_WITHOUT_API_SSL_VERIFY` remain supported for compatibility. Command-line settings override environment variables, which override config; within the same source, the new spelling takes precedence.
+- `ssl_verify_strict`: Whether or not to apply strict X.509 certificate verification (`VERIFY_X509_STRICT`, enabled by default on Python 3.13+). Set to `false` (or use `--without-ssl-verify-strict` / `CLOUDSMITH_SSL_VERIFY_STRICT=0`) if a TLS-intercepting proxy issues certificates that fail these checks. `CLOUDSMITH_SSL_VERIFY_STRICT=1` keeps strict verification enabled (the default). Certificates are still verified.
 - `api_user_agent`: The user agent to use for requests.
 
 ### Credentials (credentials.ini)

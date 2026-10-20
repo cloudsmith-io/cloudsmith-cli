@@ -1,37 +1,13 @@
 from urllib.parse import urlencode
 
-import requests
-
 from ..core.sso import raise_for_api_error, refresh_access_token
 
 __all__ = [
-    "create_configured_session",
     "exchange_2fa_token",
     "get_idp_url",
     "raise_for_api_error",
     "refresh_access_token",
 ]
-
-
-def create_configured_session(opts):
-    """
-    Create a requests session configured with the options from opts.
-    """
-    session = requests.Session()
-
-    if hasattr(opts, "api_ssl_verify") and opts.api_ssl_verify is not None:
-        session.verify = opts.api_ssl_verify
-
-    if hasattr(opts, "api_proxy") and opts.api_proxy:
-        session.proxies = {"http": opts.api_proxy, "https": opts.api_proxy}
-
-    if hasattr(opts, "api_user_agent") and opts.api_user_agent:
-        session.headers.update({"User-Agent": opts.api_user_agent})
-
-    if hasattr(opts, "api_headers") and opts.api_headers:
-        session.headers.update(opts.api_headers)
-
-    return session
 
 
 def get_idp_url(api_host, owner, session, redirect_url):

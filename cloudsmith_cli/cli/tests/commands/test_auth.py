@@ -31,9 +31,7 @@ def no_existing_sso_session(monkeypatch):
 @pytest.fixture
 def mock_saml_session():
     """Mock the SAML session creation."""
-    with patch(
-        "cloudsmith_cli.cli.commands.auth.create_configured_session"
-    ) as mock_session:
+    with patch("cloudsmith_cli.core.session.create_requests_session") as mock_session:
         mock_session.return_value = MagicMock()
         yield mock_session
 

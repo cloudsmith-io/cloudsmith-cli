@@ -468,7 +468,11 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
     if is_check_due(read_last_check_time()):
         from .session import create_requests_session
 
-        session = create_requests_session(user_agent=opts.api_user_agent)
+        session = create_requests_session(
+            ssl_verify=opts.ssl_verify,
+            ssl_verify_strict=opts.ssl_verify_strict,
+            user_agent=opts.api_user_agent,
+        )
         thread = _start_background_check(session)
 
     ctx.call_on_close(lambda: _finish_and_notify(thread, opts, invoked))

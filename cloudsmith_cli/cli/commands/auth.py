@@ -12,7 +12,7 @@ from ...core.sso import (
 )
 from .. import decorators, utils, validators
 from ..exceptions import handle_api_exceptions
-from ..saml import create_configured_session, get_idp_url
+from ..saml import get_idp_url
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 from .main import main
 from .tokens import create, request_api_key
@@ -110,7 +110,7 @@ def _perform_saml_authentication(
     profile=None,
 ):
     """Perform SAML authentication via web browser and local web server."""
-    session = create_configured_session(opts)
+    session = opts.session
     api_host = opts.api_config.host
 
     auth_server, port = _create_auth_server(

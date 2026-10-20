@@ -358,14 +358,31 @@ def initialise_session(f):
         help="The API proxy to connect through.",
     )
     @click.option(
+        "--ssl-verify/--without-ssl-verify",
+        default=None,
+        envvar="CLOUDSMITH_SSL_VERIFY",
+        help="Verify SSL certificates for HTTPS connections (enabled by default). "
+        "Disabling verification is dangerous; prefer --without-ssl-verify-strict "
+        "if a TLS-intercepting proxy issues certificates that fail strict checks.",
+    )
+    @click.option(
         "-S",
         "--without-api-ssl-verify",
         default=None,
         is_flag=True,
         envvar="CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
-        help="Don't verify the SSL connection for the API. This is dangerous and "
-        "should only be used in an old/broken environment that doesn't support the "
-        "same secure ciphers as Cloudsmith.",
+        help="Compatibility alias for --without-ssl-verify. Disabling SSL "
+        "certificate verification is dangerous.",
+    )
+    @click.option(
+        "--ssl-verify-strict/--without-ssl-verify-strict",
+        default=None,
+        is_flag=True,
+        envvar="CLOUDSMITH_SSL_VERIFY_STRICT",
+        help="Apply strict X.509 certificate verification (VERIFY_X509_STRICT) "
+        "for HTTPS connections (enabled by default). Python 3.13+ enables this "
+        "by default, which rejects some certificates issued by TLS-intercepting "
+        "corporate proxies. Certificates are still verified when disabled.",
     )
     @click.option(
         "--api-user-agent",
@@ -400,9 +417,18 @@ def initialise_session(f):
         proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_api_proxy_suffixes"))
         opts.api_host = kwargs.pop("api_host")
         opts.api_proxy = kwargs.pop("api_proxy")
-        opts.api_ssl_verify = _pop_boolean_flag(
+        ssl_verify = kwargs.pop("ssl_verify")
+        legacy_ssl_verify = _pop_boolean_flag(
             kwargs, "without_api_ssl_verify", invert=True
         )
+        if (
+            ctx.get_parameter_source("ssl_verify") != ParameterSource.COMMANDLINE
+            and ctx.get_parameter_source("without_api_ssl_verify")
+            == ParameterSource.COMMANDLINE
+        ) or ssl_verify is None:
+            ssl_verify = legacy_ssl_verify
+        opts.ssl_verify = ssl_verify
+        opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
 
@@ -410,7 +436,8 @@ def initialise_session(f):
 
         opts.session = _create_session(
             proxy=opts.api_proxy,
-            ssl_verify=opts.api_ssl_verify,
+            ssl_verify=opts.ssl_verify,
+            ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
         )
@@ -656,7 +683,8 @@ def initialise_api(f):
             host=opts.api_host,
             credential=opts.credential,
             proxy=opts.api_proxy,
-            ssl_verify=opts.api_ssl_verify,
+            ssl_verify=opts.ssl_verify,
+            ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
             rate_limit=opts.rate_limit,

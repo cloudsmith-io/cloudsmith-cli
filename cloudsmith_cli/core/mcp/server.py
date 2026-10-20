@@ -15,6 +15,7 @@ from mcp import types
 from mcp.server.mcpserver import MCPServer
 from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT, MCP_DEFAULT_TIMEOUT
 
+from ..session import disable_x509_strict
 from ..version import get_version as get_cli_version
 from .data import OpenAPITool
 
@@ -114,8 +115,8 @@ def create_ssl_context(
 ) -> ssl.SSLContext | bool:
     """Build the TLS verification setting for MCP HTTP clients.
 
-    Mirrors the CLI's requests session: honours ``verify_ssl`` and the
-    client certificate settings, and trusts the CA bundle from
+    Mirrors the CLI's requests session: honours ``verify_ssl``,
+    ``ssl_verify_strict`` and the client certificate settings, and trusts the CA bundle from
     ``_resolve_ca_location``. Returns ``False`` when verification is disabled.
     """
     if getattr(api_config, "verify_ssl", True) is False:
@@ -126,6 +127,9 @@ def create_ssl_context(
         ctx = ssl.create_default_context(capath=ca_location)
     else:
         ctx = ssl.create_default_context(cafile=ca_location)
+
+    if getattr(api_config, "ssl_verify_strict", True) is False:
+        disable_x509_strict(ctx)
 
     cert_file = getattr(api_config, "cert_file", None)
     if cert_file:
