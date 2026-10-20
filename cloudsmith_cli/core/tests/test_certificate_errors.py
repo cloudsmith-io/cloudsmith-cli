@@ -3,7 +3,10 @@ import ssl
 import requests
 from urllib3.exceptions import MaxRetryError, SSLError
 
-from ..certificate_errors import describe_certificate_error
+from ..certificate_errors import (
+    classify_certificate_error,
+    describe_certificate_error,
+)
 
 
 def certificate_error(verify_code, verify_message):
@@ -18,34 +21,43 @@ def certificate_error(verify_code, verify_message):
 
 class TestDescribeCertificateError:
     def test_strict_only_failure_names_the_opt_out(self):
-        hint = describe_certificate_error(
-            certificate_error(
-                78, "cert info signature and signature algorithm mismatch"
-            )
+        exc = certificate_error(
+            78, "cert info signature and signature algorithm mismatch"
         )
 
+        failure = classify_certificate_error(exc)
+
+        assert failure.code == "E_TLS_STRICT"
         assert (
             "strict X.509 check: cert info signature and signature algorithm mismatch"
-            in hint
+            in failure.description
         )
-        assert "--without-ssl-verify-strict" in hint
-        assert "CLOUDSMITH_SSL_VERIFY_STRICT=0" in hint
+        assert "--without-ssl-verify-strict" in failure.fix
+        assert "CLOUDSMITH_SSL_VERIFY_STRICT=0" in failure.fix
+        assert describe_certificate_error(exc) == f"{failure.description} {failure.fix}"
 
     def test_untrusted_ca_names_the_ca_bundle_variable(self):
-        hint = describe_certificate_error(
+        failure = classify_certificate_error(
             certificate_error(20, "unable to get local issuer certificate")
         )
 
-        assert "not from a trusted CA: unable to get local issuer certificate" in hint
-        assert "REQUESTS_CA_BUNDLE" in hint
-        assert "--without-ssl-verify-strict" not in hint
+        assert failure.code == "E_TLS_UNTRUSTED_CA"
+        assert (
+            "not from a trusted CA: unable to get local issuer certificate"
+            in failure.description
+        )
+        assert "REQUESTS_CA_BUNDLE" in failure.fix
 
     def test_other_failures_give_only_the_reason(self):
-        hint = describe_certificate_error(
-            certificate_error(10, "certificate has expired")
-        )
+        exc = certificate_error(10, "certificate has expired")
 
-        assert hint == "The TLS certificate is not valid: certificate has expired."
+        failure = classify_certificate_error(exc)
+
+        assert failure.code == "E_TLS_INVALID"
+        assert failure.fix is None
+        assert describe_certificate_error(exc) == (
+            "The TLS certificate is not valid: certificate has expired."
+        )
 
     def test_other_ssl_errors_have_no_hint(self):
         assert describe_certificate_error(ssl.SSLError(1, "EOF")) is None
