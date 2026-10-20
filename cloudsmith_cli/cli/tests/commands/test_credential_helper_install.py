@@ -1402,7 +1402,7 @@ def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
     monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
     bin_dir = tmp_path / "bin"
     monkeypatch.setenv("PATH", str(bin_dir))
-    exe = tmp_path / "cloudsmith"
+    exe = tmp_path / "price$USD dir" / "cloudsmith"
 
     with (
         patch.object(sys, "frozen", True, create=True),
@@ -1411,5 +1411,4 @@ def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
         DockerInstaller().install(bin_dir=str(bin_dir), discover=False)
 
     body = (bin_dir / "docker-credential-cloudsmith").read_text(encoding="utf-8")
-    assert str(exe) in body
-    assert "exec cloudsmith credential-helper" not in body
+    assert f"exec '{exe}' credential-helper docker \"$@\"" in body

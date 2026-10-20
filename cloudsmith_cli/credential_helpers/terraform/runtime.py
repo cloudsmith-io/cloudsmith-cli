@@ -33,6 +33,7 @@ import logging
 
 from ..backends import BackendKind
 from ..common import (
+    REFUSAL_MESSAGE,
     extract_hostname,
     is_cloudsmith_domain,
     is_standard_cloudsmith_domain,
@@ -40,13 +41,6 @@ from ..common import (
 from ..domains import get_workspace_domains
 
 logger = logging.getLogger(__name__)
-
-_REFUSAL_MESSAGE = (
-    "Error: Unable to retrieve credentials. "
-    "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
-    "credentials.ini, the system keyring, or an OIDC service. "
-    "Verify current authentication with `cloudsmith whoami --verbose`."
-)
 
 _MISSING_ORG_MESSAGE = (
     "Error: No Workspace configured. "
@@ -156,7 +150,7 @@ def _execute_get(
 
     token = get_token(hostname, credential=credential, api_host=api_host, org=org)
     if not token:
-        return (1, None, _REFUSAL_MESSAGE)
+        return (1, None, REFUSAL_MESSAGE)
 
     # Scope the token to a single repository. Standard domains also carry the
     # org ("{org}/{repo}/{token}"); custom domains are already org-bound, so
@@ -198,7 +192,7 @@ def execute(
             logger.debug(
                 "terraform credentials-helper get failed: %s", exc, exc_info=True
             )
-            return (1, None, _REFUSAL_MESSAGE)
+            return (1, None, REFUSAL_MESSAGE)
 
     if verb in ("store", "forget"):
         # Credentials are resolved from the Cloudsmith CLI's own provider chain

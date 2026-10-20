@@ -2,16 +2,9 @@
 import logging
 
 from ..backends import BackendKind
-from ..common import is_cloudsmith_domain
+from ..common import REFUSAL_MESSAGE, is_cloudsmith_domain
 
 logger = logging.getLogger(__name__)
-
-_REFUSAL_MESSAGE = (
-    "Error: Unable to retrieve credentials. "
-    "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
-    "credentials.ini, the system keyring, or an OIDC service. "
-    "Verify current authentication with `cloudsmith whoami --verbose`."
-)
 
 
 def get_pnpm_credentials(server_url, credential=None, api_host=None, org=None):
@@ -60,10 +53,10 @@ def _get_execute(
             server_url, credential=credential, api_host=api_host, org=org
         )
         if not cred:
-            return (1, None, _REFUSAL_MESSAGE)
+            return (1, None, REFUSAL_MESSAGE)
 
         return (0, cred, None)
     except Exception as exc:
         logger.debug("pnpm credential-helper get failed: %s", exc, exc_info=True)
 
-    return 1, None, _REFUSAL_MESSAGE
+    return 1, None, REFUSAL_MESSAGE

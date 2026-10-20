@@ -23,10 +23,10 @@ import pytest
 from ...core.api.exceptions import ApiException
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
+from ...credential_helpers.common import REFUSAL_MESSAGE
 from ...credential_helpers.terraform.runtime import (
     _MISSING_ORG_MESSAGE,
     _MISSING_REPO_MESSAGE,
-    _REFUSAL_MESSAGE,
     execute,
     get_token,
 )
@@ -203,7 +203,7 @@ def test_execute_get_refuses_when_the_domain_scope_lookup_fails(
             repo="myrepo",
         )
 
-    assert (exit_code, stdout, stderr) == (1, None, _REFUSAL_MESSAGE)
+    assert (exit_code, stdout, stderr) == (1, None, REFUSAL_MESSAGE)
 
 
 def test_execute_get_custom_domain_does_not_require_an_org_in_the_token(credential):
@@ -245,7 +245,7 @@ def test_execute_get_refuses_cloudsmith_host_without_credentials():
             "get", CLOUDSMITH_HOST, credential=None, org="acme", repo="myrepo"
         )
 
-    assert (exit_code, stdout, stderr) == (1, None, _REFUSAL_MESSAGE)
+    assert (exit_code, stdout, stderr) == (1, None, REFUSAL_MESSAGE)
 
 
 def test_execute_get_refuses_cloudsmith_host_without_an_org(credential):
@@ -329,7 +329,7 @@ def test_execute_get_degrades_cleanly_on_domain_lookup_failure(credential):
         )
 
     assert (exit_code, stdout) == (1, None)
-    assert stderr == _REFUSAL_MESSAGE
+    assert stderr == REFUSAL_MESSAGE
 
 
 # ---------------------------------------------------------------------------

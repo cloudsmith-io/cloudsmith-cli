@@ -12,6 +12,13 @@ from .domains import get_format_domains, get_workspace_domains
 
 logger = logging.getLogger(__name__)
 
+REFUSAL_MESSAGE = (
+    "Error: Unable to retrieve credentials. "
+    "Provide credentials via the CLOUDSMITH_API_KEY environment variable, "
+    "credentials.ini, the system keyring, or an OIDC service. "
+    "Verify current authentication with `cloudsmith whoami --verbose`."
+)
+
 
 def path_warning(
     target_dir: Path, helper_format: str, launcher: str, windows: bool
