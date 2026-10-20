@@ -81,8 +81,9 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
     Baking ``-w``/``-r``/``-P`` into the block means ``terraform init`` works
     with no environment variables and no hand-edited config. Only values
     actually supplied are written, so an install without ``-w``/``--repo``/
-    ``-P`` leaves ``args = []``. The API host is baked in too, so the helper
-    looks up domains on the same API host as the install.
+    ``-P`` leaves ``args = []``. The API host and proxy are baked in too, so
+    the helper looks up domains on the same API host, through the same proxy,
+    as the install.
 
     A non-default ``--config-file``/``--credentials-file`` is also baked in: the
     helper is later invoked by ``terraform init`` in a fresh process with none
@@ -106,6 +107,8 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
         args.extend(["--credentials-file", creds_file])
     if opts.api_host:
         args.extend(["--api-host", opts.api_host])
+    if opts.proxy:
+        args.extend(["--proxy", opts.proxy])
     return tuple(args)
 
 

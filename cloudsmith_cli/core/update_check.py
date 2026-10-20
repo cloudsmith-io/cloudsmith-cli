@@ -64,6 +64,7 @@ VERSION_PROBE_TARGET = "linux-x86_64-gnu"
 MANIFEST_FETCH_TIMEOUT_SECONDS = 5.0
 #: How long the command waits at exit for the background fetch to finish.
 BACKGROUND_JOIN_TIMEOUT_SECONDS = 1.0
+_META_KEY = "cloudsmith_update_check"
 
 #: Output formats that suppress the interactive update notice.
 MACHINE_OUTPUT_FORMATS = ("json", "pretty_json")
@@ -448,7 +449,8 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
 
     Unless disabled (``--no-check-update``/env/``CI``/config), a close handler is
     always registered so a pending notice can fire from cache even on a run where
-    no fetch is due. When a fetch *is* due it always runs, so the manifest keeps
+    no fetch is due. When a fetch *is* due, :func:`start` runs it after the
+    command resolves its connection options, so the manifest keeps
     refreshing and a release newer than a previously-seen one is picked up. The
     fetch runs even when the notice is suppressed (e.g. ``-F json``, non-TTY),
     keeping the cache warm; the close handler decides separately whether to
@@ -464,15 +466,30 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
     ):
         return
 
-    thread: threading.Thread | None = None
-    if is_check_due(read_last_check_time()):
-        from .session import create_requests_session
+    check = {"due": is_check_due(read_last_check_time()), "thread": None}
+    ctx.meta[_META_KEY] = check
+    ctx.call_on_close(lambda: _finish_and_notify(check["thread"], opts, invoked))
+    if invoked is None:
+        start(ctx, opts)
 
-        session = create_requests_session(
-            ssl_verify=opts.ssl_verify,
-            ssl_verify_strict=opts.ssl_verify_strict,
-            user_agent=opts.api_user_agent,
-        )
-        thread = _start_background_check(session)
 
-    ctx.call_on_close(lambda: _finish_and_notify(thread, opts, invoked))
+def start(ctx: "click.Context", opts: "Options") -> None:
+    """Start a due fetch with the connection options of the command.
+
+    Commands that make no HTTP requests never call this, so the fetch waits
+    for the next command that does.
+    """
+    check = ctx.meta.get(_META_KEY)
+    if not check or not check["due"]:
+        return
+    check["due"] = False
+
+    from .session import create_requests_session
+
+    session = create_requests_session(
+        proxy=opts.proxy,
+        ssl_verify=opts.ssl_verify,
+        ssl_verify_strict=opts.ssl_verify_strict,
+        user_agent=opts.api_user_agent,
+    )
+    check["thread"] = _start_background_check(session)

@@ -9,11 +9,13 @@ import textwrap
 import threading
 import time
 from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
 from cloudsmith_cli.cli import config
 from cloudsmith_cli.core import telemetry
+from cloudsmith_cli.core.session import set_default_proxy
 
 # --- Opt-out controls -------------------------------------------------------
 
@@ -104,6 +106,17 @@ def test_reports_one_event(sentry_events):
     assert exc["value"] == "boom"
     assert exc["mechanism"]["handled"] is False
     assert sentry_events[0]["release"].startswith("cloudsmith-cli@")
+
+
+def test_report_uses_the_cli_proxy(sentry_events):
+    import sentry_sdk
+
+    set_default_proxy("http://proxy.example.com:3128")
+    with mock.patch("sentry_sdk.Client", wraps=sentry_sdk.Client) as client:
+        telemetry.report_exception(raise_and_catch(RuntimeError("boom")))
+
+    assert len(sentry_events) == 1
+    assert client.call_args.kwargs["http_proxy"] == "http://proxy.example.com:3128"
 
 
 @pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)

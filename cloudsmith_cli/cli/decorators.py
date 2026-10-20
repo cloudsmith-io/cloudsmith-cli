@@ -11,6 +11,7 @@ from click.core import ParameterSource
 from cloudsmith_cli.cli import validators
 from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
+from ..core import update_check
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
 from ..core.credentials.oidc.detectors import (
@@ -318,12 +319,12 @@ def _parse_suffixes(value):
 
 
 def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
-    """Reject api_host/api_proxy redirections from directory-relative config.
+    """Reject api_host/proxy redirections from directory-relative config.
 
     Enforcement applies only when the effective value originated from an
     untrusted (relative) config file and was not supplied via a CLI flag or
     environment variable. Both must match their allow-listed host suffixes;
-    api_proxy has no public default suffixes, so it is rejected unless one is
+    proxy has no public default suffixes, so it is rejected unless one is
     supplied via the environment.
     """
     trusted_sources = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
@@ -336,12 +337,12 @@ def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
         if relative_host and opts.api_host == relative_host:
             validators.validate_untrusted_api_host(opts.api_host, host_suffixes)
 
-    if ctx.get_parameter_source("api_proxy") not in trusted_sources:
+    if ctx.get_parameter_source("proxy") not in trusted_sources:
         relative_proxy = config.ConfigReader.read_relative_config_value(
-            "api_proxy", profile=profile
+            "proxy", profile=profile
         )
-        if relative_proxy and opts.api_proxy == relative_proxy:
-            validators.validate_untrusted_api_proxy(opts.api_proxy, proxy_suffixes)
+        if relative_proxy and opts.proxy == relative_proxy:
+            validators.validate_untrusted_proxy(opts.proxy, proxy_suffixes)
 
 
 def initialise_session(f):
@@ -353,9 +354,12 @@ def initialise_session(f):
         help="The API host to connect to",
     )
     @click.option(
+        "--proxy",
         "--api-proxy",
-        envvar="CLOUDSMITH_API_PROXY",
-        help="The API proxy to connect through.",
+        "proxy",
+        envvar=["CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY"],
+        help="The proxy to connect through for all HTTP requests. "
+        "--api-proxy and CLOUDSMITH_API_PROXY are compatibility aliases.",
     )
     @click.option(
         "--ssl-verify/--without-ssl-verify",
@@ -401,22 +405,28 @@ def initialise_session(f):
         help="Comma-separated extra trusted api_host suffixes (internal use).",
     )
     @click.option(
+        "--allowed-proxy-suffixes",
         "--allowed-api-proxy-suffixes",
-        envvar="CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
+        "allowed_proxy_suffixes",
+        envvar=[
+            "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
+            "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
+        ],
         hidden=True,
-        help="Comma-separated trusted api_proxy host suffixes (internal use).",
+        help="Comma-separated trusted proxy host suffixes (internal use).",
     )
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         from ..core.session import create_requests_session as _create_session
+        from ..core.session import set_default_proxy
 
         opts = config.get_or_create_options(ctx)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
-        proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_api_proxy_suffixes"))
+        proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_proxy_suffixes"))
         opts.api_host = kwargs.pop("api_host")
-        opts.api_proxy = kwargs.pop("api_proxy")
+        opts.proxy = kwargs.pop("proxy")
         ssl_verify = kwargs.pop("ssl_verify")
         legacy_ssl_verify = _pop_boolean_flag(
             kwargs, "without_api_ssl_verify", invert=True
@@ -434,13 +444,15 @@ def initialise_session(f):
 
         _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes)
 
+        set_default_proxy(opts.proxy)
         opts.session = _create_session(
-            proxy=opts.api_proxy,
+            proxy=opts.proxy,
             ssl_verify=opts.ssl_verify,
             ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
         )
+        update_check.start(ctx, opts)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
@@ -682,7 +694,7 @@ def initialise_api(f):
             debug=opts.debug,
             host=opts.api_host,
             credential=opts.credential,
-            proxy=opts.api_proxy,
+            proxy=opts.proxy,
             ssl_verify=opts.ssl_verify,
             ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,

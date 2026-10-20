@@ -434,8 +434,8 @@ def test_cli_install_bakes_workspace_and_profile_into_args(
     assert 'args = ["-w", "acme", "-P", "ci"]' in rc
 
 
-def test_cli_install_bakes_api_host_into_args(runner, tmp_path, monkeypatch):
-    """The helper looks up domains on the API host that the install used."""
+def test_cli_install_bakes_api_host_and_proxy_into_args(runner, tmp_path, monkeypatch):
+    """The helper looks up domains on the API host and proxy that the install used."""
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.delenv("TF_CLI_CONFIG_FILE", raising=False)
 
@@ -449,6 +449,8 @@ def test_cli_install_bakes_api_host_into_args(runner, tmp_path, monkeypatch):
             "acme",
             "--api-host",
             "https://api.example.com",
+            "--proxy",
+            "http://proxy.example.com:3128",
             "--no-discover",
             "-k",
             "k_flag",
@@ -458,7 +460,10 @@ def test_cli_install_bakes_api_host_into_args(runner, tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     rc = (tmp_path / ".terraformrc").read_text(encoding="utf-8")
-    assert 'args = ["-w", "acme", "--api-host", "https://api.example.com"]' in rc
+    assert (
+        'args = ["-w", "acme", "--api-host", "https://api.example.com", '
+        '"--proxy", "http://proxy.example.com:3128"]'
+    ) in rc
 
 
 def test_cli_install_without_workspace_says_how_to_set_one(

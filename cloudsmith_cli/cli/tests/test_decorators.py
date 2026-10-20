@@ -186,3 +186,63 @@ def test_ssl_verify_reaches_all_transports():
     ):
         result = click.testing.CliRunner().invoke(command, ["--without-ssl-verify"])
     assert result.exit_code == 0, result.output
+
+
+PROXY = "http://proxy.example.com:3128"
+
+
+@pytest.mark.parametrize(
+    "args,env",
+    [
+        (["--proxy", PROXY], {}),
+        (["--api-proxy", PROXY], {}),
+        ([], {"CLOUDSMITH_PROXY": PROXY, "CLOUDSMITH_API_PROXY": "http://legacy"}),
+        ([], {"CLOUDSMITH_API_PROXY": PROXY}),
+    ],
+)
+def test_proxy_and_legacy_aliases(args, env):
+    @click.command()
+    @initialise_session
+    def command(opts):
+        pass
+
+    with patch("cloudsmith_cli.core.session.create_requests_session") as create_session:
+        result = click.testing.CliRunner().invoke(command, args, env=env, obj=Options())
+
+    assert result.exit_code == 0, result.output
+    assert create_session.call_args.kwargs["proxy"] == PROXY
+
+
+def test_proxy_config_key_beats_legacy_alias(telemetry_config_dir):
+    path = telemetry_config_dir / "config.ini"
+    path.write_text(f"[default]\nproxy={PROXY}\napi_proxy=http://legacy\n")
+    opts = Options()
+    opts.load_config_file(str(path))
+    assert opts.proxy == PROXY
+
+
+def test_proxy_reaches_sessions_without_api_configuration():
+    @click.command()
+    @initialise_session
+    def command(opts):
+        with create_requests_session() as session:
+            assert session.proxies == {"http": PROXY, "https": PROXY}
+
+    result = click.testing.CliRunner().invoke(
+        command, ["--proxy", PROXY], obj=Options()
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_initialise_session_starts_the_update_check_with_the_proxy():
+    @click.command()
+    @initialise_session
+    def command(opts):
+        pass
+
+    with patch("cloudsmith_cli.core.update_check.start") as start:
+        result = click.testing.CliRunner().invoke(
+            command, ["--proxy", PROXY], obj=Options()
+        )
+    assert result.exit_code == 0, result.output
+    assert start.call_args.args[1].proxy == PROXY

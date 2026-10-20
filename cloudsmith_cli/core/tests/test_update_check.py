@@ -558,18 +558,26 @@ class TestRunBackgroundCheck:
         assert update_check.VERSION_PROBE_TARGET in session.url
 
 
-def test_arm_passes_ssl_settings_to_the_session(monkeypatch):
+def test_fetch_waits_for_the_command_connection_settings(monkeypatch):
     opts = Options()
-    opts.ssl_verify = False
-    opts.ssl_verify_strict = False
     monkeypatch.setattr(update_check, "update_check_disabled", lambda **_: False)
     monkeypatch.setattr(update_check, "read_last_check_time", lambda: None)
-    monkeypatch.setattr(update_check, "_start_background_check", MagicMock())
-    with patch("cloudsmith_cli.core.session.create_requests_session") as create_session:
-        update_check.arm(MagicMock(), opts, no_check_flag=False)
+    start_check = MagicMock()
+    monkeypatch.setattr(update_check, "_start_background_check", start_check)
+    ctx = MagicMock(meta={})
+    update_check.arm(ctx, opts, no_check_flag=False)
+    start_check.assert_not_called()
 
+    opts.proxy = "http://proxy.example.com:3128"
+    opts.ssl_verify = False
+    opts.ssl_verify_strict = False
+    with patch("cloudsmith_cli.core.session.create_requests_session") as create_session:
+        update_check.start(ctx, opts)
+
+    start_check.assert_called_once_with(create_session.return_value)
     assert create_session.call_args.kwargs["ssl_verify"] is False
     assert create_session.call_args.kwargs["ssl_verify_strict"] is False
+    assert create_session.call_args.kwargs["proxy"] == opts.proxy
 
 
 class TestProbeTarget:
