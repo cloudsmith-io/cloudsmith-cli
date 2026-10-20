@@ -14,6 +14,8 @@ without monkeypatching ``os.name`` — faking ``os.name`` on a posix host makes
 from __future__ import annotations
 
 import os
+import shlex
+import sys
 from pathlib import Path
 
 
@@ -25,6 +27,24 @@ def is_windows() -> bool:
 def _launcher_filename(name: str, *, windows: bool) -> str:
     """Return the launcher file name for the platform (``.cmd`` on Windows)."""
     return f"{name}.cmd" if windows else name
+
+
+def launcher_arg(value: str) -> str:
+    """Return *value* quoted as one argument of a launcher command."""
+    if is_windows():
+        return f'"{value}"'
+    return shlex.quote(value)
+
+
+def helper_command(helper: str) -> str:
+    """Return the command that a launcher runs for *helper*.
+
+    A frozen standalone binary is not guaranteed to be on ``PATH`` as
+    ``cloudsmith``, so the launcher runs the absolute executable.
+    """
+    if getattr(sys, "frozen", False):
+        return f"{launcher_arg(sys.executable)} credential-helper {helper}"
+    return f"cloudsmith credential-helper {helper}"
 
 
 def _launcher_content(target_cmd: str, *, windows: bool) -> str:
