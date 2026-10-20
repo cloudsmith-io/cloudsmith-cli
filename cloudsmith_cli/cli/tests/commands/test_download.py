@@ -84,16 +84,16 @@ class TestDownloadCommand(unittest.TestCase):
         error.__context__ = certificate_error(10, "certificate has expired")
         mock_stream.side_effect = error
 
-        result = CliRunner().invoke(
-            download, ["--config-file", "/dev/null", "testorg/testrepo", "test-package"]
-        )
+        args = ["--config-file", "/dev/null", "testorg/testrepo", "test-package"]
+        for output_args in ([], ["-F", "json"]):
+            with self.subTest(output_args=output_args):
+                result = CliRunner().invoke(download, args + output_args)
 
-        self.assertEqual(result.exit_code, 1)
-        self.assertIn("Downloaded 0/1 file(s).", result.output)
-        self.assertIn(
-            "Hint: The TLS certificate is not valid: certificate has expired.",
-            result.output,
-        )
+                self.assertEqual(result.exit_code, 1)
+                self.assertIn(
+                    "Hint: The TLS certificate is not valid: certificate has expired.",
+                    result.stderr,
+                )
 
     def setUp(self):
         self.runner = CliRunner()

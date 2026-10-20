@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - When `cloudsmith auth`, a credential helper or another command cannot renew an expired SAML session, the message now includes the error. Before, all network failures showed the same message, also with `--debug`.
 - `cloudsmith push` now reports a failed connection to the upload host, and a failed multi-part upload completion, as `Failed to upload file!`, the same as other API errors.
 - `cloudsmith download` now exits with code 1 when a file does not download. Before, it exited with code 0.
-- `cloudsmith tokens create` now shows the error and exits with a non-zero code when the API request fails. Before, it showed nothing, or only the detail of a 401, and exited with code 0. With `--save-config`, it no longer stops with an `AttributeError` when you do not recreate an existing token.
+- `cloudsmith tokens create` now shows the error and exits with a non-zero code when the API request fails. Before, it showed nothing, or only the detail of a 401, and exited with code 0. With `--save-config`, it no longer stops with an `AttributeError` after JSON output or when you do not recreate an existing token.
 - `cloudsmith upstream <format> create`, `cloudsmith repositories create` and the `cloudsmith policy` `create` commands now show a usage error when the config file has no `name`. Before, they stopped with an `AttributeError`.
 
 ## [1.29.0] - 2026-10-15

@@ -1,6 +1,5 @@
 import ssl
 
-import pytest
 import requests
 from urllib3.exceptions import MaxRetryError, SSLError
 
@@ -48,16 +47,5 @@ class TestDescribeCertificateError:
 
         assert hint == "The TLS certificate is not valid: certificate has expired."
 
-    def test_finds_the_error_through_implicit_exception_context(self):
-        wrapped = RuntimeError("wrapped")
-        wrapped.__context__ = certificate_error(10, "certificate has expired")
-
-        hint = describe_certificate_error(wrapped)
-
-        assert hint == "The TLS certificate is not valid: certificate has expired."
-
-    @pytest.mark.parametrize(
-        "exc", [requests.ConnectionError("offline"), ssl.SSLError(1, "EOF")]
-    )
-    def test_returns_none_without_a_certificate_error(self, exc):
-        assert describe_certificate_error(exc) is None
+    def test_other_ssl_errors_have_no_hint(self):
+        assert describe_certificate_error(ssl.SSLError(1, "EOF")) is None

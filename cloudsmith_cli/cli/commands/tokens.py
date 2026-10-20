@@ -195,12 +195,7 @@ def create(ctx, opts, save_config, force=False, json=False):
 @click.pass_context
 def refresh(ctx, opts, token_slug, force, save_config):
     """Refresh a specific API token by its slug."""
-    new_token = refresh_existing_token_interactive(
-        ctx, opts, token_slug, save_config, force
-    )
-
-    if new_token and utils.maybe_print_as_json(opts, new_token):
-        return new_token
+    refresh_existing_token_interactive(ctx, opts, token_slug, save_config, force)
 
 
 def print_tokens(tokens):
@@ -304,7 +299,7 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
                 opts.output = "json"
 
             if utils.maybe_print_as_json(opts, new_token):
-                return
+                return new_token
 
             click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
             return new_token

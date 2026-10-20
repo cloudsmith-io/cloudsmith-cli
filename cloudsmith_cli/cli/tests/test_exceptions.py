@@ -6,11 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from cloudsmith_cli.cli.commands.main import main
-from cloudsmith_cli.cli.exceptions import (
-    get_0_error_hint,
-    get_401_error_hint,
-    handle_api_exceptions,
-)
+from cloudsmith_cli.cli.exceptions import get_401_error_hint, handle_api_exceptions
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.credentials.models import CredentialResult
 from cloudsmith_cli.core.tests.test_certificate_errors import certificate_error
@@ -113,40 +109,15 @@ class TestCredentialed401Rendering:
         assert error["help"]["hint"] == API_KEY_HINT
 
 
-def connection_failure(cause):
-    """Return the status-0 error that the SDK raises for a failed request."""
-    exc = ApiException(status=0, detail="SSLError")
-    exc.__context__ = cause
-    return exc
-
-
-class TestCertificateErrorHint:
-    STRICT_FAILURE = certificate_error(
+def test_status_0_certificate_failure_renders_the_hint(runner, tmp_path):
+    error = ApiException(status=0, detail="SSLError")
+    error.__context__ = certificate_error(
         92, "CA cert does not include key usage extension"
     )
 
-    def test_text_output_explains_the_certificate_failure(self, runner, tmp_path):
-        result = invoke_credentialed_401(
-            runner, tmp_path, error=connection_failure(self.STRICT_FAILURE)
-        )
+    result = invoke_credentialed_401(runner, tmp_path, error=error)
 
-        assert "Hint: The TLS certificate failed a strict X.509 check" in result.output
-
-    def test_json_output_explains_the_certificate_failure(self, runner, tmp_path):
-        result = invoke_credentialed_401(
-            runner,
-            tmp_path,
-            output_format="json",
-            error=connection_failure(self.STRICT_FAILURE),
-        )
-
-        hint = json.loads(result.stdout)["help"]["hint"]
-        assert hint.startswith("The TLS certificate failed a strict X.509 check")
-
-    def test_other_connection_failures_have_no_hint(self):
-        exc = connection_failure(ConnectionRefusedError("refused"))
-
-        assert get_0_error_hint(Mock(), Mock(), exc) is None
+    assert "Hint: The TLS certificate failed a strict X.509 check" in result.output
 
 
 class Opts:

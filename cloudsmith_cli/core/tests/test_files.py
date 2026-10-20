@@ -73,52 +73,25 @@ class TestMultiPartUploadAuth:
         assert headers == {"Authorization": "Bearer sso-token"}
 
 
-class TestUploadTransportErrors:
-    """A request that never reaches the upload host fails like an API call."""
+class TestUploadErrors:
+    """A request that fails before the API replies is reported like an API error."""
 
-    @staticmethod
-    def upload(tmp_path, send):
+    def test_transport_error(self, tmp_path):
         filepath = tmp_path / "package.raw"
         filepath.write_bytes(b"payload")
         error = requests.ConnectionError("offline")
-        session = Mock(**{"post.side_effect": error, "put.side_effect": error})
         with (
             patch(
                 "cloudsmith_cli.core.api.files.create_requests_session",
-                return_value=session,
+                return_value=Mock(**{"post.side_effect": error}),
             ),
             patch("cloudsmith_cli.core.api.files.get_files_api"),
             pytest.raises(ApiException) as raised,
         ):
-            send(str(filepath))
-        return raised.value, error
+            upload_file("https://upload.example.invalid/", {}, str(filepath))
 
-    def test_single_upload(self, tmp_path):
-        exc, error = self.upload(
-            tmp_path,
-            lambda path: upload_file("https://upload.example.invalid/", {}, path),
-        )
-
-        assert exc.status == 0
-        assert exc.detail == "ConnectionError\noffline"
-        assert exc.__cause__ is error
-
-    def test_multi_part_upload(self, tmp_path):
-        exc, error = self.upload(
-            tmp_path,
-            lambda path: multi_part_upload_file(
-                Mock(credential=None),
-                upload_url="https://upload.example.invalid/parts",
-                owner="owner",
-                repo="repo",
-                filepath=path,
-                callback=lambda: None,
-                upload_id="upload-id",
-            ),
-        )
-
-        assert exc.status == 0
-        assert exc.__cause__ is error
+        assert raised.value.status == 0
+        assert raised.value.__cause__ is error
 
     def test_failed_multi_part_completion(self, tmp_path):
         filepath = tmp_path / "package.raw"

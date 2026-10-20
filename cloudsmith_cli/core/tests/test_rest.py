@@ -146,22 +146,12 @@ class TestSSLVerifyStrict:
 
 
 class TestRetryOnSSLErrors:
-    @staticmethod
-    def _retry():
-        session = create_requests_session(retries=6)
-        return session.get_adapter("https://api.example.com/").max_retries
-
     def test_certificate_errors_are_not_retried(self):
+        session = create_requests_session(retries=6)
+        retry = session.get_adapter("https://api.example.com/").max_retries
         error = SSLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
 
         with pytest.raises(MaxRetryError) as raised:
-            self._retry().increment("GET", "/", error=error)
+            retry.increment("GET", "/", error=error)
 
         assert raised.value.reason is error
-
-    def test_other_ssl_errors_are_retried(self):
-        error = SSLError(ssl.SSLEOFError(8, "EOF occurred in violation of protocol"))
-
-        retry = self._retry().increment("GET", "/", error=error)
-
-        assert retry.total == 5

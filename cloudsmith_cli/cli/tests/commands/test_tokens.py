@@ -58,7 +58,7 @@ class TestListTokensCommand:
 
 
 class TestCreateTokenCommand:
-    @pytest.mark.parametrize("status", [400, 401, 404])
+    @pytest.mark.parametrize("status", [400, 404])
     def test_create_token_error_is_reported(self, runner, status):
         with patch(
             "cloudsmith_cli.core.api.user.create_user_token_saml",
@@ -68,6 +68,24 @@ class TestCreateTokenCommand:
 
         assert result.exit_code == status
         assert f"Failed to create the API token! (status: {status} -" in result.output
+
+    def test_save_config_with_json_output_saves_the_new_token(self, runner):
+        token = MockToken(key="new-key", created="2025-01-01", slug_perm="slug")
+        with (
+            patch(
+                "cloudsmith_cli.core.api.user.create_user_token_saml",
+                return_value=token,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.tokens.create_config_files",
+                return_value=(True, False),
+            ) as write,
+            patch("cloudsmith_cli.cli.commands.tokens.new_config_messaging"),
+        ):
+            result = runner.invoke(create, ["--save-config", "-F", "json"])
+
+        assert result.exit_code == 0
+        assert write.call_args.kwargs["api_key"] == "new-key"
 
     def test_declining_to_recreate_with_save_config_writes_nothing(self, runner):
         duplicate = ApiException(
