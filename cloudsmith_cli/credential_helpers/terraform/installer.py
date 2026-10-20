@@ -180,7 +180,7 @@ class TerraformInstaller:
     Usage::
 
         installer = TerraformInstaller()
-        actions = installer.install(helper_args=["--org", "acme"])
+        actions = installer.install(helper_args=["-w", "acme"])
         for action in actions:
             print(action)
     """
@@ -299,8 +299,8 @@ class TerraformInstaller:
             Defaults to ``~/.terraform.d/plugins``.
         helper_args:
             Values for the block's ``args`` list, forwarded to the CLI on every
-            invocation — e.g. ``("--org", "acme", "-P", "ci")`` to pin the
-            organisation and profile without environment variables.
+            invocation — e.g. ``("-w", "acme", "-P", "ci")`` to pin the
+            Workspace and profile without environment variables.
         dry_run:
             When ``True``, compute and return planned actions without writing.
 

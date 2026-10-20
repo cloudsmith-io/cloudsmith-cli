@@ -58,7 +58,7 @@ def render_block(args: list[str] | tuple[str, ...] = ()) -> str:
 
     Args:
         args: The values for the block's ``args = [...]`` list, e.g.
-            ``["--org", "acme", "-P", "ci"]``.
+            ``["-w", "acme", "-P", "ci"]``.
 
     Returns:
         The HCL block as text, without a trailing newline.

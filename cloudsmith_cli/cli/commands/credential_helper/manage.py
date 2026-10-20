@@ -78,10 +78,11 @@ def _get_installer(name: str):
 def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...]:
     """Build the terraformrc ``args`` list from the resolved config.
 
-    Baking ``--org``/``-r``/``-P`` into the block means ``terraform init`` works
+    Baking ``-w``/``-r``/``-P`` into the block means ``terraform init`` works
     with no environment variables and no hand-edited config. Only values
-    actually supplied are written, so an install without ``--org``/``--repo``/
-    ``-P`` leaves ``args = []``.
+    actually supplied are written, so an install without ``-w``/``--repo``/
+    ``-P`` leaves ``args = []``. The API host is baked in too, so the helper
+    looks up domains on the same API host as the install.
 
     A non-default ``--config-file``/``--credentials-file`` is also baked in: the
     helper is later invoked by ``terraform init`` in a fresh process with none
@@ -91,7 +92,7 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
     """
     args: list[str] = []
     if opts.org:
-        args.extend(["--org", opts.org])
+        args.extend(["-w", opts.org])
     if repo:
         args.extend(["-r", repo])
     profile = ctx.meta.get("profile")
@@ -103,6 +104,8 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
     creds_file = ctx.meta.get("creds_file")
     if creds_file:
         args.extend(["--credentials-file", creds_file])
+    if opts.api_host:
+        args.extend(["--api-host", opts.api_host])
     return tuple(args)
 
 
@@ -137,6 +140,31 @@ def _terraform_next_steps(helper_args: tuple[str, ...]) -> list[str]:
         (
             f"  - add it to the args in {rc_path}, e.g."
             ' args = ["--repo", "<your-repo>", ...].'
+        ),
+    ]
+
+
+def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
+    """Return the post-install guidance when no Workspace is baked in.
+
+    The helper needs a Workspace to match custom domains and to scope the
+    token for a Cloudsmith-owned host.
+    """
+    if "-w" in helper_args:
+        return []
+    rc_path = _terraformrc_path()
+    return [
+        (
+            "Next steps: the Terraform helper needs a Workspace to match custom"
+            " domains and to scope tokens. Provide it in one of these ways:"
+        ),
+        (
+            "  - export CLOUDSMITH_WORKSPACE=<your-workspace> in the environment"
+            " that runs `terraform init`, or"
+        ),
+        (
+            f"  - add it to the args in {rc_path}, e.g."
+            ' args = ["-w", "<your-workspace>", ...].'
         ),
     ]
 
@@ -234,7 +262,7 @@ def install_cmd(
     \b
         # Terraform: bake the repository into the terraformrc args so
         # `terraform init` needs no CLOUDSMITH_REPO env var
-        $ cloudsmith credential-helper install terraform --org acme --repo my-repo
+        $ cloudsmith credential-helper install terraform -w acme --repo my-repo
     """
     installer = _get_installer(helper)
 
@@ -281,7 +309,9 @@ def install_cmd(
 
     next_steps: list[str] = []
     if helper == "terraform":
-        next_steps = _terraform_next_steps(helper_args)
+        next_steps = _terraform_workspace_next_steps(
+            helper_args
+        ) + _terraform_next_steps(helper_args)
 
     data = {
         "helper": helper,

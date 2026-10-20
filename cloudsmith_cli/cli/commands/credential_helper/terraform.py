@@ -46,8 +46,9 @@ def terraform(opts, repo, params):
 
     Provides credentials for all Cloudsmith Terraform registries:
     ``*.cloudsmith.io``, ``*.cloudsmith.com``, and any custom domains
-    configured for the organisation (requires an organisation - ``--org``,
-    CLOUDSMITH_ORG or ``org`` in ``config.ini`` - and a valid API key/token).
+    configured for the Workspace (requires a Workspace - ``-w/--workspace``,
+    CLOUDSMITH_WORKSPACE or ``workspace`` in ``config.ini`` - and a valid API
+    key/token).
 
     Accepts Terraform's calling convention — an optional verb (``get``,
     ``store``, ``forget``) followed by the hostname — so the on-PATH launcher
@@ -76,18 +77,18 @@ def terraform(opts, repo, params):
         0: Token returned, or the host is not a Cloudsmith registry
         1: Cloudsmith host with no credentials available, or an error occurred
 
-    The token is scoped to the repository. On a standard
-    ``*.cloudsmith.io``/``*.cloudsmith.com`` host it is ``{org}/{repo}/{token}``
-    and the organisation is required (``--org``, ``CLOUDSMITH_ORG`` or ``org``
-    in ``config.ini``); a standard host requested without an organisation is a
+    The token is scoped to the repository. On a Cloudsmith-owned host it is
+    ``{workspace}/{repo}/{token}`` and the Workspace is required
+    (``-w/--workspace``, ``CLOUDSMITH_WORKSPACE`` or ``workspace`` in
+    ``config.ini``); a Cloudsmith-owned host requested without a Workspace is a
     non-zero exit. On a custom domain — which is already bound to a single
-    organisation — the org is omitted and the token is ``{repo}/{token}``. The
+    Workspace — the Workspace is omitted and the token is ``{repo}/{token}``. The
     repository is always required (``-r/--repo/--repository`` or
     ``CLOUDSMITH_REPO``): Terraform does not tell a credentials helper which
     repository is being requested. A non-Cloudsmith host still returns ``{}``
     and exit 0. The profile can also be supplied with ``-P/--profile``. The
     launcher forwards Terraform's ``args`` verbatim, so a terraformrc block such
-    as ``credentials_helper "cloudsmith" { args = ["--org=acme",
+    as ``credentials_helper "cloudsmith" { args = ["-w", "acme",
     "--repo=my-repo", "-P", "ci"] }`` reaches this command as those options.
 
     \b
@@ -101,13 +102,13 @@ def terraform(opts, repo, params):
         # Terraform's calling convention (verb + hostname)
         $ cloudsmith credential-helper terraform --repo my-repo get terraform.cloudsmith.io
     \b
-        # Select an org and profile explicitly (no env vars needed)
-        $ cloudsmith credential-helper terraform --org=acme -P ci get terraform.cloudsmith.io
+        # Select a Workspace and profile explicitly (no env vars needed)
+        $ cloudsmith credential-helper terraform -w acme -P ci get terraform.cloudsmith.io
 
     \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_ORG:     Organisation slug (required to scope the token)
+        CLOUDSMITH_WORKSPACE: Workspace slug (required to scope the token)
         CLOUDSMITH_REPO:    Repository slug the registry serves (required)
         CLOUDSMITH_PROFILE: Configuration profile to load (optional)
     """
