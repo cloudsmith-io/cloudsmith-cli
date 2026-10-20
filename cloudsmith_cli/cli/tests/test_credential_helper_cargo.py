@@ -503,6 +503,21 @@ def test_installer_pins_the_provider_on_matching_named_registries(cargo_home, bi
     assert any("registries.acme.credential-provider" in a for a in actions)
 
 
+def test_installer_registers_global_provider_in_existing_config(cargo_home, bin_dir):
+    """An existing config.toml without [registry] must still get the provider."""
+    cargo_home.parent.mkdir(parents=True)
+    cargo_home.write_text("[net]\ngit-fetch-with-cli = true\n")
+
+    CargoInstaller().install(bin_dir=str(bin_dir), discover=False)
+
+    config = tomlkit.loads(cargo_home.read_text())
+    assert config["net"]["git-fetch-with-cli"] is True
+    assert config["registry"]["global-credential-providers"] == [
+        "cargo:token",
+        PROVIDER,
+    ]
+
+
 def test_installer_dry_run_writes_nothing(cargo_home, bin_dir):
     """--dry-run reports the plan and touches neither the config nor PATH."""
     actions = CargoInstaller().install(bin_dir=str(bin_dir), dry_run=True)
