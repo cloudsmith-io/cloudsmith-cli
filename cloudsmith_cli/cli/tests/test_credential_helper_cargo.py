@@ -363,7 +363,7 @@ def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
             cargo,
             args=[],
             input=json.dumps(_request()) + "\n",
-            env={"CLOUDSMITH_API_KEY": ""},
+            env={"CLOUDSMITH_API_KEY": "", "CLOUDSMITH_NO_KEYRING": "1"},
             catch_exceptions=False,
         )
 
