@@ -2,7 +2,12 @@
 
 from unittest.mock import Mock, patch
 
-from ..api.files import multi_part_upload_file
+import pytest
+import requests
+from cloudsmith_api.rest import ApiException as SdkApiException
+
+from ..api.exceptions import ApiException
+from ..api.files import multi_part_upload_file, upload_file
 from ..credentials.models import CredentialResult
 
 
@@ -66,3 +71,76 @@ class TestMultiPartUploadAuth:
         headers = upload_and_capture_headers(tmp_path, credential)
 
         assert headers == {"Authorization": "Bearer sso-token"}
+
+
+class TestUploadTransportErrors:
+    """A request that never reaches the upload host fails like an API call."""
+
+    @staticmethod
+    def upload(tmp_path, send):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"payload")
+        error = requests.ConnectionError("offline")
+        session = Mock(**{"post.side_effect": error, "put.side_effect": error})
+        with (
+            patch(
+                "cloudsmith_cli.core.api.files.create_requests_session",
+                return_value=session,
+            ),
+            patch("cloudsmith_cli.core.api.files.get_files_api"),
+            pytest.raises(ApiException) as raised,
+        ):
+            send(str(filepath))
+        return raised.value, error
+
+    def test_single_upload(self, tmp_path):
+        exc, error = self.upload(
+            tmp_path,
+            lambda path: upload_file("https://upload.example.invalid/", {}, path),
+        )
+
+        assert exc.status == 0
+        assert exc.detail == "ConnectionError\noffline"
+        assert exc.__cause__ is error
+
+    def test_multi_part_upload(self, tmp_path):
+        exc, error = self.upload(
+            tmp_path,
+            lambda path: multi_part_upload_file(
+                Mock(credential=None),
+                upload_url="https://upload.example.invalid/parts",
+                owner="owner",
+                repo="repo",
+                filepath=path,
+                callback=lambda: None,
+                upload_id="upload-id",
+            ),
+        )
+
+        assert exc.status == 0
+        assert exc.__cause__ is error
+
+    def test_failed_multi_part_completion(self, tmp_path):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"payload")
+        files_api = Mock(
+            **{"files_complete.side_effect": SdkApiException(status=0, reason="SSL")}
+        )
+        with (
+            patch("cloudsmith_cli.core.api.files.create_requests_session"),
+            patch(
+                "cloudsmith_cli.core.api.files.get_files_api", return_value=files_api
+            ),
+            pytest.raises(ApiException) as raised,
+        ):
+            multi_part_upload_file(
+                Mock(credential=None),
+                upload_url="https://upload.example.invalid/parts",
+                owner="owner",
+                repo="repo",
+                filepath=str(filepath),
+                callback=lambda: None,
+                upload_id="upload-id",
+            )
+
+        assert raised.value.status == 0

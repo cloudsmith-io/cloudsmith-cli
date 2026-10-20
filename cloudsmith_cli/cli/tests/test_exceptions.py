@@ -6,9 +6,14 @@ from unittest.mock import Mock, patch
 import pytest
 
 from cloudsmith_cli.cli.commands.main import main
-from cloudsmith_cli.cli.exceptions import get_401_error_hint, handle_api_exceptions
+from cloudsmith_cli.cli.exceptions import (
+    get_0_error_hint,
+    get_401_error_hint,
+    handle_api_exceptions,
+)
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.credentials.models import CredentialResult
+from cloudsmith_cli.core.tests.test_certificate_errors import certificate_error
 
 API_KEY_HINT = (
     "This usually means your API key is invalid, expired, or lacks access to this "
@@ -65,7 +70,7 @@ class TestGet401ErrorHint:
         assert "login failed" in hint_for(None, info_name=info_name)
 
 
-def invoke_credentialed_401(runner, config_dir, output_format="pretty"):
+def invoke_credentialed_401(runner, config_dir, output_format="pretty", error=None):
     """Raise a translated 401 through the registered command tree.
 
     The config and credentials paths point at an empty directory so a real
@@ -86,7 +91,7 @@ def invoke_credentialed_401(runner, config_dir, output_format="pretty"):
     ]
     with patch(
         "cloudsmith_cli.cli.commands.whoami.get_user_brief",
-        side_effect=ApiException(status=401, detail="Invalid API key"),
+        side_effect=error or ApiException(status=401, detail="Invalid API key"),
     ):
         return runner.invoke(main, args)
 
@@ -106,6 +111,42 @@ class TestCredentialed401Rendering:
         error = json.loads(result.stdout)
         assert error["meta"] == {"code": 401, "description": "Unauthorized"}
         assert error["help"]["hint"] == API_KEY_HINT
+
+
+def connection_failure(cause):
+    """Return the status-0 error that the SDK raises for a failed request."""
+    exc = ApiException(status=0, detail="SSLError")
+    exc.__context__ = cause
+    return exc
+
+
+class TestCertificateErrorHint:
+    STRICT_FAILURE = certificate_error(
+        92, "CA cert does not include key usage extension"
+    )
+
+    def test_text_output_explains_the_certificate_failure(self, runner, tmp_path):
+        result = invoke_credentialed_401(
+            runner, tmp_path, error=connection_failure(self.STRICT_FAILURE)
+        )
+
+        assert "Hint: The TLS certificate failed a strict X.509 check" in result.output
+
+    def test_json_output_explains_the_certificate_failure(self, runner, tmp_path):
+        result = invoke_credentialed_401(
+            runner,
+            tmp_path,
+            output_format="json",
+            error=connection_failure(self.STRICT_FAILURE),
+        )
+
+        hint = json.loads(result.stdout)["help"]["hint"]
+        assert hint.startswith("The TLS certificate failed a strict X.509 check")
+
+    def test_other_connection_failures_have_no_hint(self):
+        exc = connection_failure(ConnectionRefusedError("refused"))
+
+        assert get_0_error_hint(Mock(), Mock(), exc) is None
 
 
 class Opts:

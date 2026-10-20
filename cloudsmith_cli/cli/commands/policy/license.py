@@ -174,14 +174,15 @@ def create(ctx, opts, owner, policy_config_file):
     policy_name = policy_config.get("name", None)
     if policy_name is None:
         raise click.BadParameter(
-            "Name is a required field for creating a license policy.", param="name"
+            "Name is a required field for creating a license policy.",
+            param_hint="'POLICY_CONFIG_FILE'",
         )
 
     spdx_identifiers = policy_config.get("spdx_identifiers", None)
     if spdx_identifiers is None:
         raise click.BadParameter(
             "SPDX Identifiers is a required field for creating a license policy.",
-            param="spdx_identifiers",
+            param_hint="'POLICY_CONFIG_FILE'",
         )
 
     click.secho(

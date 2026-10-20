@@ -3,7 +3,7 @@ from unittest.mock import patch
 import click
 import pytest
 
-from cloudsmith_cli.cli.commands.tokens import list_tokens, refresh
+from cloudsmith_cli.cli.commands.tokens import create, list_tokens, refresh
 from cloudsmith_cli.core.api.exceptions import ApiException
 
 from .conftest import MockToken
@@ -55,6 +55,35 @@ class TestListTokensCommand:
             "API error" in error_content
             or "Failed to retrieve API tokens" in error_content
         )
+
+
+class TestCreateTokenCommand:
+    @pytest.mark.parametrize("status", [400, 401, 404])
+    def test_create_token_error_is_reported(self, runner, status):
+        with patch(
+            "cloudsmith_cli.core.api.user.create_user_token_saml",
+            side_effect=ApiException(status=status, detail="Failed."),
+        ):
+            result = runner.invoke(create, [])
+
+        assert result.exit_code == status
+        assert f"Failed to create the API token! (status: {status} -" in result.output
+
+    def test_declining_to_recreate_with_save_config_writes_nothing(self, runner):
+        duplicate = ApiException(
+            status=400, detail="User has already created an API key."
+        )
+        with (
+            patch(
+                "cloudsmith_cli.core.api.user.create_user_token_saml",
+                side_effect=duplicate,
+            ),
+            patch("cloudsmith_cli.cli.commands.tokens.create_config_files") as write,
+        ):
+            result = runner.invoke(create, ["--save-config"], input="n\n")
+
+        assert result.exit_code == 0
+        write.assert_not_called()
 
 
 class TestRefreshTokenCommand:

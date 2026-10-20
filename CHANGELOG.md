@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The docker, pnpm, cargo and terraform launchers of the standalone binary now quote the path of the binary correctly. A path with `$` or a backtick no longer breaks the launcher on Linux and macOS.
 - `cloudsmith credential-helper list` now finds a launcher that `install` wrote to the default directory, `~/.cloudsmith/bin`. Before, `list` looked in the directory of the `cloudsmith` executable and reported the helper as not installed.
+- A failed TLS certificate check now stops the command at once. Before, the CLI sent the request again for up to 63 seconds and showed no output.
+- When a TLS certificate check fails, the CLI now shows a hint with the cause. For a strict X.509 failure, the hint gives `--without-ssl-verify-strict`. For a CA that is not trusted, the hint gives `REQUESTS_CA_BUNDLE`. Error reporting no longer sends these failures to Cloudsmith.
+- When `cloudsmith auth`, a credential helper or another command cannot renew an expired SAML session, the message now includes the error. Before, all network failures showed the same message, also with `--debug`.
+- `cloudsmith push` now reports a failed connection to the upload host, and a failed multi-part upload completion, as `Failed to upload file!`, the same as other API errors.
+- `cloudsmith download` now exits with code 1 when a file does not download. Before, it exited with code 0.
+- `cloudsmith tokens create` now shows the error and exits with a non-zero code when the API request fails. Before, it showed nothing, or only the detail of a 401, and exited with code 0. With `--save-config`, it no longer stops with an `AttributeError` when you do not recreate an existing token.
+- `cloudsmith upstream <format> create`, `cloudsmith repositories create` and the `cloudsmith policy` `create` commands now show a usage error when the config file has no `name`. Before, they stopped with an `AttributeError`.
 
 ## [1.29.0] - 2026-10-15
 

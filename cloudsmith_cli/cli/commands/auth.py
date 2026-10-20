@@ -64,7 +64,8 @@ def _renew_existing_sso_session(opts, profile):
         renewal.error, requests.RequestException
     ):
         raise click.ClickException(
-            "The SSO session has expired and Cloudsmith could not be reached. "
+            "The SSO session has expired and Cloudsmith could not be reached: "
+            f"{renewal.error}\n"
             "Check your connection, then run 'cloudsmith auth' again."
         ) from renewal.error
     return None

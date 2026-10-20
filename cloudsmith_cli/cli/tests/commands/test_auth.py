@@ -359,7 +359,7 @@ class TestAuthenticateCommand:
             result = runner.invoke(authenticate, [])
 
         assert result.exit_code == 1
-        assert "Cloudsmith could not be reached" in result.output
+        assert "Cloudsmith could not be reached: offline" in result.output
         assert "Check your connection" in result.output
         auth_server.assert_not_called()
 

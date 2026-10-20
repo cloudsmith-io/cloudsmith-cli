@@ -6,6 +6,7 @@ import os
 
 import click
 
+from ...core.certificate_errors import describe_certificate_error
 from ...core.download import (
     get_download_url,
     get_package_detail,
@@ -491,10 +492,19 @@ def _perform_downloads(
             results.append({**item, "status": "OK"})
         except Exception as e:
             _echo_status(use_stderr, " FAILED", fg="red")
-            results.append({**item, "status": "FAILED", "error": str(e)})
+            results.append(
+                {
+                    **item,
+                    "status": "FAILED",
+                    "error": str(e),
+                    "hint": describe_certificate_error(e),
+                }
+            )
 
     # Report results
     _report_results(opts, packages, results, all_files)
+    if any(r["status"] == "FAILED" for r in results):
+        ctx.exit(1)
 
 
 def _echo_progress(use_stderr: bool, message: str) -> None:
@@ -564,6 +574,9 @@ def _report_results(opts, packages: list, results: list, all_files: bool) -> Non
             click.echo("\nFailed files:")
             for r in failed:
                 click.echo(f"  - {r['filename']}: {r.get('error', 'Unknown error')}")
+            hint = next((r["hint"] for r in failed if r.get("hint")), None)
+            if hint:
+                click.echo(f"\nHint: {click.style(hint, fg='yellow')}")
         if skipped:
             click.echo("\nSkipped files (no download URL):")
             for r in skipped:

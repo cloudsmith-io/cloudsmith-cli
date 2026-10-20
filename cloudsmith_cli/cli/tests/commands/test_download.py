@@ -6,6 +6,7 @@ from click.testing import CliRunner
 
 from cloudsmith_cli.cli.commands.download import download
 from cloudsmith_cli.core.api.exceptions import ApiException
+from cloudsmith_cli.core.tests.test_certificate_errors import certificate_error
 
 
 class TestDownloadCommand(unittest.TestCase):
@@ -62,6 +63,37 @@ class TestDownloadCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-package v1.0.0", result.output)
         self.assertNotIn("test-package v0.9.0", result.output)
+
+    @patch("cloudsmith_cli.cli.commands.download.resolve_auth")
+    @patch("cloudsmith_cli.cli.commands.download.resolve_package")
+    @patch("cloudsmith_cli.cli.commands.download.get_download_url")
+    @patch("cloudsmith_cli.cli.commands.download.stream_download")
+    def test_download_failure_exits_1_and_explains_certificate_errors(
+        self, mock_stream, mock_get_url, mock_resolve_pkg, mock_resolve_auth
+    ):
+        mock_resolve_auth.return_value = (Mock(), {}, "none")
+        mock_resolve_pkg.return_value = {
+            "name": "test-package",
+            "version": "1.0.0",
+            "format": "deb",
+            "filename": "test-package_1.0.0.deb",
+            "size": 1024,
+        }
+        mock_get_url.return_value = "https://example.com/test-package_1.0.0.deb"
+        error = click.ClickException("Failed to download package: SSLError")
+        error.__context__ = certificate_error(10, "certificate has expired")
+        mock_stream.side_effect = error
+
+        result = CliRunner().invoke(
+            download, ["--config-file", "/dev/null", "testorg/testrepo", "test-package"]
+        )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("Downloaded 0/1 file(s).", result.output)
+        self.assertIn(
+            "Hint: The TLS certificate is not valid: certificate has expired.",
+            result.output,
+        )
 
     def setUp(self):
         self.runner = CliRunner()
