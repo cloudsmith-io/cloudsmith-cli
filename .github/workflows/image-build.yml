@@ -27,12 +27,19 @@ jobs:
 
       - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
 
+      # Only master pushes write the layer cache; pull requests only read it.
       - name: Build image
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          CACHE_TO=()
+          if [ "${EVENT_NAME}" = "push" ]; then
+            CACHE_TO=(--cache-to type=gha,mode=max)
+          fi
           docker buildx build \
             --load \
             --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            "${CACHE_TO[@]}" \
             --tag cloudsmith-io/cli-dev \
             --file dev.Dockerfile \
             --build-arg CLOUDSMITH_CLI_VERSION="$(cat VERSION)" \
