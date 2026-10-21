@@ -72,6 +72,8 @@ def main(ctx, opts, version, no_check_update):
     # pylint: disable=unused-argument
 
     update_check.arm(ctx, opts, no_check_update)
+    if ctx.invoked_subcommand is None:
+        decorators.start_update_check(ctx, opts)
 
     if version:
         print_version(opts)

@@ -324,6 +324,13 @@ def common_api_auth_options(f):
     return wrapper
 
 
+PROXY_ENVVARS = ("CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY")
+PROXY_SUFFIX_ENVVARS = (
+    "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
+    "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
+)
+
+
 def _parse_suffixes(value):
     """Split a CSV of trusted host suffixes into a normalised tuple."""
     return tuple(
@@ -351,11 +358,40 @@ def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
             validators.validate_untrusted_api_host(opts.api_host, host_suffixes)
 
     if ctx.get_parameter_source("proxy") not in trusted_sources:
-        relative_proxy = config.ConfigReader.read_relative_config_value(
-            "proxy", profile=profile
-        )
-        if relative_proxy and opts.proxy == relative_proxy:
-            validators.validate_untrusted_proxy(opts.proxy, proxy_suffixes)
+        _guard_untrusted_proxy(ctx, opts, proxy_suffixes)
+
+
+def _guard_untrusted_proxy(ctx, opts, proxy_suffixes):
+    """Reject a proxy that came from a directory-relative config."""
+    relative_proxy = config.ConfigReader.read_relative_config_value(
+        "proxy", profile=ctx.meta.get("profile")
+    )
+    if relative_proxy and opts.proxy == relative_proxy:
+        validators.validate_untrusted_proxy(opts.proxy, proxy_suffixes)
+
+
+def _first_envvar(names):
+    """Return the first non-empty environment variable, as Click resolves it."""
+    return next((os.environ[name] for name in names if os.environ.get(name)), None)
+
+
+def start_update_check(ctx, opts):
+    """Start a due update check for an invocation without initialise_session.
+
+    The proxy is resolved as initialise_session does: the environment takes
+    precedence over config, and an untrusted directory-relative proxy is
+    rejected, in which case the check is skipped rather than failing the run.
+    """
+    env_proxy = _first_envvar(PROXY_ENVVARS)
+    if env_proxy:
+        opts.proxy = env_proxy
+    else:
+        proxy_suffixes = _parse_suffixes(_first_envvar(PROXY_SUFFIX_ENVVARS))
+        try:
+            _guard_untrusted_proxy(ctx, opts, proxy_suffixes)
+        except click.UsageError:
+            return
+    update_check.start(ctx, opts)
 
 
 def initialise_session(f):
@@ -370,7 +406,7 @@ def initialise_session(f):
         "--proxy",
         "--api-proxy",
         "proxy",
-        envvar=["CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY"],
+        envvar=list(PROXY_ENVVARS),
         help="The proxy to connect through for all HTTP requests. "
         "--api-proxy and CLOUDSMITH_API_PROXY are compatibility aliases.",
     )
@@ -421,10 +457,7 @@ def initialise_session(f):
         "--allowed-proxy-suffixes",
         "--allowed-api-proxy-suffixes",
         "allowed_proxy_suffixes",
-        envvar=[
-            "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
-            "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
-        ],
+        envvar=list(PROXY_SUFFIX_ENVVARS),
         hidden=True,
         help="Comma-separated trusted proxy host suffixes (internal use).",
     )

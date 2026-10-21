@@ -469,8 +469,6 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
     check = {"due": is_check_due(read_last_check_time()), "thread": None}
     ctx.meta[_META_KEY] = check
     ctx.call_on_close(lambda: _finish_and_notify(check["thread"], opts, invoked))
-    if invoked is None:
-        start(ctx, opts)
 
 
 def start(ctx: "click.Context", opts: "Options") -> None:

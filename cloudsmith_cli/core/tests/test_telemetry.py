@@ -108,15 +108,21 @@ def test_reports_one_event(sentry_events):
     assert sentry_events[0]["release"].startswith("cloudsmith-cli@")
 
 
-def test_report_uses_the_cli_proxy(sentry_events):
+def test_report_uses_the_cli_proxy(sentry_events, monkeypatch):
     import sentry_sdk
 
+    monkeypatch.setenv("HTTPS_PROXY", "http://other.example.com:8080")
     set_default_proxy("http://proxy.example.com:3128")
     with mock.patch("sentry_sdk.Client", wraps=sentry_sdk.Client) as client:
         telemetry.report_exception(raise_and_catch(RuntimeError("boom")))
 
     assert len(sentry_events) == 1
-    assert client.call_args.kwargs["http_proxy"] == "http://proxy.example.com:3128"
+    # Build the real HTTP transport so the SDK's own proxy selection is checked.
+    real = sentry_sdk.Client(**{**client.call_args.kwargs, "transport": None})
+    try:
+        assert real.transport._resolve_proxy() == "http://proxy.example.com:3128"
+    finally:
+        real.close(timeout=0)
 
 
 @pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
