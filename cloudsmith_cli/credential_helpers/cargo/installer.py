@@ -94,7 +94,10 @@ class CargoInstaller:
         """Register the provider globally and on matching named registries."""
         registry = config.get("registry")
         if not isinstance(registry, dict):
-            registry = config["registry"] = {}
+            # tomlkit copies a plain dict into a new Table on assignment, so
+            # read the table back instead of keeping the orphaned literal.
+            config["registry"] = {}
+            registry = config["registry"]
 
         providers = registry.get("global-credential-providers")
         if isinstance(providers, list):
