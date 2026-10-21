@@ -64,6 +64,7 @@ For issues/contributing: {get_github_website()}
     envvar="CLOUDSMITH_NO_UPDATE_CHECK",
     help="Disable the once-a-day check for a newer version of the CLI.",
 )
+@decorators.keyring_options
 @decorators.common_cli_config_options
 @decorators.common_cli_output_options
 @click.pass_context

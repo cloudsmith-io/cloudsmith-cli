@@ -11,7 +11,7 @@ from click.core import ParameterSource
 from cloudsmith_cli.cli import validators
 from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
-from ..core import update_check
+from ..core import keyring, update_check
 from ..core.certificate_errors import describe_certificate_error
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -113,6 +113,66 @@ def common_package_action_options(f):
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
+        return ctx.invoke(f, *args, **kwargs)
+
+    return wrapper
+
+
+def _absolute_path(ctx, param, value):
+    """Expand ``~`` and environment variables in *value* and make it absolute."""
+    if not value:
+        return value
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(value)))
+
+
+def keyring_options(f):
+    """Add hidden options that read the keyring settings from the environment."""
+
+    @click.option(
+        "--no-keyring-env",
+        "no_keyring",
+        envvar="CLOUDSMITH_NO_KEYRING",
+        hidden=True,
+    )
+    @click.option(
+        "--keyring-backend-env",
+        "keyring_backend",
+        envvar="CLOUDSMITH_KEYRING_BACKEND",
+        hidden=True,
+    )
+    @click.option(
+        "--keyring-key-env",
+        "keyring_key",
+        envvar="CLOUDSMITH_KEYRING_KEY",
+        hidden=True,
+    )
+    @click.option(
+        "--keyring-file-path-env",
+        "keyring_file_path",
+        envvar="CLOUDSMITH_KEYRING_FILE_PATH",
+        callback=_absolute_path,
+        hidden=True,
+    )
+    @click.option(
+        "--keyring-dir-env",
+        "keyring_dir",
+        envvar="CLOUDSMITH_KEYRING_DIR",
+        callback=_absolute_path,
+        hidden=True,
+    )
+    @click.pass_context
+    @functools.wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        keyring.configure(
+            keyring.KeyringSettings(
+                no_keyring=(kwargs.pop("no_keyring") or "").strip().lower()
+                in ("1", "true", "yes"),
+                backend=kwargs.pop("keyring_backend"),
+                key=kwargs.pop("keyring_key"),
+                file_path=kwargs.pop("keyring_file_path"),
+                directory=kwargs.pop("keyring_dir"),
+            )
+        )
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper

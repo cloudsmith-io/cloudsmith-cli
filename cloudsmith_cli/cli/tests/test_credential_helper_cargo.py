@@ -11,6 +11,7 @@ import click.testing
 import pytest
 import tomlkit
 
+from ...core import keyring as core_keyring
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
 from ...credential_helpers.cargo.installer import CargoInstaller
@@ -355,6 +356,7 @@ def test_cli_accepts_the_cargo_plugin_flag_and_extra_provider_args(runner):
 
 def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
     """A refused `get` still answers Cargo in-band, then exits 1 with a hint."""
+    core_keyring.configure(core_keyring.KeyringSettings(no_keyring=True))
     with patch(
         "cloudsmith_cli.credential_helpers.cargo.runtime.is_cloudsmith_domain",
         return_value=True,
@@ -363,7 +365,7 @@ def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
             cargo,
             args=[],
             input=json.dumps(_request()) + "\n",
-            env={"CLOUDSMITH_API_KEY": "", "CLOUDSMITH_NO_KEYRING": "1"},
+            env={"CLOUDSMITH_API_KEY": ""},
             catch_exceptions=False,
         )
 

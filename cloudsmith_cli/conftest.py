@@ -1,6 +1,7 @@
 import cloudsmith_api
 import pytest
 
+from cloudsmith_cli.core import keyring as core_keyring
 from cloudsmith_cli.core import session, telemetry
 
 #: A syntactically valid DSN that is never contacted: tests that report use
@@ -17,6 +18,12 @@ def no_real_error_reports(monkeypatch):
     monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
     monkeypatch.setenv(telemetry.DSN_ENV, "")
     monkeypatch.setattr(telemetry, "_transport", None)
+
+
+@pytest.fixture(autouse=True)
+def default_keyring_settings():
+    """Start each test with the default keyring settings."""
+    core_keyring.configure(core_keyring.KeyringSettings())
 
 
 @pytest.fixture()
