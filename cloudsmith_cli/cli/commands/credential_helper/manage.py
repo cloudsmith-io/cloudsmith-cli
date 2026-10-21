@@ -28,11 +28,12 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
 
-from ....credential_helpers.docker.installer import DockerInstaller
+from ....credential_helpers.docker.installer import (
+    DockerInstaller,
+    HelperScopeConflict,
+)
 from ... import utils
 from ...decorators import (
-    PROFILE_ENVVAR,
-    WORKSPACE_ENVVARS,
     common_api_auth_options,
     common_cli_config_options,
     common_cli_output_options,
@@ -139,8 +140,15 @@ def _terraform_proxy_next_steps(opts) -> list[str]:
 
 
 # Other users can read a launcher, so it never holds a secret.  A proxy URL can
-# hold credentials.
-_NEVER_KEPT = ("api_key", "api_headers", "keyring_key", "proxy")
+# hold credentials.  The colour settings are for the terminal of the install.
+_NEVER_KEPT = (
+    "api_key",
+    "api_headers",
+    "keyring_key",
+    "proxy",
+    "color",
+    "force_color_env",
+)
 
 
 def _main_envvar(option) -> str:
@@ -176,6 +184,15 @@ def _launcher_settings_from_cli(ctx) -> dict[str, str]:
                     str(value).lower() if isinstance(value, bool) else value
                 )
     return settings
+
+
+def _profile_flag(ctx) -> str | None:
+    """Return the ``-P`` value of this command or of a parent command."""
+    while ctx is not None:
+        if ctx.get_parameter_source("profile") == ParameterSource.COMMANDLINE:
+            return ctx.params["profile"]
+        ctx = ctx.parent
+    return None
 
 
 _REPO_FLAGS = ("-r", "--repo", "--repository")
@@ -357,12 +374,6 @@ def install_cmd(
     if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
         install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx)
 
-    # The helper name uses the same profile and Workspace as the launcher.
-    if helper == "docker":
-        launcher_env = install_kwargs["launcher_env"]
-        install_kwargs["profile"] = launcher_env.get(PROFILE_ENVVAR)
-        install_kwargs["workspace"] = launcher_env.get(WORKSPACE_ENVVARS[0])
-
     try:
         actions = installer.install(**install_kwargs)
     except (
@@ -370,6 +381,7 @@ def install_cmd(
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
         UnsafeLauncherValue,
+        HelperScopeConflict,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -464,11 +476,12 @@ def uninstall_cmd(
     # The scope comes only from flags, so that a shell with CLOUDSMITH_PROFILE
     # or CLOUDSMITH_WORKSPACE can still remove the unscoped helper.
     if helper == "docker":
-        if ctx.get_parameter_source("profile") == ParameterSource.COMMANDLINE:
-            uninstall_kwargs["profile"] = ctx.meta.get("profile")
+        uninstall_kwargs["profile"] = _profile_flag(ctx)
         uninstall_kwargs["workspace"] = workspace
     try:
         actions = installer.uninstall(**uninstall_kwargs)
+    except HelperScopeConflict as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"

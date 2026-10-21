@@ -198,7 +198,7 @@ def common_cli_config_options(f):
         "-P",
         "--profile",
         default=None,
-        envvar=PROFILE_ENVVAR,
+        envvar="CLOUDSMITH_PROFILE",
         help="The name of the profile to use for configuration.",
     )
     @click.pass_context
@@ -384,8 +384,6 @@ def common_api_auth_options(f):
     return wrapper
 
 
-PROFILE_ENVVAR = "CLOUDSMITH_PROFILE"
-WORKSPACE_ENVVARS = ("CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG")
 PROXY_ENVVARS = ("CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY")
 PROXY_SUFFIX_ENVVARS = (
     "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
@@ -637,7 +635,7 @@ def resolve_credentials(f):
         "-o",
         "--owner",
         "org",
-        envvar=list(WORKSPACE_ENVVARS),
+        envvar=["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"],
         help="The Cloudsmith Workspace slug.",
     )
     @click.option(

@@ -1,7 +1,7 @@
 # Copyright 2026 Cloudsmith Ltd
 """Installer for the Docker credential helper.
 
-Manages writing/removing the ``docker-credential-cloudsmith`` launcher and
+Manages writing/removing the ``docker-credential-cloudsmith*`` launchers and
 patching ``~/.docker/config.json`` to enable the helper for Cloudsmith
 registry hosts.
 """
@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,7 @@ from ..launchers import (
     helper_command,
     is_on_path,
     is_windows,
+    parse_launcher_env,
     remove_launcher,
     resolve_bin_dir,
     write_launcher,
@@ -46,33 +48,69 @@ def _docker_config_path() -> Path:
     return Path.home() / ".docker" / "config.json"
 
 
-def _helper_name(profile: str | None, workspace: str | None) -> str:
-    """Return the ``credHelpers`` value for an install with these settings.
+# The profile and the Workspace of an install name its helper.
+_SCOPE_ENVVARS = ("CLOUDSMITH_PROFILE", "CLOUDSMITH_WORKSPACE")
+_SCOPE_FLAGS = ("-P", "-w")
+
+
+class HelperScopeConflict(ValueError):
+    """Raised when the launcher of another profile or Workspace has the name."""
+
+
+def _helper_name(scope: tuple[str | None, ...]) -> str:
+    """Return the ``credHelpers`` value for an install with this scope.
 
     Each profile and Workspace gets its own launcher, so that installs for
     different configurations can coexist.
     """
     segments = [
         re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
-        for value in (profile, workspace)
+        for value in scope
         if value
     ]
     return "-".join(["cloudsmith", *filter(None, segments)])
+
+
+def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
+    """Raise :class:`HelperScopeConflict` if another scope wrote the launcher.
+
+    Different scopes can give the same name, for example ``-P acme`` and
+    ``-w acme``.
+    """
+    if not launcher_path.exists():
+        return
+    env = parse_launcher_env(launcher_path.read_text(encoding="utf-8"))
+    installed = tuple(env.get(name) for name in _SCOPE_ENVVARS)
+    if installed != scope:
+        flags = "".join(
+            f" {flag} {shlex.quote(value)}"
+            for flag, value in zip(_SCOPE_FLAGS, installed)
+            if value
+        )
+        raise HelperScopeConflict(
+            f"{launcher_path} is the helper of an install with a different"
+            " profile or Workspace. To remove it, run: cloudsmith"
+            f" credential-helper uninstall docker{flags}"
+        )
 
 
 def _is_cloudsmith_helper(value) -> bool:
     return value == "cloudsmith" or str(value).startswith("cloudsmith-")
 
 
+def _launcher_name(helper: str) -> str:
+    return f"docker-credential-{helper}"
+
+
 def _launcher_path(target_dir: Path, helper: str) -> Path:
-    name = f"docker-credential-{helper}"
+    name = _launcher_name(helper)
     return target_dir / (f"{name}.cmd" if is_windows() else name)
 
 
 class DockerInstaller:
     """Manages installation of the Docker credential helper for Cloudsmith.
 
-    This installer writes a ``docker-credential-cloudsmith`` launcher binary
+    This installer writes a ``docker-credential-cloudsmith*`` launcher binary
     and patches ``~/.docker/config.json`` to route the configured registry
     hosts through the Cloudsmith credential helper.
 
@@ -84,7 +122,6 @@ class DockerInstaller:
             print(action)
     """
 
-    LAUNCHER_NAME = "docker-credential-cloudsmith"
     DEFAULT_HOST = "docker.cloudsmith.io"
     # Docker runs the helper from Docker Desktop, IDEs and other shells, so
     # the launcher keeps the install-time settings.
@@ -103,8 +140,6 @@ class DockerInstaller:
         org: str | None = None,
         credential: CredentialResult | None = None,
         api_host: str | None = None,
-        profile: str | None = None,
-        workspace: str | None = None,
         launcher_env: dict[str, str] | None = None,
         dry_run: bool = False,
     ) -> list[str]:
@@ -134,10 +169,9 @@ class DockerInstaller:
             Resolved credential used for custom-domain discovery.
         api_host:
             Cloudsmith API host URL override.
-        profile, workspace:
-            The install-time profile and Workspace, which name the helper.
         launcher_env:
-            ``CLOUDSMITH_*`` settings that the launcher sets.
+            ``CLOUDSMITH_*`` settings that the launcher sets.  The profile and
+            the Workspace in them name the helper.
         dry_run:
             When ``True``, compute and return planned actions without writing
             any files.
@@ -151,8 +185,10 @@ class DockerInstaller:
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
         launcher_env = launcher_env or {}
-        helper = _helper_name(profile, workspace)
-        launcher_name = f"docker-credential-{helper}"
+        scope = tuple(launcher_env.get(name) for name in _SCOPE_ENVVARS)
+        helper = _helper_name(scope)
+        launcher_name = _launcher_name(helper)
+        _check_scope(_launcher_path(target_dir, helper), scope)
 
         actions: list[str] = []
 
@@ -315,8 +351,10 @@ class DockerInstaller:
         """
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
-        helper = _helper_name(profile, workspace)
-        launcher_name = f"docker-credential-{helper}"
+        scope = (profile, workspace)
+        helper = _helper_name(scope)
+        launcher_name = _launcher_name(helper)
+        _check_scope(_launcher_path(target_dir, helper), scope)
 
         def mutate(config: dict) -> None:
             helpers = config.get("credHelpers")
@@ -375,8 +413,8 @@ class DockerInstaller:
             A dict with keys:
 
             ``"launcher"``
-                The path of the launcher that the first host uses, else of
-                the unscoped launcher, if it exists.  Else ``None``.
+                The path of the first launcher that exists, of the helpers
+                of the hosts and then of the unscoped helper.  Else ``None``.
             ``"hosts"``
                 List of hostnames in ``config.json``'s ``credHelpers`` block
                 that use a ``cloudsmith`` or ``cloudsmith-*`` helper.
