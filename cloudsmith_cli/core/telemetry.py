@@ -181,11 +181,16 @@ def _send(exc: BaseException, dsn: str) -> bool:
     import sentry_sdk
 
     from . import installation, version
+    from .session import get_default_proxy
 
     channel = _safe(installation.detect_channel, default=installation.CHANNEL_UNKNOWN)
+    proxy = get_default_proxy()
     client = sentry_sdk.Client(
         dsn=dsn,
         transport=_transport,
+        # Both: the SDK prefers https_proxy (and $HTTPS_PROXY) for HTTPS DSNs.
+        http_proxy=proxy,
+        https_proxy=proxy,
         release=f"cloudsmith-cli@{_safe(version.get_version, default='unknown')}",
         environment=get_environment(),
         before_send=scrub_event,

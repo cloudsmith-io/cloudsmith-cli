@@ -15,6 +15,18 @@ from .certificate_errors import find_certificate_error
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+_default_proxy = {"url": None}
+
+
+def set_default_proxy(proxy):
+    """Set the proxy for every HTTP client that is not given one."""
+    _default_proxy["url"] = proxy
+
+
+def get_default_proxy():
+    """Get the proxy that set_default_proxy() set, or None."""
+    return _default_proxy["url"]
+
 
 class ApiKeySafeSession(requests.Session):
     """A session that drops the API key on a redirect to another host."""
@@ -23,6 +35,15 @@ class ApiKeySafeSession(requests.Session):
         super().rebuild_auth(prepared_request, response)
         if self.should_strip_auth(response.request.url, prepared_request.url):
             prepared_request.headers.pop("X-Api-Key", None)
+
+    def merge_environment_settings(self, url, proxies, stream, verify, cert):
+        # requests lets HTTPS_PROXY and HTTP_PROXY override session.proxies.
+        request_proxies = dict(proxies or {})
+        settings = super().merge_environment_settings(
+            url, proxies, stream, verify, cert
+        )
+        settings["proxies"].update({**self.proxies, **request_proxies})
+        return settings
 
 
 class RetryWithCallback(Retry):
@@ -175,6 +196,9 @@ def create_requests_session(
 
     if proxy is None and config is not None:
         proxy = config.proxy
+
+    if proxy is None:
+        proxy = get_default_proxy()
 
     session = session or ApiKeySafeSession()
     session.verify = ssl_verify

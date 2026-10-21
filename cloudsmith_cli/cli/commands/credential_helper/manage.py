@@ -9,6 +9,7 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 from __future__ import annotations
 
 import sys
+from urllib.parse import urlsplit
 
 import click
 
@@ -81,8 +82,11 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
     Baking ``-w``/``-r``/``-P`` into the block means ``terraform init`` works
     with no environment variables and no hand-edited config. Only values
     actually supplied are written, so an install without ``-w``/``--repo``/
-    ``-P`` leaves ``args = []``. The API host is baked in too, so the helper
-    looks up domains on the same API host as the install.
+    ``-P`` leaves ``args = []``. The API host and proxy are baked in too, so
+    the helper looks up domains on the same API host, through the same proxy,
+    as the install. A proxy URL with credentials is never baked in: Terraform
+    passes ``args`` on the helper's command line, where any local user can read
+    them.
 
     A non-default ``--config-file``/``--credentials-file`` is also baked in: the
     helper is later invoked by ``terraform init`` in a fresh process with none
@@ -106,7 +110,28 @@ def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...
         args.extend(["--credentials-file", creds_file])
     if opts.api_host:
         args.extend(["--api-host", opts.api_host])
+    if opts.proxy and not _proxy_has_credentials(opts.proxy):
+        args.extend(["--proxy", opts.proxy])
     return tuple(args)
+
+
+def _proxy_has_credentials(proxy: str) -> bool:
+    """Return True if the proxy URL carries a username or password."""
+    parsed = urlsplit(proxy if "://" in proxy else f"//{proxy}")
+    return parsed.username is not None or parsed.password is not None
+
+
+def _terraform_proxy_next_steps(opts) -> list[str]:
+    """Return the post-install guidance when the proxy was not baked in."""
+    if not opts.proxy or not _proxy_has_credentials(opts.proxy):
+        return []
+    return [
+        (
+            "Next steps: the proxy URL contains credentials, so it was not"
+            " written to the Terraform config. export CLOUDSMITH_PROXY=<proxy-url>"
+            " in the environment that runs `terraform init`."
+        ),
+    ]
 
 
 _REPO_FLAGS = ("-r", "--repo", "--repository")
@@ -309,9 +334,11 @@ def install_cmd(
 
     next_steps: list[str] = []
     if helper == "terraform":
-        next_steps = _terraform_workspace_next_steps(
-            helper_args
-        ) + _terraform_next_steps(helper_args)
+        next_steps = (
+            _terraform_workspace_next_steps(helper_args)
+            + _terraform_next_steps(helper_args)
+            + _terraform_proxy_next_steps(opts)
+        )
 
     data = {
         "helper": helper,

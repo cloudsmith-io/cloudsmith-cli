@@ -1,7 +1,7 @@
 import cloudsmith_api
 import pytest
 
-from cloudsmith_cli.core import telemetry
+from cloudsmith_cli.core import session, telemetry
 
 #: A syntactically valid DSN that is never contacted: tests that report use
 #: an in-memory transport.
@@ -74,3 +74,10 @@ def restore_api_configuration_default():
     default = cloudsmith_api.Configuration()
     yield
     cloudsmith_api.Configuration.set_default(default)
+
+
+@pytest.fixture(autouse=True)
+def restore_default_proxy():
+    """Clear the process-wide proxy that ``initialise_session`` sets."""
+    yield
+    session.set_default_proxy(None)

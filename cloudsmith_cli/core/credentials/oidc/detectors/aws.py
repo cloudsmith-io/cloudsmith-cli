@@ -52,6 +52,22 @@ def _resolve_region(session) -> str | None:
         return None
 
 
+def _create_botocore_session():
+    """Create a botocore session whose clients connect through the CLI proxy."""
+    import botocore.session
+    from botocore.config import Config
+
+    from ....session import get_default_proxy
+
+    botocore_session = botocore.session.get_session()
+    proxy = get_default_proxy()
+    if proxy:
+        botocore_session.set_default_client_config(
+            Config(proxies={"http": proxy, "https": proxy})
+        )
+    return botocore_session
+
+
 class AWSDetector(EnvironmentDetector):
     """Detects AWS environments and obtains a JWT via STS GetWebIdentityToken."""
 
@@ -76,7 +92,7 @@ class AWSDetector(EnvironmentDetector):
             return False
 
         try:
-            self._session = boto3.Session()
+            self._session = boto3.Session(botocore_session=_create_botocore_session())
             credentials = self._session.get_credentials()
             if credentials is None:
                 return False
@@ -102,7 +118,9 @@ class AWSDetector(EnvironmentDetector):
         import boto3  # pylint: disable=import-error
 
         audience = self.context.oidc_audience or DEFAULT_AUDIENCE
-        session = self._session or boto3.Session()
+        session = self._session or boto3.Session(
+            botocore_session=_create_botocore_session()
+        )
         sts = session.client("sts", region_name=_resolve_region(session))
         response = sts.get_web_identity_token(
             Audience=[audience],

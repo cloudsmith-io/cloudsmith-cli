@@ -139,14 +139,14 @@ def validate_untrusted_api_host(host, extra_suffixes=()):
     )
 
 
-def validate_untrusted_api_proxy(proxy, allowed_suffixes=()):
-    """Raise if an api_proxy from an untrusted config is not an allowed proxy."""
+def validate_untrusted_proxy(proxy, allowed_suffixes=()):
+    """Raise if a proxy from an untrusted config is not an allowed proxy."""
     if host_matches_suffixes(proxy, allowed_suffixes):
         return
     raise click.UsageError(
-        f'api_proxy "{proxy}" is set by a config file in the current directory '
-        "and is not an allowed proxy. To use a proxy, set it via --api-proxy, "
-        "the CLOUDSMITH_API_PROXY environment variable, an explicit "
+        f'proxy "{proxy}" is set by a config file in the current directory '
+        "and is not an allowed proxy. To use a proxy, set it via --proxy, "
+        "the CLOUDSMITH_PROXY environment variable, an explicit "
         "--config-file, or your user-level config."
     )
 

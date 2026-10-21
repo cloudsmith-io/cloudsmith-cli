@@ -100,6 +100,14 @@ class TestCreateRequestsSession:
 
         assert httpretty.last_request().headers.get("X-Api-Key") == "test-api-key"
 
+    def test_configured_proxy_beats_the_environment_proxy(self, monkeypatch):
+        monkeypatch.setenv("HTTPS_PROXY", "http://env-proxy.example.com:3128")
+        session = create_requests_session(proxy="http://proxy.example.com:3128")
+        settings = session.merge_environment_settings(
+            "https://api.example.com/", {}, None, None, None
+        )
+        assert settings["proxies"]["https"] == "http://proxy.example.com:3128"
+
 
 class TestSSLVerifyStrict:
     @staticmethod

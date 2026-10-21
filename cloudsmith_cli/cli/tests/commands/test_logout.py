@@ -184,3 +184,49 @@ class TestLogoutCommand:
 
         assert result.exit_code == 0
         assert "Failed to remove SAML tokens" in result.output
+
+
+class TestLogoutErrorReporting:
+    """Unexpected errors are reported through the CLI proxy without a session."""
+
+    PROXY = "http://proxy.example.com:3128"
+
+    def _invoke_failing_logout(self, runner, mock_deps, monkeypatch):
+        from cloudsmith_cli.core.session import get_default_proxy
+
+        from ...commands.main import main
+
+        mock_creds, _ = mock_deps
+        mock_creds.clear_api_key.side_effect = OSError("disk full")
+        monkeypatch.setenv("CLOUDSMITH_NO_UPDATE_CHECK", "1")
+        for name in (
+            "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
+            "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        seen = []
+        with patch(
+            "cloudsmith_cli.core.telemetry.report_exception",
+            side_effect=lambda exc: seen.append(get_default_proxy()),
+        ):
+            result = runner.invoke(main, ["logout", "--config-only"])
+        assert result.exit_code == 1
+        return seen
+
+    @pytest.mark.parametrize("envvar", ["CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY"])
+    def test_report_uses_proxy_from_environment(
+        self, runner, mock_deps, monkeypatch, envvar
+    ):
+        monkeypatch.setenv(envvar, self.PROXY)
+        assert self._invoke_failing_logout(runner, mock_deps, monkeypatch) == [
+            self.PROXY
+        ]
+
+    def test_report_ignores_untrusted_relative_proxy(
+        self, runner, mock_deps, monkeypatch, tmp_path
+    ):
+        (tmp_path / "config.ini").write_text(
+            "[default]\nproxy = http://evil.example.com:3128\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        assert self._invoke_failing_logout(runner, mock_deps, monkeypatch) == [None]
