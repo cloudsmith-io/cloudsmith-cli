@@ -158,8 +158,24 @@ def _perform_saml_authentication(
                 )
 
         auth_server.handle_request()
+        return auth_server.sso_access_token is not None
     finally:
         auth_server.server_close()
+
+
+def _save_workspace(opts, workspace, profile, use_stderr):
+    """Save the Workspace to config.ini, or warn when the CLI cannot write it."""
+    try:
+        saved_path = opts.get_config_reader().save_workspace(workspace, profile=profile)
+    except (OSError, ValueError) as exc:
+        click.secho(
+            f"Could not save the {workspace} Workspace to config.ini: {exc}",
+            fg="yellow",
+            err=True,
+        )
+        return
+    if saved_path:
+        click.echo(f"Saved the {workspace} Workspace to {saved_path}.", err=use_stderr)
 
 
 @main.command(aliases=["auth"])
@@ -276,7 +292,7 @@ def authenticate(
 
     context_message = "Failed to authenticate via SAML!"
     with handle_api_exceptions(ctx, opts=opts, context_msg=context_message):
-        _perform_saml_authentication(
+        authenticated = _perform_saml_authentication(
             opts,
             workspace,
             enable_token_creation=enable_token_creation,
@@ -284,6 +300,9 @@ def authenticate(
             no_browser=no_browser,
             profile=ctx.meta.get("profile"),
         )
+
+    if authenticated:
+        _save_workspace(opts, workspace, ctx.meta.get("profile"), use_stderr)
 
     if request_api_key_flag:
         # Non-interactive token retrieval
