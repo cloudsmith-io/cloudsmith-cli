@@ -14,6 +14,7 @@ from keyrings.cryptfile.cryptfile import CryptFileKeyring
 
 from .. import keyring as core_keyring
 from ..keyring import (
+    KeyringSettings,
     delete_oidc_token,
     delete_sso_tokens,
     get_access_token,
@@ -246,11 +247,7 @@ class TestKeyring:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_store_sso_tokens(self, mock_get_user, mock_set_password):
-        # Ensure keyring is enabled
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
+        result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
 
         assert result is True
         refresh_key = (
@@ -274,8 +271,8 @@ class TestKeyring:
         self, mock_get_user, mock_set_password
     ):
         """Verify store_sso_tokens returns False when keyring disabled."""
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
-            result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
+        core_keyring.configure(KeyringSettings(no_keyring=True))
+        result = store_sso_tokens(self.api_host, "access_token", "refresh_token")
 
         assert result is False
         mock_set_password.assert_not_called()
@@ -326,12 +323,9 @@ class TestProfileScopedKeys:
 
     @freeze_time("2024-06-01 10:00:00")
     def test_store_sso_tokens_with_profile(self, mock_get_user, mock_set_password):
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            result = store_sso_tokens(
-                self.api_host, "access_token", "refresh_token", profile="staging"
-            )
+        result = store_sso_tokens(
+            self.api_host, "access_token", "refresh_token", profile="staging"
+        )
 
         assert result is True
         assert mock_set_password.call_count == 3
@@ -588,25 +582,11 @@ class TestShouldUseKeyring:
     """Tests for the should_use_keyring function."""
 
     def test_returns_true_by_default(self):
-        """When env var is not set, keyring should be used."""
-        env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
-        with patch.dict(os.environ, env, clear=True):
-            assert should_use_keyring() is True
+        assert should_use_keyring() is True
 
-    @pytest.mark.parametrize(
-        "env_value", ["1", "true", "True", "TRUE", "yes", "Yes", "YES"]
-    )
-    def test_returns_false_when_env_var_is_truthy(self, env_value):
-        """Keyring should not be used when CLOUDSMITH_NO_KEYRING is truthy."""
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
-            assert should_use_keyring() is False
-
-    @pytest.mark.parametrize("env_value", ["0", "false", "False", "no", "No", ""])
-    def test_returns_true_when_env_var_is_falsy(self, env_value):
-        """Keyring should be used when CLOUDSMITH_NO_KEYRING is falsy."""
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": env_value}):
-            assert should_use_keyring() is True
+    def test_returns_false_when_disabled(self):
+        core_keyring.configure(KeyringSettings(no_keyring=True))
+        assert should_use_keyring() is False
 
 
 class TestKeyringBackendAlias:
@@ -617,9 +597,9 @@ class TestKeyringBackendAlias:
     def test_sets_python_keyring_backend_when_unset(
         self, mock_get_user, mock_get_password
     ):
+        core_keyring.configure(KeyringSettings(backend="keyring.backends.null.Keyring"))
         env = os.environ.copy()
         env.pop("PYTHON_KEYRING_BACKEND", None)
-        env["CLOUDSMITH_KEYRING_BACKEND"] = "keyring.backends.null.Keyring"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert (
@@ -629,9 +609,9 @@ class TestKeyringBackendAlias:
     def test_does_not_override_existing_python_keyring_backend(
         self, mock_get_user, mock_get_password
     ):
+        core_keyring.configure(KeyringSettings(backend="keyring.backends.null.Keyring"))
         env = os.environ.copy()
         env["PYTHON_KEYRING_BACKEND"] = "keyring.backends.SecretService.Keyring"
-        env["CLOUDSMITH_KEYRING_BACKEND"] = "keyring.backends.null.Keyring"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert (
@@ -642,7 +622,6 @@ class TestKeyringBackendAlias:
     def test_no_op_when_alias_not_set(self, mock_get_user, mock_get_password):
         env = os.environ.copy()
         env.pop("PYTHON_KEYRING_BACKEND", None)
-        env.pop("CLOUDSMITH_KEYRING_BACKEND", None)
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert "PYTHON_KEYRING_BACKEND" not in os.environ
@@ -663,9 +642,9 @@ class TestKeyringPropertyAlias:
     def test_sets_keyring_property_when_unset(
         self, mock_get_user, mock_get_password, mock_get_keyring
     ):
+        core_keyring.configure(KeyringSettings(key="super-secret"))
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_KEYRING_KEY", None)
-        env["CLOUDSMITH_KEYRING_KEY"] = "super-secret"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert os.environ["KEYRING_PROPERTY_KEYRING_KEY"] == "super-secret"
@@ -673,9 +652,9 @@ class TestKeyringPropertyAlias:
     def test_does_not_override_existing_keyring_property(
         self, mock_get_user, mock_get_password, mock_get_keyring
     ):
+        core_keyring.configure(KeyringSettings(key="alias-secret"))
         env = os.environ.copy()
         env["KEYRING_PROPERTY_KEYRING_KEY"] = "native-secret"
-        env["CLOUDSMITH_KEYRING_KEY"] = "alias-secret"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert os.environ["KEYRING_PROPERTY_KEYRING_KEY"] == "native-secret"
@@ -685,7 +664,6 @@ class TestKeyringPropertyAlias:
     ):
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_KEYRING_KEY", None)
-        env.pop("CLOUDSMITH_KEYRING_KEY", None)
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert "KEYRING_PROPERTY_KEYRING_KEY" not in os.environ
@@ -703,9 +681,9 @@ class TestKeyringFilePathAlias:
     api_host = "https://example.com"
 
     def test_sets_keyring_property_when_unset(self, mock_get_user, mock_get_password):
+        core_keyring.configure(KeyringSettings(file_path="/secure/path/keyring.cfg"))
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "/secure/path/keyring.cfg"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert (
@@ -715,9 +693,9 @@ class TestKeyringFilePathAlias:
     def test_does_not_override_existing_keyring_property(
         self, mock_get_user, mock_get_password
     ):
+        core_keyring.configure(KeyringSettings(file_path="/alias/path/keyring.cfg"))
         env = os.environ.copy()
         env["KEYRING_PROPERTY_FILE_PATH"] = "/native/path/keyring.cfg"
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "/alias/path/keyring.cfg"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert (
@@ -727,40 +705,9 @@ class TestKeyringFilePathAlias:
     def test_no_op_when_alias_not_set(self, mock_get_user, mock_get_password):
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env.pop("CLOUDSMITH_KEYRING_FILE_PATH", None)
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert "KEYRING_PROPERTY_FILE_PATH" not in os.environ
-
-    def test_expands_user_and_env_vars(self, mock_get_user, mock_get_password):
-        env = os.environ.copy()
-        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["KEYRING_STORE_ROOT"] = "/secure"
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "$KEYRING_STORE_ROOT/keyring.cfg"
-        with patch.dict(os.environ, env, clear=True):
-            get_access_token(self.api_host)
-            assert os.environ["KEYRING_PROPERTY_FILE_PATH"] == "/secure/keyring.cfg"
-
-    def test_expands_home_directory(self, mock_get_user, mock_get_password):
-        env = os.environ.copy()
-        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "~/keyring.cfg"
-        with patch.dict(os.environ, env, clear=True):
-            get_access_token(self.api_host)
-            assert os.environ["KEYRING_PROPERTY_FILE_PATH"] == os.path.expanduser(
-                "~/keyring.cfg"
-            )
-
-    def test_expands_home_inside_env_var_value(self, mock_get_user, mock_get_password):
-        env = os.environ.copy()
-        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["KEYRING_STORE_ROOT"] = "~"
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "$KEYRING_STORE_ROOT/keyring.cfg"
-        with patch.dict(os.environ, env, clear=True):
-            get_access_token(self.api_host)
-            assert os.environ["KEYRING_PROPERTY_FILE_PATH"] == os.path.expanduser(
-                "~/keyring.cfg"
-            )
 
 
 class TestKeyringDirEnv:
@@ -773,9 +720,9 @@ class TestKeyringDirEnv:
     ):
         backend = mock_get_keyring.return_value
         backend.filename = "cryptfile_pass.cfg"
+        core_keyring.configure(KeyringSettings(directory="/secure/dir"))
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert backend.file_path == os.path.join(
@@ -787,9 +734,9 @@ class TestKeyringDirEnv:
     ):
         backend = mock_get_keyring.return_value
         backend.filename = "cryptfile_pass.cfg"
+        core_keyring.configure(KeyringSettings(directory="/secure/dir"))
         env = os.environ.copy()
         env["KEYRING_PROPERTY_FILE_PATH"] = "/native/path/keyring.cfg"
-        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert backend.file_path == "/native/path/keyring.cfg"
@@ -799,10 +746,13 @@ class TestKeyringDirEnv:
     ):
         backend = mock_get_keyring.return_value
         backend.filename = "cryptfile_pass.cfg"
+        core_keyring.configure(
+            KeyringSettings(
+                file_path="/alias/path/keyring.cfg", directory="/secure/dir"
+            )
+        )
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = "/alias/path/keyring.cfg"
-        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert backend.file_path == "/alias/path/keyring.cfg"
@@ -813,9 +763,9 @@ class TestKeyringDirEnv:
         backend = mock_get_keyring.return_value
         del backend.filename
         backend.file_path = "untouched"
+        core_keyring.configure(KeyringSettings(directory="/secure/dir"))
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["CLOUDSMITH_KEYRING_DIR"] = "/secure/dir"
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert backend.file_path == "untouched"
@@ -828,39 +778,9 @@ class TestKeyringDirEnv:
         backend.file_path = "untouched"
         env = os.environ.copy()
         env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env.pop("CLOUDSMITH_KEYRING_DIR", None)
         with patch.dict(os.environ, env, clear=True):
             get_access_token(self.api_host)
             assert backend.file_path == "untouched"
-
-    def test_expands_user_and_env_vars(
-        self, mock_get_user, mock_get_password, mock_get_keyring
-    ):
-        backend = mock_get_keyring.return_value
-        backend.filename = "keyring_pass.cfg"
-        env = os.environ.copy()
-        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["KEYRING_STORE_ROOT"] = "/secure"
-        env["CLOUDSMITH_KEYRING_DIR"] = "$KEYRING_STORE_ROOT/store"
-        with patch.dict(os.environ, env, clear=True):
-            get_access_token(self.api_host)
-            assert backend.file_path == os.path.join(
-                "/secure/store", "keyring_pass.cfg"
-            )
-
-    def test_expands_home_directory(
-        self, mock_get_user, mock_get_password, mock_get_keyring
-    ):
-        backend = mock_get_keyring.return_value
-        backend.filename = "keyring_pass.cfg"
-        env = os.environ.copy()
-        env.pop("KEYRING_PROPERTY_FILE_PATH", None)
-        env["CLOUDSMITH_KEYRING_DIR"] = "~/store"
-        with patch.dict(os.environ, env, clear=True):
-            get_access_token(self.api_host)
-            assert backend.file_path == os.path.join(
-                os.path.expanduser("~/store"), "keyring_pass.cfg"
-            )
 
 
 class TestKeyringFileRelocation:
@@ -871,16 +791,9 @@ class TestKeyringFileRelocation:
     @staticmethod
     def _relocation_env(tmp_path):
         env = os.environ.copy()
-        for var in (
-            "KEYRING_PROPERTY_FILE_PATH",
-            "KEYRING_PROPERTY_KEYRING_KEY",
-            "CLOUDSMITH_KEYRING_FILE_PATH",
-            "CLOUDSMITH_KEYRING_DIR",
-            "CLOUDSMITH_KEYRING_KEY",
-        ):
+        for var in ("KEYRING_PROPERTY_FILE_PATH", "KEYRING_PROPERTY_KEYRING_KEY"):
             env.pop(var, None)
         env["XDG_DATA_HOME"] = str(tmp_path / "default")
-        env["CLOUDSMITH_KEYRING_KEY"] = "test-password"
         return env
 
     def _roundtrip_token(self, backend, env):
@@ -899,10 +812,11 @@ class TestKeyringFileRelocation:
     ):
         backend = CryptFileKeyring()
         mock_get_keyring.return_value = backend
-        env = self._relocation_env(tmp_path)
-        env["CLOUDSMITH_KEYRING_DIR"] = str(tmp_path / "secure")
+        core_keyring.configure(
+            KeyringSettings(key="test-password", directory=str(tmp_path / "secure"))
+        )
 
-        self._roundtrip_token(backend, env)
+        self._roundtrip_token(backend, self._relocation_env(tmp_path))
 
         assert (tmp_path / "secure" / backend.filename).is_file()
         assert not (tmp_path / "default").exists()
@@ -913,10 +827,11 @@ class TestKeyringFileRelocation:
         backend = CryptFileKeyring()
         mock_get_keyring.return_value = backend
         target = tmp_path / "secure" / "tokens.cfg"
-        env = self._relocation_env(tmp_path)
-        env["CLOUDSMITH_KEYRING_FILE_PATH"] = str(target)
+        core_keyring.configure(
+            KeyringSettings(key="test-password", file_path=str(target))
+        )
 
-        self._roundtrip_token(backend, env)
+        self._roundtrip_token(backend, self._relocation_env(tmp_path))
 
         assert target.is_file()
         assert not (tmp_path / "default").exists()
@@ -963,16 +878,16 @@ class TestDeleteSsoTokens:
     ):
         """has_sso_tokens should short-circuit when keyring is disabled."""
         mock_get_password.return_value = "some_token"
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
-            assert has_sso_tokens(self.api_host) is False
+        core_keyring.configure(KeyringSettings(no_keyring=True))
+        assert has_sso_tokens(self.api_host) is False
         mock_get_password.assert_not_called()
 
 
 OIDC_ARGS = ("https://example.com", "my-org", "my-service")
 
 
-def _keyring_env(tmp_path, **overrides):
-    return {"XDG_DATA_HOME": str(tmp_path), **overrides}
+def _keyring_env(tmp_path):
+    return {"XDG_DATA_HOME": str(tmp_path)}
 
 
 @contextmanager
@@ -1031,24 +946,24 @@ class TestNonInteractivePasswordPrompt:
     def test_supplied_key_uses_keyring_without_terminal(
         self, tmp_path, mock_get_user, backend_cls
     ):
-        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="supplied-password")
-        with _keyring_session(backend_cls(), env):
+        core_keyring.configure(KeyringSettings(key="supplied-password"))
+        with _keyring_session(backend_cls(), _keyring_env(tmp_path)):
             assert store_oidc_token(*OIDC_ARGS, "token-data") is True
             assert get_oidc_token(*OIDC_ARGS) == "token-data"
 
     def test_wrong_key_reports_not_found(self, tmp_path, mock_get_user):
         _write_oidc_entry(CryptFileKeyring(), tmp_path)
-        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="wrong-password")
-        with _keyring_session(CryptFileKeyring(), env):
+        core_keyring.configure(KeyringSettings(key="wrong-password"))
+        with _keyring_session(CryptFileKeyring(), _keyring_env(tmp_path)):
             assert get_oidc_token(*OIDC_ARGS) is None
             assert delete_oidc_token(*OIDC_ARGS) is False
 
     def test_key_unlocks_once_per_process(self, tmp_path, mock_get_user):
         _write_oidc_entry(CryptFileKeyring(), tmp_path)
         backend = CryptFileKeyring()
-        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="earlier-password")
+        core_keyring.configure(KeyringSettings(key="earlier-password"))
         with (
-            _keyring_session(backend, env),
+            _keyring_session(backend, _keyring_env(tmp_path)),
             patch.object(backend, "_unlock", wraps=backend._unlock) as unlock_mock,
         ):
             store_oidc_token(*OIDC_ARGS, "token-data")
@@ -1074,12 +989,10 @@ class TestChainedBackendProperties:
         _write_oidc_entry(AltEncryptedKeyring(), tmp_path)
         storage_member = CryptFileKeyring()
         chain = _chain(storage_member, AltEncryptedKeyring())
-        env = _keyring_env(
-            tmp_path,
-            CLOUDSMITH_KEYRING_KEY="supplied-password",
-            CLOUDSMITH_KEYRING_DIR=str(tmp_path / "secure"),
+        core_keyring.configure(
+            KeyringSettings(key="supplied-password", directory=str(tmp_path / "secure"))
         )
-        with _keyring_session(chain, env):
+        with _keyring_session(chain, _keyring_env(tmp_path)):
             assert store_oidc_token(*OIDC_ARGS, "token-data") is True
             assert get_oidc_token(*OIDC_ARGS) == "token-data"
         assert (tmp_path / "secure" / storage_member.filename).is_file()
@@ -1089,8 +1002,8 @@ class TestChainedBackendProperties:
     ):
         _write_oidc_entry(AltEncryptedKeyring(), tmp_path)
         chain = _chain(CryptFileKeyring(), AltEncryptedKeyring())
-        env = _keyring_env(tmp_path, CLOUDSMITH_KEYRING_KEY="supplied-password")
-        with _keyring_session(chain, env):
+        core_keyring.configure(KeyringSettings(key="supplied-password"))
+        with _keyring_session(chain, _keyring_env(tmp_path)):
             assert get_oidc_token(*OIDC_ARGS) is None
 
     def test_write_fallback_cannot_prompt_for_a_new_file(self, tmp_path, mock_get_user):
