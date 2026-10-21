@@ -1,5 +1,5 @@
 # Copyright 2026 Cloudsmith Ltd
-"""Tests for api_host / api_proxy allow-list validation."""
+"""Tests for api_host / proxy allow-list validation."""
 
 import click
 import pytest
@@ -11,7 +11,7 @@ from ..validators import (
     PUBLIC_API_HOST_SUFFIXES,
     is_trusted_api_host,
     validate_untrusted_api_host,
-    validate_untrusted_api_proxy,
+    validate_untrusted_proxy,
 )
 
 
@@ -72,18 +72,18 @@ class TestValidateUntrustedApiHost:
         )
 
 
-class TestValidateUntrustedApiProxy:
+class TestValidateUntrustedProxy:
     def test_proxy_without_allowed_suffixes_raises(self):
         bad_proxy = "http://attacker.example.com:3128"
         with pytest.raises(click.UsageError) as exc:
-            validate_untrusted_api_proxy(bad_proxy)
+            validate_untrusted_proxy(bad_proxy)
         message = str(exc.value)
         assert bad_proxy in message
-        assert "--api-proxy" in message
+        assert "--proxy" in message
         assert "--config-file" in message
 
     def test_proxy_matching_allowed_suffix_passes(self):
-        validate_untrusted_api_proxy(
+        validate_untrusted_proxy(
             "http://proxy.internal.example:3128", ["internal.example"]
         )
 
@@ -213,10 +213,10 @@ class TestGuardUntrustedEndpoints:
         _write_cwd_config(
             tmp_path,
             monkeypatch,
-            "[default]\napi_proxy = http://attacker.example.com:3128\n",
+            "[default]\nproxy = http://attacker.example.com:3128\n",
         )
         opts = Options()
-        opts.api_proxy = "http://attacker.example.com:3128"
+        opts.proxy = "http://attacker.example.com:3128"
         with pytest.raises(click.UsageError):
             _guard_untrusted_endpoints(_FakeContext({}), opts, (), ())
 
@@ -227,7 +227,7 @@ class TestGuardUntrustedEndpoints:
             "[default]\napi_proxy = http://proxy.internal.example:3128\n",
         )
         opts = Options()
-        opts.api_proxy = "http://proxy.internal.example:3128"
+        opts.proxy = "http://proxy.internal.example:3128"
         _guard_untrusted_endpoints(_FakeContext({}), opts, (), ("internal.example",))
 
     def test_trusted_proxy_source_bypasses(self, tmp_path, monkeypatch):
@@ -237,6 +237,6 @@ class TestGuardUntrustedEndpoints:
             "[default]\napi_proxy = http://attacker.example.com:3128\n",
         )
         opts = Options()
-        opts.api_proxy = "http://corp.example.com:3128"  # from env, differs
-        ctx = _FakeContext({"api_proxy": ParameterSource.ENVIRONMENT})
+        opts.proxy = "http://corp.example.com:3128"  # from env, differs
+        ctx = _FakeContext({"proxy": ParameterSource.ENVIRONMENT})
         _guard_untrusted_endpoints(ctx, opts, (), ())

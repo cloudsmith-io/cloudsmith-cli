@@ -22,6 +22,7 @@ from cloudsmith_cli.core.credentials.oidc.detectors import (
 )
 from cloudsmith_cli.core.credentials.oidc.detectors.gcp import GCPDetector
 from cloudsmith_cli.core.credentials.providers.oidc_provider import OidcProvider
+from cloudsmith_cli.core.session import set_default_proxy
 
 METADATA_GET = "google.auth.compute_engine._metadata.get"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
@@ -108,6 +109,19 @@ class TestGetTokenMetadata:
             "audience": audience or "cloudsmith",
             "format": "full",
         }
+
+    def test_google_https_requests_use_the_cli_proxy(self):
+        proxy = "http://proxy.example.com:3128"
+        set_default_proxy(proxy)
+        with (
+            mock.patch(
+                "google.auth.default",
+                return_value=(compute_engine.Credentials(), "proj"),
+            ),
+            mock.patch(METADATA_GET, return_value="meta-jwt") as get,
+        ):
+            assert make_detector().get_token() == "meta-jwt"
+        assert get.call_args.args[0].session.proxies == {"https": proxy}
 
     @pytest.mark.parametrize("token", ["", "  ", None, {"token": "unexpected-json"}])
     def test_rejects_empty_or_invalid_metadata_token(self, token):

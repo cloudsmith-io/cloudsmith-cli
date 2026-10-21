@@ -99,7 +99,14 @@ class GCPDetector(EnvironmentDetector):
                 "pip install cloudsmith-cli[gcp]"
             ) from exc
 
-        request = Request()
+        from ....session import ApiKeySafeSession, get_default_proxy
+
+        session = ApiKeySafeSession()
+        proxy = get_default_proxy()
+        if proxy:
+            # The metadata server is plain HTTP and is not reachable through a proxy.
+            session.proxies["https"] = proxy
+        request = Request(session=session)
         credentials = self._credentials
         if credentials is None:
             credentials, _ = google.auth.default()

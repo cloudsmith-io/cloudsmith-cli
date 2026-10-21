@@ -63,6 +63,7 @@ class ConfigSchema:
         api_headers = ConfigParam(name="api_headers", type=str)
         api_host = ConfigParam(name="api_host", type=str)
         api_proxy = ConfigParam(name="api_proxy", type=str)
+        proxy = ConfigParam(name="proxy", type=str)
         api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool, default=True)
         ssl_verify = ConfigParam(name="ssl_verify", type=bool)
         ssl_verify_strict = ConfigParam(
@@ -228,6 +229,8 @@ class ConfigReader(ConfigFileReader):
         has_preferred_workspace = bool(preferred_workspace)
         for k, v in values.items():
             if k == "api_ssl_verify" and values.get("ssl_verify") is not None:
+                continue
+            if k == "api_proxy" and values.get("proxy"):
                 continue
             if has_preferred_workspace and k in ("org", "organization", "oidc_org"):
                 continue
@@ -409,14 +412,24 @@ class Options:  # pylint: disable=too-many-public-methods
         self._set_option("api_key_from_file", value, allow_clear=True)
 
     @property
+    def proxy(self):
+        """Get value for the HTTP proxy."""
+        return self._get_option("proxy")
+
+    @proxy.setter
+    def proxy(self, value):
+        """Set value for the HTTP proxy."""
+        self._set_option("proxy", value)
+
+    @property
     def api_proxy(self):
-        """Get value for API proxy."""
-        return self._get_option("api_proxy")
+        """Get the HTTP proxy using the legacy API-prefixed name."""
+        return self.proxy
 
     @api_proxy.setter
     def api_proxy(self, value):
-        """Set value for API proxy."""
-        self._set_option("api_proxy", value)
+        """Set the HTTP proxy using the legacy API-prefixed name."""
+        self.proxy = value
 
     @property
     def ssl_verify(self):

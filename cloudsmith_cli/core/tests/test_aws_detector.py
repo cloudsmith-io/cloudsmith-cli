@@ -10,6 +10,7 @@ from cloudsmith_cli.core.credentials.oidc.detectors.aws import (
     AWSDetector,
     _resolve_region,
 )
+from cloudsmith_cli.core.session import set_default_proxy
 
 boto3 = pytest.importorskip("boto3")
 MetadataRetrievalError = pytest.importorskip(
@@ -125,3 +126,13 @@ class TestGetToken:
                 error_msg="no imds"
             )
             assert self._get_token_sts_region(_aws_env()) is None
+
+    def test_aws_clients_use_the_cli_proxy(self):
+        proxy = "http://proxy.example.com:3128"
+        set_default_proxy(proxy)
+        env = _aws_env(AWS_ACCESS_KEY_ID="test", AWS_SECRET_ACCESS_KEY="test")
+        detector = AWSDetector(context=CredentialContext())
+        with mock.patch.dict("os.environ", env, clear=True):
+            assert detector.detect()
+            sts = detector._session.client("sts", region_name="eu-west-1")
+        assert sts.meta.config.proxies == {"http": proxy, "https": proxy}

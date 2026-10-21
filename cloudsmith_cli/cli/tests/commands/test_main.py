@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -100,6 +101,57 @@ class TestMainUpdateNotice:
             update_check.record_check(version, now=now)
 
         monkeypatch.setattr(update_check, "run_background_check", fake_fetch)
+
+    @pytest.fixture
+    def relative_proxy(self, tmp_path, monkeypatch):
+        """Set a proxy in a directory-relative (untrusted) config."""
+        workdir = tmp_path / "checkout"
+        workdir.mkdir()
+        (workdir / "config.ini").write_text(
+            "[default]\nproxy = http://evil.example.com:3128\n"
+        )
+        monkeypatch.chdir(workdir)
+        for name in ("CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY"):
+            monkeypatch.delenv(name, raising=False)
+        for name in (
+            "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
+            "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
+        ):
+            monkeypatch.delenv(name, raising=False)
+
+    def test_fetch_skipped_for_untrusted_relative_proxy(
+        self, runner, state_file, relative_proxy, monkeypatch
+    ):
+        """`--version` never fetches through a proxy from an untrusted config."""
+        self._stub_fetch(monkeypatch)
+        self._write_behind(state_file)
+        with patch("cloudsmith_cli.core.session.create_requests_session") as create:
+            result = runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
+        create.assert_not_called()
+
+    def test_fetch_uses_allowed_relative_proxy(
+        self, runner, state_file, relative_proxy, monkeypatch
+    ):
+        monkeypatch.setenv("CLOUDSMITH_ALLOWED_PROXY_SUFFIXES", "evil.example.com")
+        self._stub_fetch(monkeypatch)
+        self._write_behind(state_file)
+        with patch("cloudsmith_cli.core.session.create_requests_session") as create:
+            result = runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
+        assert create.call_args.kwargs["proxy"] == "http://evil.example.com:3128"
+
+    @pytest.mark.parametrize("envvar", ["CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY"])
+    def test_fetch_prefers_proxy_from_environment(
+        self, runner, state_file, relative_proxy, monkeypatch, envvar
+    ):
+        monkeypatch.setenv(envvar, "http://proxy.example.com:3128")
+        self._stub_fetch(monkeypatch)
+        self._write_behind(state_file)
+        with patch("cloudsmith_cli.core.session.create_requests_session") as create:
+            result = runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
+        assert create.call_args.kwargs["proxy"] == "http://proxy.example.com:3128"
 
     def test_notice_prints_when_behind_standalone(
         self, runner, state_file, monkeypatch
