@@ -22,8 +22,8 @@ from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     UnsafeLauncherValue,
     _launcher_content,
-    _launcher_filename,
     is_on_path,
+    launcher_filename,
     remove_launcher,
     resolve_bin_dir,
     write_launcher,
@@ -94,7 +94,7 @@ def test_launcher_filename_and_content(
     ``NotImplementedError`` on Python < 3.12).
     """
     assert (
-        _launcher_filename(f"{format}-credential-cloudsmith", windows=windows)
+        launcher_filename(f"{format}-credential-cloudsmith", windows=windows)
         == expected_name
     )
     assert (
