@@ -239,7 +239,8 @@ def build_upstream_create_command(upstream_fmt):
 
         if upstream_name is None:
             raise click.BadParameter(
-                "Name is a required field for creating an upstream.", param="name"
+                "Name is a required field for creating an upstream.",
+                param_hint="'UPSTREAM_CONFIG_FILE'",
             )
 
         if not use_stderr:

@@ -14,7 +14,7 @@ from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 
 
 class TestAuthenticationWebServer:
-    """Tests for AuthenticationWebServer SSO token storage."""
+    """Tests for AuthenticationWebServer SAML token storage."""
 
     def test_sso_access_token_initialized_to_none(self):
         """Verify sso_access_token is initialized to None."""
@@ -156,11 +156,11 @@ class TestAuthenticationWebRequestHandlerKeyring:
         [
             (
                 {"return_value": False},
-                "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                "SAML tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
             ),
             (
                 {"side_effect": KeyringError("no prompt")},
-                "SSO tokens not stored: no prompt",
+                "SAML tokens not stored: no prompt",
             ),
         ],
     )
@@ -200,7 +200,7 @@ class TestAuthenticationWebRequestHandlerKeyring:
             mock_echo.assert_called_once_with(message, err=True)
 
     def test_access_token_stored_on_server_instance(self, mock_handler):
-        """Verify the SSO access token is stored on the server instance for direct use."""
+        """Verify the SAML access token is stored on the server instance for direct use."""
         with (
             patch("cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=True),
             patch.object(mock_handler, "_return_success_response"),

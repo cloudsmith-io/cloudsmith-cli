@@ -30,7 +30,7 @@ def _setup_api(monkeypatch):
 
     Mirrors the metadata API test setup: initialise_api() registers custom
     retry attributes on cloudsmith_api.Configuration that create_requests_session
-    expects, and keyring is stubbed so we never touch the user's real SSO tokens
+    expects, and keyring is stubbed so we never touch the user's real SAML tokens
     during a test run.
     """
     monkeypatch.setattr(keyring, "get_access_token", lambda host: None)

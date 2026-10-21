@@ -29,6 +29,8 @@ import sys
 
 import click
 
+from .certificate_errors import find_certificate_error
+
 #: Production ingest DSN for the dedicated ``cloudsmith-cli`` Sentry project.
 #: Not a secret: a DSN is a public, write-only ingest key, and every client
 #: that reports to Sentry ships one. Abuse (event injection) is contained on
@@ -145,9 +147,13 @@ def is_reportable(exc: BaseException) -> bool:
 
     Exception types that represent a user error (e.g. a missing 2FA code) set
     ``report_to_telemetry = False``. Checked by attribute rather than by
-    importing the types, so this module stays light on the error path.
+    importing the types, so this module stays light on the error path. A failed
+    TLS certificate check is a problem with the network, not with the CLI.
     """
-    return getattr(exc, REPORTABLE_ATTR, True) is not False
+    return (
+        getattr(exc, REPORTABLE_ATTR, True) is not False
+        and find_certificate_error(exc) is None
+    )
 
 
 def report_exception(exc: BaseException) -> bool:

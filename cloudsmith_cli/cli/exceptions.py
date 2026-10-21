@@ -7,6 +7,7 @@ import sys
 import click
 
 from ..core.api.exceptions import ApiException
+from ..core.certificate_errors import describe_certificate_error
 
 
 @contextlib.contextmanager
@@ -193,6 +194,11 @@ def get_error_hint(ctx, opts, exc):
     if get_specific_error_hint:
         return get_specific_error_hint(ctx, opts, exc)
     return None
+
+
+def get_0_error_hint(_ctx, _opts, exc):
+    """Get the hint for a request that failed before the API replied."""
+    return describe_certificate_error(exc)
 
 
 def get_401_error_hint(ctx, opts, exc):

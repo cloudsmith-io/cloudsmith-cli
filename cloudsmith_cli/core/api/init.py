@@ -50,7 +50,7 @@ def initialise_api(
             config.api_key.pop("X-Api-Key", None)
             config.headers["Authorization"] = f"Bearer {credential.api_key}"
             if config.debug:
-                click.echo("SSO access token config value set")
+                click.echo("SAML access token config value set")
         else:
             config.api_key["X-Api-Key"] = credential.api_key
             if config.debug:

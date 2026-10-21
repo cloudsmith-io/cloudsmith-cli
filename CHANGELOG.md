@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install terraform` now writes `-w <workspace>` into the `terraformrc` args, not `--org`. A block that has `--org` continues to work. The install also writes `--api-host` and `--proxy` when you set them, so the helper finds the domains on that API host through that proxy. Without a Workspace, the install tells you how to set one.
 - `cloudsmith credential-helper install` and `uninstall` now use `~/.cloudsmith/bin` when you do not give `--bin-dir`. Before, they used the directory of the `cloudsmith` executable, which a package manager can overwrite or make read-only. Terraform still uses its plugin directory. If the directory is not on `PATH`, `install` shows the command that adds it. To remove a helper that an earlier version installed, give its directory with `--bin-dir`.
 - The hint shown for a `401 - Unauthorized` error when no API key or SAML session is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`.
+- Messages, help text and the README now say SAML instead of SSO. JSON keys and values, such as `"method": "sso"`, do not change.
 
 ### Deprecated
 
@@ -40,6 +41,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The configured proxy now takes precedence over the `HTTPS_PROXY` and `HTTP_PROXY` environment variables. Before, these variables replaced `--api-proxy` for API, upload and download connections.
 - The docker, pnpm, cargo and terraform launchers of the standalone binary now quote the path of the binary correctly. A path with `$` or a backtick no longer breaks the launcher on Linux and macOS.
 - `cloudsmith credential-helper list` now finds a launcher that `install` wrote to the default directory, `~/.cloudsmith/bin`. Before, `list` looked in the directory of the `cloudsmith` executable and reported the helper as not installed.
+- A failed TLS certificate check now stops the command at once. Before, the CLI sent the request again for up to 63 seconds and showed no output.
+- When a TLS certificate check fails, the CLI now shows a hint with the cause. For a strict X.509 failure, the hint gives `--without-ssl-verify-strict`. For a CA that is not trusted, the hint gives `REQUESTS_CA_BUNDLE`. Error reporting no longer sends these failures to Cloudsmith.
+- When `cloudsmith auth`, a credential helper or another command cannot renew an expired SAML session, the message now includes the error. Before, all network failures showed the same message, also with `--debug`.
+- `cloudsmith push` now reports a failed connection to the upload host, and a failed multi-part upload completion, as `Failed to upload file!`, the same as other API errors.
+- `cloudsmith download` now exits with code 1 when a file does not download. Before, it exited with code 0.
+- `cloudsmith tokens create` now shows the error and exits with a non-zero code when the API request fails. Before, it showed nothing, or only the detail of a 401, and exited with code 0. With `--save-config`, it no longer stops with an `AttributeError` after JSON output or when you do not recreate an existing token.
+- `cloudsmith upstream <format> create`, `cloudsmith repositories create` and the `cloudsmith policy` `create` commands now show a usage error when the config file has no `name`. Before, they stopped with an `AttributeError`.
 
 ## [1.29.0] - 2026-10-15
 

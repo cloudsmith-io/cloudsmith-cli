@@ -3,6 +3,7 @@ import ssl
 import httpretty
 import pytest
 import requests
+from urllib3.exceptions import MaxRetryError, SSLError
 
 from ..api.init import initialise_api
 from ..rest import RestClient
@@ -150,3 +151,15 @@ class TestSSLVerifyStrict:
         session = create_requests_session()
 
         assert "ssl_context" in self._pool_kwargs(session)
+
+
+class TestRetryOnSSLErrors:
+    def test_certificate_errors_are_not_retried(self):
+        session = create_requests_session(retries=6)
+        retry = session.get_adapter("https://api.example.com/").max_retries
+        error = SSLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
+
+        with pytest.raises(MaxRetryError) as raised:
+            retry.increment("GET", "/", error=error)
+
+        assert raised.value.reason is error

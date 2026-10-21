@@ -7,7 +7,7 @@ pnpm forwards that value verbatim to the registry.  There is no handshake and
 no request stream — everything the runtime does happens in a single call.
 
 The helper picks the HTTP authorization scheme so pnpm never has to guess:
-Cloudsmith API keys use the ``token`` scheme and SSO/OIDC credentials use
+Cloudsmith API keys use the ``token`` scheme and SAML/OIDC credentials use
 ``Bearer``.  These tests pin that behaviour for both credential kinds.
 """
 
@@ -45,7 +45,7 @@ def credential():
 
 @pytest.fixture()
 def sso_credential():
-    """Return a resolved bearer (SSO / OIDC) credential."""
+    """Return a resolved bearer (SAML / OIDC) credential."""
     return CredentialResult(
         api_key="jwt_token",
         source_name="keyring",
@@ -71,10 +71,10 @@ def test_get_returns_token_scheme_for_api_key_credential(credential):
 
 
 def test_get_uses_bearer_scheme_for_sso_credential(sso_credential):
-    """An SSO/OIDC credential is returned under the ``Bearer`` scheme.
+    """A SAML/OIDC credential is returned under the ``Bearer`` scheme.
 
     Mirrors the Cargo helper's scheme selection: ``auth_type == "bearer"``
-    (a JWT from the OIDC exchange or an SSO refresh) means ``Bearer``, and
+    (a JWT from the OIDC exchange or a SAML refresh) means ``Bearer``, and
     anything else — practically, an API key — means ``token``.
     """
     assert get_pnpm_credentials(CLOUDSMITH_HOST, credential=sso_credential) == (
@@ -149,7 +149,7 @@ def test_execute_returns_token_scheme_for_api_key_credential(credential):
 
 
 def test_execute_returns_bearer_for_sso_credential(sso_credential):
-    """SSO/OIDC credentials use the ``Bearer`` scheme end-to-end through execute()."""
+    """SAML/OIDC credentials use the ``Bearer`` scheme end-to-end through execute()."""
     _, stdout, _ = execute(CLOUDSMITH_HOST, credential=sso_credential)
 
     assert stdout == "Bearer jwt_token"
