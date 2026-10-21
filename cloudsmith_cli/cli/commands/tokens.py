@@ -163,7 +163,7 @@ def create(ctx, opts, save_config, force=False, json=False):
     """Create a new API token."""
     new_token = _create(ctx, opts, save_config, force, json)
 
-    if save_config:
+    if save_config and new_token:
         create, has_errors = create_config_files(
             ctx, opts, api_key=new_token.key, force=force
         )
@@ -195,12 +195,7 @@ def create(ctx, opts, save_config, force=False, json=False):
 @click.pass_context
 def refresh(ctx, opts, token_slug, force, save_config):
     """Refresh a specific API token by its slug."""
-    new_token = refresh_existing_token_interactive(
-        ctx, opts, token_slug, save_config, force
-    )
-
-    if new_token and utils.maybe_print_as_json(opts, new_token):
-        return new_token
+    refresh_existing_token_interactive(ctx, opts, token_slug, save_config, force)
 
 
 def print_tokens(tokens):
@@ -304,7 +299,7 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
                 opts.output = "json"
 
             if utils.maybe_print_as_json(opts, new_token):
-                return
+                return new_token
 
             click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
             return new_token
@@ -312,14 +307,14 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
         return new_token
 
     except exceptions.ApiException as exc:
-        if exc.status == 401:
-            click.echo(f"{exc.detail}", err=True)
-            return
         # NOTE: This mutation is necessary during the deprecation period of the --json flag.
         if json and opts.output not in ("json", "pretty_json"):
             opts.output = "json"
-        if exc.status == 400:
-            new_token = handle_duplicate_token_error(
-                exc, ctx, opts, save_config=save_config, force=force, json=json
-            )
-            return new_token
+        with handle_api_exceptions(
+            ctx, opts=opts, context_msg="Failed to create the API token!"
+        ):
+            if exc.status == 400:
+                return handle_duplicate_token_error(
+                    exc, ctx, opts, save_config=save_config, force=force, json=json
+                )
+            raise

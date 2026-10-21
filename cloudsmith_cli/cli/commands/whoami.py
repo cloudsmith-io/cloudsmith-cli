@@ -11,7 +11,7 @@ from .main import main
 
 
 def _get_active_method(api_config):
-    """Inspect API config to determine SSO, API key, or no auth."""
+    """Inspect API config to determine SAML, API key, or no auth."""
     headers = getattr(api_config, "headers", {}) or {}
     if headers.get("Authorization", "").startswith("Bearer "):
         return "sso_token"
@@ -37,7 +37,7 @@ def _get_api_key_source(opts):
 
 
 def _get_sso_status(api_host, profile=None):
-    """Return SSO token status from the system keyring."""
+    """Return SAML token status from the system keyring."""
     enabled = keyring.should_use_keyring()
     has_tokens = enabled and keyring.has_sso_tokens(api_host, profile=profile)
     refreshed = (
@@ -98,7 +98,7 @@ def _print_verbose_text(data):
 
     click.echo()
     if active == "sso_token":
-        click.secho("Authentication Method: SSO Token (primary)", fg="cyan", bold=True)
+        click.secho("Authentication Method: SAML Token (primary)", fg="cyan", bold=True)
         if sso.get("source"):
             click.echo(f"  Source: {sso['source']}")
         if sso.get("last_refreshed"):
@@ -110,7 +110,7 @@ def _print_verbose_text(data):
             click.secho("API Key: Also configured", fg="yellow")
             if ak.get("source"):
                 click.echo(f"  Source: {ak['source']}")
-            click.echo("  Note: SSO token is being used instead")
+            click.echo("  Note: SAML token is being used instead")
     elif active == "api_key":
         if ak.get("source_key") == "oidc":
             click.secho(
@@ -132,13 +132,13 @@ def _print_verbose_text(data):
         click.echo()
         if not sso["keyring_enabled"]:
             click.secho(
-                "SSO Status: Keyring disabled (CLOUDSMITH_NO_KEYRING)", fg="yellow"
+                "SAML Status: Keyring disabled (CLOUDSMITH_NO_KEYRING)", fg="yellow"
             )
         elif sso["configured"]:
-            click.secho("SSO Status: Configured (not active)", fg="yellow")
+            click.secho("SAML Status: Configured (not active)", fg="yellow")
             click.echo(f"  Source: {sso['source']}")
         else:
-            click.echo("SSO Status: Not configured")
+            click.echo("SAML Status: Not configured")
             click.echo("  Keyring: Enabled (no tokens stored)")
 
 

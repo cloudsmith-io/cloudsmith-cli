@@ -51,7 +51,7 @@ class AuthenticationWebServer(HTTPServer):
         return self.api_opts.host if self.api_opts else None
 
     def refresh_api_config_after_auth(self):
-        """Refresh the API configuration to pick up newly stored SSO tokens."""
+        """Refresh the API configuration to pick up newly stored SAML tokens."""
         if not self.api_opts:
             return
 
@@ -248,11 +248,11 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                 self.api_host, access_token, refresh_token, profile=self.profile
             ):
                 click.echo(
-                    "SSO tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
+                    "SAML tokens not stored (CLOUDSMITH_NO_KEYRING is set)",
                     err=True,
                 )
         except KeyringError as exc:
-            click.echo(f"SSO tokens not stored: {exc}", err=True)
+            click.echo(f"SAML tokens not stored: {exc}", err=True)
 
         if self.refresh_api_on_success and self.server_instance:
             self.server_instance.refresh_api_config_after_auth()

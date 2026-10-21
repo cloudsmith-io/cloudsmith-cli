@@ -63,6 +63,14 @@ def request_file_upload(
     return data.identifier, data.upload_url, data.upload_fields
 
 
+def _send_upload_request(send, *args, **kwargs):
+    """Send an upload request, and raise a status-0 ApiException if it fails."""
+    try:
+        return send(*args, **kwargs)
+    except requests.RequestException as exc:
+        raise ApiException(0, detail=f"{type(exc).__name__}\n{exc}") from exc
+
+
 def upload_file(upload_url, upload_fields, filepath, callback=None):
     """Upload a pre-signed file to Cloudsmith."""
     upload_fields = list(upload_fields.items())
@@ -84,7 +92,9 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
     headers["user-agent"] = client.api_client.user_agent
 
     session = create_requests_session()
-    resp = session.post(upload_url, data=monitor, headers=headers, proxies=proxies)
+    resp = _send_upload_request(
+        session.post, upload_url, data=monitor, headers=headers, proxies=proxies
+    )
 
     try:
         resp.raise_for_status()
@@ -103,7 +113,8 @@ def multi_part_upload_file(
         chunk_number = 1
         session = create_requests_session()
         while chunk := f.read(CHUNK_SIZE):
-            resp = session.put(
+            resp = _send_upload_request(
+                session.put,
                 upload_url,
                 headers=headers,
                 data=chunk,
@@ -124,9 +135,10 @@ def multi_part_upload_file(
             chunk_number += 1
 
     api = get_files_api()
-    api.files_complete(
-        owner,
-        repo,
-        identifier=upload_id,
-        data={"upload_id": upload_id, "complete": True},
-    )
+    with catch_raise_api_exception():
+        api.files_complete(
+            owner,
+            repo,
+            identifier=upload_id,
+            data={"upload_id": upload_id, "complete": True},
+        )

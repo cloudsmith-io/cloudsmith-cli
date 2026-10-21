@@ -1,4 +1,4 @@
-"""SSO token refresh against the Cloudsmith API."""
+"""SAML token refresh against the Cloudsmith API."""
 
 import base64
 import binascii
@@ -19,7 +19,7 @@ TOKEN_EXPIRY_LEEWAY = timedelta(seconds=30)
 
 
 class SsoRenewalStatus(str, Enum):
-    """Possible outcomes from renewing an SSO session."""
+    """Possible outcomes from renewing a SAML session."""
 
     RENEWED = "renewed"
     CURRENT = "current"
@@ -31,7 +31,7 @@ class SsoRenewalStatus(str, Enum):
 
 @dataclass
 class SsoRenewalResult:
-    """Outcome of renewing the SSO tokens stored for one CLI profile."""
+    """Outcome of renewing the SAML tokens stored for one CLI profile."""
 
     status: SsoRenewalStatus
     access_token: str | None = None
@@ -40,14 +40,14 @@ class SsoRenewalResult:
 
 @dataclass(frozen=True)
 class SsoTokens:
-    """Access and refresh tokens stored for an SSO session."""
+    """Access and refresh tokens stored for a SAML session."""
 
     access_token: str | None
     refresh_token: str | None
 
 
 def get_access_token_expiry(access_token):
-    """Return the expiry encoded in an SSO access token, if available."""
+    """Return the expiry encoded in a SAML access token, if available."""
     if not access_token:
         return None
 
@@ -67,13 +67,13 @@ def get_access_token_expiry(access_token):
         ValueError,
         json.JSONDecodeError,
     ):
-        logger.debug("Failed to decode SSO access token expiry", exc_info=True)
+        logger.debug("Failed to decode SAML access token expiry", exc_info=True)
 
     return None
 
 
 def access_token_is_valid(access_token, now=None):
-    """Return whether an SSO access token is present and not provably expired.
+    """Return whether a SAML access token is present and not provably expired.
 
     A token without a readable JWT expiry counts as usable. The API stays
     the authority on whether it still works.
@@ -149,7 +149,7 @@ def _store_renewed_tokens(api_host, profile, access_token, refresh_token):
 
 
 def renew_sso_session(api_host, session, profile=None):
-    """Renew a keyring SSO session and rotate its refresh token."""
+    """Renew a keyring SAML session and rotate its refresh token."""
     tokens = _load_sso_tokens(api_host, profile)
     if not tokens.access_token:
         return SsoRenewalResult(status=SsoRenewalStatus.MISSING)
@@ -174,7 +174,7 @@ def renew_sso_session(api_host, session, profile=None):
         return _failed_renewal(api_host, profile, tokens.access_token, error=exc)
 
     if not new_access_token:
-        error = ValueError("Cloudsmith did not return a new SSO access token.")
+        error = ValueError("Cloudsmith did not return a new SAML access token.")
         return _failed_renewal(api_host, profile, tokens.access_token, error=error)
 
     return _store_renewed_tokens(api_host, profile, new_access_token, new_refresh_token)

@@ -6,6 +6,8 @@ from collections import OrderedDict
 import click.exceptions
 from click_didyoumean import DYMGroup
 
+from ..core.certificate_errors import describe_certificate_error
+
 
 def _is_json_output_requested(exception):
     """Determine if JSON output was requested, checking context and argv."""
@@ -58,9 +60,17 @@ def _format_click_exception_as_json(exception):
         },
         "help": {
             "context": "Invalid usage",
-            "hint": "Check your command arguments/flags.",
+            "hint": describe_certificate_error(exception)
+            or "Check your command arguments/flags.",
         },
     }
+
+
+def _echo_certificate_hint(exception):
+    """Explain a TLS certificate failure behind ``exception`` on stderr."""
+    hint = describe_certificate_error(exception)
+    if hint:
+        click.echo(f"Hint: {click.style(hint, fg='yellow')}", err=True)
 
 
 class AliasGroup(DYMGroup):
@@ -190,6 +200,7 @@ class AliasGroup(DYMGroup):
             if not original_standalone_mode:
                 raise
             e.show()
+            _echo_certificate_hint(e)
             sys.exit(e.exit_code)
         except Exception as e:  # pylint: disable=broad-exception-caught
             # Anything reaching here is unexpected: click's own errors and
@@ -207,4 +218,5 @@ class AliasGroup(DYMGroup):
             # Reporting is silent: the user sees the same line either way.
             telemetry.report_exception(e)
             click.echo(f"Error: {telemetry.format_exception_summary(e)}", err=True)
+            _echo_certificate_hint(e)
             sys.exit(1)
