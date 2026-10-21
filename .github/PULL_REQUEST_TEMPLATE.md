@@ -2,15 +2,15 @@
 
 <!-- Provide a brief description of the changes in this PR -->
 
-## Type of Change
+## Type of change
 
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 - [ ] Refactoring
-- [ ] Other (please describe)
+- [ ] Other (describe below)
 
-## Additional Notes
+## Additional notes
 
 <!-- Any additional context or screenshots -->

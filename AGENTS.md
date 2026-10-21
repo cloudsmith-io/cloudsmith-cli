@@ -4,12 +4,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Development setup
 
-The repo uses `direnv` (`.envrc`) to bootstrap a `.venv` via `uv`, install the project plus dev deps from the lockfile, and `pre-commit install`. If you don't use direnv, the equivalent is:
-
-```
-uv sync --group dev
-pre-commit install
-```
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for environment setup, tests, linting, and releases. In short: `uv sync --locked --group dev`, then `pre-commit install`.
 
 All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps.
 
@@ -21,8 +16,8 @@ Python `>=3.11` is required (CI tests 3.11–3.14).
 - Run the unit tests: `pytest -m "not integration"`. Run with coverage: `pytest --cov=cloudsmith_cli`.
 - Run the live-service tests: `pytest -m integration` (requires the `PYTEST_CLOUDSMITH_*` environment variables). Mark each test that calls the live Cloudsmith service with `@pytest.mark.integration`.
 - Run a single test: `pytest cloudsmith_cli/cli/tests/test_push.py::TestClass::test_name` or by node id / `-k <expr>`.
-- Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `black .`, `isort .`, `flake8 --config=.flake8`, `pylint --rcfile=.pylintrc <path>`, `pyupgrade --py310-plus <files>`.
-- Release: `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
+- Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `ruff format .`, `ruff check .`, `pyupgrade --py310-plus <files>`.
+- Release: see [CONTRIBUTING.md](./CONTRIBUTING.md#release-a-new-version). The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
 
 ## Architecture
 
@@ -45,7 +40,7 @@ The CLI is a Click app that wraps the auto-generated `cloudsmith-api` Python SDK
 
 ### Push + metadata coupling
 
-`cli/commands/push.py` is the most complex command. The per-format subcommands and their options are generated from the API's package-format model, so format-specific client-side behaviour is layered on top of that loop rather than branching inside it — see the `deb`-only `--dsc-file` registration at the end of `create_push_handlers()`, which pairs with `cli/dsc_parser.py` to derive `sources_file`/`changes_file` from a Debian `.dsc`. Every `push <format>` subcommand accepts `--metadata-*` flags resolved via `metadata_common`. Push validates metadata both locally and against the API **before** any file upload so malformed SBOM/BuildInfo payloads cannot leave orphan packages behind. Failure behavior is configurable with precedence: `--on-metadata-failure` flag > `$CLOUDSMITH_METADATA_FAILURE_MODE` env > `metadata_failure_mode` config key > `error` default. The kwarg names listed in `METADATA_KWARG_NAMES` and `METADATA_FAILURE_MODE_KWARG` must be popped off the kwargs before they reach the API client, which will reject unknown keys.
+`cli/commands/push.py` is the most complex command. The per-format subcommands and their options are generated from the API's package-format model, so format-specific client-side behavior is layered on top of that loop rather than branching inside it — see the `deb`-only `--dsc-file` registration at the end of `create_push_handlers()`, which pairs with `cli/dsc_parser.py` to derive `sources_file`/`changes_file` from a Debian `.dsc`. Every `push <format>` subcommand accepts `--metadata-*` flags resolved via `metadata_common`. Push validates metadata both locally and against the API **before** any file upload so malformed SBOM/BuildInfo payloads cannot leave orphan packages behind. Failure behavior is configurable with precedence: `--on-metadata-failure` flag > `$CLOUDSMITH_METADATA_FAILURE_MODE` env > `metadata_failure_mode` config key > `error` default. The kwarg names listed in `METADATA_KWARG_NAMES` and `METADATA_FAILURE_MODE_KWARG` must be popped off the kwargs before they reach the API client, which will reject unknown keys.
 
 ### Output formatting convention
 
@@ -53,10 +48,12 @@ Most commands support `-F/--output-format {pretty,json,pretty_json}`. The patter
 
 ### Authentication
 
-Three auth paths feed `core.api.init.initialise_api`:
-1. `-k/--api-key` flag, `$CLOUDSMITH_API_KEY`, or `credentials.ini`.
-2. SAML SSO via `cloudsmith auth` — opens IdP URL, runs a localhost callback webserver (`cli/webserver.py`, `cli/saml.py`), stores access/refresh tokens in the OS keyring (`core/keyring.py`).
-3. `logout` clears keyring entries and the credentials file but only warns about `$CLOUDSMITH_API_KEY` (env vars can't be unset from a child process).
+`core/credentials/chain.py` evaluates providers in order and uses the first match:
+1. API key: `-k/--api-key` flag, `$CLOUDSMITH_API_KEY`, or `credentials.ini`.
+2. SAML via `cloudsmith auth` — opens IdP URL, runs a localhost callback webserver (`cli/webserver.py`, `cli/saml.py`), stores access/refresh tokens in the OS keyring (`core/keyring.py`).
+3. OIDC auto-discovery for CI/CD and cloud environments (`core/credentials/oidc/detectors/`), exchanged for a Cloudsmith token.
+
+`logout` clears keyring entries and the credentials file but only warns about `$CLOUDSMITH_API_KEY` (env vars can't be unset from a child process).
 
 ## Tests
 
@@ -64,7 +61,8 @@ Tests live alongside code: `cloudsmith_cli/cli/tests/` and `cloudsmith_cli/core/
 
 ## Style notes specific to this repo
 
-- `flake8` ignores `E203,E501,D107,D102,W503` and uses `max-line-length=100` (but `black` enforces 88). `isort` profile lists known third-party packages explicitly — when adding a new third-party import, add it to `.isort.cfg`'s `known_third_party` if isort puts it in the wrong group.
+- `ruff format` and `ruff check` run via pre-commit; Ruff config lives in `pyproject.toml`. Ruff's `TID253` bans module-level imports of heavy modules (`cloudsmith_api`, `requests`, `keyring`, etc.) outside lazily loaded files to keep startup fast — import them inside functions.
 - `pyupgrade --py310-plus` runs on every commit, so use modern syntax (`X | Y` unions, `dict[str, ...]` generics, etc.).
-- Adding a new subcommand: create a module under `cli/commands/`, register it in `cli/commands/__init__.py`, and attach it to `main` (or a subgroup) with the `AliasGroup` for alias support.
+- Adding a new top-level command: create a module under `cli/commands/`, attach it to `main` with `@main.command(...)` or `@main.group(cls=AliasGroup, ...)`, and add it (and any aliases) to `cli/commands/registry.py`. Don't import command modules from `cli/commands/__init__.py`.
 - Adding a new API call: put SDK wrapping in `core/api/<resource>.py`, translate exceptions to `ApiException`, and call it from the command layer. Avoid making fresh `cloudsmith_api` request calls from `cli/commands/*`; importing `cloudsmith_api` for `Configuration` defaults or exception types is OK and matches what `login`/`logout`/`check` already do.
+- Documentation: `README.md` holds badges, a short description, and links; installation, authentication, configuration, and usage live on [docs.cloudsmith.com](https://docs.cloudsmith.com/developer-tools/cli) and in `cloudsmith --help`, and are not duplicated in the README; `CONTRIBUTING.md` covers development. In user-facing text, follow the docs.cloudsmith.com style: lowercase "workspace" (not "organization", "owner", or "namespace"), "SAML" (not "SSO"), and sentence-case headings.

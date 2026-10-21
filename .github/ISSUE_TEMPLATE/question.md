@@ -5,6 +5,8 @@ title: "[QUESTION] "
 labels: question
 ---
 
+<!-- Check the CLI documentation first: https://docs.cloudsmith.com/developer-tools/cli -->
+
 ## Question
 
 <!-- Your question here -->
@@ -13,12 +15,12 @@ labels: question
 
 <!-- Any relevant context that might help answer your question -->
 
-## What I've Tried
+## What I've tried
 
 <!-- What have you already tried or researched? -->
 
 ## Environment (if relevant)
 
 - **OS**:
-- **Python Version**:
-- **Cloudsmith CLI Version**:
+- **Python version**:
+- **Cloudsmith CLI version**:

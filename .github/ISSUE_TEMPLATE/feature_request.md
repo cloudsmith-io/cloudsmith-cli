@@ -9,22 +9,22 @@ labels: enhancement
 
 <!-- A clear and concise description of the feature you'd like -->
 
-## Problem Statement
+## Problem statement
 
 <!-- What problem does this feature solve? -->
 
-## Proposed Solution
+## Proposed solution
 
 <!-- Describe how you'd like this feature to work -->
 
-## Alternatives Considered
+## Alternatives considered
 
 <!-- Any alternative solutions or features you've considered -->
 
-## Use Case
+## Use case
 
 <!-- Describe your use case for this feature -->
 
-## Additional Context
+## Additional context
 
 <!-- Add any other context, mockups, or screenshots about the feature request -->

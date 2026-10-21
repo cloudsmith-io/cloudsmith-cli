@@ -1,25 +1,29 @@
-# Maintainers
-
-The project is maintained by the Cloudsmith team.
-
-Any member of the Cloudsmith organization may review and approve contributions.
-
 # Contributors
 
-The following contributors (in alphabetical order) are held in eternal high esteem and gratitude for their glorious contributions to the project:
+## Maintainers
+
+The Cloudsmith team maintains this project. Any team member can review and approve contributions.
+
+## Contributors
+
+Thank you to the following people for contributing code (in alphabetical order):
 
 - Carlos Gonzalez ([@LowzG](https://github.com/LowzG))
 - Jamie Brynes ([@jamiebrynes7](https://github.com/jamiebrynes7))
 - Pablo Sanchez ([@pablogrs](https://github.com/pablogrs))
 - Patrick McClory ([@mcclory](https://github.com/mcclory))
 
-# Thanks
+For the full list, see the [GitHub contributors page](https://github.com/cloudsmith-io/cloudsmith-cli/graphs/contributors).
 
-We'd also like to say thank you to the following people (in alphabetical order), for raising issues, providing suggestions or just for being awesome:
+## Acknowledgments
 
-- Michal Nowak ([@Mno-hime](https://github.com/Mno-hime))
-- Rob Madole ([@robmadole](https://github.com/robmadole))
-- Sean Allen ([@SeanTAllen](https://github.com/SeanTAllen))
+Thank you to the following people for raising issues and suggesting improvements (in alphabetical order):
+
 - Jesse Rhoads ([@JesseRhoads-PD](https://github.com/JesseRhoads-PD))
 - Julian Pulgarín ([@jpulgarin](https://github.com/jpulgarin))
+- Michal Nowak ([@Mno-hime](https://github.com/Mno-hime))
 - Pierre Gergondet ([@gergondet](https://github.com/gergondet))
+- Rob Madole ([@robmadole](https://github.com/robmadole))
+- Sean Allen ([@SeanTAllen](https://github.com/SeanTAllen))
+
+To contribute, see [CONTRIBUTING.md](./CONTRIBUTING.md).
