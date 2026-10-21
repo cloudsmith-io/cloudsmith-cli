@@ -23,14 +23,13 @@ def mock_get_keyring():
 class TestKeyringProvider:
     def test_returns_none_when_keyring_disabled(self):
         provider = KeyringProvider()
-        with patch.dict(os.environ, {"CLOUDSMITH_NO_KEYRING": "1"}):
-            result = provider.resolve(CredentialContext())
-            assert result is None
+        keyring.configure(keyring.KeyringSettings(no_keyring=True))
+        result = provider.resolve(CredentialContext())
+        assert result is None
 
     def test_returns_none_when_no_token(self):
         provider = KeyringProvider()
         env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
         with (
             patch.dict(os.environ, env, clear=True),
             patch.object(keyring, "should_use_keyring", return_value=True),
@@ -42,7 +41,6 @@ class TestKeyringProvider:
     def test_returns_bearer_token(self):
         provider = KeyringProvider()
         env = os.environ.copy()
-        env.pop("CLOUDSMITH_NO_KEYRING", None)
         with (
             patch.dict(os.environ, env, clear=True),
             patch.object(keyring, "should_use_keyring", return_value=True),
