@@ -18,12 +18,16 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
 from ....core.credentials.models import CredentialResult
-from ....credential_helpers.docker.installer import DockerInstaller
+from ....credential_helpers.docker.installer import (
+    DockerInstaller,
+    HelperScopeConflict,
+)
 from ....credential_helpers.launchers import (
     UnsafeLauncherValue,
     _launcher_content,
     _launcher_filename,
     is_on_path,
+    parse_launcher_env,
     remove_launcher,
     resolve_bin_dir,
     write_launcher,
@@ -136,14 +140,20 @@ def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, 
         _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
 
 
+@pytest.mark.parametrize("windows", [False, True])
+def test_parse_launcher_env_reads_the_settings_of_a_launcher(windows):
+    env = {"CLOUDSMITH_PROFILE": "it's a b", "CLOUDSMITH_WORKSPACE": "x=y!"}
+    assert parse_launcher_env(_launcher_content("cmd", windows=windows, env=env)) == env
+
+
 def test_install_passes_flag_and_environment_settings_to_the_launcher(
     runner, monkeypatch, tmp_path
 ):
     """Settings from flags and CLOUDSMITH_* variables go to the launcher.
 
     A value read from a config file does not, because the helper reads that
-    file itself.  Secrets and the proxy never go to the launcher.  A flag on
-    the parent command also counts.
+    file itself.  Secrets, the proxy and the colour settings never go to the
+    launcher.  A flag on the parent command also counts.
     """
     from ....cli.commands.credential_helper import manage
     from ....cli.commands.main import main
@@ -181,6 +191,8 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
         env={
             "CLOUDSMITH_API_KEY": "k_secret",
             "CLOUDSMITH_API_HEADERS": "X-Secret=1",
+            "CLOUDSMITH_COLOR": "never",
+            "CLOUDSMITH_FORCE_COLOR": "1",
             "CLOUDSMITH_KEYRING_KEY": "keyring_secret",
             "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
             "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
@@ -397,6 +409,134 @@ def test_docker_installer_install(tmp_path, monkeypatch):
     assert cfg["credHelpers"]["ghcr.io"] == "gh"
     # Launcher written
     assert (bin_dir / "docker-credential-cloudsmith").exists()
+
+
+def test_docker_install_scopes_the_helper_to_the_install_time_settings(
+    tmp_path, monkeypatch
+):
+    """The profile and Workspace name the helper, so installs can coexist."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+    installer = DockerInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+
+    actions = installer.install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        launcher_env={
+            "CLOUDSMITH_PROFILE": "Meta",
+            "CLOUDSMITH_WORKSPACE": "iduffy_demo",
+            "CLOUDSMITH_API_HOST": "https://api.example.com",
+        },
+    )
+
+    name = "cloudsmith-meta-iduffy-demo"
+    assert (bin_dir / f"docker-credential-{name}").read_text() == (
+        "#!/bin/sh\n"
+        "export CLOUDSMITH_PROFILE=Meta\n"
+        "export CLOUDSMITH_WORKSPACE=iduffy_demo\n"
+        "export CLOUDSMITH_API_HOST=https://api.example.com\n"
+        'exec cloudsmith credential-helper docker "$@"\n'
+    )
+    assert (bin_dir / "docker-credential-cloudsmith").exists()
+    cfg = json.loads((tmp_path / ".docker" / "config.json").read_text())
+    assert cfg["credHelpers"] == {"docker.cloudsmith.io": name}
+    assert (
+        "WARNING: credHelpers['docker.cloudsmith.io'] changes from 'cloudsmith'"
+        f" to {name!r}"
+    ) in actions
+    with patch(
+        "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        assert installer.status() == {
+            "launcher": str(bin_dir / f"docker-credential-{name}"),
+            "hosts": ["docker.cloudsmith.io"],
+        }
+
+
+def test_docker_dry_run_shows_the_scoped_launcher_and_its_settings(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+
+    actions = DockerInstaller().install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        dry_run=True,
+        launcher_env={"CLOUDSMITH_WORKSPACE": "acme", "CLOUDSMITH_NO_KEYRING": "1"},
+    )
+
+    assert actions[:2] == [
+        f"would write launcher {bin_dir / 'docker-credential-cloudsmith-acme'}",
+        "launcher sets CLOUDSMITH_WORKSPACE, CLOUDSMITH_NO_KEYRING",
+    ]
+    assert not bin_dir.exists()
+
+
+def test_docker_uninstall_takes_the_scope_from_flags_only(
+    runner, tmp_path, monkeypatch
+):
+    """Without flags, uninstall removes the unscoped helper, as before.
+
+    A -P flag on the root command also counts.
+    """
+    from ....cli.commands.credential_helper.manage import install_cmd, uninstall_cmd
+    from ....cli.commands.main import main
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    DockerInstaller().install(bin_dir=str(bin_dir), domains=("legacy.example.com",))
+    args = ["docker", "--bin-dir", str(bin_dir)]
+    env = {"CLOUDSMITH_PROFILE": "work", "CLOUDSMITH_WORKSPACE": "acme"}
+    installed = runner.invoke(
+        install_cmd, [*args, "--domain", "acme.example.com", "--no-discover"], env=env
+    )
+
+    unscoped = runner.invoke(uninstall_cmd, args, env=env)
+    scoped_launchers = sorted(path.name for path in bin_dir.iterdir())
+    scoped = runner.invoke(
+        main, ["-P", "work", "credential-helper", "uninstall", *args, "-w", "acme"]
+    )
+
+    assert [installed.exit_code, unscoped.exit_code, scoped.exit_code] == [0, 0, 0]
+    assert scoped_launchers == ["docker-credential-cloudsmith-work-acme"]
+    assert not list(bin_dir.iterdir())
+    cfg = json.loads((tmp_path / ".docker" / "config.json").read_text())
+    assert "credHelpers" not in cfg
+
+
+def test_docker_refuses_the_helper_of_another_install(runner, tmp_path, monkeypatch):
+    """-P acme and -w acme give the same helper name."""
+    from ....cli.commands.credential_helper.manage import uninstall_cmd
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    installer = DockerInstaller()
+    installer.install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        launcher_env={"CLOUDSMITH_PROFILE": "acme"},
+    )
+    launcher = bin_dir / "docker-credential-cloudsmith-acme"
+    content = launcher.read_text()
+
+    with pytest.raises(HelperScopeConflict, match="uninstall docker -P acme$"):
+        installer.install(
+            bin_dir=str(bin_dir),
+            discover=False,
+            launcher_env={"CLOUDSMITH_WORKSPACE": "acme"},
+        )
+    result = runner.invoke(
+        uninstall_cmd, ["docker", "--bin-dir", str(bin_dir), "-w", "acme"]
+    )
+
+    assert result.exit_code == 1
+    assert "uninstall docker -P acme" in result.output
+    assert launcher.read_text() == content
 
 
 def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
