@@ -3,7 +3,7 @@ from unittest.mock import patch
 import click
 import pytest
 
-from cloudsmith_cli.cli.commands.tokens import list_tokens, refresh
+from cloudsmith_cli.cli.commands.tokens import create, list_tokens, refresh
 from cloudsmith_cli.core.api.exceptions import ApiException
 
 from .conftest import MockToken
@@ -184,3 +184,50 @@ class TestRequestApiKeyFunction:
 
         assert result is not None
         assert result.key == "ck_rotated_token"
+
+
+class TestCreateTokenCommand:
+    """Test suite for the 'tokens create' command."""
+
+    def test_create_save_config_with_json_output(self, runner):
+        """JSON output must still hand the new token to --save-config."""
+        new_token = MockToken(
+            key="new_token_123",
+            created="2025-01-03T00:00:00Z",
+            slug_perm="token-new",
+        )
+
+        with (
+            patch(
+                "cloudsmith_cli.core.api.user.create_user_token_saml",
+                return_value=new_token,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.tokens.create_config_files",
+                return_value=(True, False),
+            ) as mock_create_config,
+            patch("cloudsmith_cli.cli.commands.tokens.new_config_messaging"),
+        ):
+            result = runner.invoke(
+                create, ["--save-config", "-F", "json"], catch_exceptions=False
+            )
+
+        assert result.exit_code == 0
+        assert "new_token_123" in result.output
+        assert mock_create_config.call_args.kwargs["api_key"] == "new_token_123"
+
+    def test_create_save_config_skips_save_when_unauthorised(self, runner):
+        """A 401 must not crash when --save-config has no token to save."""
+        with (
+            patch(
+                "cloudsmith_cli.core.api.user.create_user_token_saml",
+                side_effect=ApiException(status=401, detail="Not authenticated"),
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.tokens.create_config_files"
+            ) as mock_create_config,
+        ):
+            result = runner.invoke(create, ["--save-config"], catch_exceptions=False)
+
+        assert "Not authenticated" in result.output
+        mock_create_config.assert_not_called()
