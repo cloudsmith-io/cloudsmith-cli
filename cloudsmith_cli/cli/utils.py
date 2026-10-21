@@ -9,6 +9,7 @@ from datetime import date, datetime
 import click
 from click_spinner import spinner
 
+from ..core import utils as core_utils
 from ..core.api.version import get_version as get_api_version
 from ..core.version import get_version as get_cli_version
 from .table import make_table
@@ -250,8 +251,8 @@ def get_output_format(opts):
 
 
 def should_use_stderr(opts):
-    """Check if stdout should be avoided for informational messages."""
-    return get_output_format(opts) in ("json", "pretty_json")
+    """Keep the existing CLI utility available using the shared output rule."""
+    return core_utils.should_use_stderr(opts)
 
 
 def maybe_print_status_json(opts, status_dict):
