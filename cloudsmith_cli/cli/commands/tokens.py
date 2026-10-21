@@ -199,8 +199,9 @@ def refresh(ctx, opts, token_slug, force, save_config):
         ctx, opts, token_slug, save_config, force
     )
 
-    if new_token and utils.maybe_print_as_json(opts, new_token):
-        return new_token
+    # The helper has already printed the token, both for a refresh and for a
+    # fallback to _create(), so printing it here would emit a second document.
+    return new_token
 
 
 def print_tokens(tokens):
