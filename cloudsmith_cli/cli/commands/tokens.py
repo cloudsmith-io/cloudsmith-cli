@@ -161,13 +161,7 @@ def list_tokens(ctx, opts):
 @click.pass_context
 def create(ctx, opts, save_config, force=False, json=False):
     """Create a new API token."""
-    new_token = _create(ctx, opts, save_config, force, json)
-
-    if save_config and new_token:
-        create, has_errors = create_config_files(
-            ctx, opts, api_key=new_token.key, force=force
-        )
-        new_config_messaging(has_errors, opts, create, api_key=new_token.key)
+    _create(ctx, opts, save_config, force, json)
 
 
 @tokens.command()
@@ -298,10 +292,17 @@ def _create(ctx, opts, save_config=False, force=False, json=False):
             if json and opts.output not in ("json", "pretty_json"):
                 opts.output = "json"
 
-            if utils.maybe_print_as_json(opts, new_token):
-                return new_token
+            if not utils.maybe_print_as_json(opts, new_token):
+                click.echo(
+                    f"New token value: {click.style(new_token.key, fg='magenta')}"
+                )
 
-            click.echo(f"New token value: {click.style(new_token.key, fg='magenta')}")
+            # Save here so refresh fallbacks persist newly created tokens too.
+            if save_config:
+                create, has_errors = create_config_files(
+                    ctx, opts, api_key=new_token.key, force=force
+                )
+                new_config_messaging(has_errors, opts, create, api_key=new_token.key)
             return new_token
 
         return new_token
