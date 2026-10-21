@@ -7,12 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.30.0] - 2026-10-20
+## [1.30.0] - 2026-10-21
 
 ### Added
 
-- Added anonymous error reporting. When a command fails with an unexpected error, the CLI sends a report to Cloudsmith through Sentry. Reporting is on by default, also in CI, and the CLI does not print a notice when it sends a report. (#459, #480)
-  - Not reported: usage errors, errors that the API returns, a `config.ini` that cannot be parsed, and `Ctrl+C`.
+- Added anonymous error reporting. When a command fails with an unexpected error, the CLI sends a report to Cloudsmith through Sentry. Reporting is on by default, also in CI, and the CLI does not print a notice when it sends a report. (#459, #480, #504)
+  - Not reported: usage errors, errors that the API returns, failed TLS certificate checks, a `config.ini` that cannot be parsed, and `Ctrl+C`.
   - A report contains the exception type and message (and those of any chained exceptions), the stack trace, the command name without its arguments, the CLI version and install method, the operating system, the CPU architecture, and the Python version.
   - Before the CLI sends a report, it removes API keys, passwords, email addresses, IP addresses, your user and machine names, host names that are not Cloudsmith hosts, and entitlement tokens that appear in URLs, in credential options, or in credential environment variables. It replaces local file paths with placeholders. The error message can still include workspace, repository, and package names.
   - The CLI never sends environment variables, local variables, or source code.
@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install terraform` now writes `-w <workspace>` into the `terraformrc` args, not `--org`. A block that has `--org` continues to work. The install also writes `--api-host` when you set an API host, so the helper gets the domains from that API host. Without a workspace, the install tells you how to set one. (#488)
 - **Breaking:** `cloudsmith credential-helper install` and `uninstall` now use `~/.cloudsmith/bin` for the launcher when you do not give `--bin-dir`. Previously, they used the directory of the `cloudsmith` executable if it was writable, and otherwise `~/.local/bin` (`%LOCALAPPDATA%\Cloudsmith\bin` on Windows). Terraform still uses its plugin directory. If `~/.cloudsmith/bin` is not on `PATH`, `install` for docker and cargo shows the command that adds it. `cloudsmith credential-helper list` looks only in `~/.cloudsmith/bin`, so it reports a launcher from an earlier version as not installed. To remove that launcher, run `uninstall` with `--bin-dir` set to its directory. (#482, #491)
 - The hint shown for a `401 - Unauthorized` error when no credential is set no longer suggests `cloudsmith token`. It now suggests `CLOUDSMITH_API_KEY` or `cloudsmith auth`. The `cloudsmith login` messages now say "API key" instead of "API token", and the hint for an expired session says "SAML" instead of "SSO". (#489)
+- Messages, help text, and the README now say SAML instead of SSO for the session and its tokens, for example `The SAML session has expired`. JSON keys and values, such as `"method": "sso"` and the `sso` key of `cloudsmith whoami`, do not change. (#504)
 
 ### Deprecated
 
@@ -47,6 +48,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The docker, pnpm, cargo, and terraform launchers of the standalone binary now quote the path of the binary correctly. A path with `$` or a backtick no longer breaks the launcher on Linux and macOS. (#492)
 - The `cloudsmith policy vulnerability create` and `update` help examples now use the `on_violation_quarantine` field. Previously, they showed `quarantine_on_violation`. (#501)
+- A failed TLS certificate check now stops the command at once, and the error shows a hint with the cause. For a failed strict X.509 check, the hint gives `--without-ssl-verify-strict` and `CLOUDSMITH_SSL_VERIFY_STRICT=0`. For a certificate from a CA that is not trusted, it gives `REQUESTS_CA_BUNDLE`. Previously, the CLI retried the request for up to 63 seconds with no output, and the error did not say what to do. (#504)
+- When the CLI cannot renew an expired SAML session, the message now includes the error, in `cloudsmith auth`, the credential helpers, and every other command. Previously, every network failure showed the same message, also with `--debug`. (#504)
+- `cloudsmith push` now reports a failed connection to the upload host, and a failed completion of a multi-part upload, as `Failed to upload file!`, the same as other API errors. Previously, it stopped with an unexpected error. (#504)
+- `cloudsmith download` now exits with code 1 when a file does not download. Files without a download URL are skipped and still exit with code 0. Previously, it exited with code 0 even when every file failed. (#504)
+- `cloudsmith tokens create` now shows the error and exits with a non-zero code when the API request fails. Previously, it showed nothing, or only the detail of a `401`, and exited with code 0. With `--save-config`, it no longer stops with an `AttributeError` after JSON output or when you decline to replace an existing token. (#504, #508)
+- `cloudsmith upstream FORMAT create`, `cloudsmith repositories create`, and the `cloudsmith policy` `create` commands now show a usage error when the config file has no `name`. Previously, they stopped with an `AttributeError`. (#504)
+- `cloudsmith credential-helper install cargo` now registers the credential provider when `~/.cargo/config.toml` exists but has no `[registry]` table. Previously, it wrote an empty `[registry]` table and reported success, and the provider was registered only after a second install. (#506)
 
 ## [1.29.0] - 2026-10-15
 

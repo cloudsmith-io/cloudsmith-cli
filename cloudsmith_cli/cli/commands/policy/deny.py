@@ -112,7 +112,8 @@ def create_deny_policy(ctx, opts, owner, policy_config_file):
     policy_name = policy_config.get("name")
     if not policy_name:
         raise click.BadParameter(
-            "Name is required for creating a deny policy.", param="name"
+            "Name is required for creating a deny policy.",
+            param_hint="'POLICY_CONFIG_FILE'",
         )
 
     click.secho(

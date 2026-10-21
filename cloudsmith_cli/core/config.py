@@ -3,7 +3,7 @@ import stat
 
 import click
 
-from .utils import get_help_website
+from .utils import get_help_website, should_use_stderr
 
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]
@@ -13,6 +13,7 @@ ConfigValues = collections.namedtuple(
 def create_config_files(ctx, opts, api_key, force=False):
     """Create default config files."""
     # pylint: disable=unused-argument
+    err = should_use_stderr(opts)
     config_reader = opts.get_config_reader()
     creds_reader = opts.get_creds_reader()
     has_config = config_reader.has_default_file()
@@ -21,22 +22,27 @@ def create_config_files(ctx, opts, api_key, force=False):
     if has_config and has_creds:
         create = False
     else:
-        click.echo()
+        click.echo(err=err)
         if not force:
             create = click.confirm(
-                "No default config file(s) found, do you want to create them?"
+                "No default config file(s) found, do you want to create them?",
+                err=err,
             )
         else:
             create = "y"
 
-    click.echo()
+    click.echo(err=err)
     if not create:
         click.secho(
-            "For reference here are your default config file locations:", fg="yellow"
+            "For reference here are your default config file locations:",
+            fg="yellow",
+            err=err,
         )
     else:
         click.secho(
-            "Great! Let me just create your default configs for you now ...", fg="green"
+            "Great! Let me just create your default configs for you now ...",
+            fg="green",
+            err=err,
         )
 
     configs = (
@@ -59,6 +65,7 @@ def create_config_files(ctx, opts, api_key, force=False):
                 ),
             ),
             nl=False,
+            err=err,
         )
 
         if not config.present and create:
@@ -72,14 +79,15 @@ def create_config_files(ctx, opts, api_key, force=False):
                 has_errors = True
 
             if ok:
-                click.secho("CREATED", fg="green")
+                click.secho("CREATED", fg="green", err=err)
             else:
-                click.secho("ERROR", fg="red")
+                click.secho("ERROR", fg="red", err=err)
                 click.secho(
                     "The following error occurred while trying to "
                     "create the file: {message}".format(
                         message=click.style(error_message, fg="red")
-                    )
+                    ),
+                    err=err,
                 )
             continue
 
@@ -94,48 +102,53 @@ def create_config_files(ctx, opts, api_key, force=False):
                     config.reader.get_default_filepath(),
                     config.data["api_key"],
                 )
-                click.secho("UPDATED", fg="green")
+                click.secho("UPDATED", fg="green", err=err)
             except OSError as exc:
                 has_errors = True
-                click.secho("ERROR", fg="red")
+                click.secho("ERROR", fg="red", err=err)
                 click.secho(
                     "The following error occurred while trying to "
                     "update the file: {message}".format(
                         message=click.style(exc.strerror, fg="red")
-                    )
+                    ),
+                    err=err,
                 )
             continue
 
-        click.secho("EXISTS" if config.present else "NOT CREATED", fg="yellow")
+        click.secho("EXISTS" if config.present else "NOT CREATED", fg="yellow", err=err)
 
     return create, has_errors
 
 
 def new_config_messaging(has_errors, opts, create, api_key):
     """Provide messaging to user after generating new configs"""
+    err = should_use_stderr(opts)
     if has_errors:
-        click.echo()
-        click.secho("Oops, please fix the errors and try again!", fg="red")
+        click.echo(err=err)
+        click.secho("Oops, please fix the errors and try again!", fg="red", err=err)
         return
 
     if opts.api_key_from_file != api_key:
-        click.echo()
+        click.echo(err=err)
         if opts.api_key_from_file:
             click.secho(
                 "Note: The above API key doesn't match what you have in "
                 "your default credentials config file.",
                 fg="yellow",
+                err=err,
             )
         elif not create:
             click.secho(
                 "Note: Don't forget to put your API key in a config file, "
                 "export it on the environment, or set it via -k.",
                 fg="yellow",
+                err=err,
             )
             click.secho(
                 "If you need more help please see the documentation: "
-                f"{click.style(get_help_website(), bold=True)}"
+                f"{click.style(get_help_website(), bold=True)}",
+                err=err,
             )
-        click.echo()
+        click.echo(err=err)
 
-    click.secho("You're ready to rock, let's start automating!", fg="green")
+    click.secho("You're ready to rock, let's start automating!", fg="green", err=err)

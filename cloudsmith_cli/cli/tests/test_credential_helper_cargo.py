@@ -155,7 +155,7 @@ def test_index_url_keeps_its_sparse_prefix_out_of_the_host_match(credential):
 
 
 def test_get_returns_bearer_scheme_for_sso_credential():
-    """An SSO credential is returned with the Bearer authorization scheme."""
+    """A SAML credential is returned with the Bearer authorization scheme."""
     credential = CredentialResult(
         api_key="jwt_token",
         source_name="keyring",
@@ -363,7 +363,7 @@ def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
             cargo,
             args=[],
             input=json.dumps(_request()) + "\n",
-            env={"CLOUDSMITH_API_KEY": ""},
+            env={"CLOUDSMITH_API_KEY": "", "CLOUDSMITH_NO_KEYRING": "1"},
             catch_exceptions=False,
         )
 
@@ -501,6 +501,21 @@ def test_installer_pins_the_provider_on_matching_named_registries(cargo_home, bi
     # A foreign registry is left for its own provider
     assert "credential-provider" not in registries["crates-io-mirror"]
     assert any("registries.acme.credential-provider" in a for a in actions)
+
+
+def test_installer_registers_global_provider_in_existing_config(cargo_home, bin_dir):
+    """An existing config.toml without [registry] must still get the provider."""
+    cargo_home.parent.mkdir(parents=True)
+    cargo_home.write_text("[net]\ngit-fetch-with-cli = true\n")
+
+    CargoInstaller().install(bin_dir=str(bin_dir), discover=False)
+
+    config = tomlkit.loads(cargo_home.read_text())
+    assert config["net"]["git-fetch-with-cli"] is True
+    assert config["registry"]["global-credential-providers"] == [
+        "cargo:token",
+        PROVIDER,
+    ]
 
 
 def test_installer_dry_run_writes_nothing(cargo_home, bin_dir):

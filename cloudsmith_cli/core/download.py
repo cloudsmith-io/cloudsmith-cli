@@ -443,7 +443,7 @@ def stream_download(
 
     if is_basic_endpoint:
         # /basic/ endpoints require Basic Auth with API keys
-        # SSO Bearer tokens cannot be used directly with Basic Auth
+        # SAML Bearer tokens cannot be used directly with Basic Auth
         if "Authorization" in request_headers and request_headers[
             "Authorization"
         ].startswith("Bearer "):

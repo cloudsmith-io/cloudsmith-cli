@@ -31,6 +31,7 @@ def _access_token_from_renewal(context, renewal, held_access_token):
         return held_access_token if access_token_is_valid(held_access_token) else None
     if renewal.status == SsoRenewalStatus.FAILED:
         context.keyring_refresh_failed = True
+        context.keyring_refresh_error = renewal.error
         return None
     if renewal.status == SsoRenewalStatus.UNRENEWABLE:
         context.keyring_refresh_failed = True

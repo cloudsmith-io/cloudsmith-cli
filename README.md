@@ -48,7 +48,7 @@ The CLI currently supports the following commands (and sub-commands):
   - `packages`:             List packages for a repository. (Aliases `repos list`)
   - `repos`:                List repositories for a namespace (owner).
 - `login`|`token`:        [DEPRECATED] Retrieve your API authentication token/key via login.
-- `logout`:               Clear stored authentication credentials and SSO tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
+- `logout`:               Clear stored authentication credentials and SAML tokens (Keyring, API key from credential file and emit warning when `$CLOUDSMITH_API_KEY` is still set).
 - `metadata`:             Manage arbitrary JSON metadata (SBOM, BuildInfo, custom) attached to a package.
   - `add`:                  Attach a new metadata entry to a package.
   - `list`|`ls`:            List metadata entries for a package, or fetch a single entry by slug.
@@ -312,7 +312,7 @@ Both configuration files use the simple INI format, such as:
 api_key=1234567890abcdef1234567890abcdef
 ```
 
-Additionally, the CLI will store SSO access and refresh tokens in the system keyring
+Additionally, the CLI will store SAML access and refresh tokens in the system keyring
 using the [`keyring`](https://github.com/jaraco/keyring) library.
 
 

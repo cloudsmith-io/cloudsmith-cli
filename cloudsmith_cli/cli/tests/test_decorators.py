@@ -6,6 +6,7 @@ import pytest
 
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
+from ...core.tests.test_certificate_errors import certificate_error
 from ...core.utils import get_data_path, read_file
 from ..config import Options
 from ..decorators import (
@@ -49,8 +50,27 @@ def test_rejected_sso_session_continues_without_early_exception():
         result = click.testing.CliRunner().invoke(_credential_command())
 
     assert result.exit_code == 0
-    assert "Your SSO session has expired" in result.stderr
-    assert "continuing without SSO authentication" in result.stderr
+    assert "Your SAML session has expired" in result.stderr
+    assert "continuing without SAML authentication" in result.stderr
+    assert result.stdout == "command ran\n"
+
+
+def test_failed_saml_renewal_explains_the_certificate_error():
+    def fail(context):
+        context.keyring_refresh_failed = True
+        context.keyring_refresh_error = certificate_error(
+            85, "Missing Authority Key Identifier"
+        )
+
+    with patch(
+        "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
+        side_effect=fail,
+    ):
+        result = click.testing.CliRunner().invoke(_credential_command())
+
+    assert "has expired: " in result.stderr
+    assert "Missing Authority Key Identifier" in result.stderr
+    assert "Hint: The TLS certificate failed a strict X.509 check" in result.stderr
     assert result.stdout == "command ran\n"
 
 
