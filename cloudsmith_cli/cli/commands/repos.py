@@ -259,7 +259,8 @@ def create(ctx, opts, owner, repo_config_file):
     repo_name = repo_config.get("name", None)
     if repo_name is None:
         raise click.BadParameter(
-            "Name is a required field for creating a repository.", param="name"
+            "Name is a required field for creating a repository.",
+            param_hint="'REPO_CONFIG_FILE'",
         )
 
     click.secho(

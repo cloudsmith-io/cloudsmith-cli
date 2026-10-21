@@ -4,6 +4,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from cloudsmith_cli.core import keyring
 from cloudsmith_cli.core.credentials.models import CredentialContext
@@ -103,7 +104,7 @@ class TestKeyringProvider:
         "error",
         [
             RuntimeError("temporarily unavailable"),
-            ValueError("Cloudsmith did not return a new SSO access token."),
+            ValueError("Cloudsmith did not return a new SAML access token."),
         ],
         ids=["transient-error", "missing-access-response"],
     )
@@ -126,6 +127,22 @@ class TestKeyringProvider:
         assert result is not None
         assert result.api_key == "old-token"
         assert context.keyring_refresh_failed is True
+
+    def test_failed_renewal_keeps_the_error(self):
+        provider = KeyringProvider()
+        context = CredentialContext(session=MagicMock())
+        error = requests.ConnectionError("offline")
+        renewal = SsoRenewalResult(status=SsoRenewalStatus.FAILED, error=error)
+        with (
+            patch.object(keyring, "should_use_keyring", return_value=True),
+            patch.object(keyring, "get_access_token", return_value="old-token"),
+            patch.object(keyring, "should_refresh_access_token", return_value=True),
+            patch.object(keyring_provider, "renew_sso_session", return_value=renewal),
+        ):
+            result = provider.resolve(context)
+
+        assert result is None
+        assert context.keyring_refresh_error is error
 
     def test_unrenewable_session_uses_still_valid_token(self):
         provider = KeyringProvider()

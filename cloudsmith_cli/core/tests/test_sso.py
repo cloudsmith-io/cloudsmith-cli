@@ -1,4 +1,4 @@
-"""Tests for shared SSO session renewal."""
+"""Tests for shared SAML session renewal."""
 
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, call, patch

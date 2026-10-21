@@ -288,7 +288,7 @@ def get_refresh_token(api_host, profile=None):
 
 
 def store_sso_tokens(api_host, access_token, refresh_token, profile=None):
-    """Store SSO tokens in keyring if enabled."""
+    """Store SAML tokens in keyring if enabled."""
     if not should_use_keyring():
         return False
 
@@ -322,7 +322,7 @@ def _delete_value(key):
 
 
 def _sso_keys(api_host, profile=None, include_legacy=True):
-    """Return the keyring service names for all SSO-related entries.
+    """Return the keyring service names for all SAML-related entries.
 
     For a scoped profile with include_legacy, the list also contains the
     legacy unscoped entries so that the caller removes pre-scoping
@@ -340,14 +340,14 @@ def _sso_keys(api_host, profile=None, include_legacy=True):
 
 
 def has_sso_tokens(api_host, profile=None):
-    """Check if any SSO tokens exist in the keyring for the given host."""
+    """Check if any SAML tokens exist in the keyring for the given host."""
     if not should_use_keyring():
         return False
     return any(_get_value(key) for key in _sso_keys(api_host, profile=profile))
 
 
 def delete_sso_tokens(api_host, profile=None, include_legacy=True):
-    """Delete all SSO tokens from the keyring for the given host.
+    """Delete all SAML tokens from the keyring for the given host.
 
     Set include_legacy to False to keep the legacy unscoped entries,
     which hold the default profile's session.

@@ -1,7 +1,7 @@
 """Integration tests proving correct credential resolution priority.
 
 Priority (highest → lowest):
-    --api-key CLI flag > CLOUDSMITH_API_KEY env var > credentials.ini > keyring SSO
+    --api-key CLI flag > CLOUDSMITH_API_KEY env var > credentials.ini > keyring SAML
 """
 
 from unittest.mock import patch
@@ -19,7 +19,7 @@ class TestCredentialChainPriority:
         )
 
     def test_cli_flag_beats_keyring(self):
-        """Explicit --api-key must win over a keyring SSO token."""
+        """Explicit --api-key must win over a keyring SAML token."""
         context = self._context(api_key_from_flag="explicit-flag-key")
 
         with (
@@ -35,7 +35,7 @@ class TestCredentialChainPriority:
         assert result.source_name == "cli_flag"
 
     def test_env_var_beats_keyring(self):
-        """CLOUDSMITH_API_KEY env var must win over keyring SSO."""
+        """CLOUDSMITH_API_KEY env var must win over keyring SAML."""
         context = self._context(api_key_from_env="env-key")
 
         with (
@@ -51,7 +51,7 @@ class TestCredentialChainPriority:
         assert result.source_name == "env_var"
 
     def test_credentials_file_beats_keyring(self):
-        """credentials.ini must win over keyring SSO."""
+        """credentials.ini must win over keyring SAML."""
         context = self._context(api_key_from_file="file-key")
 
         with (
@@ -109,7 +109,7 @@ class TestCredentialChainPriority:
         assert result.source_name == "env_var"
 
     def test_keyring_used_when_no_explicit_key(self):
-        """Keyring SSO is the fallback when no explicit keys are set."""
+        """Keyring SAML is the fallback when no explicit keys are set."""
         context = self._context()
 
         with (

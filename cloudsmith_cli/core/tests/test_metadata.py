@@ -28,7 +28,7 @@ def _setup_api(monkeypatch):
     initialise_api() registers custom retry attributes on cloudsmith_api.Configuration
     that create_requests_session expects, and the metadata module reads host/auth
     off the same Configuration singleton. Keyring is stubbed so we never touch the
-    user's real SSO tokens during a test run.
+    user's real SAML tokens during a test run.
     """
     monkeypatch.setattr(keyring, "get_access_token", lambda host, profile=None: None)
     monkeypatch.setattr(keyring, "get_refresh_token", lambda host, profile=None: None)
