@@ -375,13 +375,17 @@ def _first_envvar(names):
     return next((os.environ[name] for name in names if os.environ.get(name)), None)
 
 
-def start_update_check(ctx, opts):
-    """Start a due update check for an invocation without initialise_session.
+def resolve_default_proxy(ctx, opts):
+    """Set the default proxy for HTTP clients outside initialise_session.
 
     The proxy is resolved as initialise_session does: the environment takes
     precedence over config, and an untrusted directory-relative proxy is
-    rejected, in which case the check is skipped rather than failing the run.
+    rejected. A rejected proxy leaves no default set rather than failing the
+    run, so error reporting and the update check still work. Return False if
+    the proxy was rejected.
     """
+    from ..core.session import set_default_proxy
+
     env_proxy = _first_envvar(PROXY_ENVVARS)
     if env_proxy:
         opts.proxy = env_proxy
@@ -390,8 +394,10 @@ def start_update_check(ctx, opts):
         try:
             _guard_untrusted_proxy(ctx, opts, proxy_suffixes)
         except click.UsageError:
-            return
-    update_check.start(ctx, opts)
+            set_default_proxy(None)
+            return False
+    set_default_proxy(opts.proxy)
+    return True
 
 
 def initialise_session(f):
@@ -498,7 +504,9 @@ def initialise_session(f):
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
         )
-        update_check.start(ctx, opts)
+        # A group (e.g. `mcp`) defers to its subcommand, whose options win.
+        if not ctx.invoked_subcommand:
+            update_check.start(ctx, opts)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)

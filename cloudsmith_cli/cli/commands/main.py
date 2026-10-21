@@ -72,8 +72,9 @@ def main(ctx, opts, version, no_check_update):
     # pylint: disable=unused-argument
 
     update_check.arm(ctx, opts, no_check_update)
-    if ctx.invoked_subcommand is None:
-        decorators.start_update_check(ctx, opts)
+    proxy_trusted = decorators.resolve_default_proxy(ctx, opts)
+    if ctx.invoked_subcommand is None and proxy_trusted:
+        update_check.start(ctx, opts)
 
     if version:
         print_version(opts)

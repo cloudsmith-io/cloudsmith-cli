@@ -266,3 +266,26 @@ def test_initialise_session_starts_the_update_check_with_the_proxy():
         )
     assert result.exit_code == 0, result.output
     assert start.call_args.args[1].proxy == PROXY
+
+
+def test_nested_command_starts_the_update_check_with_its_own_proxy():
+    @click.group()
+    @initialise_session
+    def group(opts):
+        pass
+
+    @group.command()
+    @initialise_session
+    def leaf(opts):
+        pass
+
+    seen = []
+    with patch(
+        "cloudsmith_cli.core.update_check.start",
+        side_effect=lambda ctx, opts: seen.append(opts.proxy),
+    ):
+        result = click.testing.CliRunner().invoke(
+            group, ["leaf", "--proxy", PROXY], obj=Options()
+        )
+    assert result.exit_code == 0, result.output
+    assert seen == [PROXY]
