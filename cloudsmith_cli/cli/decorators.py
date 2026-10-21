@@ -735,6 +735,7 @@ def resolve_credentials(f):
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
+        opts.credential_context = context
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
