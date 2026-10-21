@@ -38,7 +38,7 @@ class TestResolveAuth(unittest.TestCase):
 
     @patch("cloudsmith_cli.core.download.create_requests_session")
     def test_resolve_auth_sso_credential(self, mock_create_session):
-        """Test that an SSO session resolved by the chain uses a bearer header."""
+        """Test that a SAML session resolved by the chain uses a bearer header."""
         mock_create_session.return_value = Mock()
         self.mock_opts.credential = CredentialResult(
             api_key="sso-token", source_name="keyring", auth_type="bearer"

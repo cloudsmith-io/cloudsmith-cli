@@ -31,6 +31,7 @@ class CredentialContext:
     keyring_refresh_failed: bool = False
     keyring_refresh_rejected: bool = False
     keyring_refresh_unrenewable: bool = False
+    keyring_refresh_error: Exception | None = None
     skip_keyring_refresh: bool = False
     oidc_audience: str | None = None
     org: str | None = None
@@ -54,7 +55,7 @@ class CredentialResult:
         """Return the headers that authenticate a raw request with this credential.
 
         The two headers are not interchangeable: a raw JWT in ``X-Api-Key`` is
-        rejected outright, aborting the auth chain before the SSO
+        rejected outright, aborting the auth chain before the SAML
         authenticators run.
         """
         if self.auth_type == "bearer":

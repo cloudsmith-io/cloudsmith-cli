@@ -14,12 +14,14 @@ import click
 import pytest
 
 from cloudsmith_cli.cli import config as cli_config
+from cloudsmith_cli.cli.command import _format_click_exception_as_json
 from cloudsmith_cli.cli.commands.main import main
 from cloudsmith_cli.core import telemetry
 from cloudsmith_cli.core.api.exceptions import (
     ApiException,
     TwoFactorRequiredException,
 )
+from cloudsmith_cli.core.tests.test_certificate_errors import certificate_error
 
 API_KEY = "fake-api-key-0123456789"
 
@@ -290,6 +292,41 @@ def test_click_errors_are_not_reported(runner, tmp_path, sentry_events, exc):
 
     assert result.exit_code != 0
     assert sentry_events == []
+
+
+STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"
+
+
+def test_certificate_error_is_explained_and_not_reported(
+    runner, tmp_path, sentry_events
+):
+    failure = certificate_error(85, "Missing Authority Key Identifier")
+    with whoami_raises(failure):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert "Error: SSLError:" in result.stderr
+    assert STRICT_HINT in result.stderr
+    assert sentry_events == []
+
+
+def test_click_error_caused_by_a_certificate_error_is_explained(runner, tmp_path):
+    error = click.ClickException("Failed to fetch domains")
+    error.__cause__ = certificate_error(85, "Missing Authority Key Identifier")
+    with whoami_raises(error):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert STRICT_HINT in result.stderr
+
+
+def test_json_click_error_caused_by_a_certificate_error_is_explained():
+    error = click.ClickException("Failed to fetch domains")
+    error.__cause__ = certificate_error(85, "Missing Authority Key Identifier")
+
+    hint = _format_click_exception_as_json(error)["help"]["hint"]
+
+    assert hint.startswith("The TLS certificate failed a strict X.509 check")
 
 
 def test_user_error_is_not_reported(runner, tmp_path, sentry_events):

@@ -7,8 +7,11 @@ import time
 import requests
 import urllib3
 from requests.adapters import HTTPAdapter
+from urllib3.exceptions import MaxRetryError
 from urllib3.util.retry import Retry
 from urllib3.util.ssl_ import create_urllib3_context
+
+from .certificate_errors import find_certificate_error
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -32,6 +35,20 @@ class RetryWithCallback(Retry):
     def new(self, **kw):
         kw["error_retry_cb"] = self.error_retry_cb
         return super().new(**kw)
+
+    def increment(
+        self,
+        method=None,
+        url=None,
+        response=None,
+        error=None,
+        _pool=None,
+        _stacktrace=None,
+    ):
+        # A failed certificate check fails the same way on every attempt.
+        if error is not None and find_certificate_error(error) is not None:
+            raise MaxRetryError(_pool, url, error) from error
+        return super().increment(method, url, response, error, _pool, _stacktrace)
 
     def sleep_for_retry(self, response=None):
         retry_after = self.get_retry_after(response)

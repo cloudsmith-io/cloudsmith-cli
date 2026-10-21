@@ -3,22 +3,17 @@ import stat
 
 import click
 
-from .utils import get_help_website
+from .utils import get_help_website, should_use_stderr
 
 ConfigValues = collections.namedtuple(
     "ConfigValues", ["reader", "present", "mode", "data"]
 )
 
 
-def _use_stderr(opts):
-    """Keep stdout clean for the JSON document when -F json|pretty_json is set."""
-    return getattr(opts, "output", None) in ("json", "pretty_json")
-
-
 def create_config_files(ctx, opts, api_key, force=False):
     """Create default config files."""
     # pylint: disable=unused-argument
-    err = _use_stderr(opts)
+    err = should_use_stderr(opts)
     config_reader = opts.get_config_reader()
     creds_reader = opts.get_creds_reader()
     has_config = config_reader.has_default_file()
@@ -127,7 +122,7 @@ def create_config_files(ctx, opts, api_key, force=False):
 
 def new_config_messaging(has_errors, opts, create, api_key):
     """Provide messaging to user after generating new configs"""
-    err = _use_stderr(opts)
+    err = should_use_stderr(opts)
     if has_errors:
         click.echo(err=err)
         click.secho("Oops, please fix the errors and try again!", fg="red", err=err)

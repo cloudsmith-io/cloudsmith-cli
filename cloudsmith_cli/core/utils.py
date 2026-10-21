@@ -8,6 +8,11 @@ from enum import Enum, auto
 import click
 
 
+def should_use_stderr(opts):
+    """Check if stdout should be avoided for informational messages."""
+    return getattr(opts, "output", None) in ("json", "pretty_json")
+
+
 def get_help_website():
     """Get the URL for the help website."""
     return "https://docs.cloudsmith.com/developer-tools/cli"

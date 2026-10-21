@@ -155,7 +155,7 @@ def test_index_url_keeps_its_sparse_prefix_out_of_the_host_match(credential):
 
 
 def test_get_returns_bearer_scheme_for_sso_credential():
-    """An SSO credential is returned with the Bearer authorization scheme."""
+    """A SAML credential is returned with the Bearer authorization scheme."""
     credential = CredentialResult(
         api_key="jwt_token",
         source_name="keyring",
@@ -363,7 +363,7 @@ def test_cli_exits_non_zero_with_a_hint_when_no_credential_resolves(runner):
             cargo,
             args=[],
             input=json.dumps(_request()) + "\n",
-            env={"CLOUDSMITH_API_KEY": ""},
+            env={"CLOUDSMITH_API_KEY": "", "CLOUDSMITH_NO_KEYRING": "1"},
             catch_exceptions=False,
         )
 
