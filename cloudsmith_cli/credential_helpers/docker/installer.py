@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,6 +46,29 @@ def _docker_config_path() -> Path:
     return Path.home() / ".docker" / "config.json"
 
 
+def _helper_name(profile: str | None, workspace: str | None) -> str:
+    """Return the ``credHelpers`` value for an install with these settings.
+
+    Each profile and Workspace gets its own launcher, so that installs for
+    different configurations can coexist.
+    """
+    segments = [
+        re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
+        for value in (profile, workspace)
+        if value
+    ]
+    return "-".join(["cloudsmith", *filter(None, segments)])
+
+
+def _is_cloudsmith_helper(value) -> bool:
+    return value == "cloudsmith" or str(value).startswith("cloudsmith-")
+
+
+def _launcher_path(target_dir: Path, helper: str) -> Path:
+    name = f"docker-credential-{helper}"
+    return target_dir / (f"{name}.cmd" if is_windows() else name)
+
+
 class DockerInstaller:
     """Manages installation of the Docker credential helper for Cloudsmith.
 
@@ -61,8 +85,10 @@ class DockerInstaller:
     """
 
     LAUNCHER_NAME = "docker-credential-cloudsmith"
-    HELPER_VALUE = "cloudsmith"
     DEFAULT_HOST = "docker.cloudsmith.io"
+    # Docker runs the helper from Docker Desktop, IDEs and other shells, so
+    # the launcher keeps the install-time settings.
+    KEEPS_INSTALL_TIME_SETTINGS = True
 
     name = "docker"
     summary = "Docker credential helper for Cloudsmith registries"
@@ -77,6 +103,9 @@ class DockerInstaller:
         org: str | None = None,
         credential: CredentialResult | None = None,
         api_host: str | None = None,
+        profile: str | None = None,
+        workspace: str | None = None,
+        launcher_env: dict[str, str] | None = None,
         dry_run: bool = False,
     ) -> list[str]:
         """Install the Docker credential helper.
@@ -105,6 +134,10 @@ class DockerInstaller:
             Resolved credential used for custom-domain discovery.
         api_host:
             Cloudsmith API host URL override.
+        profile, workspace:
+            The install-time profile and Workspace, which name the helper.
+        launcher_env:
+            ``CLOUDSMITH_*`` settings that the launcher sets.
         dry_run:
             When ``True``, compute and return planned actions without writing
             any files.
@@ -117,6 +150,9 @@ class DockerInstaller:
         """
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
+        launcher_env = launcher_env or {}
+        helper = _helper_name(profile, workspace)
+        launcher_name = f"docker-credential-{helper}"
 
         actions: list[str] = []
 
@@ -179,58 +215,80 @@ class DockerInstaller:
                 deduped.append(h)
         hosts = deduped
 
+        replaced: list[str] = []
+
         def mutate(config: dict) -> None:
             helpers = config.get("credHelpers")
             if not isinstance(helpers, dict):
                 helpers = config["credHelpers"] = {}
             for host in hosts:
-                helpers[host] = self.HELPER_VALUE
+                current = helpers.get(host)
+                if current != helper and _is_cloudsmith_helper(current):
+                    replaced.append(
+                        f"WARNING: credHelpers[{host!r}] changes from {current!r}"
+                        f" to {helper!r}"
+                    )
+                helpers[host] = helper
+
+        launcher_settings = (
+            [f"launcher sets {', '.join(launcher_env)}"] if launcher_env else []
+        )
 
         if dry_run:
-            if os.name == "nt":
-                launcher_path = target_dir / f"{self.LAUNCHER_NAME}.cmd"
-            else:
-                launcher_path = target_dir / self.LAUNCHER_NAME
+            launcher_path = write_launcher(
+                target_dir,
+                launcher_name,
+                helper_command(self.name),
+                dry_run=True,
+                env=launcher_env,
+            )
             actions.append(f"would write launcher {launcher_path}")
+            actions.extend(launcher_settings)
 
             would_change = merge_config_file(config_path, mutate, dry_run=True)
             for host in hosts:
                 if would_change:
                     actions.append(
-                        f"would set credHelpers[{host!r}]={self.HELPER_VALUE!r}"
-                        f" in {config_path}"
+                        f"would set credHelpers[{host!r}]={helper!r} in {config_path}"
                     )
                 else:
                     actions.append(
                         f"credHelpers[{host!r}] already set"
                         f" in {config_path} (no change)"
                     )
-            return actions
+            return actions + replaced
 
         # Real install
         launcher_path = write_launcher(
-            target_dir, self.LAUNCHER_NAME, helper_command(self.name)
+            target_dir, launcher_name, helper_command(self.name), env=launcher_env
         )
         actions.append(f"wrote launcher {launcher_path}")
+        actions.extend(launcher_settings)
 
         changed = merge_config_file(config_path, mutate)
         if changed:
             actions.extend(
-                f"set credHelpers[{host!r}]={self.HELPER_VALUE!r} in {config_path}"
+                f"set credHelpers[{host!r}]={helper!r} in {config_path}"
                 for host in hosts
             )
         else:
             actions.append(f"config.json already up to date ({config_path})")
+        actions.extend(replaced)
 
         if not is_on_path(target_dir):
             actions.append(
-                path_warning(target_dir, "Docker", self.LAUNCHER_NAME, is_windows())
+                path_warning(target_dir, "Docker", launcher_name, is_windows())
             )
 
         return actions
 
     def uninstall(
-        self, *, bin_dir: str | None = None, dry_run: bool = False
+        self,
+        *,
+        bin_dir: str | None = None,
+        profile: str | None = None,
+        workspace: str | None = None,
+        dry_run: bool = False,
     ) -> list[str]:
         """Uninstall the Docker credential helper.
 
@@ -244,6 +302,9 @@ class DockerInstaller:
             Defaults to :func:`resolve_bin_dir` auto-detection.  Pass the same
             value that was given to :meth:`install` so the correct launcher file
             is found and removed.
+        profile, workspace:
+            The settings of the install to remove.  Without them, the helper
+            of an install without them is removed.
         dry_run:
             When ``True``, return planned actions without writing any files.
 
@@ -254,23 +315,21 @@ class DockerInstaller:
         """
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
+        helper = _helper_name(profile, workspace)
+        launcher_name = f"docker-credential-{helper}"
 
         def mutate(config: dict) -> None:
             helpers = config.get("credHelpers")
             if not isinstance(helpers, dict):
                 return
-            removed = [k for k, v in helpers.items() if v == self.HELPER_VALUE]
+            removed = [k for k, v in helpers.items() if v == helper]
             for key in removed:
                 del helpers[key]
             if removed and not helpers:
                 del config["credHelpers"]
 
         actions: list[str] = []
-
-        if os.name == "nt":
-            launcher_path = target_dir / f"{self.LAUNCHER_NAME}.cmd"
-        else:
-            launcher_path = target_dir / self.LAUNCHER_NAME
+        launcher_path = _launcher_path(target_dir, helper)
 
         if dry_run:
             if launcher_path.exists():
@@ -284,14 +343,14 @@ class DockerInstaller:
             if would_change:
                 actions.append(
                     f"would remove credHelpers entries with value"
-                    f" {self.HELPER_VALUE!r} from {config_path}"
+                    f" {helper!r} from {config_path}"
                 )
             else:
                 actions.append(f"no credHelpers entries to remove from {config_path}")
             return actions
 
         # Real uninstall
-        removed = remove_launcher(target_dir, self.LAUNCHER_NAME)
+        removed = remove_launcher(target_dir, launcher_name)
         if removed:
             actions.append(f"removed launcher {launcher_path}")
         else:
@@ -300,8 +359,7 @@ class DockerInstaller:
         changed = merge_config_file(config_path, mutate)
         if changed:
             actions.append(
-                f"removed credHelpers entries with value"
-                f" {self.HELPER_VALUE!r} from {config_path}"
+                f"removed credHelpers entries with value {helper!r} from {config_path}"
             )
         else:
             actions.append(f"no credHelpers entries to remove from {config_path}")
@@ -317,31 +375,33 @@ class DockerInstaller:
             A dict with keys:
 
             ``"launcher"``
-                The :class:`~pathlib.Path` of the launcher if it exists,
-                else ``None``.
+                The path of the launcher that the first host uses, else of
+                the unscoped launcher, if it exists.  Else ``None``.
             ``"hosts"``
                 List of hostnames in ``config.json``'s ``credHelpers`` block
-                whose value equals ``"cloudsmith"``.
+                that use a ``cloudsmith`` or ``cloudsmith-*`` helper.
         """
-        target_dir = resolve_bin_dir()
-        if os.name == "nt":
-            launcher_path: Path | None = target_dir / f"{self.LAUNCHER_NAME}.cmd"
-        else:
-            launcher_path = target_dir / self.LAUNCHER_NAME
-
-        if launcher_path is not None and not launcher_path.exists():
-            launcher_path = None
-
         config_path = _docker_config_path()
-        hosts: list[str] = []
+        helpers: dict = {}
         if config_path.exists():
             try:
                 data = json.loads(config_path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    helpers = data.get("credHelpers", {})
-                    hosts = [k for k, v in helpers.items() if v == self.HELPER_VALUE]
+                    helpers = {
+                        k: v
+                        for k, v in data.get("credHelpers", {}).items()
+                        if _is_cloudsmith_helper(v)
+                    }
             except (json.JSONDecodeError, OSError):
                 pass
+        hosts = list(helpers)
+
+        target_dir = resolve_bin_dir()
+        candidates = [
+            _launcher_path(target_dir, helper)
+            for helper in [*helpers.values(), "cloudsmith"]
+        ]
+        launcher_path = next((path for path in candidates if path.exists()), None)
 
         return {
             "launcher": str(launcher_path) if launcher_path is not None else None,

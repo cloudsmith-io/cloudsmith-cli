@@ -399,6 +399,93 @@ def test_docker_installer_install(tmp_path, monkeypatch):
     assert (bin_dir / "docker-credential-cloudsmith").exists()
 
 
+def test_docker_install_scopes_the_helper_to_the_install_time_settings(
+    tmp_path, monkeypatch
+):
+    """The profile and Workspace name the helper, so installs can coexist."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    bin_dir = tmp_path / "bin"
+    monkeypatch.setenv("PATH", str(bin_dir))
+    installer = DockerInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+
+    actions = installer.install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        profile="Meta",
+        workspace="iduffy_demo",
+        launcher_env={
+            "CLOUDSMITH_PROFILE": "Meta",
+            "CLOUDSMITH_WORKSPACE": "iduffy_demo",
+            "CLOUDSMITH_API_HOST": "https://api.example.com",
+        },
+    )
+
+    name = "cloudsmith-meta-iduffy-demo"
+    assert (bin_dir / f"docker-credential-{name}").read_text() == (
+        "#!/bin/sh\n"
+        "export CLOUDSMITH_PROFILE=Meta\n"
+        "export CLOUDSMITH_WORKSPACE=iduffy_demo\n"
+        "export CLOUDSMITH_API_HOST=https://api.example.com\n"
+        'exec cloudsmith credential-helper docker "$@"\n'
+    )
+    assert (bin_dir / "docker-credential-cloudsmith").exists()
+    cfg = json.loads((tmp_path / ".docker" / "config.json").read_text())
+    assert cfg["credHelpers"] == {"docker.cloudsmith.io": name}
+    assert (
+        "WARNING: credHelpers['docker.cloudsmith.io'] changes from 'cloudsmith'"
+        f" to {name!r}"
+    ) in actions
+
+
+def test_docker_dry_run_shows_the_scoped_launcher_and_its_settings(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+
+    actions = DockerInstaller().install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        dry_run=True,
+        workspace="acme",
+        launcher_env={"CLOUDSMITH_WORKSPACE": "acme", "CLOUDSMITH_NO_KEYRING": "1"},
+    )
+
+    assert actions[:2] == [
+        f"would write launcher {bin_dir / 'docker-credential-cloudsmith-acme'}",
+        "launcher sets CLOUDSMITH_WORKSPACE, CLOUDSMITH_NO_KEYRING",
+    ]
+    assert not bin_dir.exists()
+
+
+def test_docker_uninstall_takes_the_scope_from_flags_only(
+    runner, tmp_path, monkeypatch
+):
+    """Without flags, uninstall removes the unscoped helper, as before."""
+    from ....cli.commands.credential_helper.manage import install_cmd, uninstall_cmd
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    DockerInstaller().install(bin_dir=str(bin_dir), domains=("legacy.example.com",))
+    args = ["docker", "--bin-dir", str(bin_dir)]
+    env = {"CLOUDSMITH_WORKSPACE": "acme"}
+    installed = runner.invoke(
+        install_cmd, [*args, "--domain", "acme.example.com", "--no-discover"], env=env
+    )
+
+    unscoped = runner.invoke(uninstall_cmd, args, env=env)
+    scoped_launchers = sorted(path.name for path in bin_dir.iterdir())
+    scoped = runner.invoke(uninstall_cmd, [*args, "-w", "acme"])
+
+    assert [installed.exit_code, unscoped.exit_code, scoped.exit_code] == [0, 0, 0]
+    assert scoped_launchers == ["docker-credential-cloudsmith-acme"]
+    assert not list(bin_dir.iterdir())
+    cfg = json.loads((tmp_path / ".docker" / "config.json").read_text())
+    assert "credHelpers" not in cfg
+
+
 def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
     """install sets default+extra domains, preserves foreign entries, writes the launcher."""
     npm_path = tmp_path / ".npmrc"
@@ -699,6 +786,30 @@ def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
     )
     assert launcher.endswith("docker-credential-cloudsmith")
     assert not isinstance(launcher, Path)
+
+
+def test_docker_installer_status_reports_scoped_helpers(tmp_path, monkeypatch):
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    installer = DockerInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+    installer.install(
+        bin_dir=str(bin_dir),
+        domains=("acme.example.com",),
+        discover=False,
+        workspace="acme",
+    )
+
+    with patch(
+        "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        status = installer.status()
+
+    assert status == {
+        "launcher": str(bin_dir / "docker-credential-cloudsmith-acme"),
+        "hosts": ["docker.cloudsmith.io", "acme.example.com"],
+    }
 
 
 def test_pnpm_installer_status_type_contract(tmp_path: Path, monkeypatch: MonkeyPatch):

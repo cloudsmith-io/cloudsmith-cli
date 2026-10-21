@@ -31,6 +31,8 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
+    PROFILE_ENVVAR,
+    WORKSPACE_ENVVARS,
     common_api_auth_options,
     common_cli_config_options,
     common_cli_output_options,
@@ -355,6 +357,12 @@ def install_cmd(
     if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
         install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx)
 
+    # The helper name uses the same profile and Workspace as the launcher.
+    if helper == "docker":
+        launcher_env = install_kwargs["launcher_env"]
+        install_kwargs["profile"] = launcher_env.get(PROFILE_ENVVAR)
+        install_kwargs["workspace"] = launcher_env.get(WORKSPACE_ENVVARS[0])
+
     try:
         actions = installer.install(**install_kwargs)
     except (
@@ -426,10 +434,17 @@ def install_cmd(
     default=False,
     help="Show what would be done without making any changes.",
 )
+@click.option(
+    "-w",
+    "--workspace",
+    help="Docker only: remove the helper that was installed for this Workspace.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
-def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) -> None:
+def uninstall_cmd(
+    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, workspace: str | None
+) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
@@ -445,8 +460,15 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
         $ cloudsmith credential-helper uninstall docker --dry-run
     """
     installer = _get_installer(helper)
+    uninstall_kwargs = {"bin_dir": bin_dir, "dry_run": dry_run}
+    # The scope comes only from flags, so that a shell with CLOUDSMITH_PROFILE
+    # or CLOUDSMITH_WORKSPACE can still remove the unscoped helper.
+    if helper == "docker":
+        if ctx.get_parameter_source("profile") == ParameterSource.COMMANDLINE:
+            uninstall_kwargs["profile"] = ctx.meta.get("profile")
+        uninstall_kwargs["workspace"] = workspace
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(**uninstall_kwargs)
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"
