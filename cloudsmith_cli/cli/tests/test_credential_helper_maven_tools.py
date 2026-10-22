@@ -16,8 +16,10 @@ import pytest
 
 from ...credential_helpers import maven_tools
 from ...credential_helpers.gradle.installer import GradleInstaller
-from ...credential_helpers.maven import extensions
-from ...credential_helpers.maven.installer import MavenInstaller, MavenProjectNotFound
+from ...credential_helpers.maven import extensions, mavenrc
+from ...credential_helpers.maven import installer as maven_installer
+from ...credential_helpers.maven.installer import MavenInstaller
+from ...credential_helpers.maven_tools import InstallOptionError, ProjectNotFound
 from ...credential_helpers.sbt.installer import SbtInstaller
 
 EXTENSION_PATH = "io/cloudsmith/cloudsmith-maven-extension"
@@ -79,6 +81,21 @@ def fake_repository(monkeypatch):
     monkeypatch.setattr(maven_tools, "latest_version", lambda artifact_path: "0.2.0")
     monkeypatch.setattr(maven_tools, "download", fake_download)
     return downloads
+
+
+@pytest.fixture(autouse=True)
+def _maven_3_10(monkeypatch):
+    """Run as if `mvn -v` reports Maven 3.10.0."""
+    monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.10.0")
+
+
+@pytest.fixture()
+def outside_projects(tmp_path, monkeypatch):
+    """Run the test from a directory that is not in a project."""
+    directory = tmp_path / "work"
+    directory.mkdir()
+    monkeypatch.chdir(directory)
+    return directory
 
 
 @pytest.fixture()
@@ -268,7 +285,66 @@ def test_remove_extension_without_the_extension_changes_nothing():
 
 
 # ---------------------------------------------------------------------------
-# 3. MavenInstaller
+# 3. ~/.mavenrc
+# ---------------------------------------------------------------------------
+
+JAR = Path("/home/me/.m2/repository/cloudsmith-maven-extension-0.2.0.jar")
+BLOCK = (
+    "# >>> cloudsmith credential-helper install maven >>>\n"
+    f'MAVEN_OPTS="$MAVEN_OPTS -Dmaven.ext.class.path={JAR}"\n'
+    "# <<< cloudsmith credential-helper install maven <<<\n"
+)
+
+
+def test_add_block_makes_a_new_file():
+    """Without a file, the result is only the block."""
+    assert mavenrc.add_block(None, JAR) == (BLOCK, True)
+
+
+def test_add_block_keeps_the_existing_lines():
+    """The block goes after the lines of the user, after a blank line."""
+    existing = 'export JAVA_HOME="/opt/java"'
+
+    assert mavenrc.add_block(existing, JAR) == (f"{existing}\n\n{BLOCK}", True)
+
+
+def test_add_block_replaces_an_older_block_in_place():
+    """An upgrade changes the block, and the lines around it stay as they are."""
+    older = BLOCK.replace("0.2.0", "0.1.0")
+
+    assert mavenrc.add_block(f"export A=1\n\n{older}export B=2\n", JAR) == (
+        f"export A=1\n\n{BLOCK}export B=2\n",
+        True,
+    )
+
+
+def test_add_block_with_the_same_jar_changes_nothing():
+    """Installing the same version again leaves the file as it is."""
+    existing = f"export A=1\n\n{BLOCK}"
+
+    assert mavenrc.add_block(existing, JAR) == (existing, False)
+
+
+def test_remove_block_keeps_the_other_lines():
+    """Only the block, and the blank line that install added before it, go."""
+    assert mavenrc.remove_block(f"export A=1\n\n{BLOCK}export B=2\n") == (
+        "export A=1\nexport B=2\n",
+        True,
+    )
+
+
+def test_remove_the_only_block_returns_no_text():
+    """When nothing else is in the file, the file is not needed."""
+    assert mavenrc.remove_block(BLOCK) == (None, True)
+
+
+def test_remove_block_without_a_block_changes_nothing():
+    """A file without the block stays as it is."""
+    assert mavenrc.remove_block("export A=1\n") == ("export A=1\n", False)
+
+
+# ---------------------------------------------------------------------------
+# 4. MavenInstaller
 # ---------------------------------------------------------------------------
 
 
@@ -276,8 +352,12 @@ def _local_extension_dir(home: Path, version: str) -> Path:
     return home / ".m2" / "repository" / EXTENSION_PATH / version
 
 
+def _user_extensions(home: Path) -> Path:
+    return home / ".m2" / "extensions.xml"
+
+
 def test_maven_install_puts_the_extension_in_the_local_repository(
-    home, fake_repository, maven_project
+    home, fake_repository, outside_projects
 ):
     """Maven loads build extensions only from Maven Central or the local repository."""
     actions = MavenInstaller().install()
@@ -288,18 +368,73 @@ def test_maven_install_puts_the_extension_in_the_local_repository(
     assert any(str(version_dir) in action for action in actions)
 
 
-def test_maven_install_turns_on_the_extension_in_the_project(
+def test_maven_install_turns_on_the_extension_for_every_build(
+    home, fake_repository, outside_projects
+):
+    """By default, ~/.m2/extensions.xml lists the extension for Maven 3.10 and later."""
+    actions = MavenInstaller().install()
+
+    text = _user_extensions(home).read_text(encoding="utf-8")
+    assert "<version>0.2.0</version>" in text
+    assert not (outside_projects / ".mvn").exists()
+    assert not [action for action in actions if action.startswith("WARNING")]
+
+
+def test_maven_install_warns_when_maven_ignores_user_extensions(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """Maven 3.9 and earlier ignore ~/.m2/extensions.xml, so install names the options."""
+    monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.9.11")
+
+    actions = MavenInstaller().install()
+
+    warnings = [action for action in actions if action.startswith("WARNING")]
+    assert len(warnings) == 1
+    assert "3.9.11" in warnings[0]
+    assert "--local" in warnings[0]
+    assert "--mavenrc" in warnings[0]
+    assert _user_extensions(home).exists()
+
+
+def test_maven_install_marks_the_files_as_installed(
+    home, fake_repository, outside_projects
+):
+    """Maven does not load an extension that it records as downloaded from a repository."""
+    version_dir = _local_extension_dir(home, "0.2.0")
+    version_dir.mkdir(parents=True)
+    for file_type in ("jar", "pom"):
+        file_name = f"cloudsmith-maven-extension-0.2.0.{file_type}"
+        (version_dir / file_name).write_text("from a repository", encoding="utf-8")
+    (version_dir / "_remote.repositories").write_text(
+        "#NOTE: a comment\n"
+        "cloudsmith-maven-extension-0.2.0.jar>cloudsmith=\n"
+        "cloudsmith-maven-extension-0.2.0-sources.jar>cloudsmith=\n",
+        encoding="utf-8",
+    )
+
+    MavenInstaller().install()
+
+    assert (version_dir / "_remote.repositories").read_text(encoding="utf-8") == (
+        "#NOTE: a comment\n"
+        "cloudsmith-maven-extension-0.2.0.jar>=\n"
+        "cloudsmith-maven-extension-0.2.0-sources.jar>cloudsmith=\n"
+        "cloudsmith-maven-extension-0.2.0.pom>=\n"
+    )
+
+
+def test_maven_install_local_turns_on_the_extension_in_the_project(
     home, fake_repository, maven_project
 ):
-    """The project's .mvn/extensions.xml lists the installed version."""
-    actions = MavenInstaller().install()
+    """With local, the project's .mvn/extensions.xml lists the extension."""
+    actions = MavenInstaller().install(local=True)
 
     extensions_file = maven_project / ".mvn" / "extensions.xml"
     assert "<version>0.2.0</version>" in extensions_file.read_text(encoding="utf-8")
     assert any(str(extensions_file) in action for action in actions)
+    assert not _user_extensions(home).exists()
 
 
-def test_maven_install_from_a_module_uses_the_root_project(
+def test_maven_install_local_from_a_module_uses_the_root_project(
     home, fake_repository, maven_project, monkeypatch
 ):
     """Maven reads .mvn from the nearest directory above that has one."""
@@ -309,58 +444,112 @@ def test_maven_install_from_a_module_uses_the_root_project(
     (module / "pom.xml").write_text("<project/>", encoding="utf-8")
     monkeypatch.chdir(module)
 
-    MavenInstaller().install()
+    MavenInstaller().install(local=True)
 
     assert (maven_project / ".mvn" / "extensions.xml").exists()
     assert not (module / ".mvn").exists()
 
 
-def test_maven_install_outside_a_project_fails(
-    home, fake_repository, tmp_path, monkeypatch
+def test_maven_install_local_outside_a_project_fails(
+    home, fake_repository, outside_projects
 ):
     """Without a pom.xml, the install stops before it changes anything."""
-    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ProjectNotFound, match="pom.xml"):
+        MavenInstaller().install(local=True)
 
-    with pytest.raises(MavenProjectNotFound):
-        MavenInstaller().install()
-
-    assert not (tmp_path / ".mvn").exists()
+    assert not (outside_projects / ".mvn").exists()
     assert not fake_repository
+
+
+def test_maven_install_with_mavenrc_adds_a_block(
+    home, fake_repository, outside_projects
+):
+    """--mavenrc loads the extension in Maven 3.9 and earlier, and keeps the lines there."""
+    (home / ".mavenrc").write_text('export JAVA_HOME="/opt/java"\n', encoding="utf-8")
+
+    MavenInstaller().install(mavenrc=True)
+
+    jar = _local_extension_dir(home, "0.2.0") / "cloudsmith-maven-extension-0.2.0.jar"
+    text = (home / ".mavenrc").read_text(encoding="utf-8")
+    assert text.startswith('export JAVA_HOME="/opt/java"\n')
+    assert f"-Dmaven.ext.class.path={jar}" in text
+    # Maven 3.10 would load the extension twice from both files.
+    assert not _user_extensions(home).exists()
+
+
+def test_maven_install_with_local_and_mavenrc_fails(
+    home, fake_repository, maven_project
+):
+    """The two options set up different scopes, so only one is allowed."""
+    with pytest.raises(InstallOptionError):
+        MavenInstaller().install(local=True, mavenrc=True)
 
 
 def test_maven_install_dry_run_changes_nothing(home, fake_repository, maven_project):
     """A dry run reports the planned changes and writes no files."""
-    actions = MavenInstaller().install(dry_run=True)
+    actions = [
+        *MavenInstaller().install(dry_run=True),
+        *MavenInstaller().install(dry_run=True, local=True),
+        *MavenInstaller().install(dry_run=True, mavenrc=True),
+    ]
 
     assert not (maven_project / ".mvn").exists()
     assert not (home / ".m2").exists()
+    assert not (home / ".mavenrc").exists()
     assert all(action.startswith("would ") for action in actions)
 
 
-def test_maven_uninstall_removes_the_extension_from_the_project(
-    home, fake_repository, maven_project
+def test_maven_uninstall_removes_only_what_install_added(
+    home, fake_repository, outside_projects
 ):
-    """Uninstall removes the file it made, and keeps the shared local repository."""
+    """Other extensions and other .mavenrc lines stay, and so does the local repository."""
+    _user_extensions(home).parent.mkdir()
+    _user_extensions(home).write_text(
+        f"<extensions>\n{OTHER_EXTENSION}</extensions>\n", encoding="utf-8"
+    )
+    (home / ".mavenrc").write_text("export A=1\n", encoding="utf-8")
     MavenInstaller().install()
+    MavenInstaller().install(mavenrc=True)
 
     MavenInstaller().uninstall()
 
-    assert not (maven_project / ".mvn" / "extensions.xml").exists()
+    assert _user_extensions(home).read_text(encoding="utf-8") == (
+        f"<extensions>\n{OTHER_EXTENSION}</extensions>\n"
+    )
+    assert (home / ".mavenrc").read_text(encoding="utf-8") == "export A=1\n"
     assert _local_extension_dir(home, "0.2.0").exists()
 
 
-def test_maven_status_names_the_project_file(home, fake_repository, maven_project):
-    """list shows the extensions.xml of the current project when it is set up."""
+def test_maven_uninstall_local_removes_the_extension_from_the_project(
+    home, fake_repository, maven_project
+):
+    """Uninstall with local removes the file that install with local made."""
+    MavenInstaller().install(local=True)
+
+    MavenInstaller().uninstall(local=True)
+
+    assert not (maven_project / ".mvn" / "extensions.xml").exists()
+
+
+def test_maven_status_names_the_file_that_loads_the_extension(
+    home, fake_repository, maven_project
+):
+    """list shows the user-wide file first, then the file of the current project."""
     assert MavenInstaller().status() == {"launcher": None, "hosts": []}
 
-    MavenInstaller().install()
+    MavenInstaller().install(local=True)
+    project_file = maven_project / ".mvn" / "extensions.xml"
+    assert MavenInstaller().status() == {"launcher": str(project_file), "hosts": []}
 
-    extensions_file = maven_project / ".mvn" / "extensions.xml"
-    assert MavenInstaller().status() == {"launcher": str(extensions_file), "hosts": []}
+    MavenInstaller().install()
+    assert MavenInstaller().status() == {
+        "launcher": str(_user_extensions(home)),
+        "hosts": [],
+    }
 
 
 # ---------------------------------------------------------------------------
-# 4. GradleInstaller
+# 5. GradleInstaller
 # ---------------------------------------------------------------------------
 
 
@@ -389,6 +578,14 @@ def test_gradle_install_uses_gradle_user_home(
     assert (tmp_path / "gradle-home" / "init.d" / "cloudsmith.init.gradle.kts").exists()
 
 
+def test_gradle_install_local_explains_the_settings_plugin(home, fake_repository):
+    """Gradle has no project init scripts, so the error shows what to add instead."""
+    with pytest.raises(InstallOptionError, match="settings.gradle.kts"):
+        GradleInstaller().install(local=True)
+
+    assert not (home / ".gradle").exists()
+
+
 def test_gradle_uninstall_and_status(home, fake_repository):
     """Uninstall removes the init script, and status follows it."""
     script = home / ".gradle" / "init.d" / "cloudsmith.init.gradle.kts"
@@ -402,7 +599,7 @@ def test_gradle_uninstall_and_status(home, fake_repository):
 
 
 # ---------------------------------------------------------------------------
-# 5. SbtInstaller
+# 6. SbtInstaller
 # ---------------------------------------------------------------------------
 
 
@@ -420,6 +617,34 @@ def test_sbt_install_writes_a_global_plugin(home, fake_repository):
     assert any(str(plugin_file) in action for action in actions)
 
 
+def test_sbt_install_local_writes_a_project_plugin(
+    home, fake_repository, outside_projects
+):
+    """sbt loads every .sbt file in project/, so the build's own files stay as they are."""
+    (outside_projects / "build.sbt").write_text("", encoding="utf-8")
+
+    SbtInstaller().install(local=True)
+
+    plugin_file = outside_projects / "project" / "cloudsmith.sbt"
+    text = plugin_file.read_text(encoding="utf-8")
+    assert 'addSbtPlugin("io.cloudsmith" % "sbt-cloudsmith" % "0.2.0")' in text
+    assert not (home / ".sbt").exists()
+
+    SbtInstaller().uninstall(local=True)
+
+    assert not plugin_file.exists()
+
+
+def test_sbt_install_local_outside_a_project_fails(
+    home, fake_repository, outside_projects
+):
+    """Without a build.sbt, the install stops before it changes anything."""
+    with pytest.raises(ProjectNotFound, match="build.sbt"):
+        SbtInstaller().install(local=True)
+
+    assert not (outside_projects / "project").exists()
+
+
 def test_sbt_uninstall_and_status(home, fake_repository):
     """Uninstall removes the global plugin, and status follows it."""
     plugin_file = home / ".sbt" / "1.0" / "plugins" / "cloudsmith.sbt"
@@ -433,33 +658,68 @@ def test_sbt_uninstall_and_status(home, fake_repository):
 
 
 # ---------------------------------------------------------------------------
-# 6. CLI wiring
+# 7. CLI wiring
 # ---------------------------------------------------------------------------
+
+
+def _invoke(command_name, args):
+    from ...cli.commands.credential_helper import manage
+
+    command = {"install": manage.install_cmd, "uninstall": manage.uninstall_cmd}
+    return click.testing.CliRunner().invoke(
+        command[command_name], args, catch_exceptions=False
+    )
 
 
 @pytest.mark.parametrize("helper", ["maven", "gradle", "sbt"])
 def test_cli_install_runs_the_installer(helper, home, fake_repository, maven_project):
     """`credential-helper install <helper>` writes the config without credentials."""
-    from ...cli.commands.credential_helper.manage import install_cmd
-
-    result = click.testing.CliRunner().invoke(
-        install_cmd, [helper, "--no-discover"], catch_exceptions=False
-    )
+    result = _invoke("install", [helper, "--no-discover"])
 
     assert result.exit_code == 0, result.output
     assert "0.2.0" in result.output
 
 
-def test_cli_install_maven_outside_a_project_fails_cleanly(
-    home, fake_repository, tmp_path, monkeypatch
+def test_cli_install_and_uninstall_maven_local(home, fake_repository, maven_project):
+    """--local reaches the installer for install and for uninstall."""
+    extensions_file = maven_project / ".mvn" / "extensions.xml"
+
+    assert _invoke("install", ["maven", "--local", "--no-discover"]).exit_code == 0
+    assert extensions_file.exists()
+    assert _invoke("uninstall", ["maven", "--local"]).exit_code == 0
+    assert not extensions_file.exists()
+
+
+def test_cli_install_maven_with_mavenrc(home, fake_repository, outside_projects):
+    """--mavenrc reaches the Maven installer."""
+    result = _invoke("install", ["maven", "--mavenrc", "--no-discover"])
+
+    assert result.exit_code == 0, result.output
+    assert (home / ".mavenrc").exists()
+
+
+def test_cli_install_maven_local_outside_a_project_fails_cleanly(
+    home, fake_repository, outside_projects
 ):
     """The error names the directory and the fix, without a traceback."""
-    from ...cli.commands.credential_helper.manage import install_cmd
-
-    monkeypatch.chdir(tmp_path)
-    result = click.testing.CliRunner().invoke(
-        install_cmd, ["maven", "--no-discover"], catch_exceptions=False
-    )
+    result = _invoke("install", ["maven", "--local", "--no-discover"])
 
     assert result.exit_code != 0
     assert "pom.xml" in result.output
+
+
+def test_cli_install_gradle_local_shows_the_settings_plugin(home, fake_repository):
+    """The error shows the plugins block to add to settings.gradle.kts."""
+    result = _invoke("install", ["gradle", "--local", "--no-discover"])
+
+    assert result.exit_code != 0
+    assert 'id("io.cloudsmith.gradle-plugin")' in result.output
+
+
+@pytest.mark.parametrize("option", ["--local", "--mavenrc"])
+def test_cli_install_rejects_an_option_that_the_helper_does_not_have(option, home):
+    """Other helpers fail with a clear error, not with a TypeError."""
+    result = _invoke("install", ["docker", option, "--no-discover"])
+
+    assert result.exit_code != 0
+    assert f"{option} is not supported for docker" in result.output

@@ -21,6 +21,14 @@ REPOSITORY_URL = "https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/"
 TIMEOUT_SECONDS = 30
 
 
+class ProjectNotFound(Exception):
+    """The current directory is not the root directory of a project."""
+
+
+class InstallOptionError(Exception):
+    """The helper cannot install with the given options."""
+
+
 def _get(artifact_path: str) -> bytes:
     response = create_requests_session().get(
         REPOSITORY_URL + artifact_path, timeout=TIMEOUT_SECONDS
@@ -51,18 +59,25 @@ class ConfigFileInstaller:
     name = ""
     summary = ""
     artifact_path = ""
+    install_options = ("local",)
 
     def path(self) -> Path:
-        """Return the config file that loads the plugin."""
+        """Return the config file that loads the plugin for every build."""
+        raise NotImplementedError
+
+    def local_path(self) -> Path:
+        """Return the config file that loads the plugin for the current project."""
         raise NotImplementedError
 
     def render(self, version: str) -> str:
         """Return the content of the config file for *version*."""
         raise NotImplementedError
 
-    def install(self, *, dry_run: bool = False, **_options) -> list[str]:
+    def install(
+        self, *, dry_run: bool = False, local: bool = False, **_options
+    ) -> list[str]:
+        path = self.local_path() if local else self.path()
         version = latest_version(self.artifact_path)
-        path = self.path()
         text = self.render(version)
         if path.exists() and path.read_text(encoding="utf-8") == text:
             return [f"{path} already uses version {version} (no change)"]
@@ -72,8 +87,10 @@ class ConfigFileInstaller:
         path.write_text(text, encoding="utf-8")
         return [f"wrote {path} for version {version}"]
 
-    def uninstall(self, *, dry_run: bool = False, **_options) -> list[str]:
-        path = self.path()
+    def uninstall(
+        self, *, dry_run: bool = False, local: bool = False, **_options
+    ) -> list[str]:
+        path = self.local_path() if local else self.path()
         if not path.exists():
             return [f"{path} not found (nothing to remove)"]
         if dry_run:

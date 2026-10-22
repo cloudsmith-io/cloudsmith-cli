@@ -6,7 +6,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..maven_tools import REPOSITORY_URL, ConfigFileInstaller
+from ..maven_tools import (
+    REPOSITORY_URL,
+    ConfigFileInstaller,
+    InstallOptionError,
+    latest_version,
+)
 
 INIT_SCRIPT = """\
 // Written by `cloudsmith credential-helper install gradle`.
@@ -24,6 +29,22 @@ beforeSettings {{
 }}
 """
 
+SETTINGS_PLUGIN = """\
+--local is not supported for gradle. To set up one build, add the plugin to \
+settings.gradle.kts:
+
+pluginManagement {{
+    repositories {{
+        maven {{ url = uri("{repository_url}") }}
+        gradlePluginPortal()
+    }}
+}}
+
+plugins {{
+    id("io.cloudsmith.gradle-plugin") version "{version}"
+}}
+"""
+
 
 class GradleInstaller(ConfigFileInstaller):
     name = "gradle"
@@ -34,6 +55,16 @@ class GradleInstaller(ConfigFileInstaller):
         gradle_user_home = os.environ.get("GRADLE_USER_HOME")
         base = Path(gradle_user_home) if gradle_user_home else Path.home() / ".gradle"
         return base / "init.d" / "cloudsmith.init.gradle.kts"
+
+    def local_path(self) -> Path:
+        # Gradle has no init scripts for one build, and a script edit of the
+        # build's settings file could break it.
+        raise InstallOptionError(
+            SETTINGS_PLUGIN.format(
+                repository_url=REPOSITORY_URL,
+                version=latest_version(self.artifact_path),
+            )
+        )
 
     def render(self, version: str) -> str:
         return INIT_SCRIPT.format(repository_url=REPOSITORY_URL, version=version)
