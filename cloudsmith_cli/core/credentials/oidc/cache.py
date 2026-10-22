@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import time
+from dataclasses import dataclass
 
 from ...cache_utils import atomic_write_json
 
@@ -20,6 +21,17 @@ logger = logging.getLogger(__name__)
 EXPIRY_MARGIN_SECONDS = 60
 
 _CACHE_DIR_NAME = "oidc_token_cache"
+
+
+@dataclass(frozen=True)
+class CachedToken:
+    """A cached exchanged token, and the CI vendor whose OIDC token it came from.
+
+    ``detector`` is ``None`` for an entry that an older CLI wrote.
+    """
+
+    token: str
+    detector: str | None = None
 
 
 def _get_cache_dir() -> str:
@@ -59,7 +71,7 @@ def _decode_jwt_exp(token: str) -> float | None:
     return None
 
 
-def get_cached_token(api_host: str, org: str, service_slug: str) -> str | None:
+def get_cached_token(api_host: str, org: str, service_slug: str) -> CachedToken | None:
     """Return a cached token if it exists and is not expired."""
     token = _get_from_keyring(api_host, org, service_slug)
     if token:
@@ -67,7 +79,7 @@ def get_cached_token(api_host: str, org: str, service_slug: str) -> str | None:
     return _get_from_disk(api_host, org, service_slug)
 
 
-def _get_from_keyring(api_host: str, org: str, service_slug: str) -> str | None:
+def _get_from_keyring(api_host: str, org: str, service_slug: str) -> CachedToken | None:
     """Try to get token from keyring."""
     try:
         from ...keyring import get_oidc_token
@@ -100,14 +112,14 @@ def _get_from_keyring(api_host: str, org: str, service_slug: str) -> str | None:
         else:
             logger.debug("Using keyring OIDC token (no expiry information)")
 
-        return token
+        return CachedToken(token, data.get("detector"))
 
     except Exception:  # pylint: disable=broad-exception-caught
         logger.debug("Failed to read OIDC token from keyring", exc_info=True)
         return None
 
 
-def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
+def _get_from_disk(api_host: str, org: str, service_slug: str) -> CachedToken | None:
     """Try to get token from disk cache."""
     cache_dir = _get_cache_dir()
     cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))
@@ -140,7 +152,7 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
         else:
             logger.debug("Using disk cached OIDC token (no expiry information)")
 
-        return token
+        return CachedToken(token, data.get("detector"))
 
     except (json.JSONDecodeError, OSError, KeyError):
         logger.debug("Failed to read OIDC token from disk cache", exc_info=True)
@@ -148,8 +160,17 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
         return None
 
 
-def store_cached_token(api_host: str, org: str, service_slug: str, token: str) -> None:
-    """Cache a token in keyring (if available) or filesystem."""
+def store_cached_token(
+    api_host: str,
+    org: str,
+    service_slug: str,
+    token: str,
+    detector: str | None = None,
+) -> None:
+    """Cache a token in keyring (if available) or filesystem.
+
+    *detector* is the name of the CI vendor whose OIDC token was exchanged.
+    """
     expires_at = _decode_jwt_exp(token)
 
     data = {
@@ -158,6 +179,7 @@ def store_cached_token(api_host: str, org: str, service_slug: str, token: str) -
         "api_host": api_host,
         "org": org,
         "service_slug": service_slug,
+        "detector": detector,
         "cached_at": time.time(),
     }
 
