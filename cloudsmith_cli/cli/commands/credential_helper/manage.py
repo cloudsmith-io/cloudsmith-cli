@@ -34,6 +34,7 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
 
+from ....core.session import create_requests_session
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
@@ -94,6 +95,20 @@ def _scope_options(installer, helper: str, **requested: bool) -> dict[str, bool]
         if given and option not in supported:
             raise click.UsageError(f"--{option} is not supported for {helper}.")
     return {option: True for option, given in requested.items() if given}
+
+
+def _download_session(opts):
+    """Return a session with the proxy and TLS settings of the command.
+
+    The session goes to the public maven-tools repository, so it does not get
+    the --api-headers that are for the API host.
+    """
+    return create_requests_session(
+        proxy=opts.proxy,
+        ssl_verify=opts.ssl_verify,
+        ssl_verify_strict=opts.ssl_verify_strict,
+        user_agent=opts.api_user_agent,
+    )
 
 
 def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...]:
@@ -338,6 +353,8 @@ def install_cmd(
         "api_host": opts.api_host,
         **_scope_options(installer, helper, local=local, mavenrc=mavenrc),
     }
+    if getattr(installer, "downloads_files", False):
+        install_kwargs["session"] = _download_session(opts)
 
     # Terraform bakes the resolved org/profile into the terraformrc `args` list
     # so `terraform init` needs neither env vars nor a hand-edited config. The

@@ -7,11 +7,15 @@ The functions edit the text, so the rest of the file keeps its formatting.
 from __future__ import annotations
 
 import re
+from xml.etree import ElementTree
 
 GROUP_ID = "io.cloudsmith"
 ARTIFACT_ID = "cloudsmith-maven-extension"
 
-_EXTENSION_BLOCK = re.compile(r"[ \t]*<extension>.*?</extension>[ \t]*\n?", re.DOTALL)
+# XML allows spaces and new lines before the > of a tag.
+_EXTENSION_BLOCK = re.compile(
+    r"[ \t]*<extension\s*>.*?</extension\s*>[ \t]*\n?", re.DOTALL
+)
 _EMPTY_EXTENSIONS = re.compile(r"<extensions\b([^>]*?)\s*/>")
 _VERSION = re.compile(r"<version>[^<]*</version>")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -43,6 +47,15 @@ def _find_extension(masked: str) -> re.Match | None:
         if _GROUP_ID.search(block.group(0)) and _ARTIFACT_ID.search(block.group(0)):
             return block
     return None
+
+
+def _has_extension_element(text: str) -> bool:
+    """Return whether *text* has an <extension> element, or is not valid XML."""
+    try:
+        root = ElementTree.fromstring(text)
+    except ElementTree.ParseError:
+        return True
+    return any(element.tag.rpartition("}")[2] == "extension" for element in root.iter())
 
 
 def has_extension(text: str) -> bool:
@@ -83,11 +96,13 @@ def remove_extension(text: str) -> tuple[str | None, bool]:
     """Return *text* without the Cloudsmith extension, and whether it changed.
 
     The text is ``None`` when no other extension is left, so the file is not needed.
+    A file that is not valid XML without the extension is kept.
     """
     masked = _without_comments(text)
     block = _find_extension(masked)
     if not block:
         return text, False
-    if not _EXTENSION_BLOCK.search(masked[: block.start()] + masked[block.end() :]):
+    new_text = text[: block.start()] + text[block.end() :]
+    if not _has_extension_element(new_text):
         return None, True
-    return text[: block.start()] + text[block.end() :], True
+    return new_text, True

@@ -17,6 +17,8 @@ from ..core.session import create_requests_session
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import requests
+
 REPOSITORY_URL = "https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/"
 TIMEOUT_SECONDS = 30
 
@@ -29,26 +31,30 @@ class InstallOptionError(Exception):
     """The helper cannot install with the given options."""
 
 
-def _get(artifact_path: str) -> bytes:
-    response = create_requests_session().get(
+def _get(artifact_path: str, session: requests.Session | None) -> bytes:
+    response = (session or create_requests_session()).get(
         REPOSITORY_URL + artifact_path, timeout=TIMEOUT_SECONDS
     )
     response.raise_for_status()
     return response.content
 
 
-def latest_version(artifact_path: str) -> str:
+def latest_version(artifact_path: str, session: requests.Session | None = None) -> str:
     """Return the newest release of the artifact at *artifact_path*."""
-    metadata = ElementTree.fromstring(_get(f"{artifact_path}/maven-metadata.xml"))
+    metadata = ElementTree.fromstring(
+        _get(f"{artifact_path}/maven-metadata.xml", session)
+    )
     release = metadata.findtext("versioning/release")
     if not release:
         raise OSError(f"{REPOSITORY_URL}{artifact_path} has no release")
     return release
 
 
-def download(artifact_path: str, destination: Path) -> None:
+def download(
+    artifact_path: str, destination: Path, session: requests.Session | None = None
+) -> None:
     """Download the file at *artifact_path* to *destination*."""
-    content = _get(artifact_path)
+    content = _get(artifact_path, session)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(content)
 
@@ -60,6 +66,8 @@ class ConfigFileInstaller:
     summary = ""
     artifact_path = ""
     install_options = ("local",)
+    # The install command passes a session with its proxy and TLS settings.
+    downloads_files = True
 
     def path(self) -> Path:
         """Return the config file that loads the plugin for every build."""
@@ -74,10 +82,15 @@ class ConfigFileInstaller:
         raise NotImplementedError
 
     def install(
-        self, *, dry_run: bool = False, local: bool = False, **_options
+        self,
+        *,
+        dry_run: bool = False,
+        local: bool = False,
+        session: requests.Session | None = None,
+        **_options,
     ) -> list[str]:
         path = self.local_path() if local else self.path()
-        version = latest_version(self.artifact_path)
+        version = latest_version(self.artifact_path, session)
         text = self.render(version)
         if path.exists() and path.read_text(encoding="utf-8") == text:
             return [f"{path} already uses version {version} (no change)"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..maven_tools import (
     REPOSITORY_URL,
@@ -12,6 +13,9 @@ from ..maven_tools import (
     InstallOptionError,
     latest_version,
 )
+
+if TYPE_CHECKING:
+    import requests
 
 INIT_SCRIPT = """\
 // Written by `cloudsmith credential-helper install gradle`.
@@ -56,15 +60,26 @@ class GradleInstaller(ConfigFileInstaller):
         base = Path(gradle_user_home) if gradle_user_home else Path.home() / ".gradle"
         return base / "init.d" / "cloudsmith.init.gradle.kts"
 
-    def local_path(self) -> Path:
-        # Gradle has no init scripts for one build, and a script edit of the
-        # build's settings file could break it.
-        raise InstallOptionError(
-            SETTINGS_PLUGIN.format(
-                repository_url=REPOSITORY_URL,
-                version=latest_version(self.artifact_path),
+    def install(
+        self,
+        *,
+        local: bool = False,
+        session: requests.Session | None = None,
+        **options,
+    ) -> list[str]:
+        if local:
+            # Gradle has no init scripts for one build, and a script edit of the
+            # build's settings file could break it.
+            raise InstallOptionError(
+                SETTINGS_PLUGIN.format(
+                    repository_url=REPOSITORY_URL,
+                    version=latest_version(self.artifact_path, session),
+                )
             )
-        )
+        return super().install(session=session, **options)
+
+    def local_path(self) -> Path:
+        raise InstallOptionError("--local is not supported for gradle.")
 
     def render(self, version: str) -> str:
         return INIT_SCRIPT.format(repository_url=REPOSITORY_URL, version=version)

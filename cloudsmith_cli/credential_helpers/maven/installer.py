@@ -28,6 +28,8 @@ from .mavenrc import add_block, has_block, remove_block
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import requests
+
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
@@ -152,6 +154,8 @@ class MavenInstaller:
     name = "maven"
     summary = "Maven extension that gets credentials from the Cloudsmith CLI"
     install_options = ("local", "mavenrc")
+    # The install command passes a session with its proxy and TLS settings.
+    downloads_files = True
 
     def install(
         self,
@@ -159,14 +163,15 @@ class MavenInstaller:
         dry_run: bool = False,
         local: bool = False,
         mavenrc: bool = False,
+        session: requests.Session | None = None,
         **_options,
     ) -> list[str]:
         """Put the extension in ``~/.m2/repository`` and turn it on."""
         if local and mavenrc:
             raise InstallOptionError("Use --local or --mavenrc, not both.")
         project_file = _project_extensions_file() if local else None
-        version = maven_tools.latest_version(EXTENSION_PATH)
-        actions = self._download(version, dry_run)
+        version = maven_tools.latest_version(EXTENSION_PATH, session)
+        actions = self._download(version, dry_run, session)
         if mavenrc:
             jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
             return actions + _add(
@@ -181,7 +186,9 @@ class MavenInstaller:
             + _old_maven_warning()
         )
 
-    def _download(self, version: str, dry_run: bool) -> list[str]:
+    def _download(
+        self, version: str, dry_run: bool, session: requests.Session | None
+    ) -> list[str]:
         version_dir = _version_dir(version)
         file_names = [
             f"{extensions.ARTIFACT_ID}-{version}.{file_type}"
@@ -196,7 +203,7 @@ class MavenInstaller:
                 actions.append(f"would download {file_name} to {version_dir}")
             else:
                 maven_tools.download(
-                    f"{EXTENSION_PATH}/{version}/{file_name}", destination
+                    f"{EXTENSION_PATH}/{version}/{file_name}", destination, session
                 )
                 actions.append(f"downloaded {file_name} to {version_dir}")
         if not dry_run:

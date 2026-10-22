@@ -8,6 +8,7 @@ plugin, which gets its credential from `cloudsmith credential-helper generic`.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import click.testing
 import httpretty
@@ -73,12 +74,14 @@ def fake_repository(monkeypatch):
     """Serve version 0.2.0 of every artifact without network access."""
     downloads = []
 
-    def fake_download(artifact_path, destination):
+    def fake_download(artifact_path, destination, session=None):
         downloads.append(artifact_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(f"content of {artifact_path}", encoding="utf-8")
 
-    monkeypatch.setattr(maven_tools, "latest_version", lambda artifact_path: "0.2.0")
+    monkeypatch.setattr(
+        maven_tools, "latest_version", lambda artifact_path, session=None: "0.2.0"
+    )
     monkeypatch.setattr(maven_tools, "download", fake_download)
     return downloads
 
@@ -123,6 +126,18 @@ def test_latest_version_reads_the_release_from_the_metadata():
     )
 
     assert maven_tools.latest_version(EXTENSION_PATH) == "0.2.0"
+
+
+def test_latest_version_uses_the_given_session():
+    """The install command's proxy and TLS settings reach the download."""
+    session = Mock()
+    session.get.return_value.content = METADATA.encode()
+
+    assert maven_tools.latest_version(EXTENSION_PATH, session) == "0.2.0"
+    session.get.assert_called_once_with(
+        f"{maven_tools.REPOSITORY_URL}{EXTENSION_PATH}/maven-metadata.xml",
+        timeout=maven_tools.TIMEOUT_SECONDS,
+    )
 
 
 @httpretty.activate(allow_net_connect=False)
@@ -282,6 +297,44 @@ def test_remove_extension_without_the_extension_changes_nothing():
     existing = f"<extensions>\n{OTHER_EXTENSION}</extensions>\n"
 
     assert extensions.remove_extension(existing) == (existing, False)
+
+
+def _spaced_tags(extension: str) -> str:
+    return extension.replace("<extension>", "<extension >").replace(
+        "</extension>", "</extension\n  >"
+    )
+
+
+def test_remove_extension_keeps_an_extension_with_spaces_in_its_tags():
+    """XML allows spaces before the > of a tag, so the other extension still counts."""
+    other = _spaced_tags(OTHER_EXTENSION)
+
+    assert extensions.remove_extension(
+        f"<extensions>\n{OUR_EXTENSION}{other}</extensions>\n"
+    ) == (f"<extensions>\n{other}</extensions>\n", True)
+
+
+def test_remove_extension_keeps_a_file_that_cannot_be_parsed():
+    """When the rest of the file is not valid XML, the file stays."""
+    broken = "  <extension>\n    <groupId>kr.motd.maven</groupId>\n"
+    existing = f"<extensions>\n{OUR_EXTENSION}{broken}</extensions>\n"
+
+    assert extensions.remove_extension(existing) == (
+        f"<extensions>\n{broken}</extensions>\n",
+        True,
+    )
+
+
+def test_add_extension_finds_the_extension_with_spaces_in_its_tags():
+    """An entry with spaces in its tags is updated, not listed a second time."""
+    existing = f"<extensions>\n{_spaced_tags(OUR_EXTENSION)}</extensions>\n"
+
+    text, changed = extensions.add_extension(existing, "0.2.0")
+
+    assert changed is True
+    assert text == existing.replace(
+        "<version>0.1.0</version>", "<version>0.2.0</version>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -723,3 +776,41 @@ def test_cli_install_rejects_an_option_that_the_helper_does_not_have(option, hom
 
     assert result.exit_code != 0
     assert f"{option} is not supported for docker" in result.output
+
+
+@pytest.mark.parametrize("helper", ["maven", "gradle", "sbt"])
+def test_cli_install_downloads_with_the_tls_settings_of_the_command(
+    helper, home, outside_projects
+):
+    """--without-ssl-verify-strict also applies to the downloads of the Maven tools."""
+    from ...cli.commands.credential_helper import manage
+
+    download_session = Mock()
+    sessions = []
+
+    def record_latest_version(artifact_path, session=None):
+        sessions.append(session)
+        return "0.2.0"
+
+    def record_download(artifact_path, destination, session=None):
+        sessions.append(session)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("content", encoding="utf-8")
+
+    with (
+        patch.object(maven_tools, "latest_version", record_latest_version),
+        patch.object(maven_tools, "download", record_download),
+        patch.object(
+            manage, "create_requests_session", return_value=download_session
+        ) as create_session,
+    ):
+        result = _invoke(
+            "install", [helper, "--without-ssl-verify-strict", "--no-discover"]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert create_session.call_args.kwargs["ssl_verify_strict"] is False
+    # The session for the public repository gets no --api-headers.
+    assert "headers" not in create_session.call_args.kwargs
+    assert sessions
+    assert all(session is download_session for session in sessions)
