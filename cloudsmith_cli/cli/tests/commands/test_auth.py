@@ -21,6 +21,7 @@ def no_existing_sso_session(monkeypatch, telemetry_config_dir):
     """Keep browser-flow tests independent of locally stored SAML sessions."""
     monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
     monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
     with patch(
         "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
         return_value=None,
@@ -725,6 +726,20 @@ class TestSavesWorkspace:
 
         assert result.exit_code == 0, result.output
         assert config_path.read_text() == "[default] # mine\nworkspace = acme\n"
+
+    def test_saves_to_explicit_config_directory(
+        self, runner, telemetry_config_dir, tmp_path
+    ):
+        user_config = telemetry_config_dir / "config.ini"
+        user_config.write_text("[default]\nworkspace = other\n")
+
+        result = runner.invoke(
+            authenticate, ["-w", "acme", "-C", str(tmp_path)], catch_exceptions=False
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "\nworkspace = acme\n" in (tmp_path / "config.ini").read_text()
+        assert user_config.read_text() == "[default]\nworkspace = other\n"
 
     def test_same_workspace_is_not_saved_again(self, runner, telemetry_config_dir):
         config_path = telemetry_config_dir / "config.ini"

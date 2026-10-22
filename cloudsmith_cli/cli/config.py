@@ -168,14 +168,16 @@ class ConfigReader(ConfigFileReader):
         return (existing_paths or user_paths)[0]
 
     @classmethod
-    def save_workspace(cls, workspace, profile=None):
+    def save_workspace(cls, workspace, profile=None, path=None):
         """Write the Workspace to the profile section; return the path if it changed."""
-        path = cls.get_user_filepath()
+        if path and os.path.isdir(path):
+            path = os.path.join(path, "config.ini")
+        path = path or cls.get_user_filepath()
         if os.path.exists(path):
             with open(path) as config_file:
                 content = config_file.read()
         else:
-            content = read_file(get_data_path(), os.path.basename(path))
+            content = read_file(get_data_path(), "config.ini")
 
         section = (
             f"profile:{profile}" if profile and profile != "default" else "default"

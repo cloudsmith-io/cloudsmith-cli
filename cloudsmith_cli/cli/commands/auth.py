@@ -163,10 +163,12 @@ def _perform_saml_authentication(
         auth_server.server_close()
 
 
-def _save_workspace(opts, workspace, profile, use_stderr):
+def _save_workspace(ctx, opts, workspace, use_stderr):
     """Save the Workspace to config.ini, or warn when the CLI cannot write it."""
     try:
-        saved_path = opts.get_config_reader().save_workspace(workspace, profile=profile)
+        saved_path = opts.get_config_reader().save_workspace(
+            workspace, profile=ctx.meta.get("profile"), path=ctx.meta.get("config_file")
+        )
     except (OSError, ValueError) as exc:
         click.secho(
             f"Could not save the {workspace} Workspace to config.ini: {exc}",
@@ -302,7 +304,7 @@ def authenticate(
         )
 
     if authenticated:
-        _save_workspace(opts, workspace, ctx.meta.get("profile"), use_stderr)
+        _save_workspace(ctx, opts, workspace, use_stderr)
 
     if request_api_key_flag:
         # Non-interactive token retrieval
