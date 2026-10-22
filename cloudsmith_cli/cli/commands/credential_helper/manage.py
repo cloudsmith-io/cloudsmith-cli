@@ -449,6 +449,11 @@ def install_cmd(
 @click.option(
     "-w",
     "--workspace",
+    "--org",
+    "--organization",
+    "-o",
+    "--owner",
+    "workspace",
     help="Docker only: remove the helper that was installed for this Workspace.",
 )
 @common_cli_config_options
@@ -532,14 +537,16 @@ def list_cmd(ctx, opts) -> None:
     data = []
     for name, cls in sorted(_INSTALLERS.items()):
         installer = cls()
-        st = installer.status()
-        data.append(
+        # Docker can have one helper for each profile and Workspace.
+        statuses = getattr(installer, "statuses", None)
+        data.extend(
             {
                 "helper": name,
                 "summary": installer.summary,
                 "launcher": st.get("launcher"),
                 "hosts": st.get("hosts", []),
             }
+            for st in (statuses() if statuses else [installer.status()])
         )
 
     if utils.maybe_print_as_json(opts, data):

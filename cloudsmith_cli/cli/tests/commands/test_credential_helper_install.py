@@ -420,7 +420,9 @@ def test_docker_install_scopes_the_helper_to_the_install_time_settings(
     bin_dir = tmp_path / "bin"
     monkeypatch.setenv("PATH", str(bin_dir))
     installer = DockerInstaller()
-    installer.install(bin_dir=str(bin_dir), discover=False)
+    installer.install(
+        bin_dir=str(bin_dir), domains=("legacy.example.com",), discover=False
+    )
 
     actions = installer.install(
         bin_dir=str(bin_dir),
@@ -440,9 +442,11 @@ def test_docker_install_scopes_the_helper_to_the_install_time_settings(
         "export CLOUDSMITH_API_HOST=https://api.example.com\n"
         'exec cloudsmith credential-helper docker "$@"\n'
     )
-    assert (bin_dir / "docker-credential-cloudsmith").exists()
     cfg = json.loads((tmp_path / ".docker" / "config.json").read_text())
-    assert cfg["credHelpers"] == {"docker.cloudsmith.io": name}
+    assert cfg["credHelpers"] == {
+        "docker.cloudsmith.io": name,
+        "legacy.example.com": "cloudsmith",
+    }
     assert (
         "WARNING: credHelpers['docker.cloudsmith.io'] changes from 'cloudsmith'"
         f" to {name!r}"
@@ -451,10 +455,16 @@ def test_docker_install_scopes_the_helper_to_the_install_time_settings(
         "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
         return_value=bin_dir,
     ):
-        assert installer.status() == {
-            "launcher": str(bin_dir / f"docker-credential-{name}"),
-            "hosts": ["docker.cloudsmith.io"],
-        }
+        assert installer.statuses() == [
+            {
+                "launcher": str(bin_dir / f"docker-credential-{name}"),
+                "hosts": ["docker.cloudsmith.io"],
+            },
+            {
+                "launcher": str(bin_dir / "docker-credential-cloudsmith"),
+                "hosts": ["legacy.example.com"],
+            },
+        ]
 
 
 def test_docker_dry_run_shows_the_scoped_launcher_and_its_settings(
@@ -499,7 +509,7 @@ def test_docker_uninstall_takes_the_scope_from_flags_only(
     unscoped = runner.invoke(uninstall_cmd, args, env=env)
     scoped_launchers = sorted(path.name for path in bin_dir.iterdir())
     scoped = runner.invoke(
-        main, ["-P", "work", "credential-helper", "uninstall", *args, "-w", "acme"]
+        main, ["-P", "work", "credential-helper", "uninstall", *args, "-o", "acme"]
     )
 
     assert [installed.exit_code, unscoped.exit_code, scoped.exit_code] == [0, 0, 0]
@@ -804,7 +814,7 @@ def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
 
 
 def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
-    """status()['launcher'] is str when installed and None when not — never a Path.
+    """statuses()[0]['launcher'] is a str when installed, else None, never a Path.
 
     Retained guard: the -F json Path-serialization regression.
     """
@@ -819,7 +829,7 @@ def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
         "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
         return_value=bin_dir,
     ):
-        result_before = installer.status()
+        [result_before] = installer.statuses()
 
     assert result_before["launcher"] is None
     assert not isinstance(result_before["launcher"], Path)
@@ -830,7 +840,7 @@ def test_docker_installer_status_type_contract(tmp_path, monkeypatch):
         "cloudsmith_cli.credential_helpers.docker.installer.resolve_bin_dir",
         return_value=bin_dir,
     ):
-        result_after = installer.status()
+        [result_after] = installer.statuses()
 
     launcher = result_after["launcher"]
     assert launcher is not None
@@ -1348,11 +1358,13 @@ def test_output_format_json(
     Retained guard: list -F json serialises a launcher path (str), not a Path object.
     """
 
-    def _docker_stub_status_fn(_self):
-        return {
-            "launcher": "/some/bin/docker-credential-cloudsmith",
-            "hosts": ["docker.cloudsmith.io"],
-        }
+    def _docker_stub_statuses_fn(_self):
+        return [
+            {
+                "launcher": "/some/bin/docker-credential-cloudsmith",
+                "hosts": ["docker.cloudsmith.io"],
+            }
+        ]
 
     def _pnpm_stub_status_fn(_self):
         return {
@@ -1362,7 +1374,7 @@ def test_output_format_json(
 
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
     monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
-    monkeypatch.setattr(DockerInstaller, "status", _docker_stub_status_fn)
+    monkeypatch.setattr(DockerInstaller, "statuses", _docker_stub_statuses_fn)
     monkeypatch.setattr(PNPMInstaller, "status", _pnpm_stub_status_fn)
 
     from ....cli.commands.credential_helper import manage as manage_mod

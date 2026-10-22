@@ -404,44 +404,43 @@ class DockerInstaller:
 
         return actions
 
-    def status(self) -> dict:
-        """Return current installation status.
+    def statuses(self) -> list[dict]:
+        """Return the status of each Cloudsmith helper in ``config.json``.
 
         Returns
         -------
-        dict
-            A dict with keys:
+        list[dict]
+            One dict for each ``cloudsmith`` or ``cloudsmith-*`` helper, in the
+            order of the ``credHelpers`` block, with keys:
 
             ``"launcher"``
-                The path of the first launcher that exists, of the helpers
-                of the hosts and then of the unscoped helper.  Else ``None``.
+                The path of the launcher of the helper, or ``None`` if it does
+                not exist.
             ``"hosts"``
-                List of hostnames in ``config.json``'s ``credHelpers`` block
-                that use a ``cloudsmith`` or ``cloudsmith-*`` helper.
+                List of hostnames that use the helper.
+
+            Without such a helper, the list has only the unscoped helper.
         """
         config_path = _docker_config_path()
-        helpers: dict = {}
+        hosts_by_helper: dict[str, list[str]] = {}
         if config_path.exists():
             try:
                 data = json.loads(config_path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    helpers = {
-                        k: v
-                        for k, v in data.get("credHelpers", {}).items()
-                        if _is_cloudsmith_helper(v)
-                    }
+                    for host, helper in data.get("credHelpers", {}).items():
+                        if _is_cloudsmith_helper(helper):
+                            hosts_by_helper.setdefault(helper, []).append(host)
             except (json.JSONDecodeError, OSError):
                 pass
-        hosts = list(helpers)
 
         target_dir = resolve_bin_dir()
-        candidates = [
-            _launcher_path(target_dir, helper)
-            for helper in [*helpers.values(), "cloudsmith"]
-        ]
-        launcher_path = next((path for path in candidates if path.exists()), None)
-
-        return {
-            "launcher": str(launcher_path) if launcher_path is not None else None,
-            "hosts": hosts,
-        }
+        statuses = []
+        for helper, hosts in (hosts_by_helper or {"cloudsmith": []}).items():
+            launcher_path = _launcher_path(target_dir, helper)
+            statuses.append(
+                {
+                    "launcher": str(launcher_path) if launcher_path.exists() else None,
+                    "hosts": hosts,
+                }
+            )
+        return statuses
