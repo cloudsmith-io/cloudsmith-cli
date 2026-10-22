@@ -189,6 +189,60 @@ def test_add_extension_with_the_same_version_changes_nothing():
     assert extensions.add_extension(existing, "0.1.0") == (existing, False)
 
 
+def test_add_extension_ignores_a_commented_out_extension():
+    """A Cloudsmith extension in a comment is not active, so a new entry is added."""
+    comment = f"  <!--\n{OUR_EXTENSION}  -->\n"
+    existing = f"<extensions>\n{comment}</extensions>\n"
+
+    text, changed = extensions.add_extension(existing, "0.2.0")
+
+    assert changed is True
+    assert text == (
+        f"<extensions>\n{comment}"
+        f"{OUR_EXTENSION.replace('0.1.0', '0.2.0')}</extensions>\n"
+    )
+
+
+def test_add_extension_finds_the_extension_with_spaces_in_the_tags():
+    """Maven trims the values, so spaces inside a tag do not make a second entry."""
+    spaced = OUR_EXTENSION.replace(
+        "<groupId>io.cloudsmith</groupId>", "<groupId> io.cloudsmith </groupId>"
+    )
+    existing = f"<extensions>\n{spaced}</extensions>\n"
+
+    text, changed = extensions.add_extension(existing, "0.2.0")
+
+    assert changed is True
+    assert text == existing.replace(
+        "<version>0.1.0</version>", "<version>0.2.0</version>"
+    )
+
+
+def test_add_extension_ignores_a_version_in_a_comment():
+    """Only the <version> element of the extension changes."""
+    existing = f"<extensions>\n{OUR_EXTENSION}</extensions>\n".replace(
+        "  <extension>\n", "  <extension>\n    <!-- <version>0.0.1</version> -->\n"
+    )
+
+    text, _ = extensions.add_extension(existing, "0.2.0")
+
+    assert "<!-- <version>0.0.1</version> -->" in text
+    assert "<version>0.2.0</version>" in text
+
+
+def test_remove_extension_ignores_a_commented_out_extension():
+    """A commented-out entry is not removed, and does not count as another extension."""
+    comment = f"  <!--\n{OTHER_EXTENSION}  -->\n"
+
+    assert extensions.remove_extension(
+        f"<extensions>\n{comment}{OUR_EXTENSION}</extensions>\n"
+    ) == (None, True)
+    assert extensions.remove_extension(f"<extensions>\n{comment}</extensions>\n") == (
+        f"<extensions>\n{comment}</extensions>\n",
+        False,
+    )
+
+
 def test_remove_extension_keeps_other_extensions():
     """Only the Cloudsmith extension is removed."""
     existing = f"<extensions>\n{OTHER_EXTENSION}{OUR_EXTENSION}</extensions>\n"
