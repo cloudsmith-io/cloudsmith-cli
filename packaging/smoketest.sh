@@ -124,13 +124,14 @@ run_offline() {
   echo "swept $(printf '%s\n' "$CMDS" | wc -l | tr -d ' ') commands"
 
   echo "== whoami (keyring/auth path) =="
+  # The API host is unreachable on purpose, so don't retry.
   RC=0
   OUT=$( (
     unset CLOUDSMITH_API_KEY CLOUDSMITH_API_TOKEN 2>/dev/null
     CLOUDSMITH_API_HOST=http://127.0.0.1:9 \
     CLOUDSMITH_OIDC_DISCOVERY_DISABLED=true \
     PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring \
-      "$BIN" whoami 2>&1
+      "$BIN" whoami --error-retry-max 0 2>&1
   ) ) || RC=$?
   no_dep_error "$OUT" "whoami"
   [ "$RC" -ne 0 ] || fail "whoami against unreachable API must exit nonzero"
@@ -146,7 +147,7 @@ run_offline() {
     AWS_MAX_ATTEMPTS=1 \
     CLOUDSMITH_API_HOST=http://127.0.0.1:9 \
     PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring \
-      "$BIN" whoami 2>&1
+      "$BIN" whoami --error-retry-max 0 2>&1
   ) || true )
   no_dep_error "$OUT" "AWS OIDC dependency load"
 
