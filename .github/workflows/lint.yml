@@ -25,6 +25,7 @@ jobs:
           persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: python
         with:
           python-version: "3.14"
 
@@ -33,5 +34,12 @@ jobs:
           enable-cache: true
 
       - run: uv sync --locked --group dev
+
+      # The cached hook virtualenvs point at the interpreter, so key on the
+      # exact Python version as well as the hook config.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - run: uv run pre-commit run --all-files

@@ -4,15 +4,20 @@ WORKDIR /root/cloudsmith-cli
 
 RUN apk add --no-cache binutils
 
+ARG PYTHON_VERSION=3.14
+
+# Install dependencies before copying the source, so the layer is reused until
+# pyproject.toml or uv.lock change.
+COPY pyproject.toml pyproject.toml
+COPY uv.lock uv.lock
+RUN uv sync --locked --no-dev --no-editable --group binary --extra all --python "${PYTHON_VERSION}" --no-install-project
+
 COPY bin bin
 COPY cloudsmith_cli cloudsmith_cli
 COPY packaging packaging
-COPY pyproject.toml pyproject.toml
-COPY uv.lock uv.lock
 COPY VERSION VERSION
 
 ARG CLOUDSMITH_CLI_VERSION
-ARG PYTHON_VERSION=3.14
 
 RUN uv sync --locked --no-dev --no-editable --group binary --extra all --python "${PYTHON_VERSION}"
 RUN uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
