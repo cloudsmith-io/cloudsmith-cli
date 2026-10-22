@@ -1,0 +1,86 @@
+# Copyright 2026 Cloudsmith Ltd
+"""
+Shared code for the installers of the Cloudsmith Maven tools.
+
+The Maven extension and the Gradle and sbt plugins get their credential from
+`cloudsmith credential-helper generic`. They are published to a public
+Cloudsmith repository.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from xml.etree import ElementTree
+
+from ..core.session import create_requests_session
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+REPOSITORY_URL = "https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/"
+TIMEOUT_SECONDS = 30
+
+
+def _get(artifact_path: str) -> bytes:
+    response = create_requests_session().get(
+        REPOSITORY_URL + artifact_path, timeout=TIMEOUT_SECONDS
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def latest_version(artifact_path: str) -> str:
+    """Return the newest release of the artifact at *artifact_path*."""
+    metadata = ElementTree.fromstring(_get(f"{artifact_path}/maven-metadata.xml"))
+    release = metadata.findtext("versioning/release")
+    if not release:
+        raise OSError(f"{REPOSITORY_URL}{artifact_path} has no release")
+    return release
+
+
+def download(artifact_path: str, destination: Path) -> None:
+    """Download the file at *artifact_path* to *destination*."""
+    content = _get(artifact_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(content)
+
+
+class ConfigFileInstaller:
+    """Install a plugin with one config file that names its latest version."""
+
+    name = ""
+    summary = ""
+    artifact_path = ""
+
+    def path(self) -> Path:
+        """Return the config file that loads the plugin."""
+        raise NotImplementedError
+
+    def render(self, version: str) -> str:
+        """Return the content of the config file for *version*."""
+        raise NotImplementedError
+
+    def install(self, *, dry_run: bool = False, **_options) -> list[str]:
+        version = latest_version(self.artifact_path)
+        path = self.path()
+        text = self.render(version)
+        if path.exists() and path.read_text(encoding="utf-8") == text:
+            return [f"{path} already uses version {version} (no change)"]
+        if dry_run:
+            return [f"would write {path} for version {version}"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return [f"wrote {path} for version {version}"]
+
+    def uninstall(self, *, dry_run: bool = False, **_options) -> list[str]:
+        path = self.path()
+        if not path.exists():
+            return [f"{path} not found (nothing to remove)"]
+        if dry_run:
+            return [f"would remove {path}"]
+        path.unlink()
+        return [f"removed {path}"]
+
+    def status(self) -> dict:
+        path = self.path()
+        return {"launcher": str(path) if path.exists() else None, "hosts": []}

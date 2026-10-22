@@ -15,7 +15,14 @@ import click
 
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
+from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
+from cloudsmith_cli.credential_helpers.maven.installer import (
+    MavenInstaller,
+    MavenProjectNotFound,
+)
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
     TerraformInstaller,
@@ -44,6 +51,9 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "maven": MavenInstaller,
+    "gradle": GradleInstaller,
+    "sbt": SbtInstaller,
 }
 
 
@@ -316,6 +326,8 @@ def install_cmd(
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        MavenProjectNotFound,
+        ExtensionsFileError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:

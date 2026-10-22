@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `cloudsmith credential-helper install maven`, `install gradle`, and `install sbt`. They set up the Cloudsmith Maven tools, which get repository credentials from `cloudsmith credential-helper generic`. Each command installs the newest release from the public `cloudsmith/maven-tools` repository.
+  - `maven` puts the extension in `~/.m2/repository` and adds it to `.mvn/extensions.xml` of the Maven project in the current directory.
+  - `gradle` writes an init script to `~/.gradle/init.d` (or `$GRADLE_USER_HOME/init.d`), which applies the plugin to every Gradle build.
+  - `sbt` writes a global plugin to `~/.sbt/1.0/plugins`, which adds the plugin to every sbt 1 build.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
