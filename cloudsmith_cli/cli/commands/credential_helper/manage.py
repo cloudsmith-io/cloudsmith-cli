@@ -15,7 +15,15 @@ import click
 
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
+from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
+from cloudsmith_cli.credential_helpers.maven.installer import MavenInstaller
+from cloudsmith_cli.credential_helpers.maven_tools import (
+    InstallOptionError,
+    ProjectNotFound,
+)
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
     TerraformInstaller,
@@ -26,6 +34,7 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
 
+from ....core.session import create_requests_session
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
@@ -44,6 +53,9 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "maven": MavenInstaller,
+    "gradle": GradleInstaller,
+    "sbt": SbtInstaller,
 }
 
 
@@ -74,6 +86,29 @@ def _get_installer(name: str):
         )
         sys.exit(1)
     return cls()
+
+
+def _scope_options(installer, helper: str, **requested: bool) -> dict[str, bool]:
+    """Return the scope options that were given, or fail if *helper* has no such option."""
+    supported = getattr(installer, "install_options", ())
+    for option, given in requested.items():
+        if given and option not in supported:
+            raise click.UsageError(f"--{option} is not supported for {helper}.")
+    return {option: True for option, given in requested.items() if given}
+
+
+def _download_session(opts):
+    """Return a session with the proxy and TLS settings of the command.
+
+    The session goes to the public maven-tools repository, so it does not get
+    the --api-headers that are for the API host.
+    """
+    return create_requests_session(
+        proxy=opts.proxy,
+        ssl_verify=opts.ssl_verify,
+        ssl_verify_strict=opts.ssl_verify_strict,
+        user_agent=opts.api_user_agent,
+    )
 
 
 def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...]:
@@ -241,6 +276,20 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
     "list (as `-r <repo>`) so `terraform init` needs no CLOUDSMITH_REPO env "
     "var. Terraform does not pass the repository to a credentials helper.",
 )
+@click.option(
+    "--local",
+    is_flag=True,
+    default=False,
+    help="Maven and sbt only: set up the project in the current directory "
+    "instead of every build of the user.",
+)
+@click.option(
+    "--mavenrc",
+    is_flag=True,
+    default=False,
+    help="Maven only: load the extension through ~/.mavenrc instead of "
+    "~/.m2/extensions.xml. Use it for Maven 3.9 and earlier.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @common_api_auth_options
@@ -256,6 +305,8 @@ def install_cmd(
     no_discover: bool,
     refresh: bool,
     repo: str | None,
+    local: bool,
+    mavenrc: bool,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
@@ -300,7 +351,10 @@ def install_cmd(
         "org": opts.org,
         "credential": opts.credential,
         "api_host": opts.api_host,
+        **_scope_options(installer, helper, local=local, mavenrc=mavenrc),
     }
+    if getattr(installer, "downloads_files", False):
+        install_kwargs["session"] = _download_session(opts)
 
     # Terraform bakes the resolved org/profile into the terraformrc `args` list
     # so `terraform init` needs neither env vars nor a hand-edited config. The
@@ -316,6 +370,9 @@ def install_cmd(
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        ProjectNotFound,
+        InstallOptionError,
+        ExtensionsFileError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -380,10 +437,19 @@ def install_cmd(
     default=False,
     help="Show what would be done without making any changes.",
 )
+@click.option(
+    "--local",
+    is_flag=True,
+    default=False,
+    help="Maven and sbt only: remove the setup of the project in the current "
+    "directory.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
-def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) -> None:
+def uninstall_cmd(
+    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, local: bool
+) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
@@ -400,7 +466,13 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
     """
     installer = _get_installer(helper)
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(
+            bin_dir=bin_dir,
+            dry_run=dry_run,
+            **_scope_options(installer, helper, local=local),
+        )
+    except (ProjectNotFound, InstallOptionError) as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"
