@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cloudsmith whoami --verbose` now shows a credential from OIDC auto-discovery as `Authentication Method: OIDC Auto-Discovery`, with its source, for example `OIDC via GitHub Actions (org: acme, service: ci-service)`. Since 1.26.0, it showed these credentials as `SAML Token (primary)` with no source. In the JSON output, `auth.active_method` is now `oidc` instead of `sso_token`, and the new `auth.oidc.source` field gives the source.
+- The source of a cached OIDC token now names the CI vendor, for example `OIDC via GitHub Actions [cached] (org: acme, service: ci-service)`. The OIDC token cache now stores the name of the vendor. A token that an earlier version cached still shows `OIDC [cached]` until it expires.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
