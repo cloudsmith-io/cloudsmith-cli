@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith credential-helper install pnpm` now ends `.npmrc` with a newline. Previously, a line that a shell appended to the file, such as `echo '//host/:_authToken=...' >> ~/.npmrc`, joined the last `tokenHelper` line. This made the `tokenHelper` path incorrect, and npm did not read the appended token. The install now also shows each `tokenHelper` line that it sets and the file that it writes to. To add the newline to an existing `.npmrc`, run the install again. If a line is already joined, split it into two lines before you run the install. If you do not, the install removes the appended token.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
