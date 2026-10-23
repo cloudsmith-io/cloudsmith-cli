@@ -23,14 +23,18 @@ import re
 HELPER_NAME = "cloudsmith"
 
 # Matches a whole `credentials_helper "<name>" { ... }` block, capturing the
-# helper name. The body is matched non-greedily up to the first closing brace on
-# its own — the block this helper writes never contains nested braces, and a
-# hand-written one would not either, so a flat match is sufficient and avoids a
-# full HCL parser. DOTALL lets the body span lines.
+# helper name. The body is matched up to the first closing brace outside a
+# quoted string — the block this helper writes never contains nested braces, and
+# a hand-written one would not either, so a flat match is sufficient and avoids a
+# full HCL parser.
 _BLOCK_RE = re.compile(
-    r'credentials_helper\s+"(?P<name>[^"]+)"\s*\{.*?\}',
-    re.DOTALL,
+    r'credentials_helper\s+"(?P<name>[^"]+)"\s*\{(?:[^}"]|"(?:[^"\\\n]|\\.)*")*\}',
 )
+
+# Terraform reads the CLI config with HCL 1. It keeps `${` literally but stops
+# decoding escapes after it. Unicode escapes avoid this and Terraform decodes
+# them to the same characters.
+_HCL_SPECIAL_RE = re.compile(r'[\\"]|\$\{|[\x00-\x1f\x7f-\x9f]')
 
 
 class TerraformrcConflictError(Exception):
@@ -62,9 +66,27 @@ def render_block(args: list[str] | tuple[str, ...] = ()) -> str:
 
     Returns:
         The HCL block as text, without a trailing newline.
+
+    Raises:
+        TypeError: If *args* is a bare string or holds a non-string item.
     """
-    rendered_args = ", ".join(f'"{a}"' for a in args)
+    if isinstance(args, str) or not all(isinstance(arg, str) for arg in args):
+        raise TypeError("args must be a list or tuple of strings")
+    rendered_args = ", ".join(f'"{_escape_hcl_string(arg)}"' for arg in args)
     return f'credentials_helper "{HELPER_NAME}" {{\n  args = [{rendered_args}]\n}}'
+
+
+def _escape_hcl_string(value: str) -> str:
+    """Return *value* escaped for an HCL 1 quoted string."""
+    return _HCL_SPECIAL_RE.sub(_escape_hcl_special, value)
+
+
+def _escape_hcl_special(match: re.Match[str]) -> str:
+    """Return the HCL escape for one special sequence in a quoted string."""
+    special = match.group()
+    if special in ("\\", '"'):
+        return "\\" + special
+    return "".join(f"\\u{ord(char):04x}" for char in special)
 
 
 def find_block(text: str) -> re.Match[str] | None:
