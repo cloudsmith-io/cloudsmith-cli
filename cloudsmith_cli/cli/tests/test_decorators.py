@@ -326,14 +326,19 @@ def test_keyring_options_configure_the_keyring(monkeypatch, tmp_path):
     )
 
 
-def test_api_headers_authorization_without_password_is_a_usage_error():
+@pytest.mark.parametrize(
+    "api_headers",
+    ["Authorization=alice", "user-agent=x", "foo"],
+    ids=["authorization-without-password", "blocked-header", "missing-equals"],
+)
+def test_malformed_api_headers_is_a_usage_error(api_headers):
     @click.command()
     @initialise_session
     def command(opts):
         pass
 
     result = click.testing.CliRunner().invoke(
-        command, ["--api-headers", "Authorization=alice"], obj=Options()
+        command, ["--api-headers", api_headers], obj=Options()
     )
 
     assert result.exit_code == 2, result.output
