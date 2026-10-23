@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import click
+import requests
 
 from cloudsmith_cli.core import download
 from cloudsmith_cli.core.credentials.models import CredentialResult
@@ -369,6 +370,50 @@ class TestStreamDownload(unittest.TestCase):
         # Verify file was written
         mock_file.write.assert_any_call(b"data1")
         mock_file.write.assert_any_call(b"data2")
+        self.assertEqual(
+            self.session.get.call_args.kwargs["timeout"],
+            download.DOWNLOAD_TIMEOUT_SECONDS,
+        )
+
+    @patch("os.makedirs")
+    @patch("click.open_file")
+    def test_stream_download_stalls_mid_stream(self, mock_open_file, mock_makedirs):
+        """Test a read timeout between chunks gives a ClickException."""
+
+        def stalled_body(chunk_size):
+            yield b"data1"
+            raise requests.exceptions.ConnectionError("Read timed out.")
+
+        mock_response = Mock()
+        mock_response.headers = {}
+        mock_response.iter_content.side_effect = stalled_body
+        self.session.get.return_value = mock_response
+
+        with self.assertRaisesRegex(click.ClickException, "Read timed out"):
+            download.stream_download(
+                "https://example.com/file.deb",
+                "/path/to/file.deb",
+                self.session,
+                overwrite=True,
+                quiet=True,
+            )
+
+    def test_stream_download_http_error_closes_response(self):
+        """Test an HTTP error closes the response and gives a ClickException."""
+        mock_response = Mock(status_code=404)
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            response=mock_response
+        )
+        self.session.get.return_value = mock_response
+
+        with self.assertRaisesRegex(click.ClickException, "HTTP 404"):
+            download.stream_download(
+                "https://example.com/file.deb",
+                "/path/to/file.deb",
+                self.session,
+                overwrite=True,
+            )
+        mock_response.close.assert_called_once_with()
 
 
 class TestSelectBestPackage(unittest.TestCase):
