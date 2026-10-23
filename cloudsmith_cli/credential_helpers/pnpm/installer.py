@@ -186,16 +186,18 @@ class PNPMInstaller:
 
         target_dir = resolve_bin_dir(bin_dir)
 
-        if not config_path.exists():
-            actions.append(".npmrc file doesn't exist, nothing to do")
-            return actions
+        # Open a missing .npmrc read-only, because a modifiable NPMRC creates the file.
+        config_exists: bool = config_path.exists()
+        if not config_exists:
+            actions.append(f"no tokenHelper entries to remove from {config_path}")
 
+        launcher_path: Path
         if os.name == "nt":
             launcher_path = target_dir / f"{self.LAUNCHER_NAME}.cmd"
         else:
             launcher_path = target_dir / self.LAUNCHER_NAME
 
-        with NPMRC(config_path, modifiable=not dry_run) as rc:
+        with NPMRC(config_path, modifiable=config_exists and not dry_run) as rc:
             hosts: list[str] = rc.helped_hosts(str(launcher_path))
             for host in hosts:
                 removed = rc.remove(NPMRC.URLEntry.from_values(host, "tokenHelper"))
