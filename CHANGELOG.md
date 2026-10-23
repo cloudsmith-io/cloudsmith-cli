@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- With `-F json`, list commands now give the correct `meta.pagination.page_results_len`. Earlier versions gave a value that was one less than the number of results on the page.
+- List commands no longer fail with `ValueError` when the server sends a pagination header that is not an integer, such as `many`. The JSON output then has no `meta.pagination` data.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
