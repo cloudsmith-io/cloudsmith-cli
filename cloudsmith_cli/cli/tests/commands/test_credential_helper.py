@@ -65,8 +65,15 @@ def _server_domain(name, domain_type, scope="WORKSPACE"):
             json.dumps({"Username": "token", "Secret": "k_abc"}),
             None,
         ),
-        # get-refusal: get_credentials returns None → (1, None, refusal)
-        ("get", None, "evil.example.com", 1, None, "Unable to retrieve credentials"),
+        # get-refusal: get_credentials returns None → (1, not-found, refusal)
+        (
+            "get",
+            None,
+            "evil.example.com",
+            1,
+            "credentials not found in native keychain",
+            "Unable to retrieve credentials",
+        ),
         # store: drains stdin, returns (0, None, None)
         ("store", None, '{"ServerURL": "docker.cloudsmith.io"}', 0, None, None),
         # erase: drains stdin, returns (0, None, None)
@@ -205,13 +212,13 @@ def test_cli_no_arg_defaults_to_get(runner):
     assert json.dumps(fake_creds) in result.stdout
 
 
-def test_execute_get_empty_stdin_returns_exit_1():
-    """execute get with empty stdin → (1, None, 'No server URL...')."""
-    stdin = io.StringIO("")
+def test_execute_get_blank_stdin_returns_exit_1():
+    """execute get with whitespace-only stdin → (1, missing-URL, 'No server URL...')."""
+    stdin = io.StringIO(" \n")
     code, stdout, stderr = execute("get", stdin)
 
     assert code == 1
-    assert stdout is None
+    assert stdout == "no credentials server URL"
     assert "No server URL provided" in stderr
 
 
