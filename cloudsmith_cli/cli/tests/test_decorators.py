@@ -324,3 +324,17 @@ def test_keyring_options_configure_the_keyring(monkeypatch, tmp_path):
         file_path=str(tmp_path / "keyring.cfg"),
         directory=str(tmp_path / "home" / "store"),
     )
+
+
+def test_api_headers_authorization_without_password_is_a_usage_error():
+    @click.command()
+    @initialise_session
+    def command(opts):
+        pass
+
+    result = click.testing.CliRunner().invoke(
+        command, ["--api-headers", "Authorization=alice"], obj=Options()
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "Invalid value for '--api-headers'" in result.output

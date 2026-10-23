@@ -39,14 +39,14 @@ class IntOrWildcard(click.ParamType):
             self.fail(f"{value!r} is not a valid integer or '*'", param, ctx)
 
 
-def transform_api_header_authorization(param, value):
+def transform_api_header_authorization(param: str, value: str) -> str:
     """Transform a username:password value into a base64 string."""
     try:
         username, password = value.split(":", 1)
     except ValueError:
         raise click.BadParameter(
             "Authorization header needs to be Authorization=username:password",
-            param=param,
+            param_hint=f"'--{param.replace('_', '-')}'",
         )
 
     value = f"{username.strip()}:{password}"
