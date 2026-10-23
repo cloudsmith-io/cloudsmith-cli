@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
+- `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
