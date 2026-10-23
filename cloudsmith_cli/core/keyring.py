@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 import getpass
 import os
@@ -9,10 +10,37 @@ from .utils import controlling_terminal_mode, is_interactive
 ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 
 
+@dataclasses.dataclass(frozen=True)
+class KeyringSettings:
+    """The CLOUDSMITH_*KEYRING* settings that the CLI parsed."""
+
+    no_keyring: bool = False
+    backend: str | None = None
+    key: str | None = None
+    file_path: str | None = None
+    directory: str | None = None
+
+
+class _Current:
+    """The keyring settings of this process."""
+
+    settings = KeyringSettings()
+
+
+def configure(settings):
+    """Use *settings* for the keyring in this process."""
+    _Current.settings = settings
+    _prepare_keyring_backend.cache_clear()
+
+
+def current_settings():
+    """Return the keyring settings of this process."""
+    return _Current.settings
+
+
 def should_use_keyring():
-    """Check if keyring should be used based on CLOUDSMITH_NO_KEYRING env var."""
-    env_value = os.environ.get("CLOUDSMITH_NO_KEYRING", "").strip().lower()
-    return env_value not in ("1", "true", "yes")
+    """Check if keyring should be used based on CLOUDSMITH_NO_KEYRING."""
+    return not _Current.settings.no_keyring
 
 
 ACCESS_TOKEN_REFRESH_ATTEMPTED_AT_KEY = (
@@ -52,27 +80,23 @@ def _get_value_with_fallback(template, api_host, profile):
 
 def _sync_keyring_backend_env():
     """Allow CLOUDSMITH_KEYRING_BACKEND to alias PYTHON_KEYRING_BACKEND."""
-    alias_value = os.environ.get("CLOUDSMITH_KEYRING_BACKEND")
+    alias_value = _Current.settings.backend
     if alias_value and "PYTHON_KEYRING_BACKEND" not in os.environ:
         os.environ["PYTHON_KEYRING_BACKEND"] = alias_value
 
 
 def _sync_keyring_property_env():
     """Allow CLOUDSMITH_KEYRING_KEY to alias KEYRING_PROPERTY_KEYRING_KEY."""
-    alias_value = os.environ.get("CLOUDSMITH_KEYRING_KEY")
+    alias_value = _Current.settings.key
     if alias_value and "KEYRING_PROPERTY_KEYRING_KEY" not in os.environ:
         os.environ["KEYRING_PROPERTY_KEYRING_KEY"] = alias_value
 
 
-def _expand_path(value):
-    return os.path.expanduser(os.path.expandvars(value))
-
-
 def _sync_keyring_file_path_env():
     """Allow CLOUDSMITH_KEYRING_FILE_PATH to alias KEYRING_PROPERTY_FILE_PATH."""
-    alias_value = os.environ.get("CLOUDSMITH_KEYRING_FILE_PATH")
+    alias_value = _Current.settings.file_path
     if alias_value and "KEYRING_PROPERTY_FILE_PATH" not in os.environ:
-        os.environ["KEYRING_PROPERTY_FILE_PATH"] = _expand_path(alias_value)
+        os.environ["KEYRING_PROPERTY_FILE_PATH"] = alias_value
 
 
 def _apply_keyring_file_location(backend):
@@ -89,13 +113,13 @@ def _apply_keyring_file_location(backend):
     if file_path:
         backend.file_path = file_path
         return
-    dir_value = os.environ.get("CLOUDSMITH_KEYRING_DIR")
+    dir_value = _Current.settings.directory
     if not dir_value:
         return
     filename = getattr(backend, "filename", None)
     if not filename:
         return
-    backend.file_path = os.path.join(_expand_path(dir_value), filename)
+    backend.file_path = os.path.join(dir_value, filename)
 
 
 def _refuse_password_prompt():
