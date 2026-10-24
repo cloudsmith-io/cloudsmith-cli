@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith credential-helper install` and `uninstall` no longer replace a Docker `config.json` or a Cargo `config.toml` that does not parse. Previously, the CLI read such a file as empty and wrote over it, so your settings were lost. Now the command stops with an error that names the file, and it does not write to the file. Correct or remove the file. Then run the command again.
+- `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
