@@ -584,6 +584,10 @@ def test_installer_treats_the_array_form_as_its_own_provider(cargo_home, bin_dir
 
     assert not any(a.startswith("WARNING") for a in actions)
 
+    config = tomlkit.loads(cargo_home.read_text())
+    config["registries"]["acme"]["credential-provider"] = [PROVIDER]
+    cargo_home.write_text(tomlkit.dumps(config))
+
     installer.uninstall(bin_dir=str(bin_dir))
 
     acme = tomlkit.loads(cargo_home.read_text())["registries"]["acme"]
