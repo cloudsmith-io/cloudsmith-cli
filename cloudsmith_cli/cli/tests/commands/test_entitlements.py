@@ -1,8 +1,13 @@
+import json
+
+import httpretty
+import httpretty.core
 import pytest
 
 from ....core.pagination import PageInfo
 from ...commands.entitlements import list_ as list_entitlements
 from ...commands.entitlements import print_entitlements
+from ...commands.main import main
 from ...config import Options
 
 
@@ -72,3 +77,44 @@ def test_print_entitlements_page_all_shows_retrieved_total(capsys):
     output = capsys.readouterr().out
     assert "Results: 120 entitlements retrieved" in output
     assert "page size" not in output
+
+
+@pytest.mark.parametrize(
+    "option, field",
+    [
+        ("--limit-num-clients", "limit_num_clients"),
+        ("--limit-num-downloads", "limit_num_downloads"),
+        ("--limit-bandwidth", "limit_bandwidth"),
+    ],
+)
+@httpretty.activate(allow_net_connect=False)
+def test_restrict_sends_zero_limit(runner, monkeypatch, tmp_path, option, field):
+    """Test that a zero limit is sent, because zero removes the limit."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CLOUDSMITH_NO_UPDATE_CHECK", "1")
+    monkeypatch.setattr(
+        httpretty.core.fakesock.socket,
+        "shutdown",
+        lambda self, how: None,
+        raising=False,
+    )
+    for name in ("CLOUDSMITH_CONFIG_FILE", "CLOUDSMITH_CREDENTIALS_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    api_host = "https://api.cloudsmith.io"
+    httpretty.register_uri(
+        httpretty.PATCH,
+        f"{api_host}/entitlements/org/repo/token/",
+        body=json.dumps({"name": "token", "slug_perm": "token"}),
+        content_type="application/json",
+    )
+
+    result = runner.invoke(
+        main,
+        ["entitlements", "restrict", "org/repo/token", option, "0"]
+        + ["--api-key", "fake-api-key", "--api-host", api_host],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(httpretty.last_request().body) == {field: 0}

@@ -1,6 +1,7 @@
 """CLI/Commands - Entitlements."""
 
 import functools
+from datetime import datetime
 from operator import itemgetter
 
 import click
@@ -8,6 +9,7 @@ import click
 from ...core.api import entitlements as api
 from ...core.pagination import paginate_results
 from .. import command, decorators, utils, validators
+from ..config import Options
 from ..exceptions import handle_api_exceptions
 from ..utils import fmt_datetime, maybe_spinner
 from .main import main
@@ -685,22 +687,24 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
     required=False,
     help="The maximum number of unique clients allowed for the token. Please note that since clients are "
     "calculated asynchronously (after the download happens), the limit may not be imposed immediately but "
-    "at a later point.",
+    "at a later point. Use 0 to remove the limit.",
 )
 @click.option(
     "--limit-num-downloads",
     type=int,
     required=False,
     help="The maximum number of downloads allowed for the token. Please note that since downloads are calculated "
-    "asynchronously (after the download happens), the limit may not be imposed immediately but at a later point.",
+    "asynchronously (after the download happens), the limit may not be imposed immediately but at a later point. "
+    "Use 0 to remove the limit.",
 )
 @click.option(
     "--limit-bandwidth",
     type=int,
     required=False,
     help="The maximum download bandwidth allowed for the token. Values are expressed as integers to express a "
-    "number of bandwidth units. Please note that since downloads are calculated asynchronously (after"
-    "the download happens), the limit may not be imposed immediately but at a later point",
+    "number of bandwidth units. Please note that since downloads are calculated asynchronously (after "
+    "the download happens), the limit may not be imposed immediately but at a later point. Use 0 to remove "
+    "the limit.",
 )
 @click.option(
     "--limit-bandwidth-unit",
@@ -743,19 +747,19 @@ def sync(ctx, opts, owner_repo, show_tokens, source, yes):
 )
 @click.pass_context
 def restrict(
-    ctx,
-    opts,
-    owner_repo_identifier,
-    refresh_token,
-    limit_num_clients,
-    limit_num_downloads,
-    limit_bandwidth,
-    limit_bandwidth_unit,
-    limit_package_query,
-    limit_path_query,
-    limit_date_range_from,
-    limit_date_range_to,
-):
+    ctx: click.Context,
+    opts: Options,
+    owner_repo_identifier: tuple[str, str, str],
+    refresh_token: str | None,
+    limit_num_clients: int | None,
+    limit_num_downloads: int | None,
+    limit_bandwidth: int | None,
+    limit_bandwidth_unit: str | None,
+    limit_package_query: str | None,
+    limit_path_query: str | None,
+    limit_date_range_from: datetime | str | None,
+    limit_date_range_to: datetime | str | None,
+) -> None:
     """
     Restrict an Entitlement Token using the provided limits.
 
@@ -801,11 +805,11 @@ def restrict(
     data = {}
     if refresh_token:
         data["scheduled_reset_period"] = refresh_token
-    if limit_num_clients:
+    if limit_num_clients is not None:
         data["limit_num_clients"] = limit_num_clients
-    if limit_num_downloads:
+    if limit_num_downloads is not None:
         data["limit_num_downloads"] = limit_num_downloads
-    if limit_bandwidth:
+    if limit_bandwidth is not None:
         data["limit_bandwidth"] = limit_bandwidth
     if limit_bandwidth_unit:
         data["limit_bandwidth_unit"] = limit_bandwidth_unit
