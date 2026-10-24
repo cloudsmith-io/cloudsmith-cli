@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- List commands that return no results now print `Results: 0 <items>`, not `Results: 1-0 (0) of 0 <items> (page: 1/1, ...)`. When the API response has no pagination headers, list commands print only the result count, not `of None`.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
