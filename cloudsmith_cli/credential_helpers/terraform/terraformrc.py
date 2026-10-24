@@ -24,11 +24,20 @@ HELPER_NAME = "cloudsmith"
 
 # Matches a whole `credentials_helper "<name>" { ... }` block, capturing the
 # helper name. The body is matched up to the first closing brace outside a
-# quoted string — the block this helper writes never contains nested braces, and
-# a hand-written one would not either, so a flat match is sufficient and avoids a
-# full HCL parser.
+# quoted string or a comment — the block this helper writes never contains nested
+# braces, and a hand-written one would not either, so a flat match is sufficient
+# and avoids a full HCL parser. A comment is consumed whole, so a `"` or `}` in
+# it is not read as a string or the end of the block. The alternatives never
+# start with the same character, so a failed match cannot backtrack
+# exponentially.
 _BLOCK_RE = re.compile(
-    r'credentials_helper\s+"(?P<name>[^"]+)"\s*\{(?:[^}"]|"(?:[^"\\\n]|\\.)*")*\}',
+    r'credentials_helper\s+"(?P<name>[^"]+)"\s*\{'
+    r"(?:[^}\"#/]"
+    r"|/(?![/*])"
+    r"|(?>(?:#|//)[^\n]*)"
+    r"|/\*(?:[^*]|\*(?!/))*\*/"
+    r'|"(?:[^"\\\n]|\\.)*")*'
+    r"\}",
 )
 
 # Terraform reads the CLI config with HCL 1. It keeps `${` literally but stops

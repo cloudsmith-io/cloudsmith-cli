@@ -89,6 +89,19 @@ def test_update_replaces_block_with_brace_in_quoted_arg():
     assert new_text == terraformrc.render_block(["-w", "x"]) + "\n"
 
 
+@pytest.mark.parametrize(
+    "comment",
+    ['# a " and a }', '// a " and a }', '/* a " and\n  a } */'],
+)
+def test_block_with_quote_in_comment_is_updated_and_removed(comment):
+    """A `"` or `}` in an HCL comment does not hide the block."""
+    existing = f'credentials_helper "cloudsmith" {{\n  {comment}\n  args = []\n}}\n'
+    updated, changed = terraformrc.add_or_update_block(existing, ["-w", "x"])
+    assert changed is True
+    assert updated == terraformrc.render_block(["-w", "x"]) + "\n"
+    assert terraformrc.remove_block(existing) == ("", True)
+
+
 def test_add_block_to_empty_file():
     """Adding to an empty file yields just the block plus a trailing newline."""
     new_text, changed = terraformrc.add_or_update_block("", ["--org", "acme"])
