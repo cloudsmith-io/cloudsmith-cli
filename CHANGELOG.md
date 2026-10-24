@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith copy`, `move`, and `resync` with `--skip-errors` now ignore an API error, the same as `cloudsmith push`. The CLI prints the error one time, then `Skipping error and moving on.`, and exits with code 0. Previously, the CLI also printed the error a second time as an unexpected error (`Error: ApiException: ...`), sent an error report, and exited with code 1.
+- The `--skip-errors` help text no longer says "when copying packages" for `move`, `resync`, and `push`.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
