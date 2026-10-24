@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith credential-helper install cargo` no longer replaces a `credential-provider` that you set on a Cloudsmith registry in `config.toml`. The install keeps your provider and shows a warning that names the registry. Previously, the install replaced your provider, and `uninstall cargo` then removed it.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
