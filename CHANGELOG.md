@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- When the API returns an error body that is a JSON list, string, number, or `null`, the CLI now shows the HTTP status and the API message. Before this fix, the CLI stopped with `AttributeError: 'list' object has no attribute 'get'`, and `-F json` wrote nothing to stdout.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
