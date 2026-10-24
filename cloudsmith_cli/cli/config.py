@@ -356,27 +356,34 @@ class CredentialsReader(ConfigReader):
         return paths
 
     @classmethod
-    def _set_api_key(cls, path, api_key=""):
+    def _set_api_key(cls, path: str | os.PathLike[str], api_key: str = "") -> None:
         """Write api_key value in a credentials file, preserving structure."""
+        # Text mode reads CRLF as LF, so no "\r" reaches the pattern.
         with open(path) as f:
             content = f.read()
-        replacement = rf"\1 = {api_key}" if api_key else r"\1 ="
+        line = f"api_key = {api_key}" if api_key else "api_key ="
+        # "[ \t]" and not "\s": "\s" also matches a newline, so an empty
+        # key would consume the next lines and the next section header.
         content = re.sub(
-            r"^(api_key)\s*=\s*.*$",
-            replacement,
+            r"^api_key[ \t]*[=:].*$",
+            lambda _: line,
             content,
             flags=re.MULTILINE,
         )
+        if api_key:
+            # The CLI reads [default] when no profile is selected, so a new
+            # key must be saved there even when the file has no api_key line.
+            content = _set_section_value(content, "default", "api_key", api_key)
         with open(path, "w") as f:
             f.write(content)
 
     @classmethod
-    def clear_api_key(cls, path):
+    def clear_api_key(cls, path: str | os.PathLike[str]) -> None:
         """Clear api_key values in a credentials file, preserving structure."""
         cls._set_api_key(path)
 
     @classmethod
-    def update_api_key(cls, path, api_key):
+    def update_api_key(cls, path: str | os.PathLike[str], api_key: str) -> None:
         """Update api_key value in an existing credentials file, preserving structure."""
         cls._set_api_key(path, api_key)
 
