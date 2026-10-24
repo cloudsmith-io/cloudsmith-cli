@@ -114,7 +114,25 @@ def handle_api_exceptions(
             ctx.exit(exc.status or 1)
 
 
-def print_error_details(context_msg, exc, detail, fields, hint, use_stderr=False):
+def render_error_value(value: object) -> str:
+    """Render a JSON error value from the API as readable text."""
+    if isinstance(value, dict):
+        return "; ".join(
+            f"{key}: {render_error_value(item)}" for key, item in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return " ".join(render_error_value(item) for item in value)
+    return str(value)
+
+
+def print_error_details(
+    context_msg: str,
+    exc: ApiException,
+    detail: object,
+    fields: dict[str, object] | None,
+    hint: str | None,
+    use_stderr: bool = False,
+) -> None:
     """Print the standard context/detail/fields/hint block for an error."""
     click.secho(
         f"{context_msg} (status: {exc.status} - {exc.status_description})",
@@ -128,7 +146,7 @@ def print_error_details(context_msg, exc, detail, fields, hint, use_stderr=False
         if detail:
             click.secho(
                 "Detail: {detail}".format(
-                    detail=click.style(detail, fg="red", bold=False)
+                    detail=click.style(render_error_value(detail), fg="red", bold=False)
                 ),
                 bold=True,
                 err=use_stderr,
@@ -137,14 +155,10 @@ def print_error_details(context_msg, exc, detail, fields, hint, use_stderr=False
         for k, v in (fields or {}).items():
             field = f"{k.capitalize()} Field"
 
-            # Flatten list/tuple error messages for text output
-            if isinstance(v, (list, tuple)):
-                v = " ".join(v)
-
             click.secho(
                 "{field}: {message}".format(
                     field=click.style(field, bold=True),
-                    message=click.style(v, fg="red"),
+                    message=click.style(render_error_value(v), fg="red"),
                 ),
                 err=use_stderr,
             )
@@ -156,7 +170,7 @@ def print_error_details(context_msg, exc, detail, fields, hint, use_stderr=False
         )
 
 
-def get_details(exc):
+def get_details(exc: ApiException) -> tuple[object, dict[str, object]]:
     """Get the details from the exception."""
     detail = None
     fields = collections.OrderedDict()
@@ -164,20 +178,22 @@ def get_details(exc):
     if exc.detail:
         detail = exc.detail
 
-    if exc.fields:
-        for k, v in exc.fields.items():
+    exc_fields = exc.fields
+    if exc_fields and not isinstance(exc_fields, dict):
+        exc_fields = {"non_field_errors": exc_fields}
+
+    if exc_fields:
+        for k, v in exc_fields.items():
             try:
                 field_detail = v["detail"]
             except (TypeError, KeyError):
                 field_detail = v
 
             if k == "non_field_errors":
-                # Ensure we handle list/tuple for non_field_errors details joining
-                if isinstance(field_detail, (list, tuple)):
-                    field_detail = " ".join(field_detail)
+                field_detail = render_error_value(field_detail)
 
                 if detail:
-                    detail += " " + field_detail
+                    detail = f"{render_error_value(detail)} {field_detail}"
                 else:
                     detail = field_detail
                 continue

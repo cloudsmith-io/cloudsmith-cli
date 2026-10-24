@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- The CLI now shows the API error when the field errors of the error contain objects, for example `{"non_field_errors": [{"code": 1}]}` or nested serializer errors. Previously, the CLI stopped with `TypeError: sequence item 0: expected str instance, dict found` and did not show the API error.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
