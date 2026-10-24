@@ -13,9 +13,13 @@ from ..pagination import PageInfo
                 "X-Pagination-PageTotal": "2",
                 "X-Pagination-PageSize": "2",
             },
-            "Valid: True, Count: 3, Page: 1, Size: 2, Total: 2",
+            "Valid: True, Count: 3, Page: 1, Pages: 2, Size: 2, Total: 3",
         ),
-        ({}, "Valid: False, Count: None, Page: None, Size: None, Total: None"),
+        (
+            {},
+            "Valid: False, Count: None, Page: None, Pages: None, Size: None, "
+            "Total: None",
+        ),
     ],
     ids=["valid", "invalid"],
 )

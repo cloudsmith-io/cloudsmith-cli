@@ -18,7 +18,7 @@ class PageInfo:
         """Get page information as text."""
         return (
             f"Valid: {self.is_valid}, Count: {self.count}, Page: {self.page}, "
-            f"Size: {self.page_size}, Total: {self.page_total}"
+            f"Pages: {self.page_total}, Size: {self.page_size}, Total: {self.count}"
         )
 
     def calculate_range(self, num_results):
