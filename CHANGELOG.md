@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- **Breaking:** `cloudsmith login`, `cloudsmith logout`, and `--save-config` on `cloudsmith auth` and `cloudsmith tokens` now set `credentials.ini` to mode `0600`. Only your user can read or change the file and its API key. Previously, the CLI created the file with mode `0660`, so all members of your group could read and change the API key. When the CLI writes an existing `credentials.ini` that you own, it also sets the mode to `0600`. The CLI does not change the mode when it only reads the file. Other users in your group can no longer read a `credentials.ini` that the CLI writes. On Windows, the CLI does not change the access to the file.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
