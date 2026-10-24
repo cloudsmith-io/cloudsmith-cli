@@ -152,8 +152,12 @@ def validate_untrusted_proxy(proxy, allowed_suffixes=()):
 
 
 def validate_slashes(
-    param, value, minimum=2, maximum=None, form=None, allow_blank=False
-):
+    param: click.Parameter | None,
+    value: str,
+    minimum: int = 2,
+    maximum: int | None = None,
+    form: str | None = None,
+) -> list[str]:
     """Ensure that parameter has slashes and minimum parts."""
     try:
         value = value.split("/")
@@ -168,20 +172,26 @@ def validate_slashes(
         raise click.BadParameter(f"Must be in the form of {form}", param=param)
 
     value = [v.strip() for v in value]
-    if not allow_blank and not all(value):
+    # Shell completion leaves "OWNER/", so an empty optional trailing part is not given.
+    while len(value) > minimum and not value[-1]:
+        value.pop()
+
+    if not all(value):
         raise click.BadParameter("Individual values cannot be blank", param=param)
 
     return value
 
 
-def validate_optional_owner_repo(ctx, param, value):
+def validate_optional_owner_repo(
+    ctx: click.Context | None, param: click.Parameter | None, value: str | None
+) -> list[str] | None:
     """Ensure that owner/repo is formatted correctly, where owner and repo are optional."""
     # pylint: disable=unused-argument
     form = "OWNER/REPO"
+    if value is None:
+        return None
 
-    return validate_slashes(
-        param, value, minimum=0, maximum=2, form=form, allow_blank=True
-    )
+    return validate_slashes(param, value, minimum=0, maximum=2, form=form) or None
 
 
 def validate_required_owner_optional_repo(ctx, param, value):
