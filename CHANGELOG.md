@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith credential-helper list` now shows the pnpm hosts in `.npmrc` when the pnpm launcher is missing. Previously, the command showed no hosts, and pnpm still tried to run the missing launcher for those hosts.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
