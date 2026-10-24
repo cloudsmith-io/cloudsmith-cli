@@ -103,8 +103,9 @@ class NPMRC:
         if not self._path.exists():
             self._path.touch()
 
-    def parse(self):
-        with open(self._path) as f:
+    def parse(self) -> None:
+        # surrogateescape writes bytes that are not UTF-8 back to the file unchanged.
+        with open(self._path, encoding="utf-8-sig", errors="surrogateescape") as f:
             for line in f:
                 if line.lstrip().startswith("//"):
                     try:
@@ -173,12 +174,12 @@ class NPMRC:
             and line._value == v
         ]
 
-    def write(self):
+    def write(self) -> None:
         if not self._modifiable:
             return
 
         if not self.modified:
             return
 
-        with open(self._path, "w") as f:
+        with open(self._path, "w", encoding="utf-8", errors="surrogateescape") as f:
             f.write("\n".join(self._lines))
