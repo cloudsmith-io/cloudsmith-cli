@@ -3,6 +3,7 @@
 import configparser
 import os
 import re
+import stat
 import threading
 from typing import ClassVar
 
@@ -124,7 +125,9 @@ class ConfigReader(ConfigFileReader):
         return os.path.join(filepath, filename)
 
     @classmethod
-    def create_default_file(cls, data=None, mode=None):
+    def create_default_file(
+        cls, data: dict[str, str | None] | None = None, mode: int | None = None
+    ) -> bool:
         """Create a config file and override data if specified."""
         filepath = cls.get_default_filepath()
         if not filepath:
@@ -147,7 +150,10 @@ class ConfigReader(ConfigFileReader):
         dirpath = os.path.dirname(filepath)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
-        with click.open_file(filepath, "w+") as f:
+        file_mode = 0o666 if mode is None else mode
+        with open(
+            filepath, "w+", opener=lambda path, flags: os.open(path, flags, file_mode)
+        ) as f:
             f.write(config)
 
         if mode is not None:
@@ -356,7 +362,7 @@ class CredentialsReader(ConfigReader):
         return paths
 
     @classmethod
-    def _set_api_key(cls, path, api_key=""):
+    def _set_api_key(cls, path: str | os.PathLike[str], api_key: str = "") -> None:
         """Write api_key value in a credentials file, preserving structure."""
         with open(path) as f:
             content = f.read()
@@ -367,6 +373,14 @@ class CredentialsReader(ConfigReader):
             content,
             flags=re.MULTILINE,
         )
+        # Restrict the mode before the write, so the new key is never readable
+        # under the old mode.
+        try:
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+        except PermissionError:
+            # Only the owner can change the mode. Another user's group-shared
+            # file still takes the new key.
+            pass
         with open(path, "w") as f:
             f.write(content)
 
