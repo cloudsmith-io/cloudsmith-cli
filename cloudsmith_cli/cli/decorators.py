@@ -80,7 +80,7 @@ def common_package_action_options(f):
         "--skip-errors",
         default=False,
         is_flag=True,
-        help="Skip/ignore errors when copying packages.",
+        help="Ignore API errors: print each error, then continue.",
     )
     @click.option(
         "-W",

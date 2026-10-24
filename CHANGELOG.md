@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `cloudsmith copy`, `move`, and `resync` with `--skip-errors` now ignore an API error, the same as `cloudsmith push`. The CLI prints the error one time, then `Skipping error and moving on.`, and exits with code 0. Previously, the CLI also printed the error a second time as an unexpected error (`Error: ApiException: ...`), sent an error report, and exited with code 1.
+- The `--skip-errors` help text no longer says "when copying packages" for `move`, `resync`, and `push`.
 
 ## [1.30.0] - 2026-10-22
 
