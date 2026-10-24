@@ -5,12 +5,14 @@ import click.testing
 import pytest
 
 from ...core import keyring as core_keyring
+from ...core.api.exceptions import ApiException
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
 from ...core.tests.test_certificate_errors import certificate_error
 from ...core.utils import get_data_path, read_file
 from ..config import Options
 from ..decorators import (
+    common_package_action_options,
     initialise_api,
     initialise_session,
     keyring_options,
@@ -74,6 +76,16 @@ def test_failed_saml_renewal_explains_the_certificate_error():
     assert "Missing Authority Key Identifier" in result.stderr
     assert "Hint: The TLS certificate failed a strict X.509 check" in result.stderr
     assert result.stdout == "command ran\n"
+
+
+def test_package_action_without_skip_errors_raises_api_errors():
+    @click.command()
+    @common_package_action_options
+    def command(**_kwargs):
+        raise ApiException(status=400)
+
+    with pytest.raises(ApiException):
+        click.testing.CliRunner().invoke(command, catch_exceptions=False)
 
 
 @pytest.mark.parametrize("command_name", ["authenticate", "login"])
