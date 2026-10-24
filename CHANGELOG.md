@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- An API request no longer waits without a limit when the API host accepts the connection but does not reply. A request now fails when it cannot connect in 30 seconds, or when it gets no data for 90 seconds. The API CDN waits 60 seconds for the API, so the CLI does not stop a slow request before the CDN does. If a request fails, the CLI retries it up to 6 times by default (`--error-retry-max`). A POST request has only the 30-second connection timeout, because a retry after a read timeout can create a second entry. File uploads and downloads do not change.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
