@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- The CLI now reads `config.ini` and `credentials.ini` as UTF-8. On Windows, a UTF-8 file with characters such as Cyrillic letters caused a `UnicodeDecodeError` in every command. A file in the Windows code page (for example cp1252) still loads. When the CLI changes a file, it keeps the encoding of that file and its UTF-8 byte order mark. The CLI creates new files as UTF-8.
+- When the CLI cannot decode a `config.ini` or `credentials.ini`, for example a UTF-16 file, the error now gives the file path and tells you to save the file as UTF-8.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
