@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- Fixed `cloudsmith mcp configure`, `cloudsmith download` and `cloudsmith update` when their output goes to a pipe or a file on Windows. Windows then uses a legacy encoding, such as cp1252, and these commands failed with `UnicodeEncodeError` after they did their work. The CLI now prints only ASCII text in the messages of these commands and in the dry-run message of `cloudsmith credential-helper`.
+- Fixed `cloudsmith mcp configure` on Windows when a client configuration file contains non-ASCII text. The command read the UTF-8 file with the legacy Windows encoding. It then wrote incorrect characters back to the file, or it failed with `UnicodeDecodeError`. The CLI now reads the file as UTF-8.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
