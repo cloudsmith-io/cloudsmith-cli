@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith credential-helper list` now shows a helper as not configured when its config file is not valid, and it still lists the other helpers. This applies to a Docker `config.json` with a `credHelpers` value that is not an object, and to a Docker or Terraform config file that is not UTF-8. It also applies to a pnpm `.npmrc` that the CLI cannot read or decode. Previously, the command stopped with an error such as `AttributeError`.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added

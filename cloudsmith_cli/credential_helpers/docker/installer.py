@@ -308,7 +308,7 @@ class DockerInstaller:
 
         return actions
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, str | list[str] | None]:
         """Return current installation status.
 
         Returns
@@ -339,8 +339,11 @@ class DockerInstaller:
                 data = json.loads(config_path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     helpers = data.get("credHelpers", {})
-                    hosts = [k for k, v in helpers.items() if v == self.HELPER_VALUE]
-            except (json.JSONDecodeError, OSError):
+                    if isinstance(helpers, dict):
+                        hosts = [
+                            k for k, v in helpers.items() if v == self.HELPER_VALUE
+                        ]
+            except (ValueError, OSError):
                 pass
 
         return {
