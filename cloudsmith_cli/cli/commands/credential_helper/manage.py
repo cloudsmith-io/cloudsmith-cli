@@ -147,7 +147,23 @@ def _main_envvar(option) -> str:
     return names if isinstance(names, str) else names[0]
 
 
-def _launcher_settings_from_cli(ctx) -> dict[str, str]:
+def _launcher_value(
+    option: click.Parameter, ctx: click.Context, value: object
+) -> str | None:
+    """Return *value* as the text that *option* accepts, or None to skip it."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    # A launcher variable holds one value, so it cannot keep a list of values.
+    if isinstance(value, tuple):
+        return None
+    if isinstance(option.type, click.Choice):
+        return option.type.normalize_choice(value, ctx)
+    if isinstance(value, (str, int, float)):
+        return str(value)
+    return None
+
+
+def _launcher_settings_from_cli(ctx: click.Context) -> dict[str, str]:
     """Return the ``CLOUDSMITH_*`` settings that a launcher keeps.
 
     An option with a ``CLOUDSMITH_*`` environment variable is kept when its
@@ -169,10 +185,9 @@ def _launcher_settings_from_cli(ctx) -> dict[str, str]:
             envvar = _main_envvar(option)
             source = context.get_parameter_source(option.name)
             if envvar.startswith("CLOUDSMITH_") and source in supplied:
-                value = context.params[option.name]
-                settings[envvar] = (
-                    str(value).lower() if isinstance(value, bool) else value
-                )
+                value = _launcher_value(option, context, context.params[option.name])
+                if value is not None:
+                    settings[envvar] = value
     return settings
 
 

@@ -17,7 +17,9 @@ import pytest
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
+from ....cli.commands.credential_helper.manage import _launcher_settings_from_cli
 from ....core.credentials.models import CredentialResult
+from ....core.utils import ColorMode
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
     UnsafeLauncherValue,
@@ -134,6 +136,39 @@ def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, 
     monkeypatch.setenv("USERPROFILE", "C:\\Users\\José")
     with pytest.raises(UnsafeLauncherValue, match="CLOUDSMITH_PROFILE"):
         _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
+
+
+def test_launcher_refuses_a_value_that_is_not_a_string():
+    with pytest.raises(TypeError, match="CLOUDSMITH_COLOR"):
+        _launcher_content(
+            "cmd", windows=False, env={"CLOUDSMITH_COLOR": ColorMode.NEVER}
+        )
+
+
+@pytest.mark.parametrize(
+    "option_kwargs,value,kept",
+    [
+        ({"type": click.Choice(ColorMode, case_sensitive=False)}, "NEVER", "never"),
+        ({"type": int}, "3", "3"),
+        ({"type": click.Choice(["a", "b"]), "multiple": True}, "a", None),
+    ],
+)
+def test_launcher_keeps_a_setting_as_the_text_its_option_accepts(
+    runner, option_kwargs, value, kept
+):
+    """A launcher sets one text value per variable, so it skips a list of values."""
+
+    @click.command()
+    @click.option("--setting", envvar="CLOUDSMITH_SETTING", **option_kwargs)
+    @click.pass_context
+    def command(ctx, setting):
+        click.echo(json.dumps(_launcher_settings_from_cli(ctx)))
+
+    result = runner.invoke(command, ["--setting", value], catch_exceptions=False)
+
+    assert json.loads(result.stdout) == (
+        {} if kept is None else {"CLOUDSMITH_SETTING": kept}
+    )
 
 
 def test_install_passes_flag_and_environment_settings_to_the_launcher(

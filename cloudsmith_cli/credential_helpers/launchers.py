@@ -99,6 +99,12 @@ def _launcher_content(
     same result as the install.
     """
     env = env or {}
+    for name, value in env.items():
+        if not isinstance(value, str):
+            raise TypeError(
+                f"{name} {value!r} cannot go into the launcher: the value must "
+                f"be a string, not {type(value).__name__}."
+            )
     if windows:
         settings = "".join(
             f'set "{name}={batch_value(name, value)}"\r\n'
