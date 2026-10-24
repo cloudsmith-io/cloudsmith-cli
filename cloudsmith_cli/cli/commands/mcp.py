@@ -16,9 +16,13 @@ import json5
 if TYPE_CHECKING:
     from ...core.mcp import server
     from ...core.mcp.data import OpenAPITool
+    from ..config import Options
 
 from .. import command, decorators, utils
+from ..exceptions import handle_api_exceptions
 from .main import main
+
+SPEC_LOAD_ERROR_MESSAGE = "Failed to load the Cloudsmith API schema!"
 
 SUPPORTED_MCP_CLIENTS = {
     "claude": "Claude Desktop",
@@ -47,11 +51,17 @@ def mcp_(ctx, opts):  # pylint: disable=unused-argument
 @decorators.initialise_api
 @decorators.initialise_mcp
 @click.pass_context
-def start(ctx, opts, mcp_server: server.DynamicMCPServer):
+def start(
+    ctx: click.Context, opts: Options, mcp_server: server.DynamicMCPServer
+) -> None:
     """
     Start the MCP Server
     """
-    mcp_server.run()
+    # Stdout carries the MCP protocol, so errors go to stderr.
+    with handle_api_exceptions(
+        ctx, opts=opts, context_msg=SPEC_LOAD_ERROR_MESSAGE, err=True
+    ):
+        mcp_server.run()
 
 
 @mcp_.command(name="list_tools")
@@ -61,7 +71,9 @@ def start(ctx, opts, mcp_server: server.DynamicMCPServer):
 @decorators.initialise_api
 @decorators.initialise_mcp
 @click.pass_context
-def list_tools(ctx, opts, mcp_server: server.DynamicMCPServer):
+def list_tools(
+    ctx: click.Context, opts: Options, mcp_server: server.DynamicMCPServer
+) -> None:
     """
     List available tools that will be exposed to the MCP Client
     """
@@ -70,7 +82,10 @@ def list_tools(ctx, opts, mcp_server: server.DynamicMCPServer):
     if not use_stderr:
         click.echo("Getting list of tools ... ", nl=False, err=use_stderr)
 
-    with utils.maybe_spinner(opts):
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=SPEC_LOAD_ERROR_MESSAGE),
+        utils.maybe_spinner(opts),
+    ):
         tools = mcp_server.list_tools()
 
     if not use_stderr:
@@ -93,7 +108,9 @@ def list_tools(ctx, opts, mcp_server: server.DynamicMCPServer):
 @decorators.initialise_api
 @decorators.initialise_mcp
 @click.pass_context
-def list_groups(ctx, opts, mcp_server: server.DynamicMCPServer):
+def list_groups(
+    ctx: click.Context, opts: Options, mcp_server: server.DynamicMCPServer
+) -> None:
     """
     List available tool groups and the tools they contain
     """
@@ -102,7 +119,10 @@ def list_groups(ctx, opts, mcp_server: server.DynamicMCPServer):
     if not use_stderr:
         click.echo("Getting list of tool groups ... ", nl=False, err=use_stderr)
 
-    with utils.maybe_spinner(opts):
+    with (
+        handle_api_exceptions(ctx, opts=opts, context_msg=SPEC_LOAD_ERROR_MESSAGE),
+        utils.maybe_spinner(opts),
+    ):
         groups = mcp_server.list_groups()
 
     if not use_stderr:
