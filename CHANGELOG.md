@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith credential-helper install terraform` now escapes the `terraformrc` args. Previously, a Windows path such as `C:\Users\jo\config.ini` in `--config-file` or `--credentials-file` made Terraform reject the full CLI config file. A `"` in an arg also made Terraform reject the file. A `${` in an arg could change the value that Terraform read. A `}` in an arg made the next install write an incorrect file. To fix a file that an earlier version wrote, run the install command again.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added

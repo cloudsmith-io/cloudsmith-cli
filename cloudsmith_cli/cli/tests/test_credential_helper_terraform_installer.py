@@ -54,6 +54,54 @@ def test_render_block_empty_args():
     assert "args = []" in terraformrc.render_block([])
 
 
+@pytest.mark.windows
+def test_render_block_escapes_windows_path_backslashes():
+    """A Windows path keeps its backslashes as valid HCL escapes."""
+    block = terraformrc.render_block(["--config-file", r"C:\Users\jo\config.ini"])
+    assert r'args = ["--config-file", "C:\\Users\\jo\\config.ini"]' in block
+
+
+@pytest.mark.parametrize(
+    ("arg", "rendered"),
+    [
+        ('a"b', r'"a\"b"'),
+        ("a${b}", r'"a\u0024\u007bb}"'),
+        ("a\nb", r'"a\u000ab"'),
+    ],
+)
+def test_render_block_escapes_hcl_specials(arg, rendered):
+    """Quotes, template starts and control characters are escaped."""
+    assert f"args = [{rendered}]" in terraformrc.render_block([arg])
+
+
+@pytest.mark.parametrize("args", ["-w", ["-w", 1]])
+def test_render_block_rejects_non_string_args(args):
+    """A bare string or a non-string item is refused, not rendered."""
+    with pytest.raises(TypeError):
+        terraformrc.render_block(args)
+
+
+def test_update_replaces_block_with_brace_in_quoted_arg():
+    """A `}` after an escaped quote in an arg does not end the block."""
+    existing = 'credentials_helper "cloudsmith" {\n  args = ["-w", "a\\"}b"]\n}\n'
+    new_text, changed = terraformrc.add_or_update_block(existing, ["-w", "x"])
+    assert changed is True
+    assert new_text == terraformrc.render_block(["-w", "x"]) + "\n"
+
+
+@pytest.mark.parametrize(
+    "comment",
+    ['# a " and a }', '// a " and a }', '/* a " and\n  a } */'],
+)
+def test_block_with_quote_in_comment_is_updated_and_removed(comment):
+    """A `"` or `}` in an HCL comment does not hide the block."""
+    existing = f'credentials_helper "cloudsmith" {{\n  {comment}\n  args = []\n}}\n'
+    updated, changed = terraformrc.add_or_update_block(existing, ["-w", "x"])
+    assert changed is True
+    assert updated == terraformrc.render_block(["-w", "x"]) + "\n"
+    assert terraformrc.remove_block(existing) == ("", True)
+
+
 def test_add_block_to_empty_file():
     """Adding to an empty file yields just the block plus a trailing newline."""
     new_text, changed = terraformrc.add_or_update_block("", ["--org", "acme"])
