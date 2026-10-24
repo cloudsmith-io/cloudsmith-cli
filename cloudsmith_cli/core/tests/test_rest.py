@@ -7,7 +7,7 @@ from cloudsmith_api.rest import ApiException
 from urllib3.exceptions import MaxRetryError, SSLError
 
 from ..api.init import initialise_api
-from ..rest import REQUEST_TIMEOUT_SECONDS, RestClient
+from ..rest import READ_TIMEOUT_SECONDS, REQUEST_TIMEOUT_SECONDS, RestClient
 from ..session import create_requests_session
 
 
@@ -73,7 +73,7 @@ class TestRestClient:
     @pytest.mark.parametrize(
         "method, expected_timeout",
         [
-            ("GET", REQUEST_TIMEOUT_SECONDS),
+            ("GET", (REQUEST_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)),
             ("POST", (REQUEST_TIMEOUT_SECONDS, None)),
         ],
     )
