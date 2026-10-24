@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- An empty optional trailing part in an `OWNER/REPO` argument now means that you did not give the part. For example, `cloudsmith repos get myorg/` lists the repositories in `myorg`. Before, it requested a repository with an empty name and printed a row of `None` values. `cloudsmith metrics entitlements myorg/` now works the same as `myorg`, and a `push` target such as `myorg/myrepo/ubuntu/` works the same as `myorg/myrepo/ubuntu`. An empty `OWNER` before a `REPO`, such as `/myrepo`, now gives a usage error.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
