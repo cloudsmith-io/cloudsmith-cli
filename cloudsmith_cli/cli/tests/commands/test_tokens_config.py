@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from cloudsmith_cli.cli.commands.tokens import create, refresh
+from cloudsmith_cli.cli.config import ConfigReader, CredentialsReader
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.config import create_config_files
 
@@ -157,3 +158,64 @@ def test_refresh_existing_saves_and_prints_once(runner, telemetry_config_dir, ou
     assert "review_fake_key" in (telemetry_config_dir / "credentials.ini").read_text()
     if output != "pretty":
         assert json.loads(result.stdout)["data"]["key"] == TOKEN.key
+
+
+@pytest.fixture()
+def user_dir(monkeypatch, tmp_path):
+    """Search the cwd first and then a user-level directory, as a real run does."""
+    user_dir = tmp_path / "user"
+    project_dir = tmp_path / "project"
+    user_dir.mkdir()
+    project_dir.mkdir()
+    for reader in (ConfigReader, CredentialsReader):
+        monkeypatch.setattr(reader, "config_searchpath", [".", str(user_dir)])
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CREDENTIALS_FILE", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(project_dir)
+    return user_dir
+
+
+def _save_new_key(runner, args=()):
+    with patch(
+        "cloudsmith_cli.core.api.user.create_user_token_saml", return_value=TOKEN
+    ):
+        return runner.invoke(create, ["--save-config", "--force", *args])
+
+
+def test_save_creates_user_level_files(runner, user_dir, tmp_path):
+    project_creds = tmp_path / "project" / "credentials.ini"
+    project_creds.write_text("[default]\napi_key =\n")
+
+    result = _save_new_key(runner)
+
+    assert result.exit_code == 0, result.output
+    assert TOKEN.key in (user_dir / "credentials.ini").read_text()
+    assert (user_dir / "config.ini").exists()
+    assert [path.name for path in (tmp_path / "project").iterdir()] == [
+        "credentials.ini"
+    ]
+    assert project_creds.read_text() == "[default]\napi_key =\n"
+
+
+def test_save_updates_user_level_credentials(runner, user_dir, tmp_path):
+    (user_dir / "credentials.ini").write_text("[default]\napi_key = review_old_key\n")
+
+    result = _save_new_key(runner)
+
+    assert result.exit_code == 0, result.output
+    assert "ERROR" not in result.output
+    assert TOKEN.key in (user_dir / "credentials.ini").read_text()
+    assert not (tmp_path / "project" / "credentials.ini").exists()
+
+
+def test_save_writes_to_explicit_credentials_directory(runner, user_dir, tmp_path):
+    explicit_dir = tmp_path / "explicit"
+    explicit_dir.mkdir()
+    (user_dir / "credentials.ini").write_text("[default]\napi_key = review_old_key\n")
+
+    result = _save_new_key(runner, ["--credentials-file", str(explicit_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert TOKEN.key in (explicit_dir / "credentials.ini").read_text()
+    assert "review_old_key" in (user_dir / "credentials.ini").read_text()

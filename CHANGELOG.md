@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith login`, `cloudsmith auth --request-api-key --save-config`, `cloudsmith tokens create --save-config`, and `cloudsmith tokens refresh --save-config` now save the API key to your user-level `credentials.ini`, or to the file or directory that `--credentials-file` gives. Previously, they wrote `credentials.ini` and `config.ini` to the current directory when no user-level file existed. When a user-level `credentials.ini` existed, they failed with `No such file or directory` and did not save the new key. The CLI now ignores a `config.ini` or `credentials.ini` in the current directory when it decides whether to create a file.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
