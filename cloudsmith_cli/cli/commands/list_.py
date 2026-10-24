@@ -2,6 +2,7 @@
 
 import functools
 from operator import itemgetter
+from typing import Any
 
 import click
 
@@ -32,9 +33,9 @@ def list_(ctx, opts):  # pylint: disable=unused-argument
 
 @list_.command(name="dependencies", aliases=["deps"])
 @dependencies.list_dependencies_options
-@functools.wraps(entitlements.list_entitlements)
+@functools.wraps(dependencies.list_dependencies)
 @click.pass_context
-def dependencies_(*args, **kwargs):  # pylint: disable=missing-docstring
+def dependencies_(*args: Any, **kwargs: Any) -> None:  # pylint: disable=missing-docstring
     return dependencies.list_dependencies(*args, **kwargs)
 
 
