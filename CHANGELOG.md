@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - An API request no longer waits without a limit when the API host accepts the connection but does not reply. A request now fails after 30 seconds without data, and the CLI retries it 6 times by default (`--error-retry-max`). File uploads and downloads do not change.
 - A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it.
+- The CLI no longer sends a POST or PATCH request to the API again after a 500, 502 or 504 response. A gateway can send these codes after the API created the entry, so a retry could create a second entitlement, token or package. The CLI still retries a 429 or 503 response, and it ignores 500, 502 and 504 in `--error-retry-codes` for these requests. A file upload still retries these codes, a read timeout and a dropped connection, because a second upload of the same file is safe.
 
 ## [1.30.0] - 2026-10-22
 

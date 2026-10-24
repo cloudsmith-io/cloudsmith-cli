@@ -781,7 +781,9 @@ def initialise_api(f):
         default="429,500,502,503,504",
         help="The status codes that when received from the API will cause "
         "a retry (if --error-retry-max is > 0). By default this will be for "
-        "429, 500, 502, 503 and 504 error codes.",
+        "429, 500, 502, 503 and 504 error codes. The CLI does not retry a POST "
+        "or PATCH request after a 500, 502 or 504 code, even if you list it, "
+        "because the API can have processed the request.",
     )
     @click.pass_context
     @functools.wraps(f)
