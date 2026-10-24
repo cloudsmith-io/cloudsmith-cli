@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith vulnerabilities` no longer stops with `IndexError` when a package has no vulnerability scan results. The command now shows the error "The package has no vulnerability scan results." and exits with the status of a 404 error. With `-F json`, it prints this error in the usual JSON error format.
+- `cloudsmith vulnerabilities` no longer stops with `TypeError` or `AttributeError` when the API returns scan data without a list of scans, a list of results, or a severity. The command counts a result with no severity as `Unknown`.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
