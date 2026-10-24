@@ -551,6 +551,29 @@ def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
     assert not launcher.exists()
 
 
+@pytest.mark.parametrize(
+    ("dry_run", "expected_verb"),
+    [(False, "removed"), (True, "would remove")],
+)
+def test_pnpm_uninstall_removes_launcher_without_npmrc(
+    dry_run: bool, expected_verb: str, tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """uninstall removes the launcher and does not create .npmrc when .npmrc is missing."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+    npm_path.unlink()
+    launcher = bin_dir / "pnpm-credential-cloudsmith"
+
+    actions = installer.uninstall(bin_dir=str(bin_dir), dry_run=dry_run)
+
+    assert not npm_path.exists()
+    assert launcher.exists() == dry_run
+    assert f"{expected_verb} launcher {launcher}" in actions
+
+
 # ---------------------------------------------------------------------------
 # 9. DockerInstaller.status — str-not-Path guard
 # ---------------------------------------------------------------------------
