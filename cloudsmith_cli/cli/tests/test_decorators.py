@@ -31,6 +31,17 @@ def test_report_retry_writes_to_stderr():
     assert "Request was throttled (429)" in result.stderr
 
 
+def test_report_retry_announces_backoff_on_stderr():
+    @click.command()
+    def command():
+        report_retry(4.0, context="backoff")
+
+    result = click.testing.CliRunner().invoke(command, catch_exceptions=False)
+
+    assert result.stdout == ""
+    assert result.stderr == "\nRequest failed: retrying in 4 second(s) ...\n"
+
+
 def _credential_command(name="example"):
     @click.command(name=name)
     @resolve_credentials
