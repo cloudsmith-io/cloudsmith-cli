@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from ...core.api.exceptions import ApiException
 from ..saml import exchange_2fa_token, get_idp_url, refresh_access_token
@@ -69,6 +70,46 @@ class TestSaml:
             f"{self.api_host}/orgs/test_org/saml/?{self.query_params}", timeout=30
         )
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            requests.JSONDecodeError("Expecting value", "<html>", 0),
+            ["unexpected"],
+            {},
+        ],
+        ids=["html", "list", "no-redirect-url"],
+    )
+    def test_get_idp_url_without_redirect_url_raises(
+        self, body, mock_response, mock_session
+    ):
+        mock_session.get.return_value = mock_response
+        mock_response.json.side_effect = [body]
+
+        with pytest.raises(ApiException) as exc_info:
+            get_idp_url(
+                self.api_host,
+                "test_org",
+                redirect_url="http://localhost:12400",
+                session=mock_session,
+            )
+
+        assert exc_info.value.status == 0
+        assert exc_info.value.detail == "The API did not return a SAML IdP URL."
+
+    @pytest.mark.parametrize(
+        "token_function", [exchange_2fa_token, refresh_access_token]
+    )
+    def test_tokens_from_non_object_body_raise(
+        self, token_function, mock_response, mock_session
+    ):
+        mock_session.post.return_value = mock_response
+        mock_response.json.return_value = ["unexpected"]
+
+        with pytest.raises(ApiException) as exc_info:
+            token_function(self.api_host, "token", "other_token", session=mock_session)
+
+        assert exc_info.value.detail == "The API did not return SAML tokens."
+
     def test_error_carries_the_api_detail(self, mock_response, mock_session):
         import requests
 
@@ -133,6 +174,17 @@ class TestSaml:
             headers={"Authorization": "Bearer two_factor_token"},
             timeout=30,
         )
+
+    def test_exchange_2fa_token_without_access_token_raises(
+        self, mock_response, mock_session
+    ):
+        mock_session.post.return_value = mock_response
+        mock_response.json.return_value = {}
+
+        with pytest.raises(ApiException) as exc_info:
+            exchange_2fa_token(self.api_host, "token", "123456", session=mock_session)
+
+        assert exc_info.value.detail == "The API did not return SAML tokens."
 
     def test_exchange_2fa_token_with_request_error(self, mock_response, mock_session):
         import requests

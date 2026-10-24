@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- When the API or a proxy answers the SAML IdP request with an HTML page or a JSON value that is not an object, `cloudsmith auth` now shows "Failed to authenticate via SAML!" with the reason. Before this fix, the CLI stopped with a `JSONDecodeError` or an `AttributeError`. The 2FA code exchange and the SAML token refresh now also reject a response that is not a JSON object. The 2FA code exchange also rejects a response without an access token.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
