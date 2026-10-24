@@ -76,6 +76,21 @@ def test_update_api_key_saves_key_when_mode_cannot_change(tmp_path):
     assert "review_new_key" in creds_path.read_text()
 
 
+def test_update_api_key_restricts_mode_before_writing_the_key(tmp_path):
+    creds_path = tmp_path / "credentials.ini"
+    creds_path.write_text("[default]\napi_key = review_old_key\n")
+    content_at_chmod = []
+
+    def record_content(path, mode):
+        content_at_chmod.append(creds_path.read_text())
+
+    with patch("cloudsmith_cli.cli.config.os.chmod", side_effect=record_content):
+        CredentialsReader.update_api_key(str(creds_path), "review_new_key")
+
+    assert content_at_chmod == ["[default]\napi_key = review_old_key\n"]
+    assert "review_new_key" in creds_path.read_text()
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Windows does not use group mode bits")
 def test_credentials_file_is_owner_only_before_mode_is_set(telemetry_config_dir):
     with patch("cloudsmith_cli.cli.config.os.chmod"):

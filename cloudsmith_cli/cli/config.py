@@ -373,14 +373,16 @@ class CredentialsReader(ConfigReader):
             content,
             flags=re.MULTILINE,
         )
-        with open(path, "w") as f:
-            f.write(content)
+        # Restrict the mode before the write, so the new key is never readable
+        # under the old mode.
         try:
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
         except PermissionError:
             # Only the owner can change the mode. Another user's group-shared
             # file still takes the new key.
             pass
+        with open(path, "w") as f:
+            f.write(content)
 
     @classmethod
     def clear_api_key(cls, path):
