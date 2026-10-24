@@ -91,7 +91,8 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
     client = get_files_api()
     headers["user-agent"] = client.api_client.user_agent
 
-    session = create_requests_session()
+    # A second upload of the same file replaces the first one.
+    session = create_requests_session(repeat_non_idempotent=True)
     resp = _send_upload_request(
         session.post, upload_url, data=monitor, headers=headers, proxies=proxies
     )

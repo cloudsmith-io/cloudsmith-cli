@@ -154,6 +154,25 @@ class TestRestClient:
 
         assert len(requests_seen) == expected_requests
 
+    @pytest.mark.parametrize(
+        "method, status, expected_requests",
+        [("POST", 504, 1), ("POST", 503, 3), ("GET", 504, 3)],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_retries_a_gateway_error_only_for_idempotent_methods(
+        self, method, status, expected_requests
+    ):
+        """A gateway error can replace the reply to a POST that the API processed."""
+        initialise_api()
+        client = RestClient(retries=2, backoff_factor=0)
+        url = "https://test.site"
+        httpretty.register_uri(method, url, status=status, body="")
+
+        with pytest.raises(ApiException):
+            client.request(method, url)
+
+        assert len(httpretty.latest_requests()) == expected_requests
+
 
 class TestCreateRequestsSession:
     @pytest.fixture(autouse=True)

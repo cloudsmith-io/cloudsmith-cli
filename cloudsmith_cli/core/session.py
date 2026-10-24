@@ -3,6 +3,7 @@
 import ssl
 import sys
 import time
+from typing import Any
 
 import requests
 import urllib3
@@ -29,6 +30,8 @@ def get_default_proxy():
 
 
 NON_IDEMPOTENT_METHODS = frozenset({"POST", "PATCH"})
+# A gateway can send these after the API processed the request.
+PROCESSED_REQUEST_STATUS_CODES = frozenset({500, 502, 504})
 
 
 class ApiKeySafeSession(requests.Session):
@@ -52,13 +55,25 @@ class ApiKeySafeSession(requests.Session):
 class RetryWithCallback(Retry):
     """A urllib3 Retry with a callback on retries."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.error_retry_cb = kwargs.pop("error_retry_cb", None)
+        self.repeat_non_idempotent = bool(kwargs.pop("repeat_non_idempotent", False))
         super().__init__(*args, **kwargs)
 
-    def new(self, **kw):
+    def new(self, **kw: Any) -> "RetryWithCallback":
         kw["error_retry_cb"] = self.error_retry_cb
+        kw["repeat_non_idempotent"] = self.repeat_non_idempotent
         return super().new(**kw)
+
+    def is_retry(
+        self, method: str, status_code: int, has_retry_after: bool = False
+    ) -> bool:
+        if (
+            self._is_unsafe_to_repeat(method)
+            and status_code in PROCESSED_REQUEST_STATUS_CODES
+        ):
+            return False
+        return super().is_retry(method, status_code, has_retry_after)
 
     def increment(
         self,
@@ -80,10 +95,14 @@ class RetryWithCallback(Retry):
         self, method: str | None, error: Exception | None
     ) -> bool:
         """Return True when a retry can send a request that the server processed."""
+        return self._is_unsafe_to_repeat(method) and self._is_read_error(error)
+
+    def _is_unsafe_to_repeat(self, method: str | None) -> bool:
+        """Return True when a second send of the request can repeat its effect."""
         return (
-            isinstance(method, str)
+            not self.repeat_non_idempotent
+            and isinstance(method, str)
             and method.upper() in NON_IDEMPOTENT_METHODS
-            and self._is_read_error(error)
         )
 
     def sleep_for_retry(self, response=None):
@@ -177,8 +196,14 @@ def create_requests_session(
     respect_retry_after_header=True,
     user_agent=None,
     headers=None,
+    repeat_non_idempotent: bool = False,
 ):
-    """Create a requests session that retries some errors."""
+    """Create a requests session that retries some errors.
+
+    A POST or PATCH request is not retried after a read error or a 500, 502
+    or 504 response, because the server can have processed it. Set
+    repeat_non_idempotent when a second send of the request is safe.
+    """
     # pylint: disable=too-many-branches
     config = _sdk_configuration()
 
@@ -232,6 +257,7 @@ def create_requests_session(
         total=retries,
         error_retry_cb=error_retry_cb,
         respect_retry_after_header=respect_retry_after_header,
+        repeat_non_idempotent=repeat_non_idempotent,
     )
 
     adapter = SSLContextAdapter(
