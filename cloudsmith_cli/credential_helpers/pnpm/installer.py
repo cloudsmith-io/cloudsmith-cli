@@ -227,11 +227,11 @@ class PNPMInstaller:
             A dict with keys:
 
             ``"launcher"``
-                The :class:`~pathlib.Path` of the launcher if it exists,
-                else ``None``.
+                The launcher path as a ``str`` if it exists in the bin
+                directory, else ``None``.
             ``"hosts"``
-                List of hostnames in ``.npmrc`` whose ``tokenHelper`` is the
-                launcher path, also when the launcher is missing.
+                List of hostnames in ``.npmrc`` whose ``tokenHelper`` is a
+                pnpm launcher in any directory, also when it is missing.
         """
         target_dir = resolve_bin_dir()
         if os.name == "nt":

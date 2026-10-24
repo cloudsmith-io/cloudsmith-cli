@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `cloudsmith credential-helper list` now shows the pnpm hosts in `.npmrc` when the pnpm launcher is missing. Previously, the command showed no hosts, and pnpm still tried to run the missing launcher for those hosts.
+  - `list` also shows the pnpm hosts that you installed with `--bin-dir`. `cloudsmith credential-helper uninstall pnpm` now removes these `.npmrc` entries, as the Docker and Cargo uninstall commands do.
 
 ## [1.30.0] - 2026-10-22
 

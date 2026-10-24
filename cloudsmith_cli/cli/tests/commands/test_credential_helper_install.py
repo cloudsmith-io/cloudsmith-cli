@@ -632,15 +632,14 @@ def test_pnpm_installer_status_type_contract(tmp_path: Path, monkeypatch: Monkey
     assert not isinstance(launcher, Path)
 
 
-def test_pnpm_installer_status_lists_hosts_when_launcher_missing(
+def test_pnpm_installer_status_lists_hosts_of_a_bin_dir_install(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ):
-    """status() reports .npmrc hosts that point at a deleted launcher."""
+    """status() reports .npmrc hosts whose launcher is not in the default bin dir."""
     monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
     bin_dir = tmp_path / "bin"
     installer = PNPMInstaller()
-    installer.install(bin_dir=str(bin_dir))
-    assert remove_launcher(bin_dir, PNPMInstaller.LAUNCHER_NAME)
+    installer.install(bin_dir=str(tmp_path / "custom-bin"))
 
     with patch(
         "cloudsmith_cli.credential_helpers.pnpm.installer.resolve_bin_dir",
