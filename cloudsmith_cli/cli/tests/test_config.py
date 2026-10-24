@@ -39,3 +39,12 @@ def test_update_api_key_after_empty_key_keeps_profile_sections(tmp_path):
     assert path.read_bytes() == _expected_bytes(
         "[default]\napi_key = newkey\n\n[profile:staging]\napi_key = newkey\n"
     )
+
+
+def test_update_api_key_adds_missing_key_to_default_section(tmp_path):
+    path = tmp_path / "credentials.ini"
+    path.write_text("[default]\n")
+
+    CredentialsReader.update_api_key(path, "newkey")
+
+    assert path.read_bytes() == _expected_bytes("[default]\napi_key = newkey\n")

@@ -370,6 +370,10 @@ class CredentialsReader(ConfigReader):
             content,
             flags=re.MULTILINE,
         )
+        if api_key:
+            # The CLI reads [default] when no profile is selected, so a new
+            # key must be saved there even when the file has no api_key line.
+            content = _set_section_value(content, "default", "api_key", api_key)
         with open(path, "w") as f:
             f.write(content)
 

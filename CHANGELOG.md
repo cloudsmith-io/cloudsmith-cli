@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `cloudsmith logout` no longer damages `credentials.ini` when a line follows an empty `api_key`. Previously, the CLI removed the next line that is not blank, for example on the second `logout`. When that line was a section header, such as `[profile:NAME]`, and that section also had a key, each later command failed with `DuplicateOptionError`. `cloudsmith logout` now also clears an `api_key` that uses `:` instead of `=`. The same fix applies when `cloudsmith login`, `cloudsmith tokens create --save-config`, `cloudsmith tokens refresh --save-config`, or `cloudsmith auth --request-api-key --save-config` write the API key.
+- When `credentials.ini` has no `api_key` in the `[default]` section, `cloudsmith login` and the `--save-config` options now add the API key to that section. If the section does not exist, the CLI creates it. Previously, the CLI showed `UPDATED` but did not save the key.
 
 ## [1.30.0] - 2026-10-22
 
