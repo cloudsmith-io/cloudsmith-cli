@@ -1,9 +1,10 @@
+import socket
 import ssl
 
 import httpretty
 import pytest
 import requests
-from urllib3.exceptions import MaxRetryError, SSLError
+from urllib3.exceptions import MaxRetryError, NameResolutionError, ProxyError, SSLError
 
 from ..api.init import initialise_api
 from ..rest import RestClient
@@ -153,13 +154,56 @@ class TestSSLVerifyStrict:
         assert "ssl_context" in self._pool_kwargs(session)
 
 
+@pytest.fixture
+def retry():
+    session = create_requests_session(retries=6)
+    return session.get_adapter("https://api.example.com/").max_retries
+
+
 class TestRetryOnSSLErrors:
-    def test_certificate_errors_are_not_retried(self):
-        session = create_requests_session(retries=6)
-        retry = session.get_adapter("https://api.example.com/").max_retries
+    def test_certificate_errors_are_not_retried(self, retry):
         error = SSLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
 
         with pytest.raises(MaxRetryError) as raised:
             retry.increment("GET", "/", error=error)
 
         assert raised.value.reason is error
+
+
+def name_resolution_error(reason):
+    """Return the ``NameResolutionError`` that urllib3 raises from ``reason``."""
+    error = NameResolutionError("api.example.com", None, reason)
+    error.__cause__ = reason
+    return error
+
+
+class TestRetryOnNameResolutionErrors:
+    @pytest.mark.parametrize("errno", [socket.EAI_NONAME, 11001])
+    def test_unknown_hosts_are_not_retried(self, retry, errno):
+        error = name_resolution_error(socket.gaierror(errno, "not known"))
+
+        with pytest.raises(MaxRetryError) as raised:
+            retry.increment("GET", "/", error=error)
+
+        assert raised.value.reason is error
+
+    def test_unknown_proxy_hosts_are_not_retried(self, retry):
+        reason = name_resolution_error(socket.gaierror(socket.EAI_NONAME, "not known"))
+        error = ProxyError("Unable to connect to proxy", reason)
+        error.__cause__ = reason
+
+        with pytest.raises(MaxRetryError) as raised:
+            retry.increment("GET", "/", error=error)
+
+        assert raised.value.reason is error
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            name_resolution_error(socket.gaierror(socket.EAI_AGAIN, "try again")),
+            NameResolutionError("api.example.com", None, None),
+        ],
+        ids=["temporary-failure", "no-gaierror"],
+    )
+    def test_other_name_resolution_errors_are_retried(self, retry, error):
+        assert retry.increment("GET", "/", error=error).total == 5
