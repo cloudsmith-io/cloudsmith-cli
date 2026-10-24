@@ -135,4 +135,18 @@ class RestClient(RESTClientObject):
         if not 200 <= rest_resp.status <= 299:
             raise ApiException(http_resp=rest_resp)
 
+        _raise_for_html(rest_resp)
+
         return rest_resp
+
+
+def _raise_for_html(rest_resp: RestResponse) -> None:
+    """Reject an HTML page, such as a proxy login page, that has a 2xx status."""
+    content_type = rest_resp.getheader("Content-Type") or ""
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if media_type == "text/html":
+        raise ApiException(
+            status=0,
+            reason="The API host returned an HTML page, not an API response. "
+            "Check the API host and your proxy settings.",
+        )

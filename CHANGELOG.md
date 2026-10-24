@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- When the API host returns an HTML page instead of an API response, the CLI now shows an error and exits with code 1. Examples are a proxy login page, a captive portal, or an `--api-host` that points to a website. Before, commands such as `entitlements list`, `check service`, and `metadata list` stopped with an unexpected error and sent an error report.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added

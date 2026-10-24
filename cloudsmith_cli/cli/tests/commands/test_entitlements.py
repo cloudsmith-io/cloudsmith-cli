@@ -1,9 +1,13 @@
+import httpretty
+import httpretty.core
 import pytest
 
 from ....core.pagination import PageInfo
 from ...commands.entitlements import list_ as list_entitlements
 from ...commands.entitlements import print_entitlements
+from ...commands.main import main
 from ...config import Options
+from .conftest import FAKE_API_HOST
 
 
 @pytest.mark.usefixtures("set_api_key_env_var", "set_api_host_env_var")
@@ -22,6 +26,32 @@ def test_entitlements_list_with_show_all(runner, organization, tmp_repository):
     assert "Getting list of entitlements" in result.output
     assert "OK" in result.output
     assert "Invalid value for '--show-all'" not in result.output
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_entitlements_list_html_response_fails_cleanly(runner, monkeypatch):
+    """A proxy login page instead of the API gives an error, not a crash."""
+    monkeypatch.setattr(
+        httpretty.core.fakesock.socket,
+        "shutdown",
+        lambda self, how: None,
+        raising=False,
+    )
+    httpretty.register_uri(
+        httpretty.GET,
+        "https://api.example.com/entitlements/o/r/",
+        body="<html>Proxy login</html>",
+        content_type="text/html",
+    )
+
+    result = runner.invoke(
+        main,
+        ["entitlements", "list", "o/r", "-k", "key", "--api-host", FAKE_API_HOST],
+    )
+
+    assert result.return_value == 1
+    assert "Failed to get list of entitlements!" in result.output
+    assert "HTML page" in result.output
 
 
 def _make_entitlement(name):
