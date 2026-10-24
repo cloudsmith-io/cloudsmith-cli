@@ -346,7 +346,6 @@ MALFORMED_INI = {
     ),
     "duplicate-section": (b"[default]\n[default]\n", "DuplicateSectionError"),
     "unparsable-line": (b"[default]\n=ap\n", "ParsingError"),
-    "not-utf8": (b"\xff\xfe\x00garbage", "UnicodeDecodeError"),
 }
 
 
@@ -400,6 +399,19 @@ def test_parsing_error_message_is_unchanged(runner, tmp_path, sentry_events):
         f"Error: ParsingError: Source contains parsing errors: '{bad}'\n"
         "\t[line  2]: '=ap\\n'"
     ) in result.stderr
+    assert sentry_events == []
+
+
+@pytest.mark.usefixtures("isolated_config_readers")
+def test_undecodable_ini_names_the_file(runner, tmp_path, sentry_events):
+    bad = tmp_path / "config.ini"
+    bad.write_bytes(b"[default]\napi_host = \x81\n")
+
+    result = runner.invoke(main, ["whoami", "--config-file", str(bad)])
+
+    assert result.exit_code == 1
+    assert f"Error: Cannot read {bad} as " in result.stderr
+    assert "Save the file as UTF-8." in result.stderr
     assert sentry_events == []
 
 

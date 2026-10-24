@@ -1,13 +1,22 @@
 """CLI - Configuration."""
 
+import codecs
 import configparser
+import locale
 import os
 import re
 import threading
 from typing import ClassVar
 
 import click
-from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
+from click_configfile import (
+    ConfigFileReader,
+    Param,
+    SectionSchema,
+    generate_configfile_names,
+    matches_section,
+    select_config_sections,
+)
 
 from ..core.utils import get_data_path, read_file
 from . import utils, validators
@@ -106,6 +115,30 @@ class ConfigReader(ConfigFileReader):
         return section_schema
 
     @classmethod
+    def read_config(cls) -> dict[str, dict[str, object]]:
+        """Read the config files, each with its own text encoding."""
+        # click_configfile reads all files with the locale encoding only.
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        for path in generate_configfile_names(cls.config_files, cls.config_searchpath):
+            encoding = _get_file_encoding(path)
+            try:
+                parser.read(path, encoding=encoding)
+            except UnicodeDecodeError as exc:
+                raise click.ClickException(
+                    f"Cannot read {path} as {encoding} text. Save the file as UTF-8."
+                ) from exc
+
+        if not cls.config_sections:
+            cls.config_sections = cls.collect_config_sections_from_schemas()
+        storage: dict[str, dict[str, object]] = {}
+        for section_name in select_config_sections(
+            parser.sections(), cls.config_sections
+        ):
+            cls.process_config_section(parser[section_name], storage)
+        return storage
+
+    @classmethod
     def get_storage_name_for(cls, section_name):
         """Get storage name for a configuration section."""
         if not section_name or section_name == "default":
@@ -168,13 +201,15 @@ class ConfigReader(ConfigFileReader):
         return (existing_paths or user_paths)[0]
 
     @classmethod
-    def save_workspace(cls, workspace, profile=None, path=None):
+    def save_workspace(
+        cls, workspace: str, profile: str | None = None, path: str | None = None
+    ) -> str | None:
         """Write the Workspace to the profile section; return the path if it changed."""
         if path and os.path.isdir(path):
             path = os.path.join(path, "config.ini")
         path = path or cls.get_user_filepath()
         if os.path.exists(path):
-            with open(path) as config_file:
+            with open(path, encoding=_get_file_encoding(path)) as config_file:
                 content = config_file.read()
         else:
             content = read_file(get_data_path(), "config.ini")
@@ -189,7 +224,7 @@ class ConfigReader(ConfigFileReader):
             raise ValueError(f"the CLI cannot change the [{section}] section of {path}")
 
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as config_file:
+        with open(path, "w", encoding=_get_file_encoding(path)) as config_file:
             config_file.write(updated)
         return path
 
@@ -287,6 +322,21 @@ class ConfigReader(ConfigFileReader):
             setattr(opts, k, v)
 
 
+def _get_file_encoding(path: str | os.PathLike[str]) -> str:
+    """Get the text encoding of a config file; a new file is UTF-8."""
+    try:
+        with open(path, "rb") as config_file:
+            data = config_file.read()
+    except OSError:
+        return "utf-8"
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        # A file in the locale encoding (for example cp1252 on Windows) must still load.
+        return locale.getpreferredencoding(False)
+    return "utf-8-sig" if data.startswith(codecs.BOM_UTF8) else "utf-8"
+
+
 def _get_section_value(content, section, key):
     """Get `key` from the INI `section` of `content`, or None if it does not parse."""
     parser = configparser.ConfigParser(interpolation=None)
@@ -356,9 +406,9 @@ class CredentialsReader(ConfigReader):
         return paths
 
     @classmethod
-    def _set_api_key(cls, path, api_key=""):
+    def _set_api_key(cls, path: str | os.PathLike[str], api_key: str = "") -> None:
         """Write api_key value in a credentials file, preserving structure."""
-        with open(path) as f:
+        with open(path, encoding=_get_file_encoding(path)) as f:
             content = f.read()
         replacement = rf"\1 = {api_key}" if api_key else r"\1 ="
         content = re.sub(
@@ -367,7 +417,7 @@ class CredentialsReader(ConfigReader):
             content,
             flags=re.MULTILINE,
         )
-        with open(path, "w") as f:
+        with open(path, "w", encoding=_get_file_encoding(path)) as f:
             f.write(content)
 
     @classmethod
