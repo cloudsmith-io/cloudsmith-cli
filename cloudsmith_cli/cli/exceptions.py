@@ -20,6 +20,7 @@ def handle_api_exceptions(
     reraise_on_error=False,
     error_summaries=None,
     summarise_error=None,
+    err: bool = False,
 ):
     """Context manager that handles API exceptions.
 
@@ -35,12 +36,15 @@ def handle_api_exceptions(
     where the API's field-indexed errors read poorly next to the rest of
     their output; returning ``None`` for statuses it doesn't recognise keeps
     the status code visible where it still matters.
+
+    ``err`` sends every message to stderr, for commands whose stdout is a
+    protocol channel.
     """
     # flake8: ignore=C901
 
     # Use stderr for messages if the output is something else (e.g.  # JSON)
     is_json_output = getattr(opts, "output", None) in ("json", "pretty_json")
-    use_stderr = is_json_output
+    use_stderr = is_json_output or err
 
     try:
         yield
@@ -74,13 +78,14 @@ def handle_api_exceptions(
             if metadata_context is not None:
                 error_data["metadata_attachment"] = metadata_context
 
-            # Print to stdout
+            # Print to stdout, or to stderr when err is set
             import json
 
             click.echo(
                 json.dumps(
                     error_data, indent=4 if opts.output == "pretty_json" else None
-                )
+                ),
+                err=err,
             )
 
         else:

@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import cloudsmith_api
+import httpx2
 import pytest
 
 from ....cli.commands.mcp import (
@@ -16,7 +18,9 @@ from ....cli.commands.mcp import (
     detect_available_clients,
     list_groups,
     list_tools,
+    start,
 )
+from ....core.api.exceptions import ApiException
 from ....core.mcp.data import OpenAPITool
 from ....core.mcp.server import DynamicMCPServer
 from ....core.version import get_version as get_cli_version
@@ -242,6 +246,68 @@ class TestMCPListGroupsCommand:
         # Should show "... (+2 more)" since it only displays first 3
         assert "+2 more" in result.output
         list_groups_mock.assert_called_once()
+
+
+class TestMCPSpecLoadErrors:
+    @pytest.fixture(autouse=True)
+    def isolated_cli(self, monkeypatch, tmp_path, telemetry_config_dir):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("CLOUDSMITH_NO_KEYRING", "1")
+        for name in ("CLOUDSMITH_CONFIG_FILE", "CLOUDSMITH_CREDENTIALS_FILE"):
+            monkeypatch.delenv(name, raising=False)
+
+    @staticmethod
+    def _api_replies(handler):
+        return patch(
+            "cloudsmith_cli.core.mcp.server.create_http_client",
+            return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+
+    @staticmethod
+    def _unauthorized(_request):
+        return httpx2.Response(401, json={"detail": "Invalid token."})
+
+    def test_list_tools_shows_auth_error(self, runner):
+        with self._api_replies(self._unauthorized):
+            result = runner.invoke(list_tools, ["-k", "badkey"])
+
+        assert result.exit_code == 401
+        assert "Failed to load the Cloudsmith API schema!" in result.stdout
+        assert "Detail: Invalid token." in result.stdout
+        assert "Hint: This usually means your API key is invalid" in result.stdout
+
+    def test_list_tools_prints_json_auth_error(self, runner):
+        with self._api_replies(self._unauthorized):
+            result = runner.invoke(list_tools, ["-k", "badkey", "-F", "json"])
+
+        assert result.exit_code == 401
+        error = json.loads(result.stdout)
+        assert error["detail"] == "Invalid token."
+        assert error["meta"]["code"] == 401
+
+    def test_start_writes_auth_error_to_stderr_only(self, runner):
+        with self._api_replies(self._unauthorized):
+            result = runner.invoke(start)
+
+        assert result.exit_code == 401
+        assert result.stdout == ""
+        assert "Detail: Invalid token." in result.stderr
+
+    def test_connection_error_becomes_api_exception(self):
+        def refuse(request):
+            raise httpx2.ConnectError("Connection refused", request=request)
+
+        api_config = cloudsmith_api.Configuration()
+        api_config.host = "https://api.cloudsmith.io"
+        api_config.headers = {}
+        server = DynamicMCPServer(api_config=api_config)
+
+        with self._api_replies(refuse), pytest.raises(ApiException) as exc_info:
+            server.list_tools()
+
+        assert exc_info.value.status == 0
+        assert exc_info.value.detail == "ConnectError: Connection refused"
 
 
 class TestMCPServerDynamicToolGeneration:
