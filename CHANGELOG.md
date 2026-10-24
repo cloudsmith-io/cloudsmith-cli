@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
+### Fixed
+
+- `cloudsmith push` now sends the full file again when it retries an upload after a server error. It also sends the full file again after a 307 or 308 redirect from the upload host. Before, the second request sent an empty body and the upload failed with a read timeout or stopped responding.
+- A `cloudsmith push` upload attempt now times out when the upload host sends or accepts no data for 120 seconds. The CLI then retries the upload. Before, a stalled upload host made the command wait forever. A slow upload that continues to move does not time out.
+
 ## [1.30.0] - 2026-10-22
 
 ### Added
