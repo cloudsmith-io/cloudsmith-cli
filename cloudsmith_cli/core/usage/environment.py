@@ -24,6 +24,30 @@ _CI_PROVIDERS = (
 )
 
 
+#: (agent, variables any of which marks it), checked in order. Only markers
+#: an agent sets for the commands it runs: variables that IDEs also set in a
+#: person's own terminal (``CLAUDECODE``, ``CURSOR_TRACE_ID``, ``REPL_ID``,
+#: ``TERM_PROGRAM``) would label people as agents.
+_AGENT_MARKERS = (
+    ("claude_code", ("CLAUDE_CODE_CHILD_SESSION",)),
+    ("codex", ("CODEX_THREAD_ID",)),
+    ("gemini_cli", ("GEMINI_CLI",)),
+    ("copilot", ("COPILOT_AGENT", "COPILOT_CLI", "COPILOT_AGENT_SESSION_ID")),
+)
+#: The cross-vendor convention, read after the vendor markers.
+AI_AGENT_ENV = "AI_AGENT"
+#: Known ``AI_AGENT`` value prefixes; any other value is counted as
+#: ``UNIDENTIFIED_AGENT`` and never sent.
+_AI_AGENT_PREFIXES = (
+    ("claude-code", "claude_code"),
+    ("github_copilot", "copilot"),
+    ("codex", "codex"),
+    ("gemini", "gemini_cli"),
+    ("opencode", "opencode"),
+)
+UNIDENTIFIED_AGENT = "unidentified_agent"
+
+
 def ci_provider(env=None):
     env = os.environ if env is None else env
     for provider, names in _CI_PROVIDERS:
@@ -47,7 +71,24 @@ def is_ephemeral(*, env=None, channel, state_writable):
     return is_container()
 
 
-def persona(*, ci):
+def agent(env=None):
+    """Name the AI agent that ran this command, from code-defined names only."""
+    env = os.environ if env is None else env
+    for name, markers in _AGENT_MARKERS:
+        if any(env.get(marker) for marker in markers):
+            return name
+    declared = env.get(AI_AGENT_ENV, "").strip().lower()
+    if not declared:
+        return None
+    for prefix, name in _AI_AGENT_PREFIXES:
+        if declared.startswith(prefix):
+            return name
+    return UNIDENTIFIED_AGENT
+
+
+def persona(*, ci, agent=None):  # pylint: disable=redefined-outer-name
+    if agent:
+        return "agent"
     return "ci" if ci else "human"
 
 
