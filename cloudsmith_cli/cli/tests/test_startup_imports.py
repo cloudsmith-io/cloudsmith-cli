@@ -20,6 +20,8 @@ HEAVY_PREFIXES = (
     "ssl",
     # Error reporting imports it on the error path only.
     "sentry_sdk",
+    # Usage telemetry loads only at the end of a run.
+    "cloudsmith_cli.core.usage",
 )
 
 

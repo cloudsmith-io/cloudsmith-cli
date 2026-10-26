@@ -19,7 +19,7 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from . import config, utils
+from . import config, usage_capture, utils
 
 
 def _expired_saml_renewal_message(error):
@@ -227,6 +227,7 @@ def common_cli_config_options(f):
 
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
+        usage_capture.record_config(ctx)
         opts.api_key_from_file = opts.api_key
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
@@ -560,6 +561,7 @@ def initialise_session(f):
         ) or ssl_verify is None:
             ssl_verify = legacy_ssl_verify
         opts.ssl_verify = ssl_verify
+        usage_capture.record_session(ctx)
         opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
@@ -745,6 +747,7 @@ def resolve_credentials(f):
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
+        usage_capture.record_credential(ctx, credential)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)

@@ -13,9 +13,10 @@ import click
 
 from ....credential_helpers.cargo import execute
 from ...decorators import common_api_auth_options, resolve_credentials
+from ...usage_capture import TrackedCommand
 
 
-@click.command(context_settings={"ignore_unknown_options": True})
+@click.command(cls=TrackedCommand, context_settings={"ignore_unknown_options": True})
 @click.option(
     "--cargo-plugin",
     is_flag=True,

@@ -34,6 +34,7 @@ from ...decorators import (
     common_cli_output_options,
     resolve_credentials,
 )
+from ...usage_capture import TrackedCommand
 
 # ---------------------------------------------------------------------------
 # Helper registry — extend here when new helpers are added
@@ -199,7 +200,7 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@click.command("install")
+@click.command("install", cls=TrackedCommand)
 @click.argument("helper")
 @click.option(
     "--bin-dir",
@@ -366,7 +367,7 @@ def install_cmd(
 # ---------------------------------------------------------------------------
 
 
-@click.command("uninstall")
+@click.command("uninstall", cls=TrackedCommand)
 @click.argument("helper")
 @click.option(
     "--bin-dir",
@@ -431,7 +432,7 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
 # ---------------------------------------------------------------------------
 
 
-@click.command("list")
+@click.command("list", cls=TrackedCommand)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
