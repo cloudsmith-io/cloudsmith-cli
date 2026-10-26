@@ -49,7 +49,15 @@ SETTING_ALIASES = {
     "oidc_org": "workspace",
     "config_file": "config_file_path",
     "credentials_file": "credentials_file_path",
-    "without_api_ssl_verify": "ssl_verify",
+    # The hidden options of deprecated spellings (``deprecation.alias_options``).
+    "deprecated_api_proxy": "proxy",
+    "deprecated_without_api_ssl_verify": "ssl_verify",
+    "deprecated_S": "ssl_verify",
+    "deprecated_org": "workspace",
+    "deprecated_organization": "workspace",
+    "deprecated_oidc_org": "workspace",
+    "deprecated_owner": "workspace",
+    "deprecated_o": "workspace",
 }
 SOURCE_VALUES = frozenset(
     {
