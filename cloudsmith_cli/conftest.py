@@ -97,3 +97,11 @@ def reset_wait_budget():
     from cloudsmith_cli.core import telemetry_common
 
     telemetry_common.WaitBudget.shared().reset(1.0)
+
+
+@pytest.fixture(autouse=True)
+def usage_state_dir(monkeypatch, tmp_path_factory):
+    """Keep usage telemetry state out of the developer's real config dir."""
+    path = tmp_path_factory.mktemp("usage-state")
+    monkeypatch.setattr("cloudsmith_cli.core.usage.state.config_dir", lambda: str(path))
+    return path
