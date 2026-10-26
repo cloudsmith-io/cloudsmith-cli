@@ -13,6 +13,10 @@ concurrency:
   group: image-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The test step runs the CLI: keep it out of CLI telemetry.
+  CLOUDSMITH_NO_TELEMETRY: "1"
+
 jobs:
   image-build:
     name: Build container image
@@ -46,4 +50,4 @@ jobs:
             --build-arg VCS_REF="${GITHUB_SHA}" \
             .
       - name: Test image
-        run: docker run -t cloudsmith-io/cli-dev --help
+        run: docker run -t -e CLOUDSMITH_NO_TELEMETRY cloudsmith-io/cli-dev --help
