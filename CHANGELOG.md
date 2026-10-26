@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `skills` to `cloudsmith upstream`. Use `cloudsmith upstream skills list`, `create`, `update`, and `delete` to manage AI Skills upstreams. An AI Skills upstream caches skills and plugins from a GitHub repository.
 - Added `--changelog` to `cloudsmith push skills`. Use it to add release notes to an AI Skills package. The option is available only for the `skills` format.
 - Added `--compress` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress`, the command fails with a usage error. The option is available only for the `skills` format.
+- Added the `cloudsmith telemetry` command group for usage telemetry. The CLI does not send usage telemetry yet.
+  - `cloudsmith telemetry status` shows whether usage telemetry is on, and the reason. The reason can be an opt-out, such as `DO_NOT_TRACK`, `CLOUDSMITH_NO_TELEMETRY`, or `telemetry = false` in `config.ini`. It can also be an API host that is not a Cloudsmith host, or certificate verification that is off.
+  - `cloudsmith telemetry id` shows the install ID that the CLI stores in `telemetry.json` in its config directory, or `none`.
+  - `cloudsmith telemetry reset` deletes the stored install ID. The CLI creates a new, unrelated ID on the next command.
+  - All three commands support `-F json` and `-F pretty_json`.
 
 ### Changed
 

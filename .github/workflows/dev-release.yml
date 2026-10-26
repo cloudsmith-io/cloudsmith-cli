@@ -13,6 +13,10 @@ concurrency:
   group: dev-release-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Dev builds are not user usage: keep them out of CLI telemetry.
+  CLOUDSMITH_NO_TELEMETRY: "1"
+
 jobs:
   binaries:
     name: Binaries
