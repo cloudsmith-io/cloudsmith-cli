@@ -705,3 +705,25 @@ class TestFinishAndNotify:
         thread.start()
         update_check._finish_and_notify(thread, self._Opts(), "list", now=NOW + 1)
         assert NEWER_VERSION in capsys.readouterr().err
+
+
+def test_finish_spends_shared_wait_budget(monkeypatch):
+    import threading
+    import time
+
+    from cloudsmith_cli.core import telemetry_common, update_check
+
+    budget = telemetry_common.WaitBudget.shared()
+    budget.reset(1.0)
+    gate = threading.Event()
+    thread = threading.Thread(target=gate.wait, args=(5,), daemon=True)
+    thread.start()
+    monkeypatch.setattr(update_check, "notice_suppressed", lambda *a: True)
+
+    started = time.monotonic()
+    update_check._finish_and_notify(thread, opts=object(), invoked=None)
+    elapsed = time.monotonic() - started
+    gate.set()
+
+    assert 0.9 <= elapsed < 1.5
+    assert budget.remaining() < 0.1
