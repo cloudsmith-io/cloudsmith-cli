@@ -79,6 +79,9 @@ class RunFacts:
     auth_source: str | None = None
     api_host: str | None = None
     ssl_verify: bool = True
+    #: The resolved ``--without-ssl-verify-strict`` setting, for the sender's
+    #: own session (None: the default). Not an event property.
+    ssl_verify_strict: bool | None = None
     stdout_tty: bool = False
     stdin_tty: bool = False
     nested: bool = False
