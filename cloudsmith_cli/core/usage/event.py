@@ -49,7 +49,15 @@ SETTING_ALIASES = {
     "oidc_org": "workspace",
     "config_file": "config_file_path",
     "credentials_file": "credentials_file_path",
-    "without_api_ssl_verify": "ssl_verify",
+    # The hidden options of deprecated spellings (``deprecation.alias_options``).
+    "deprecated_api_proxy": "proxy",
+    "deprecated_without_api_ssl_verify": "ssl_verify",
+    "deprecated_S": "ssl_verify",
+    "deprecated_org": "workspace",
+    "deprecated_organization": "workspace",
+    "deprecated_oidc_org": "workspace",
+    "deprecated_owner": "workspace",
+    "deprecated_o": "workspace",
 }
 SOURCE_VALUES = frozenset(
     {
@@ -91,6 +99,9 @@ class RunFacts:
     #: Loads config-file setting sources after the telemetry gates, so a run
     #: that sends nothing does no file I/O. Not an event property.
     deferred_sources: Callable[[], dict[str, str]] | None = None
+    #: config.ini / credentials.ini key names set, loaded with the sources.
+    config_keys: list[str] = field(default_factory=list)
+    deferred_config_keys: Callable[[], list[str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +117,7 @@ PROPERTIES = (
     Property("flags", list, "command and flag use; configuration habits"),
     Property("flags_typed", list, "command and flag use"),
     Property("envvars", list, "configuration habits; login methods"),
+    Property("config_keys", list, "configuration habits; renamed config keys in use"),
     Property("aliases_used", list, "command and flag use"),
     Property("output_format", str, "command and flag use; persona"),
     Property("outcome", str, "reliability and speed"),
@@ -163,6 +175,7 @@ def _values(
         "flags": _names(facts.flags),
         "flags_typed": _names(facts.flags_typed),
         "envvars": _names(facts.envvars),
+        "config_keys": _names(facts.config_keys),
         "aliases_used": _names(facts.aliases_used, ordered=True),
         "output_format": facts.output_format,
         "outcome": facts.outcome,
