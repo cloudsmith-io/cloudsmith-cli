@@ -46,6 +46,7 @@ def telemetry_config_dir(monkeypatch, tmp_path_factory):
         monkeypatch.setattr(reader, "config_files", [name])
         monkeypatch.setattr(reader, "config_searchpath", [str(path)])
     monkeypatch.delenv(telemetry.PROFILE_ENV, raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
     return path
 
 
@@ -88,3 +89,11 @@ def restore_default_proxy():
     """Clear the process-wide proxy that ``initialise_session`` sets."""
     yield
     session.set_default_proxy(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_wait_budget():
+    """Give every test a full shared exit-wait budget."""
+    from cloudsmith_cli.core import telemetry_common
+
+    telemetry_common.WaitBudget.shared().reset(1.0)

@@ -30,6 +30,16 @@ import sys
 import click
 
 from .certificate_errors import find_certificate_error
+from .telemetry_common import CLOUDSMITH_HOST_SUFFIXES as _ALLOWED_HOST_SUFFIXES
+from .telemetry_common import (  # noqa: F401  (re-exported for callers and tests)
+    DO_NOT_TRACK_ENV,
+    NO_TELEMETRY_ENV,
+    OPT_OUT_ENVS,
+    PROFILE_ENV,
+    config_disabled,
+    get_environment,
+    telemetry_disabled,
+)
 
 #: Production ingest DSN for the dedicated ``cloudsmith-cli`` Sentry project.
 #: Not a secret: a DSN is a public, write-only ingest key, and every client
@@ -41,18 +51,14 @@ DSN = "https://0a93d7eb45c68ec0116ff0938d94002e@o89590.ingest.us.sentry.io/45121
 #: Set it empty to disable sending.
 DSN_ENV = "CLOUDSMITH_TELEMETRY_DSN"
 
-NO_TELEMETRY_ENV = "CLOUDSMITH_NO_TELEMETRY"
-DO_NOT_TRACK_ENV = "DO_NOT_TRACK"
-OPT_OUT_ENVS = (DO_NOT_TRACK_ENV, NO_TELEMETRY_ENV)
-_TRUTHY_ENV_VALUES = ("1", "true", "yes")
-
 #: Upper bound on how long a failing command waits for the report to send.
 FLUSH_TIMEOUT_SECONDS = 2.0
 MAX_MESSAGE_LENGTH = 1024
 
-#: Hosts that may appear in reports; any other host (custom/self-hosted API,
-#: proxies, internal registries) is replaced.
-_ALLOWED_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
+# Hosts that may appear in reports are ``_ALLOWED_HOST_SUFFIXES`` (imported
+# above); any other host (custom/self-hosted API, proxies, internal
+# registries) is replaced.
+
 #: Env vars whose values are treated as secrets wherever they appear.
 _SECRET_ENV_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.IGNORECASE)
 _MIN_SECRET_LENGTH = 8
@@ -85,48 +91,6 @@ _transport = None
 def format_exception_summary(exc: BaseException) -> str:
     """Return a one-line ``Type: message`` summary of ``exc``."""
     return f"{type(exc).__name__}: {exc}"
-
-
-def telemetry_disabled(env: "os._Environ[str] | dict[str, str] | None" = None) -> bool:
-    """Tell whether the user has opted out of error reporting.
-
-    Either opt-out variable set to ``1``/``true``/``yes`` (case-insensitive)
-    disables reporting. Any other value, or unset, leaves it on.
-    """
-    env = os.environ if env is None else env
-    return any(
-        env.get(name, "").strip().lower() in _TRUTHY_ENV_VALUES for name in OPT_OUT_ENVS
-    )
-
-
-PROFILE_ENV = "CLOUDSMITH_PROFILE"
-
-
-def config_disabled() -> bool:
-    """Tell whether ``telemetry = false`` is set in config.ini.
-
-    Checked two ways, and either one saying ``false`` wins:
-
-    * the options the command loaded, which honour ``--config-file`` and
-      ``--profile`` - but only exist if the command loads config at all;
-    * a fresh read of config.ini (``[default]`` plus ``$CLOUDSMITH_PROFILE``),
-      which covers commands that never load config or failed before doing so.
-
-    Fails closed: if the config cannot be read we cannot confirm the user has
-    not opted out, so we do not report.
-    """
-    try:
-        from ..cli import config
-
-        opts = getattr(config.OPTIONS, "value", None)
-        if opts is not None and opts.telemetry is False:
-            return True
-
-        probe = config.Options()
-        config.ConfigReader.load_config(probe, profile=os.environ.get(PROFILE_ENV))
-        return probe.telemetry is False
-    except Exception:  # pylint: disable=broad-exception-caught
-        return True
 
 
 def get_dsn(env: "os._Environ[str] | dict[str, str] | None" = None) -> str:
@@ -233,21 +197,6 @@ def _send(exc: BaseException, dsn: str) -> bool:
     finally:
         client.close(timeout=FLUSH_TIMEOUT_SECONDS)
     return event_id is not None
-
-
-def get_environment(package_file=None, frozen=None):
-    """Return ``development`` for a source checkout, else ``production``.
-
-    Frozen builds and wheels installed into site-/dist-packages are releases;
-    anything imported from elsewhere is an editable install or a checkout, so
-    developers' errors stay out of production triage.
-    """
-    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
-    if frozen:
-        return "production"
-    path = (package_file or os.path.abspath(__file__)).replace("\\", "/")
-    installed = "/site-packages/" in path or "/dist-packages/" in path
-    return "production" if installed else "development"
 
 
 def _safe(func, default):
