@@ -268,6 +268,31 @@ def test_failing_loader_still_sends_the_event(usage_events, interactive):
     assert usage_events[0]["properties"]["source_workspace"] == "env"
 
 
+def test_deferred_config_keys_load_only_for_a_run_that_sends(
+    usage_events, interactive, monkeypatch
+):
+    keys = _Loader(["org", "proxy"])
+    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    run.finish(facts(deferred_config_keys=keys))
+    assert keys.calls == 0 and usage_events == []
+    monkeypatch.delenv("DO_NOT_TRACK")
+    run.finish(facts(deferred_config_keys=keys))
+    assert keys.calls == 1
+    assert usage_events[0]["properties"]["config_keys"] == ["org", "proxy"]
+
+
+def test_failing_config_keys_loader_keeps_the_sources(usage_events, interactive):
+    run.finish(
+        facts(
+            deferred_sources=_Loader({"workspace": "config_file"}),
+            deferred_config_keys=_Loader(error=RuntimeError("boom")),
+        )
+    )
+    props = usage_events[0]["properties"]
+    assert props["source_workspace"] == "config_file"
+    assert props["config_keys"] == []
+
+
 @pytest.fixture()
 def config_reads(monkeypatch):
     """Count config.ini reads; no command loaded config (no options yet)."""
