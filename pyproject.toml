@@ -128,6 +128,7 @@ norecursedirs = ["bin", ".git", ".venv"]
 testpaths = ["cloudsmith_cli"]
 markers = [
     "integration: tests that call the live Cloudsmith service",
+    "windows: tests for Windows behavior that CI also runs on a Windows runner",
 ]
 
 [tool.coverage.run]
