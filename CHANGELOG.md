@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `cloudsmith vulnerabilities` no longer stops with `IndexError` when a package has no vulnerability scan results. The command now shows the error "The package has no vulnerability scan results." and exits with the status of a 404 error. With `-F json`, it prints this error in the usual JSON error format.
+- `cloudsmith vulnerabilities` no longer stops with `TypeError` or `AttributeError` when the API returns scan data without a list of scans, a list of results, or a severity. The command counts a result with no severity as `Unknown`.
 - With `-F json`, list commands now give the correct `meta.pagination.page_results_len`. Earlier versions gave a value that was one less than the number of results on the page.
 - List commands no longer fail with `ValueError` when the server sends a pagination header that is not an integer, such as `many`. The JSON output then has no `meta.pagination` data.
 - `cloudsmith credential-helper uninstall docker` no longer creates the Docker `config.json` when the file does not exist. The command also no longer reports that it removed `credHelpers` entries when there is no file. This also applies to `--dry-run`.
