@@ -39,14 +39,19 @@ class IntOrWildcard(click.ParamType):
             self.fail(f"{value!r} is not a valid integer or '*'", param, ctx)
 
 
-def transform_api_header_authorization(param, value):
+def _option_hint(param: str) -> str:
+    """Return the Click error hint for the option that has the param name."""
+    return f"'--{param.replace('_', '-')}'"
+
+
+def transform_api_header_authorization(param: str, value: str) -> str:
     """Transform a username:password value into a base64 string."""
     try:
         username, password = value.split(":", 1)
     except ValueError:
         raise click.BadParameter(
             "Authorization header needs to be Authorization=username:password",
-            param=param,
+            param_hint=_option_hint(param),
         )
 
     value = f"{username.strip()}:{password}"
@@ -57,7 +62,7 @@ def transform_api_header_authorization(param, value):
 API_HEADER_TRANSFORMS["Authorization"] = transform_api_header_authorization
 
 
-def validate_api_headers(param, value):
+def validate_api_headers(param: str, value: str | None) -> dict[str, str] | None:
     """Validate that API headers is a CSV of k=v pairs."""
     # pylint: disable=unused-argument
     if not value:
@@ -73,7 +78,7 @@ def validate_api_headers(param, value):
                 if bad_header == k:
                     raise click.BadParameter(
                         f"{bad_header} is not an allowed header",
-                        param=param,
+                        param_hint=_option_hint(param),
                     )
 
             if k in API_HEADER_TRANSFORMS:
@@ -81,7 +86,8 @@ def validate_api_headers(param, value):
                 v = transform_func(param, v)
         except ValueError:
             raise click.BadParameter(
-                "Values need to be a CSV of key=value pairs", param=param
+                "Values need to be a CSV of key=value pairs",
+                param_hint=_option_hint(param),
             )
 
         headers[k] = v
