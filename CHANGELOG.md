@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed `cloudsmith mcp configure`, `cloudsmith download` and `cloudsmith update` when their output goes to a pipe or a file on Windows. Windows then uses a legacy encoding, such as cp1252, and these commands failed with `UnicodeEncodeError` after they did their work. The CLI now prints only ASCII text in the messages of these commands and in the dry-run message of `cloudsmith credential-helper`.
 - Fixed `cloudsmith mcp configure` on Windows when a client configuration file contains non-ASCII text. The command read the UTF-8 file with the legacy Windows encoding. It then wrote incorrect characters back to the file, or it failed with `UnicodeDecodeError`. The CLI now reads the file as UTF-8.
+- When the API returns an error body that is a JSON list, string, number, or `null`, the CLI now shows the HTTP status and the API message. Before this fix, the CLI stopped with `AttributeError: 'list' object has no attribute 'get'`, and `-F json` wrote nothing to stdout.
+- `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
+- `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
+- `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
 
 ## [1.30.0] - 2026-10-22
 
