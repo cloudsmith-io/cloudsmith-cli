@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- When the API returns an error body that is a JSON list, string, number, or `null`, the CLI now shows the HTTP status and the API message. Before this fix, the CLI stopped with `AttributeError: 'list' object has no attribute 'get'`, and `-F json` wrote nothing to stdout.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
