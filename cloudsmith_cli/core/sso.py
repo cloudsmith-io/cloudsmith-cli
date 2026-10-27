@@ -11,7 +11,7 @@ from enum import Enum
 import requests
 
 from . import keyring
-from .api.exceptions import ApiException
+from .api.exceptions import ApiException, error_detail_and_fields
 
 logger = logging.getLogger(__name__)
 REFRESH_REJECTED_STATUSES = frozenset({400, 401, 403, 422})
@@ -196,7 +196,7 @@ def raise_for_api_error(response):
 
         raise ApiException(
             response.status_code,
-            detail=body.get("detail") if isinstance(body, dict) else None,
+            detail=error_detail_and_fields(body)[0],
             headers=exc.response.headers,
             body=exc.response.content,
         )
