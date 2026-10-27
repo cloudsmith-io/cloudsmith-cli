@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- With `-F json`, list commands now give the correct `meta.pagination.page_results_len`. Earlier versions gave a value that was one less than the number of results on the page.
+- List commands no longer fail with `ValueError` when the server sends a pagination header that is not an integer, such as `many`. The JSON output then has no `meta.pagination` data.
 - `cloudsmith credential-helper uninstall docker` no longer creates the Docker `config.json` when the file does not exist. The command also no longer reports that it removed `credHelpers` entries when there is no file. This also applies to `--dry-run`.
 - Fixed `cloudsmith mcp configure`, `cloudsmith download` and `cloudsmith update` when their output goes to a pipe or a file on Windows. Windows then uses a legacy encoding, such as cp1252, and these commands failed with `UnicodeEncodeError` after they did their work. The CLI now prints only ASCII text in the messages of these commands and in the dry-run message of `cloudsmith credential-helper`.
 - Fixed `cloudsmith mcp configure` on Windows when a client configuration file contains non-ASCII text. The command read the UTF-8 file with the legacy Windows encoding. It then wrote incorrect characters back to the file, or it failed with `UnicodeDecodeError`. The CLI now reads the file as UTF-8.
