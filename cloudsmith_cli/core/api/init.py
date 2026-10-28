@@ -9,6 +9,19 @@ import cloudsmith_api
 from ..rest import RestClient
 
 
+def _basic_auth_credentials(encoded: str) -> tuple[str, str]:
+    """Decode a Basic auth token into a username and password."""
+    try:
+        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+        username, password = decoded.split(":", 1)
+    except ValueError as exc:
+        raise click.BadParameter(
+            "Authorization header needs to be Authorization=username:password",
+            param_hint="'--api-headers'",
+        ) from exc
+    return username, password
+
+
 def initialise_api(
     debug=False,
     host=None,
@@ -24,7 +37,7 @@ def initialise_api(
     error_retry_backoff=None,
     error_retry_codes=None,
     error_retry_cb=None,
-):
+) -> cloudsmith_api.Configuration:
     """Initialise the cloudsmith_api.Configuration."""
     # FIXME: pylint: disable=too-many-arguments
     config = cloudsmith_api.Configuration()
@@ -60,9 +73,7 @@ def initialise_api(
     if auth_header and " " in auth_header:
         auth_type, encoded = auth_header.split(" ", 1)
         if auth_type == "Basic":
-            decoded = base64.b64decode(encoded)
-            values = decoded.decode("utf-8")
-            config.username, config.password = values.split(":")
+            config.username, config.password = _basic_auth_credentials(encoded)
 
             if config.debug:
                 click.echo("Username and password config values set")
