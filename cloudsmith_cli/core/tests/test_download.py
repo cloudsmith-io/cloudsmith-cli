@@ -2,11 +2,15 @@
 
 # pylint: disable=protected-access  # Testing private functions is acceptable in tests
 
+import os
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 import click
+import pytest
 import requests
+from click.testing import CliRunner
 
 from cloudsmith_cli.core import download
 from cloudsmith_cli.core.credentials.models import CredentialResult
@@ -414,6 +418,24 @@ class TestStreamDownload(unittest.TestCase):
                 overwrite=True,
             )
         mock_response.close.assert_called_once_with()
+
+    @pytest.mark.windows
+    @patch("cloudsmith_cli.core.download._verify_checksum", return_value=True)
+    def test_stream_download_prints_on_cp1252_console(self, _mock_verify):
+        mock_response = Mock()
+        mock_response.headers = {"etag": '"abc123"'}
+        mock_response.iter_content.return_value = [b"data"]
+        self.session.get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            outfile = os.path.join(tmp_dir, "file.deb")
+            with CliRunner(charset="cp1252").isolation() as (stdout, _stderr, _output):
+                download.stream_download(
+                    "https://example.com/file.deb", outfile, self.session
+                )
+                printed = stdout.getvalue().decode("cp1252")
+
+        self.assertIn("Checksum verified", printed)
 
 
 class TestSelectBestPackage(unittest.TestCase):
