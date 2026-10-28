@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
-- An API request no longer waits without a limit when the API host accepts the connection but does not reply. A request now fails when it cannot connect in 30 seconds, or when it gets no data for 90 seconds. The API CDN waits 60 seconds for the API, so the CLI does not stop a slow request before the CDN does. If a request fails, the CLI retries it up to 6 times by default (`--error-retry-max`). A POST request has only the 30-second connection timeout, because a retry after a read timeout can create a second entry. File uploads and downloads do not change.
+- An API request no longer waits without a limit when the API host accepts the connection but does not reply. A request now fails when it cannot connect in 30 seconds, or when it gets no data for 90 seconds. The API CDN waits 60 seconds for the API, so the CLI does not stop a slow request before the CDN does. If a request fails, the CLI retries it up to 6 times by default (`--error-retry-max`). File uploads and downloads do not change.
+- A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it.
 
 ## [1.30.0] - 2026-10-22
 

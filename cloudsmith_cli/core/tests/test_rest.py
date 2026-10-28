@@ -1,4 +1,6 @@
 import ssl
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpretty
 import pytest
@@ -7,7 +9,12 @@ from cloudsmith_api.rest import ApiException
 from urllib3.exceptions import MaxRetryError, SSLError
 
 from ..api.init import initialise_api
-from ..rest import READ_TIMEOUT_SECONDS, REQUEST_TIMEOUT_SECONDS, RestClient
+from ..rest import (
+    NON_IDEMPOTENT_READ_TIMEOUT_SECONDS,
+    READ_TIMEOUT_SECONDS,
+    REQUEST_TIMEOUT_SECONDS,
+    RestClient,
+)
 from ..session import create_requests_session
 
 
@@ -22,6 +29,28 @@ def patch_httpretty_socket(monkeypatch):
         lambda self, how: None,
         raising=False,
     )
+
+
+@pytest.fixture
+def silent_api():
+    """Start an API server that reads each request and never replies."""
+    requests_seen = []
+    release = threading.Event()
+
+    class SilentHandler(BaseHTTPRequestHandler):
+        def _read_and_stall(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            requests_seen.append(self.command)
+            release.wait()
+
+        do_GET = do_POST = _read_and_stall
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), SilentHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}/", requests_seen
+    release.set()
+    server.shutdown()
+    server.server_close()
 
 
 class TestRestClient:
@@ -74,15 +103,14 @@ class TestRestClient:
         "method, expected_timeout",
         [
             ("GET", (REQUEST_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)),
-            ("POST", (REQUEST_TIMEOUT_SECONDS, None)),
+            ("POST", (REQUEST_TIMEOUT_SECONDS, NON_IDEMPOTENT_READ_TIMEOUT_SECONDS)),
         ],
     )
     @httpretty.activate(allow_net_connect=False)
     def test_sets_a_default_timeout(self, monkeypatch, method, expected_timeout):
         """A stalled API does not block the CLI forever.
 
-        A POST gets no read timeout, because the retry after a read timeout
-        sends the POST again and can create a second entry.
+        A POST gets a longer read timeout, because the CLI does not retry it.
         """
         initialise_api()
         client = RestClient()
@@ -112,6 +140,20 @@ class TestRestClient:
             client.request("GET", "https://test.site", _request_timeout=(5, 10, 15))
 
         assert raised.value.status == 0
+
+    @pytest.mark.parametrize("method, expected_requests", [("POST", 1), ("GET", 3)])
+    def test_retries_a_read_timeout_only_for_idempotent_methods(
+        self, silent_api, method, expected_requests
+    ):
+        """A retry after a read timeout can repeat a POST that the server processed."""
+        url, requests_seen = silent_api
+        initialise_api()
+        client = RestClient(retries=2, backoff_factor=0)
+
+        with pytest.raises(ApiException):
+            client.request(method, url, _request_timeout=(1, 0.2))
+
+        assert len(requests_seen) == expected_requests
 
 
 class TestCreateRequestsSession:
