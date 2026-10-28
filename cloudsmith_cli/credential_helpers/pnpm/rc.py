@@ -168,12 +168,15 @@ class NPMRC:
         return False
 
     def helped_hosts(self, v: str) -> list[str]:
+        """Return the hosts whose tokenHelper has the file name of *v*, in any directory."""
+        helper_name = Path(v).name
         return [
             line._domain
             for line in self._lines
             if isinstance(line, NPMRC.URLEntry)
             and line._key == "tokenHelper"
-            and line._value == v
+            and line._value is not None
+            and Path(line._value).name == helper_name
         ]
 
     def write(self) -> None:
