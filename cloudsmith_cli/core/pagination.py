@@ -14,13 +14,11 @@ class PageInfo:
     page_size = None
     page_total = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Get page information as text."""
-        data = self.as_dict()
-        data["valid"] = self.is_valid
         return (
-            "Valid: {valid}, Count: {count}, Page: {page}, "
-            "Size: {page_size}, Total: {results_total}".format(**data)
+            f"Valid: {self.is_valid}, Count: {self.count}, Page: {self.page}, "
+            f"Pages: {self.page_total}, Size: {self.page_size}, Total: {self.count}"
         )
 
     def calculate_range(self, num_results):
