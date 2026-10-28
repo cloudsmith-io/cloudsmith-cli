@@ -80,7 +80,7 @@ def common_package_action_options(f):
         "--skip-errors",
         default=False,
         is_flag=True,
-        help="Skip/ignore errors when copying packages.",
+        help="Ignore API errors: print each error, then continue.",
     )
     @click.option(
         "-W",
@@ -111,9 +111,19 @@ def common_package_action_options(f):
     )
     @click.pass_context
     @functools.wraps(f)
-    def wrapper(ctx, *args, **kwargs):
+    def wrapper(ctx: click.Context, *args: object, **kwargs: object) -> object:
         # pylint: disable=missing-docstring
-        return ctx.invoke(f, *args, **kwargs)
+        from ..core.api.exceptions import ApiException
+
+        try:
+            return ctx.invoke(f, *args, **kwargs)
+        except ApiException:
+            # handle_api_exceptions prints the error before it re-raises it
+            # for --skip-errors, so print only the skip notice here.
+            if not kwargs.get("skip_errors"):
+                raise
+            utils.echo_skipped_error(config.get_or_create_options(ctx))
+            return None
 
     return wrapper
 
