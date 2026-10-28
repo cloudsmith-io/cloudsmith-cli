@@ -544,6 +544,22 @@ def test_docker_installer_uninstall(tmp_path, monkeypatch):
     assert not launcher.exists()
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_docker_uninstall_without_config_creates_nothing(
+    dry_run, tmp_path, monkeypatch
+):
+    """uninstall with no config.json creates no file and claims no removal."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+
+    actions = DockerInstaller().uninstall(
+        bin_dir=str(tmp_path / "bin"), dry_run=dry_run
+    )
+
+    assert not docker_dir.exists()
+    assert any("no credHelpers entries to remove" in a for a in actions)
+
+
 def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
     """uninstall removes only cloudsmith entries (foreign kept) + removes launcher.
 
