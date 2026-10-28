@@ -10,6 +10,7 @@ import time
 from datetime import UTC, datetime
 
 import click
+from requests_toolbelt import MultipartEncoderMonitor
 
 from ...core import utils as core_utils
 from ...core.api.exceptions import ApiException
@@ -552,8 +553,15 @@ def upload_file(ctx, opts, owner, repo, filepath, skip_errors, md5_checksum):
                     empty_char=click.style("-", fg="red"),
                 ) as pb:
 
-                    def progress_callback(monitor):
-                        pb.update(monitor.bytes_read)
+                    def progress_callback(monitor: MultipartEncoderMonitor) -> None:
+                        if monitor.len <= 0:
+                            return
+                        # The body also holds the form fields, so scale it to the
+                        # file. A rewound body counts again from 0, so do not move
+                        # the bar back.
+                        bytes_read = min(max(monitor.bytes_read, 0), monitor.len)
+                        uploaded = bytes_read * filesize // monitor.len
+                        pb.update(max(uploaded - pb.pos, 0))
 
                     api_upload_file(
                         upload_url=upload_url,
