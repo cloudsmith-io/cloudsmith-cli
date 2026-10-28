@@ -1,6 +1,8 @@
 """API - Files endpoints."""
 
 import os
+import tempfile
+from contextlib import contextmanager
 
 import click
 import cloudsmith_api
@@ -104,33 +106,26 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
         )
 
 
-class _FilePart:
-    """A seekable file-part view for Requests' length and replay handling."""
-
-    def __init__(self, fileobj, start, length):
-        self.fileobj = fileobj
-        self.start = start
-        self.length = length
-        self.position = 0
-
-    def __len__(self):
-        return self.length
-
-    def __iter__(self):
-        self.fileobj.seek(self.start + self.position)
-        while self.position < self.length:
-            size = min(64 * 1024, self.length - self.position)
-            chunk = self.fileobj.read(size)
-            if len(chunk) != size:
-                raise OSError("upload source ended before the current part")
-            self.position += len(chunk)
-            yield chunk
-
-    def tell(self):
-        return self.position
-
-    def seek(self, position):
-        self.position = position
+@contextmanager
+def _stage_upload_part(source, length):
+    """Copy one part into a seekable temporary file using bounded memory."""
+    try:
+        with tempfile.TemporaryFile(mode="w+b") as part:
+            remaining = length
+            while remaining:
+                chunk = source.read(min(64 * 1024, remaining))
+                if not chunk:
+                    raise OSError("upload source ended before the current part")
+                if part.write(chunk) != len(chunk):
+                    raise OSError("could not stage the complete upload part")
+                remaining -= len(chunk)
+            part.flush()
+            part.seek(0)
+            yield part
+    except OSError as exc:
+        raise ApiException(
+            0, detail=f"Cannot stage multipart upload part: {exc}"
+        ) from exc
 
 
 def multi_part_upload_file(
@@ -148,25 +143,25 @@ def multi_part_upload_file(
             if chunk_size <= 0:
                 break
 
-            part = _FilePart(f, offset, chunk_size)
-            resp = _send_upload_request(
-                session.put,
-                upload_url,
-                headers=headers,
-                data=part,
-                params={
-                    "upload_id": upload_id,
-                    "part_number": chunk_number,
-                },
-            )
-            try:
-                resp.raise_for_status()
-            except requests.RequestException as exc:
-                raise ApiException(
-                    resp.status_code,
-                    headers=exc.response.headers,
-                    body=exc.response.content,
+            with _stage_upload_part(f, chunk_size) as part:
+                resp = _send_upload_request(
+                    session.put,
+                    upload_url,
+                    headers=headers,
+                    data=part,
+                    params={
+                        "upload_id": upload_id,
+                        "part_number": chunk_number,
+                    },
                 )
+                try:
+                    resp.raise_for_status()
+                except requests.RequestException as exc:
+                    raise ApiException(
+                        resp.status_code,
+                        headers=exc.response.headers,
+                        body=exc.response.content,
+                    )
             callback()
             offset += chunk_size
             chunk_number += 1

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Large multipart uploads now stream each part from the source file instead of buffering a whole part. If the source ends while a part is being sent, the upload fails instead of sending a short request body.
+- Large multipart uploads now copy each part to a seekable temporary file before sending it, so retries use the same bytes without keeping a whole part in memory. If the source ends while a part is staged, the upload fails before sending that part.
 
 ## [1.31.1] - 2026-11-12
 

@@ -241,53 +241,174 @@ class TestMultiPartUploadStreaming:
             data={"upload_id": "upload-id", "complete": True},
         )
 
-    def test_short_source_aborts_without_completing(self, tmp_path, monkeypatch):
+    @pytest.mark.parametrize("failure_status", [307, 503])
+    def test_replay_uses_staged_part_after_source_rewrite(
+        self, tmp_path, monkeypatch, failure_status
+    ):
         filepath = tmp_path / "package.raw"
-        filepath.write_bytes(b"x" * 43)
-        monkeypatch.setattr(files_api, "CHUNK_SIZE", 43)
+        filepath.write_bytes(b"abcd")
+        monkeypatch.setattr(files_api, "CHUNK_SIZE", 4)
+        _configure_upload_session(monkeypatch)
 
         with upload_server() as server:
-            server.read_timeout = 0.5
+
+            def respond(record):
+                if record["attempt"] == 1:
+                    with filepath.open("r+b") as source:
+                        source.write(b"WXYZ")
+                        source.truncate(4)
+                    if failure_status == 307:
+                        query = record["path"].partition("?")[2]
+                        return (
+                            307,
+                            {
+                                "Location": (
+                                    f"http://127.0.0.1:{server.server_port}"
+                                    f"/redirected?{query}"
+                                )
+                            },
+                            b"",
+                        )
+                    return 503, {}, b"retry"
+                return 200, {}, b""
+
+            server.response_for_request = respond
             files_client = Mock()
             files_client.files_complete.side_effect = lambda *args, **kwargs: (
                 server.events.append(("complete",))
             )
-            session = requests.Session()
-            session.trust_env = False
+            callbacks = []
 
-            class TruncatingSession:
-                def put(self, url, *, data, **kwargs):
-                    with filepath.open("r+b") as source:
-                        source.truncate(7)
-                    return session.put(url, data=data, **kwargs)
+            def callback():
+                callbacks.append(None)
+                server.events.append(("callback", len(callbacks)))
 
-            try:
-                with (
-                    patch.object(
-                        files_api,
-                        "create_requests_session",
-                        return_value=TruncatingSession(),
-                    ),
-                    patch.object(files_api, "get_files_api", return_value=files_client),
-                    pytest.raises(ApiException) as raised,
-                ):
-                    multi_part_upload_file(
-                        Mock(credential=None),
-                        f"http://127.0.0.1:{server.server_port}/parts",
-                        "owner",
-                        "repo",
-                        str(filepath),
-                        lambda: None,
-                        "upload-id",
-                    )
-            finally:
-                session.close()
+            credential = CredentialResult(api_key="csa_test", source_name="oidc")
+            with patch.object(files_api, "get_files_api", return_value=files_client):
+                multi_part_upload_file(
+                    Mock(credential=credential),
+                    f"http://127.0.0.1:{server.server_port}/parts",
+                    "owner",
+                    "repo",
+                    str(filepath),
+                    callback,
+                    "upload-id",
+                )
+
+        expected_hash = hashlib.sha256(b"abcd").hexdigest()
+        assert [record["part_number"] for record in server.records] == [1, 1]
+        assert [record["attempt"] for record in server.records] == [1, 2]
+        assert [record["status"] for record in server.records] == [failure_status, 200]
+        assert [record["content_length"] for record in server.records] == [4, 4]
+        assert [record["sha256"] for record in server.records] == [
+            expected_hash,
+            expected_hash,
+        ]
+        assert all(record["auth"] == "csa_test" for record in server.records)
+        assert all(record["transfer_encoding"] is None for record in server.records)
+        assert filepath.read_bytes() == b"WXYZ"
+        assert callbacks == [None]
+        assert server.events == [
+            ("part", 1, 1, failure_status),
+            ("part", 1, 2, 200),
+            ("callback", 1),
+            ("complete",),
+        ]
+        files_client.files_complete.assert_called_once()
+
+    def test_short_source_aborts_without_completing(self, tmp_path, monkeypatch):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"x" * 43)
+        monkeypatch.setattr(files_api, "CHUNK_SIZE", 43)
+        create_temporary_file = files_api.tempfile.TemporaryFile
+
+        def truncate_before_staging(*args, **kwargs):
+            with filepath.open("r+b") as output:
+                output.truncate(7)
+            return create_temporary_file(*args, **kwargs)
+
+        monkeypatch.setattr(
+            files_api.tempfile, "TemporaryFile", truncate_before_staging
+        )
+        files_client = Mock()
+        session = Mock()
+
+        with (
+            patch.object(files_api, "create_requests_session", return_value=session),
+            patch.object(files_api, "get_files_api", return_value=files_client),
+            pytest.raises(ApiException) as raised,
+        ):
+            multi_part_upload_file(
+                Mock(credential=None),
+                upload_url="https://upload.example.invalid/parts",
+                owner="owner",
+                repo="repo",
+                filepath=str(filepath),
+                callback=lambda: None,
+                upload_id="upload-id",
+            )
 
         assert raised.value.status == 0
         assert "upload source ended before the current part" in raised.value.detail
-        assert not any(event[0] == "body_timeout" for event in server.events)
-        assert not any(event[0] == "complete" for event in server.events)
+        session.put.assert_not_called()
         files_client.files_complete.assert_not_called()
+
+    @pytest.mark.parametrize("failure", ["create", "write"])
+    def test_temporary_storage_error_aborts_before_put(
+        self, tmp_path, monkeypatch, failure
+    ):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"abcd")
+        monkeypatch.setattr(files_api, "CHUNK_SIZE", 4)
+        temporary_file = None
+
+        class FailingTemporaryFile:
+            closed = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+            def write(self, _chunk):
+                raise OSError("temporary storage unavailable")
+
+            def close(self):
+                self.closed = True
+
+        def create_temporary_file(*args, **kwargs):
+            nonlocal temporary_file
+            if failure == "create":
+                raise OSError("temporary storage unavailable")
+            temporary_file = FailingTemporaryFile()
+            return temporary_file
+
+        monkeypatch.setattr(files_api.tempfile, "TemporaryFile", create_temporary_file)
+        files_client = Mock()
+        session = Mock()
+
+        with (
+            patch.object(files_api, "create_requests_session", return_value=session),
+            patch.object(files_api, "get_files_api", return_value=files_client),
+            pytest.raises(ApiException) as raised,
+        ):
+            multi_part_upload_file(
+                Mock(credential=None),
+                upload_url="https://upload.example.invalid/parts",
+                owner="owner",
+                repo="repo",
+                filepath=str(filepath),
+                callback=lambda: None,
+                upload_id="upload-id",
+            )
+
+        assert raised.value.status == 0
+        assert "temporary storage unavailable" in raised.value.detail
+        session.put.assert_not_called()
+        files_client.files_complete.assert_not_called()
+        if temporary_file is not None:
+            assert temporary_file.closed
 
 
 class TestMultiPartUploadMemory:
