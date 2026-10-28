@@ -1,23 +1,30 @@
 import collections
 import stat
+from typing import TYPE_CHECKING
 
 import click
 
 from .utils import get_help_website, should_use_stderr
 
+if TYPE_CHECKING:
+    from ..cli.config import Options
+
 ConfigValues = collections.namedtuple(
-    "ConfigValues", ["reader", "present", "mode", "data"]
+    "ConfigValues", ["reader", "path", "present", "mode", "data"]
 )
 
 
-def create_config_files(ctx, opts, api_key, force=False):
+def create_config_files(
+    ctx: click.Context, opts: "Options", api_key: str, force: bool = False
+) -> tuple[bool, bool]:
     """Create default config files."""
-    # pylint: disable=unused-argument
     err = should_use_stderr(opts)
     config_reader = opts.get_config_reader()
     creds_reader = opts.get_creds_reader()
-    has_config = config_reader.has_default_file()
-    has_creds = creds_reader.has_default_file()
+    config_path = config_reader.get_default_filepath(ctx.meta.get("config_file"))
+    creds_path = creds_reader.get_default_filepath(ctx.meta.get("creds_file"))
+    has_config = config_reader.has_default_file(config_path)
+    has_creds = creds_reader.has_default_file(creds_path)
 
     if has_config and has_creds:
         create = False
@@ -29,7 +36,7 @@ def create_config_files(ctx, opts, api_key, force=False):
                 err=err,
             )
         else:
-            create = "y"
+            create = True
 
     click.echo(err=err)
     if not create:
@@ -46,9 +53,16 @@ def create_config_files(ctx, opts, api_key, force=False):
         )
 
     configs = (
-        ConfigValues(reader=config_reader, present=has_config, mode=None, data={}),
+        ConfigValues(
+            reader=config_reader,
+            path=config_path,
+            present=has_config,
+            mode=None,
+            data={},
+        ),
         ConfigValues(
             reader=creds_reader,
+            path=creds_path,
             present=has_creds,
             mode=stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP,
             data={"api_key": api_key},
@@ -60,9 +74,7 @@ def create_config_files(ctx, opts, api_key, force=False):
         click.echo(
             "{name} config file: {filepath} ... ".format(
                 name=click.style(config.reader.config_name.capitalize(), bold=True),
-                filepath=click.style(
-                    config.reader.get_default_filepath(), fg="magenta"
-                ),
+                filepath=click.style(config.path, fg="magenta"),
             ),
             nl=False,
             err=err,
@@ -71,11 +83,11 @@ def create_config_files(ctx, opts, api_key, force=False):
         if not config.present and create:
             try:
                 ok = config.reader.create_default_file(
-                    data=config.data, mode=config.mode
+                    data=config.data, mode=config.mode, path=config.path
                 )
             except OSError as exc:
                 ok = False
-                error_message = exc.strerror
+                error_message = exc.strerror or str(exc)
                 has_errors = True
 
             if ok:
@@ -98,10 +110,7 @@ def create_config_files(ctx, opts, api_key, force=False):
             and hasattr(config.reader, "update_api_key")
         ):
             try:
-                config.reader.update_api_key(
-                    config.reader.get_default_filepath(),
-                    config.data["api_key"],
-                )
+                config.reader.update_api_key(config.path, config.data["api_key"])
                 click.secho("UPDATED", fg="green", err=err)
             except OSError as exc:
                 has_errors = True
@@ -109,7 +118,7 @@ def create_config_files(ctx, opts, api_key, force=False):
                 click.secho(
                     "The following error occurred while trying to "
                     "update the file: {message}".format(
-                        message=click.style(exc.strerror, fg="red")
+                        message=click.style(exc.strerror or str(exc), fg="red")
                     ),
                     err=err,
                 )

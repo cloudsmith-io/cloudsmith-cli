@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `cloudsmith login`, `cloudsmith auth --request-api-key --save-config`, `cloudsmith tokens create --save-config`, and `cloudsmith tokens refresh --save-config` now save the API key to your user-level `credentials.ini`, or to the file or directory that `--credentials-file` gives. Previously, they wrote `credentials.ini` and `config.ini` to the current directory when no user-level file existed. When a user-level `credentials.ini` existed, they failed with `No such file or directory` and did not save the new key. The CLI now ignores a `config.ini` or `credentials.ini` in the current directory when it decides whether to create a file.
 
 ## [1.30.0] - 2026-10-22
 

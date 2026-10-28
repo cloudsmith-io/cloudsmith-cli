@@ -93,6 +93,7 @@ class ConfigReader(ConfigFileReader):
     """Reader for standard configuration."""
 
     config_files: ClassVar = ["config.ini"]
+    default_filename: ClassVar = "config.ini"
     config_name = "standard"
     config_searchpath: ClassVar = list(_CFG_SEARCH_PATHS)
     config_section_schemas: ClassVar = [ConfigSchema.Default, ConfigSchema.Profile]
@@ -113,25 +114,22 @@ class ConfigReader(ConfigFileReader):
         return section_name
 
     @classmethod
-    def get_default_filepath(cls):
-        """Get the default filepath for the configuration file."""
-        if not cls.config_files:
-            return None
-        if not cls.config_searchpath:
-            return None
-        filename = cls.config_files[0]
-        filepath = cls.config_searchpath[0]
-        return os.path.join(filepath, filename)
+    def get_default_filepath(cls, path: str | None = None) -> str:
+        """Get the file to write: the given file or directory, else the user-level file."""
+        if path and os.path.isdir(path):
+            return os.path.join(path, cls.default_filename)
+        return path or cls.get_user_filepath()
 
     @classmethod
-    def create_default_file(cls, data=None, mode=None):
+    def create_default_file(
+        cls,
+        data: dict[str, str | None] | None = None,
+        mode: int | None = None,
+        path: str | None = None,
+    ) -> bool:
         """Create a config file and override data if specified."""
-        filepath = cls.get_default_filepath()
-        if not filepath:
-            return False
-
-        filename = os.path.basename(filepath)
-        config = read_file(get_data_path(), filename)
+        filepath = cls.get_default_filepath(path)
+        config = read_file(get_data_path(), cls.default_filename)
 
         # Find and replace data in default config
         data = data or {}
@@ -145,8 +143,8 @@ class ConfigReader(ConfigFileReader):
             )
 
         dirpath = os.path.dirname(filepath)
-        if not os.path.exists(dirpath):
-            os.makedirs(dirpath)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
         with click.open_file(filepath, "w+") as f:
             f.write(config)
 
@@ -168,16 +166,16 @@ class ConfigReader(ConfigFileReader):
         return (existing_paths or user_paths)[0]
 
     @classmethod
-    def save_workspace(cls, workspace, profile=None, path=None):
+    def save_workspace(
+        cls, workspace: str, profile: str | None = None, path: str | None = None
+    ) -> str | None:
         """Write the Workspace to the profile section; return the path if it changed."""
-        if path and os.path.isdir(path):
-            path = os.path.join(path, "config.ini")
-        path = path or cls.get_user_filepath()
+        path = cls.get_default_filepath(path)
         if os.path.exists(path):
             with open(path) as config_file:
                 content = config_file.read()
         else:
-            content = read_file(get_data_path(), "config.ini")
+            content = read_file(get_data_path(), cls.default_filename)
 
         section = (
             f"profile:{profile}" if profile and profile != "default" else "default"
@@ -194,15 +192,9 @@ class ConfigReader(ConfigFileReader):
         return path
 
     @classmethod
-    def has_default_file(cls):
-        """Check if a configuration file exists."""
-        for filename in cls.config_files:
-            for searchpath in cls.config_searchpath:
-                path = os.path.join(searchpath, filename)
-                if os.path.exists(path):
-                    return True
-
-        return False
+    def has_default_file(cls, path: str | None = None) -> bool:
+        """Check if the file that the CLI writes exists."""
+        return os.path.isfile(cls.get_default_filepath(path))
 
     @classmethod
     def read_relative_config_value(cls, key, profile=None):
@@ -335,6 +327,7 @@ class CredentialsReader(ConfigReader):
     """Reader for credentials configuration."""
 
     config_files: ClassVar = ["credentials.ini"]
+    default_filename: ClassVar = "credentials.ini"
     config_name = "credentials"
     config_searchpath: ClassVar = list(_CFG_SEARCH_PATHS)
     config_section_schemas: ClassVar = [
