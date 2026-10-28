@@ -399,7 +399,7 @@ def print_update_notice(latest_version: str) -> None:
     lines = [
         (
             "A new version of the Cloudsmith CLI is available: "
-            f"{version.get_version()} \u2192 {latest_version}."
+            f"{version.get_version()} -> {latest_version}."
         ),
         f"See what's changed: {installation.changelog_url(latest_version)}",
         *_update_action_lines(),
