@@ -204,11 +204,9 @@ class AliasGroup(DYMGroup):
             _echo_certificate_hint(e)
             sys.exit(e.exit_code)
         except BrokenPipeError:
-            # Click handles a closed pipe, but not a failed write while it
-            # handles Ctrl+C. The pipe is gone, so print nothing.
+            # Click does not catch a failed write in its Ctrl+C handler.
             if not original_standalone_mode:
                 raise
-            # Python flushes the streams at exit. A failed flush gives status 120.
             sys.stdout = _PacifyFlushWrapper(sys.stdout)
             sys.stderr = _PacifyFlushWrapper(sys.stderr)
             sys.exit(1)
