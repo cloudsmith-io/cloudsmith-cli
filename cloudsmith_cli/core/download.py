@@ -505,15 +505,15 @@ def stream_download(
                     downloaded += len(chunk)
 
     if not quiet:
-        click.secho(f"✓ Downloaded {_format_size(downloaded)} to {outfile}", fg="green")
+        click.secho(f"Downloaded {_format_size(downloaded)} to {outfile}", fg="green")
 
     # Verify checksum if available in response headers
     expected_checksum = response.headers.get("etag", "").strip('"')
     if expected_checksum and not quiet:
         if _verify_checksum(outfile, expected_checksum):
-            click.secho("✓ Checksum verified", fg="green")
+            click.secho("Checksum verified", fg="green")
         else:
-            click.secho("⚠ Checksum mismatch", fg="yellow", err=True)
+            click.secho("Warning: Checksum mismatch", fg="yellow", err=True)
 
 
 def _select_best_package(packages: list[dict]) -> dict:
