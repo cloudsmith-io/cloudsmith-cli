@@ -3,6 +3,7 @@
 import contextlib
 import http.client
 import json
+from collections.abc import Iterator
 
 from cloudsmith_api.rest import ApiException as _ApiException
 
@@ -37,8 +38,26 @@ class ApiException(Exception):
         return f"{self.status} - {self.detail or self.status_description}"
 
 
+def error_detail_and_fields(
+    data: object,
+) -> tuple[str | None, dict[str, object] | None]:
+    """Get the detail and the fields from a parsed API error body of any JSON shape."""
+    if isinstance(data, dict):
+        detail = data.get("detail")
+        fields = data.get("fields")
+        return (
+            None if detail is None else str(detail),
+            fields if isinstance(fields, dict) else None,
+        )
+    if isinstance(data, list):
+        return " ".join(item for item in data if isinstance(item, str)) or None, None
+    if isinstance(data, str):
+        return data or None, None
+    return None, None
+
+
 @contextlib.contextmanager
-def catch_raise_api_exception():
+def catch_raise_api_exception() -> Iterator[None]:
     """Context manager that translates upstream API exceptions."""
     try:
         yield
@@ -48,10 +67,7 @@ def catch_raise_api_exception():
 
         if exc.body:
             try:
-                # pylint: disable=no-member
-                data = json.loads(exc.body)
-                detail = data.get("detail", None)
-                fields = data.get("fields", None)
+                detail, fields = error_detail_and_fields(json.loads(exc.body))
             except ValueError:
                 pass
 
