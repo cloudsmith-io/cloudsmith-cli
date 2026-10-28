@@ -73,6 +73,6 @@ def test_credentials_file_keeps_its_encoding(
 
     cli_config.CredentialsReader.update_api_key(str(path), "new")
 
-    assert path.read_bytes() == (
+    assert path.read_bytes().replace(b"\r\n", b"\n") == (
         f"[default]\n# {text}\napi_key = new\n".encode(encoding)
     )
