@@ -28,7 +28,10 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
 
-from ....credential_helpers.docker.installer import DockerInstaller
+from ....credential_helpers.docker.installer import (
+    DockerInstaller,
+    HelperScopeConflict,
+)
 from ... import utils
 from ...decorators import (
     common_api_auth_options,
@@ -137,8 +140,15 @@ def _terraform_proxy_next_steps(opts) -> list[str]:
 
 
 # Other users can read a launcher, so it never holds a secret.  A proxy URL can
-# hold credentials.
-_NEVER_KEPT = ("api_key", "api_headers", "keyring_key", "proxy")
+# hold credentials.  The colour settings are for the terminal of the install.
+_NEVER_KEPT = (
+    "api_key",
+    "api_headers",
+    "keyring_key",
+    "proxy",
+    "color",
+    "force_color_env",
+)
 
 
 def _main_envvar(option) -> str:
@@ -174,6 +184,15 @@ def _launcher_settings_from_cli(ctx) -> dict[str, str]:
                     str(value).lower() if isinstance(value, bool) else value
                 )
     return settings
+
+
+def _profile_flag(ctx) -> str | None:
+    """Return the ``-P`` value of this command or of a parent command."""
+    while ctx is not None:
+        if ctx.get_parameter_source("profile") == ParameterSource.COMMANDLINE:
+            return ctx.params["profile"]
+        ctx = ctx.parent
+    return None
 
 
 _REPO_FLAGS = ("-r", "--repo", "--repository")
@@ -362,6 +381,7 @@ def install_cmd(
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
         UnsafeLauncherValue,
+        HelperScopeConflict,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -426,10 +446,22 @@ def install_cmd(
     default=False,
     help="Show what would be done without making any changes.",
 )
+@click.option(
+    "-w",
+    "--workspace",
+    "--org",
+    "--organization",
+    "-o",
+    "--owner",
+    "workspace",
+    help="Docker only: remove the helper that was installed for this Workspace.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
-def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) -> None:
+def uninstall_cmd(
+    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, workspace: str | None
+) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
@@ -445,8 +477,16 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
         $ cloudsmith credential-helper uninstall docker --dry-run
     """
     installer = _get_installer(helper)
+    uninstall_kwargs = {"bin_dir": bin_dir, "dry_run": dry_run}
+    # The scope comes only from flags, so that a shell with CLOUDSMITH_PROFILE
+    # or CLOUDSMITH_WORKSPACE can still remove the unscoped helper.
+    if helper == "docker":
+        uninstall_kwargs["profile"] = _profile_flag(ctx)
+        uninstall_kwargs["workspace"] = workspace
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(**uninstall_kwargs)
+    except HelperScopeConflict as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"
@@ -497,14 +537,16 @@ def list_cmd(ctx, opts) -> None:
     data = []
     for name, cls in sorted(_INSTALLERS.items()):
         installer = cls()
-        st = installer.status()
-        data.append(
+        # Docker can have one helper for each profile and Workspace.
+        statuses = getattr(installer, "statuses", None)
+        data.extend(
             {
                 "helper": name,
                 "summary": installer.summary,
                 "launcher": st.get("launcher"),
                 "hosts": st.get("hosts", []),
             }
+            for st in (statuses() if statuses else [installer.status()])
         )
 
     if utils.maybe_print_as_json(opts, data):

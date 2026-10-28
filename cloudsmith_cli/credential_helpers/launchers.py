@@ -114,6 +114,21 @@ def _launcher_content(
     return f'#!/bin/sh\n{settings}exec {target_cmd} "$@"\n'
 
 
+def parse_launcher_env(content: str) -> dict[str, str]:
+    """Return the environment variables that a launcher body sets."""
+    env = {}
+    for line in content.splitlines():
+        if line.startswith("export "):
+            setting = shlex.split(line)[1]
+        elif line.startswith('set "'):
+            setting = line[len('set "') : -1]
+        else:
+            continue
+        name, _, value = setting.partition("=")
+        env[name] = value
+    return env
+
+
 def write_launcher(
     bin_dir: Path,
     name: str,
