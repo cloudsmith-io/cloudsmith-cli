@@ -254,8 +254,10 @@ class DockerInstaller:
         """
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
+        # A missing config has no entries. A merge would create an empty file.
+        config_exists: bool = config_path.exists()
 
-        def mutate(config: dict) -> None:
+        def mutate(config: dict[str, object]) -> None:
             helpers = config.get("credHelpers")
             if not isinstance(helpers, dict):
                 return
@@ -280,7 +282,9 @@ class DockerInstaller:
                     f"launcher not found at {launcher_path} (nothing to remove)"
                 )
 
-            would_change = merge_config_file(config_path, mutate, dry_run=True)
+            would_change = config_exists and merge_config_file(
+                config_path, mutate, dry_run=True
+            )
             if would_change:
                 actions.append(
                     f"would remove credHelpers entries with value"
@@ -297,7 +301,7 @@ class DockerInstaller:
         else:
             actions.append(f"launcher not found at {launcher_path} (nothing to remove)")
 
-        changed = merge_config_file(config_path, mutate)
+        changed = config_exists and merge_config_file(config_path, mutate)
         if changed:
             actions.append(
                 f"removed credHelpers entries with value"
