@@ -202,6 +202,12 @@ class AliasGroup(DYMGroup):
             e.show()
             _echo_certificate_hint(e)
             sys.exit(e.exit_code)
+        except BrokenPipeError:
+            # Click handles a closed pipe, but not one that closes while it
+            # handles Ctrl+C. The pipe is gone, so print nothing.
+            if not original_standalone_mode:
+                raise
+            sys.exit(1)
         except Exception as e:  # pylint: disable=broad-exception-caught
             # Anything reaching here is unexpected: click's own errors and
             # handled API errors (which exit via ctx.exit) are dealt with

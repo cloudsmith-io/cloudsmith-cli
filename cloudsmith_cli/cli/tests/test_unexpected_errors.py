@@ -294,6 +294,21 @@ def test_click_errors_are_not_reported(runner, tmp_path, sentry_events, exc):
     assert sentry_events == []
 
 
+def test_interrupt_with_a_closed_stderr_is_not_reported(
+    runner, tmp_path, sentry_events
+):
+    """Click writes a newline on Ctrl+C, which fails when the pipe is gone."""
+    with (
+        whoami_raises(KeyboardInterrupt()),
+        patch("click.core.echo", side_effect=BrokenPipeError),
+    ):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert result.stderr == ""
+    assert sentry_events == []
+
+
 STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"
 
 
