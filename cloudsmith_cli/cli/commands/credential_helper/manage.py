@@ -408,7 +408,7 @@ def install_cmd(
         sys.exit(ec)
 
     if dry_run:
-        click.echo("Dry run — no changes will be made:", err=use_stderr)
+        click.echo("Dry run - no changes will be made:", err=use_stderr)
     for action in normal:
         click.echo(f"  {action}" if dry_run else action, err=use_stderr)
     for warning in warnings:
@@ -491,7 +491,7 @@ def uninstall_cmd(
         return
 
     if dry_run:
-        click.echo("Dry run — no changes will be made:", err=use_stderr)
+        click.echo("Dry run - no changes will be made:", err=use_stderr)
     for action in normal:
         click.echo(f"  {action}" if dry_run else action, err=use_stderr)
     for warning in warnings:

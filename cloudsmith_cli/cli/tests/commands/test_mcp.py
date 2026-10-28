@@ -6,12 +6,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from click.testing import CliRunner
 
 from ....cli.commands.mcp import (
     _atomic_write_json,
     _configure_claude_code,
     _get_server_config,
     _safe_update_json,
+    configure,
     configure_client,
     detect_available_clients,
     list_groups,
@@ -617,6 +619,15 @@ class TestSafeWriteHelpers:
         with pytest.raises(ValueError, match="Cannot parse config file"):
             _safe_update_json(target, lambda c: c)
 
+    @pytest.mark.windows
+    def test_safe_update_keeps_non_ascii_text(self, tmp_path):
+        target = tmp_path / "config.json"
+        target.write_text('{"note": "✓"}', encoding="utf-8")
+
+        _safe_update_json(target, lambda c: c)
+
+        assert json.loads(target.read_text(encoding="utf-8")) == {"note": "✓"}
+
 
 class TestConfigureClientSafeWrite:
     """Other clients should now use the atomic safe-update path."""
@@ -646,3 +657,20 @@ class TestConfigureClientSafeWrite:
         result = json.loads(config_path.read_text())
         assert result["editor.fontSize"] == 14
         assert result["chat.mcp.servers"]["cloudsmith"] == SERVER_CONFIG
+
+
+class TestMCPConfigureOutput:
+    @pytest.mark.windows
+    def test_configure_prints_on_cp1252_console(self, tmp_path):
+        config_path = tmp_path / "mcp.json"
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.get_config_path",
+            return_value=config_path,
+        ):
+            result = CliRunner(charset="cp1252").invoke(
+                configure, ["--client", "cursor", "-k", "x"]
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "Configured Cursor" in result.stdout
+        assert config_path.exists()

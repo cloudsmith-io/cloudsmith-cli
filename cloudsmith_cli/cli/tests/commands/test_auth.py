@@ -17,10 +17,11 @@ from .conftest import MockToken
 
 
 @pytest.fixture(autouse=True)
-def no_existing_sso_session(monkeypatch):
+def no_existing_sso_session(monkeypatch, telemetry_config_dir):
     """Keep browser-flow tests independent of locally stored SAML sessions."""
     monkeypatch.delenv("CLOUDSMITH_WORKSPACE", raising=False)
     monkeypatch.delenv("CLOUDSMITH_ORG", raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
     with patch(
         "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
         return_value=None,
@@ -668,3 +669,104 @@ class TestAuthFailureOutputModes:
         assert payload["meta"]["code"] == 422
         assert "Beginning authentication for the testorg Workspace" in result.stderr
         assert "Beginning authentication for the testorg org" not in result.stdout
+
+
+@pytest.mark.usefixtures(
+    "mock_saml_session", "mock_get_idp_url", "mock_webbrowser", "mock_auth_server"
+)
+class TestSavesWorkspace:
+    """Tests that a SAML login saves the Workspace to the selected profile."""
+
+    def test_creates_default_config_with_workspace(self, runner, telemetry_config_dir):
+        result = runner.invoke(authenticate, ["-w", "acme"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        config_path = telemetry_config_dir / "config.ini"
+        assert "\nworkspace = acme\n" in config_path.read_text()
+        assert f"Saved the acme Workspace to {config_path}" in result.output
+
+    def test_adds_profile_section_and_keeps_default(self, runner, telemetry_config_dir):
+        config_path = telemetry_config_dir / "config.ini"
+        config_path.write_text("# mine\n[default]\nworkspace = other\n")
+
+        result = runner.invoke(
+            authenticate, ["-w", "acme", "-P", "staging"], catch_exceptions=False
+        )
+
+        assert result.exit_code == 0, result.output
+        assert config_path.read_text() == (
+            "# mine\n[default]\nworkspace = other\n\n"
+            "[profile:staging]\nworkspace = acme\n"
+        )
+
+    def test_replaces_workspace_in_profile_section(self, runner, telemetry_config_dir):
+        config_path = telemetry_config_dir / "config.ini"
+        config_path.write_text(
+            "[default]\nworkspace = other\n\n"
+            "[profile:staging]\napi_host = https://api.example.com\nworkspace = old\n"
+        )
+
+        result = runner.invoke(
+            authenticate, ["-w", "acme", "-P", "staging"], catch_exceptions=False
+        )
+
+        assert result.exit_code == 0, result.output
+        assert config_path.read_text() == (
+            "[default]\nworkspace = other\n\n"
+            "[profile:staging]\napi_host = https://api.example.com\nworkspace = acme\n"
+        )
+
+    def test_replaces_workspace_after_header_comment(
+        self, runner, telemetry_config_dir
+    ):
+        config_path = telemetry_config_dir / "config.ini"
+        config_path.write_text("[default] # mine\nworkspace = other\n")
+
+        result = runner.invoke(authenticate, ["-w", "acme"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert config_path.read_text() == "[default] # mine\nworkspace = acme\n"
+
+    def test_saves_to_explicit_config_directory(
+        self, runner, telemetry_config_dir, tmp_path
+    ):
+        user_config = telemetry_config_dir / "config.ini"
+        user_config.write_text("[default]\nworkspace = other\n")
+
+        result = runner.invoke(
+            authenticate, ["-w", "acme", "-C", str(tmp_path)], catch_exceptions=False
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "\nworkspace = acme\n" in (tmp_path / "config.ini").read_text()
+        assert user_config.read_text() == "[default]\nworkspace = other\n"
+
+    def test_same_workspace_is_not_saved_again(self, runner, telemetry_config_dir):
+        config_path = telemetry_config_dir / "config.ini"
+        config_path.write_text("[default]\nworkspace=acme\n")
+
+        result = runner.invoke(authenticate, ["-w", "acme"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert config_path.read_text() == "[default]\nworkspace=acme\n"
+        assert "Saved the acme Workspace" not in result.output
+
+    def test_warns_when_section_cannot_change(self, runner, telemetry_config_dir):
+        config_path = telemetry_config_dir / "config.ini"
+        config_path.write_text("[default]\n  workspace = other\n")
+
+        result = runner.invoke(authenticate, ["-w", "acme"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert config_path.read_text() == "[default]\n  workspace = other\n"
+        assert "Could not save the acme Workspace" in result.output
+
+    def test_failed_login_does_not_save_workspace(
+        self, runner, telemetry_config_dir, mock_auth_server
+    ):
+        mock_auth_server.return_value.sso_access_token = None
+
+        result = runner.invoke(authenticate, ["-w", "acme"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert not (telemetry_config_dir / "config.ini").exists()

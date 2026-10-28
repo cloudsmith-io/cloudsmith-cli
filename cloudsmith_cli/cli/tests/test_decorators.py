@@ -4,6 +4,7 @@ import click
 import click.testing
 import pytest
 
+from ...core import keyring as core_keyring
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
 from ...core.tests.test_certificate_errors import certificate_error
@@ -12,6 +13,7 @@ from ..config import Options
 from ..decorators import (
     initialise_api,
     initialise_session,
+    keyring_options,
     report_retry,
     resolve_credentials,
 )
@@ -289,3 +291,55 @@ def test_nested_command_starts_the_update_check_with_its_own_proxy():
         )
     assert result.exit_code == 0, result.output
     assert seen == [PROXY]
+
+
+def test_keyring_options_configure_the_keyring(monkeypatch, tmp_path):
+    """The keyring settings come from the environment, with absolute paths."""
+
+    @click.command()
+    @keyring_options
+    def command():
+        pass
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
+    monkeypatch.setenv("KEYRING_SUBDIR", "store")
+    result = click.testing.CliRunner().invoke(
+        command,
+        env={
+            "CLOUDSMITH_NO_KEYRING": "yes",
+            "CLOUDSMITH_KEYRING_BACKEND": "keyring.backends.null.Keyring",
+            "CLOUDSMITH_KEYRING_KEY": "secret",
+            "CLOUDSMITH_KEYRING_FILE_PATH": "keyring.cfg",
+            "CLOUDSMITH_KEYRING_DIR": "~/$KEYRING_SUBDIR",
+        },
+    )
+
+    assert result.exit_code == 0, result.output
+    assert core_keyring.current_settings() == core_keyring.KeyringSettings(
+        no_keyring=True,
+        backend="keyring.backends.null.Keyring",
+        key="secret",
+        file_path=str(tmp_path / "keyring.cfg"),
+        directory=str(tmp_path / "home" / "store"),
+    )
+
+
+@pytest.mark.parametrize(
+    "api_headers",
+    ["Authorization=alice", "user-agent=x", "foo"],
+    ids=["authorization-without-password", "blocked-header", "missing-equals"],
+)
+def test_malformed_api_headers_is_a_usage_error(api_headers):
+    @click.command()
+    @initialise_session
+    def command(opts):
+        pass
+
+    result = click.testing.CliRunner().invoke(
+        command, ["--api-headers", api_headers], obj=Options()
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "Invalid value for '--api-headers'" in result.output

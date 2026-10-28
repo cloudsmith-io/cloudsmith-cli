@@ -90,6 +90,24 @@ class TestSaml:
         assert exc_info.value.detail == "Your session has expired."
         assert str(exc_info.value) == "401 - Your session has expired."
 
+    def test_error_carries_a_list_detail(self, mock_response, mock_session):
+        import requests
+
+        mock_session.post.return_value = mock_response
+        mock_response.status_code = 400
+        mock_response.headers = {}
+        mock_response.json.return_value = ["The token is not valid."]
+        mock_response.raise_for_status.side_effect = requests.HTTPError(
+            "An error occurred", response=mock_response
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            exchange_2fa_token(
+                self.api_host, "two_factor_token", "123456", session=mock_session
+            )
+
+        assert exc_info.value.detail == "The token is not valid."
+
     def test_error_without_json_body_still_raises(self, mock_response, mock_session):
         import requests
 

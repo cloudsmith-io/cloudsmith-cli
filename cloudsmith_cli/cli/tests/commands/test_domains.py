@@ -8,6 +8,7 @@ import pytest
 
 from ....cli import config as cli_config
 from ....cli.commands.domains import list_domains
+from ....core import keyring as core_keyring
 from ....core.api.exceptions import ApiException
 from ....credential_helpers.domains import (
     domain_from_payload,
@@ -35,7 +36,7 @@ def hermetic_environment(monkeypatch, tmp_path):
     monkeypatch.delenv("CLOUDSMITH_API_HOST", raising=False)
     monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
     monkeypatch.delenv("CLOUDSMITH_API_KEY", raising=False)
-    monkeypatch.setenv("CLOUDSMITH_NO_KEYRING", "1")
+    core_keyring.configure(core_keyring.KeyringSettings(no_keyring=True))
     monkeypatch.delattr(cli_config.OPTIONS, "value", raising=False)
     monkeypatch.setattr(cli_config.ConfigReader, "config_files", ["config.ini"])
     monkeypatch.setattr(cli_config.ConfigReader, "config_searchpath", ["."])
