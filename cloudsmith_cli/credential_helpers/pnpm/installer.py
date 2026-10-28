@@ -216,7 +216,7 @@ class PNPMInstaller:
 
         return actions
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, str | list[str] | None]:
         """Return current installation status.
 
         Returns
@@ -241,8 +241,11 @@ class PNPMInstaller:
 
         hosts: list[str] = []
         if config_path.exists():
-            with NPMRC(config_path) as rc:
-                hosts: list[str] = rc.helped_hosts(str(launcher_path))
+            try:
+                with NPMRC(config_path) as rc:
+                    hosts = rc.helped_hosts(str(launcher_path))
+            except (UnicodeDecodeError, OSError):
+                pass
 
         return {
             "launcher": str(launcher_path) if launcher_path.exists() else None,
