@@ -104,6 +104,35 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
         )
 
 
+class _FilePart:
+    """A seekable file-part view for Requests' length and replay handling."""
+
+    def __init__(self, fileobj, start, length):
+        self.fileobj = fileobj
+        self.start = start
+        self.length = length
+        self.position = 0
+
+    def __len__(self):
+        return self.length
+
+    def __iter__(self):
+        self.fileobj.seek(self.start + self.position)
+        while self.position < self.length:
+            size = min(64 * 1024, self.length - self.position)
+            chunk = self.fileobj.read(size)
+            if len(chunk) != size:
+                raise OSError("upload source ended before the current part")
+            self.position += len(chunk)
+            yield chunk
+
+    def tell(self):
+        return self.position
+
+    def seek(self, position):
+        self.position = position
+
+
 def multi_part_upload_file(
     opts, upload_url, owner, repo, filepath, callback, upload_id
 ):
@@ -111,13 +140,20 @@ def multi_part_upload_file(
 
     with open(filepath, "rb") as f:
         chunk_number = 1
+        offset = 0
         session = create_requests_session()
-        while chunk := f.read(CHUNK_SIZE):
+        while True:
+            file_size = os.fstat(f.fileno()).st_size
+            chunk_size = min(CHUNK_SIZE, file_size - offset)
+            if chunk_size <= 0:
+                break
+
+            part = _FilePart(f, offset, chunk_size)
             resp = _send_upload_request(
                 session.put,
                 upload_url,
                 headers=headers,
-                data=chunk,
+                data=part,
                 params={
                     "upload_id": upload_id,
                     "part_number": chunk_number,
@@ -132,6 +168,7 @@ def multi_part_upload_file(
                     body=exc.response.content,
                 )
             callback()
+            offset += chunk_size
             chunk_number += 1
 
     api = get_files_api()

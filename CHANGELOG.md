@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Large multipart uploads now stream each part from the source file instead of buffering a whole part. If the source ends while a part is being sent, the upload fails instead of sending a short request body.
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed
