@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `cloudsmith credential-helper install cargo` no longer replaces a `credential-provider` that you set on a Cloudsmith registry in `config.toml`. The install keeps your provider and shows a warning that names the registry. Previously, the install replaced your provider, and `uninstall cargo` then removed it.
 
 ## [1.30.0] - 2026-10-22
 
