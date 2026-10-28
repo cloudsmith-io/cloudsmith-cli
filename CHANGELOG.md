@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- The CLI now shows the API error when the field errors of the error contain objects, for example `{"non_field_errors": [{"code": 1}]}` or nested serializer errors. Previously, the CLI stopped with `TypeError: sequence item 0: expected str instance, dict found` and did not show the API error.
 
 ## [1.30.0] - 2026-10-22
 
