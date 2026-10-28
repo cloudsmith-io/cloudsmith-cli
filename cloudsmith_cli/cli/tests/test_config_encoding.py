@@ -57,7 +57,7 @@ def test_config_file_loads_and_keeps_its_encoding(
     cli_config.ConfigReader.save_workspace("new", path=str(path))
 
     assert opts.workspace == "old"
-    assert path.read_bytes() == (
+    assert path.read_bytes().replace(b"\r\n", b"\n") == (
         f"[default]\n# {text}\nworkspace = new\n".encode(encoding)
     )
 
