@@ -74,6 +74,25 @@ class TestRestClient:
         assert raised.value.status == 0
         assert "HTML page" in raised.value.reason
 
+    @httpretty.activate(allow_net_connect=False)
+    def test_non_utf8_html_page_is_not_an_api_response(self):
+        """An HTML page that is not UTF-8 raises an API error, not a decode error."""
+        initialise_api()
+        client = RestClient(backoff_factor=0)
+        url = "https://test.site"
+        httpretty.register_uri(
+            "GET",
+            url,
+            body="<html>Connexion au proxy requise: é</html>".encode("iso-8859-1"),
+            content_type="text/html; charset=iso-8859-1",
+        )
+
+        with pytest.raises(ApiException) as raised:
+            client.request("GET", url)
+
+        assert raised.value.status == 0
+        assert "HTML page" in raised.value.reason
+
 
 class TestCreateRequestsSession:
     @pytest.fixture(autouse=True)

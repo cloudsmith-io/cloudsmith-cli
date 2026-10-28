@@ -129,13 +129,13 @@ class RestClient(RESTClientObject):
         resp.encoding = resp.apparent_encoding or "utf-8"
         rest_resp = RestResponse(resp)
 
-        if _preload_content:
-            logger.debug("response body: %s", rest_resp.data)
-
         if not 200 <= rest_resp.status <= 299:
             raise ApiException(http_resp=rest_resp)
 
         _raise_for_html(rest_resp)
+
+        if _preload_content:
+            logger.debug("response body: %s", rest_resp.data)
 
         return rest_resp
 
