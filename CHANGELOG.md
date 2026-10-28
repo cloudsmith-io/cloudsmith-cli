@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `cloudsmith push` now sends the full file again when it retries an upload after a server error. It also sends the full file again after a 307 or 308 redirect from the upload host. Before, the second request sent an empty body and the upload failed with a read timeout or stopped responding.
+- A `cloudsmith push` upload attempt now times out when the upload host sends or accepts no data for 120 seconds. The CLI then retries the upload. Before, a stalled upload host made the command wait forever. A slow upload that continues to move does not time out.
 
 ## [1.30.0] - 2026-10-22
 
