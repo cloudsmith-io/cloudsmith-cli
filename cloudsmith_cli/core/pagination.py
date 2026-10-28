@@ -1,6 +1,6 @@
 """Core pagination utilities."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 MAX_PAGE_SIZE = 1000
@@ -35,7 +35,7 @@ class PageInfo:
 
         return from_range, to_range
 
-    def as_dict(self, num_results=None):
+    def as_dict(self, num_results: int | None = None) -> dict[str, int]:
         """Create PageInfo from a dictionary."""
         if not self.is_valid:
             return {}
@@ -49,7 +49,7 @@ class PageInfo:
 
         if num_results is not None:
             from_range, to_range = self.calculate_range(num_results)
-            data["page_results_len"] = to_range - from_range
+            data["page_results_len"] = num_results
             data["page_results_from"] = from_range
             data["page_results_to"] = to_range
 
@@ -64,20 +64,23 @@ class PageInfo:
         )
 
     @classmethod
-    def from_headers(cls, headers):
+    def from_headers(cls, headers: Mapping[str, str]) -> "PageInfo":
         """Create PageInfo from HTTP headers."""
         info = PageInfo()
-
-        if "X-Pagination-Count" in headers:
-            info.count = int(headers["X-Pagination-Count"])
-        if "X-Pagination-Page" in headers:
-            info.page = int(headers["X-Pagination-Page"])
-        if "X-Pagination-PageSize" in headers:
-            info.page_size = int(headers["X-Pagination-PageSize"])
-        if "X-Pagination-PageTotal" in headers:
-            info.page_total = int(headers["X-Pagination-PageTotal"])
-
+        info.count = _parse_int_header(headers, "X-Pagination-Count")
+        info.page = _parse_int_header(headers, "X-Pagination-Page")
+        info.page_size = _parse_int_header(headers, "X-Pagination-PageSize")
+        info.page_total = _parse_int_header(headers, "X-Pagination-PageTotal")
         return info
+
+
+def _parse_int_header(headers: Mapping[str, str], name: str) -> int | None:
+    """Get an integer header value, or None if it is missing or not an integer."""
+    try:
+        return int(headers[name])
+    except (KeyError, ValueError):
+        # A server can send a word such as "many" in place of a count.
+        return None
 
 
 def paginate_results(
