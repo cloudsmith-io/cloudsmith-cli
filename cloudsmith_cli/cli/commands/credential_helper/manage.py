@@ -17,6 +17,7 @@ from click.core import ParameterSource
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.launchers import UnsafeLauncherValue
+from cloudsmith_cli.credential_helpers.nuget.installer import NuGetInstaller
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
@@ -46,6 +47,7 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "nuget": NuGetInstaller,
 }
 
 

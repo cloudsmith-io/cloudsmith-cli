@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added a NuGet credential provider. Run `cloudsmith credential-helper install nuget --workspace <workspace>` once. Then `dotnet restore`, MSBuild and Visual Studio authenticate to Cloudsmith feeds with your CLI credentials. NuGet finds the provider on PATH. This needs .NET SDK 9.0.200 or later. The provider also covers the NuGet custom domains of the Workspace. To name feed hosts yourself, use `--domain`. To skip the domain lookup, use `--no-discover`. No token is stored in `nuget.config`.
+
 ### Changed
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
