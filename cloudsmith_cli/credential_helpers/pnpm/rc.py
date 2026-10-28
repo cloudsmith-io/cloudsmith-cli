@@ -105,7 +105,8 @@ class NPMRC:
             self._path.touch()
 
     def parse(self) -> None:
-        with open(self._path) as f:
+        # surrogateescape writes bytes that are not UTF-8 back to the file unchanged.
+        with open(self._path, encoding="utf-8-sig", errors="surrogateescape") as f:
             for line in f:
                 self._missing_final_newline = not line.endswith("\n")
                 if line.lstrip().startswith("//"):
@@ -186,5 +187,5 @@ class NPMRC:
             return
 
         # A final newline stops a shell append (``>>``) from joining the last line.
-        with open(self._path, "w") as f:
+        with open(self._path, "w", encoding="utf-8", errors="surrogateescape") as f:
             f.writelines(line + "\n" for line in self._lines)
