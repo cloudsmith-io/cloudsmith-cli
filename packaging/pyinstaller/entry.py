@@ -12,11 +12,11 @@ def _force_utf8_output() -> None:
     """Prevent UnicodeEncodeError on legacy Windows consoles.
 
     A frozen Windows console defaults to a legacy code page (e.g. cp1252) that
-    cannot encode the check/cross/warning UI glyphs the CLI prints; without
-    this, commands such as ``mcp configure`` and the download progress output
-    crash with UnicodeEncodeError. Reconfiguring the streams to UTF-8 is a
-    no-op on POSIX (already UTF-8) and is skipped when a stream cannot be
-    reconfigured (e.g. a redirected non-text stream).
+    cannot encode every character the CLI prints, such as non-ASCII text from
+    the API; without this, that output crashes with UnicodeEncodeError.
+    Reconfiguring the streams to UTF-8 is a no-op on POSIX (already UTF-8)
+    and is skipped when a stream cannot be reconfigured (e.g. a redirected
+    non-text stream).
     """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
