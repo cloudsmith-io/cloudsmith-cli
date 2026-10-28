@@ -2,14 +2,25 @@
 
 import click
 
+from ...core.api.exceptions import ApiException
 from ...core.api.vulnerabilities import (
+    NO_SCAN_RESULTS_MSG,
     _print_vulnerabilities_assessment_table,
     _print_vulnerabilities_summary_table,
+    _severity_of,
     get_package_scan_result,
 )
 from .. import decorators, utils, validators
+from ..config import Options
 from ..exceptions import handle_api_exceptions
 from .main import main
+
+
+def _summarise_no_scan_results(
+    _exc: ApiException, detail: str | None, _fields: dict
+) -> str | None:
+    """Show only the detail when the package has no scan results."""
+    return detail if detail == NO_SCAN_RESULTS_MSG else None
 
 
 @main.command()
@@ -41,8 +52,13 @@ from .main import main
 )
 @click.pass_context
 def vulnerabilities(
-    ctx, opts, owner_repo_package, show_assessment, fixable, severity_filter
-):
+    ctx: click.Context,
+    opts: Options,
+    owner_repo_package: tuple[str, str, str],
+    show_assessment: bool,
+    fixable: bool | None,
+    severity_filter: str | None,
+) -> None:
     """
     Retrieve vulnerability scan results for a package.
 
@@ -82,7 +98,12 @@ def vulnerabilities(
 
     context_msg = "Failed to retrieve vulnerability report!"
     with (
-        handle_api_exceptions(ctx, opts=opts, context_msg=context_msg),
+        handle_api_exceptions(
+            ctx,
+            opts=opts,
+            context_msg=context_msg,
+            summarise_error=_summarise_no_scan_results,
+        ),
         utils.maybe_spinner(opts),
     ):
         data = get_package_scan_result(
@@ -99,7 +120,7 @@ def vulnerabilities(
 
     # Filter results if severity or fixable flags are active
     if severity_filter or fixable is not None:
-        scans = getattr(data, "scans", [])
+        scans = getattr(data, "scans", None) or []
 
         allowed_severities = (
             [s.strip().lower() for s in severity_filter.split(",")]
@@ -108,14 +129,12 @@ def vulnerabilities(
         )
 
         for scan in scans:
-            results = getattr(scan, "results", [])
+            results = getattr(scan, "results", None) or []
 
             # 1. Filter by Severity
             if allowed_severities:
                 results = [
-                    res
-                    for res in results
-                    if getattr(res, "severity", "unknown").lower() in allowed_severities
+                    res for res in results if _severity_of(res) in allowed_severities
                 ]
 
             # 2. Filter by Fixable Status
