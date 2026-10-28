@@ -44,10 +44,10 @@
     {
       "name": "macos-arm64",
       "pr": true,
-      "build_runner": "macos-14",
+      "build_runner": "macos-15",
       "mode": "native",
       "build_image": "",
-      "test_runner": "macos-14",
+      "test_runner": "macos-15",
       "test_kind": "macos",
       "test_images": "",
       "archive": ".tar.gz"

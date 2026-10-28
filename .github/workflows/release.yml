@@ -478,7 +478,9 @@ jobs:
         run: |
           set -euo pipefail
           cloudsmith whoami
-          cloudsmith credential-helper install docker
+          # The default launcher directory (~/.cloudsmith/bin) is not on PATH;
+          # setup-cloudsmith-binary's add-local-bin puts ~/.local/bin there.
+          cloudsmith credential-helper install docker --bin-dir "${HOME}/.local/bin"
 
       - name: Authenticate to Docker Hub
         if: env.HAS_DOCKERHUB == 'true'
