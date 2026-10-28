@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
 - `cloudsmith credential-helper --help` now shows a correct summary for the `pnpm` helper. Before, it showed a part of the input description. The `pnpm` help also shows the correct output format, and its examples no longer join on one line. The `cargo` help examples no longer join on one line.
+- `cloudsmith credential-helper install pnpm`, `uninstall pnpm`, and `list` now read and write `.npmrc` as UTF-8, as npm and pnpm do. On Windows, a home directory with characters such as Cyrillic or CJK letters caused a `UnicodeEncodeError`, and UTF-8 text in `.npmrc` was read incorrectly. The CLI keeps bytes that are not UTF-8 unchanged, and it reads a `.npmrc` that starts with a UTF-8 byte order mark.
 
 ## [1.30.0] - 2026-10-22
 
