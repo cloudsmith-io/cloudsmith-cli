@@ -1,3 +1,8 @@
+import base64
+
+import click
+import pytest
+
 from ..api.init import initialise_api
 
 
@@ -124,3 +129,24 @@ class TestInitialiseApi:
         assert config.headers == {"Authorization": auth_header}
         assert config.username == "username"
         assert config.password == "password"
+
+    def test_initialise_api_keeps_colons_in_basic_auth_password(self):
+        """Verify only the first colon separates the username from the password."""
+        encoded = base64.b64encode(b"alice:s3cr:et").decode("ascii")
+        config = initialise_api(
+            host="https://example.com", headers={"Authorization": f"Basic {encoded}"}
+        )
+
+        assert config.username == "alice"
+        assert config.password == "s3cr:et"
+
+    def test_initialise_api_rejects_malformed_basic_auth_header(self):
+        """Verify a malformed basic auth header names the option, not the value."""
+        with pytest.raises(click.BadParameter) as exc_info:
+            initialise_api(
+                host="https://example.com", headers={"Authorization": "Basic s3cr!et"}
+            )
+
+        message = exc_info.value.format_message()
+        assert "--api-headers" in message
+        assert "s3cr!et" not in message
