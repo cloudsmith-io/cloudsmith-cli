@@ -216,7 +216,9 @@ def print_groups(group_list: dict[str, list[str]]):
 )
 @decorators.initialise_api
 @click.pass_context
-def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
+def configure(  # pylint: disable=unused-argument
+    ctx: click.Context, opts: Options, client: str | None, is_global: bool
+) -> None:
     """
     Configure the Cloudsmith MCP server for supported clients.
 
@@ -273,7 +275,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
             if configure_client(client_name, server_config, is_global, profile):
                 if not use_stderr:
                     click.echo(
-                        click.style(f"✓ Configured {client_name.title()}", fg="green")
+                        click.style(f"Configured {client_name.title()}", fg="green")
                     )
                 success_count += 1
                 results.append({"client": client_name, "success": True})
@@ -281,7 +283,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
                 if not use_stderr:
                     click.echo(
                         click.style(
-                            f"✗ Failed to configure {client_name.title()}", fg="red"
+                            f"Failed to configure {client_name.title()}", fg="red"
                         )
                     )
                 results.append(
@@ -295,7 +297,7 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
             if not use_stderr:
                 click.echo(
                     click.style(
-                        f"✗ Error configuring {client_name.title()}: {e!s}", fg="red"
+                        f"Error configuring {client_name.title()}: {e!s}", fg="red"
                     )
                 )
             results.append({"client": client_name, "success": False, "error": str(e)})
@@ -306,14 +308,14 @@ def configure(ctx, opts, client, is_global):  # pylint: disable=unused-argument
     if success_count > 0:
         click.echo(
             click.style(
-                f"\n✓ Successfully configured {success_count} client(s)", fg="green"
+                f"\nSuccessfully configured {success_count} client(s)", fg="green"
             )
         )
         click.echo(
             "\nNote: You may need to restart the client application for changes to take effect."
         )
     else:
-        click.echo(click.style("\n✗ No clients were configured successfully", fg="red"))
+        click.echo(click.style("\nNo clients were configured successfully", fg="red"))
 
 
 def _get_server_config(profile=None):
@@ -522,7 +524,7 @@ def _safe_update_json(path: Path, mutate, *, max_retries: int = 3) -> None:
     for _ in range(max_retries):
         if path.exists():
             mtime_before = path.stat().st_mtime_ns
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 content = f.read()
             try:
                 config = json5.loads(content)
