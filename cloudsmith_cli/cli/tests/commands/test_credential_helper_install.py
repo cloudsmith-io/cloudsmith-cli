@@ -17,6 +17,7 @@ import pytest
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
+from ....cli.commands.credential_helper import credential_helper
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
@@ -1503,3 +1504,21 @@ def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
 
     body = (bin_dir / "docker-credential-cloudsmith").read_text(encoding="utf-8")
     assert f"exec '{exe}' credential-helper docker \"$@\"" in body
+
+
+@pytest.mark.parametrize(
+    "helper, summary",
+    [
+        ("cargo", "Cargo credential provider for Cloudsmith registries."),
+        ("docker", "Docker credential helper for Cloudsmith registries."),
+        ("generic", "Emit a Cloudsmith credential as JSON."),
+        ("pnpm", "pnpm credential helper for Cloudsmith registries."),
+        ("terraform", "Terraform credentials helper for Cloudsmith registries."),
+    ],
+)
+def test_group_help_shows_helper_summary(runner, helper: str, summary: str) -> None:
+    result = runner.invoke(credential_helper, ["--help"])
+
+    assert result.exit_code == 0
+    command_rows = [line.split(None, 1) for line in result.stdout.splitlines()]
+    assert [helper, summary] in command_rows
