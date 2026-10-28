@@ -23,14 +23,11 @@ _CACHE_DIR_NAME = "oidc_token_cache"
 
 
 def _get_cache_dir() -> str:
-    """Return the cache directory path, creating it if needed."""
+    """Return the cache directory path without creating it."""
     from ....cli.config import get_default_config_path
 
     base = get_default_config_path()
-    cache_dir = os.path.join(base, _CACHE_DIR_NAME)
-    if not os.path.isdir(cache_dir):
-        os.makedirs(cache_dir, mode=0o700, exist_ok=True)
-    return cache_dir
+    return os.path.join(base, _CACHE_DIR_NAME)
 
 
 def _cache_key(api_host: str, org: str, service_slug: str) -> str:
@@ -119,14 +116,16 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
         with open(cache_file) as f:
             data = json.load(f)
 
+        if not isinstance(data, dict):
+            raise TypeError("OIDC token cache entry is not a JSON object")
         token = data.get("token")
         expires_at = data.get("expires_at")
 
-        if not token:
+        if not token or not isinstance(token, str):
             return None
 
         if expires_at is not None:
-            remaining = expires_at - time.time()
+            remaining = float(expires_at) - time.time()
             if remaining < EXPIRY_MARGIN_SECONDS:
                 logger.debug(
                     "Disk cached OIDC token expired or expiring soon "
@@ -142,7 +141,7 @@ def _get_from_disk(api_host: str, org: str, service_slug: str) -> str | None:
 
         return token
 
-    except (json.JSONDecodeError, OSError, KeyError):
+    except (ValueError, TypeError, OSError):
         logger.debug("Failed to read OIDC token from disk cache", exc_info=True)
         _remove_cache_file(cache_file)
         return None
@@ -184,12 +183,15 @@ def _store_in_keyring(api_host: str, org: str, service_slug: str, data: dict) ->
         return False
 
 
-def _store_on_disk(api_host: str, org: str, service_slug: str, data: dict) -> None:
+def _store_on_disk(
+    api_host: str, org: str, service_slug: str, data: dict[str, object]
+) -> None:
     """Store token on disk."""
     cache_dir = _get_cache_dir()
     cache_file = os.path.join(cache_dir, _cache_key(api_host, org, service_slug))
 
     try:
+        os.makedirs(cache_dir, mode=0o700, exist_ok=True)
         atomic_write_json(cache_file, data)
         logger.debug(
             "Stored OIDC token on disk (expires_at=%s)", data.get("expires_at")

@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `cloudsmith credential-helper install pnpm` now ends `.npmrc` with a newline. Previously, a line that a shell appended to the file, such as `echo '//host/:_authToken=...' >> ~/.npmrc`, joined the last `tokenHelper` line. This made the `tokenHelper` path incorrect, and npm did not read the appended token. The install now also shows each `tokenHelper` line that it sets and the file that it writes to. To add the newline to an existing `.npmrc`, run the install again. If a line is already joined, split it into two lines before you run the install. If you do not, the install removes the appended token.
+- OIDC authentication now works when the CLI cannot create its config directory, for example in a CI container with a read-only home directory. Previously, the CLI did not exchange the OIDC token and ran the command without credentials. Now the CLI exchanges the token. If the CLI cannot write the token to the disk cache, it continues without the cache. A malformed entry in the disk cache no longer stops the token exchange.
+- `cloudsmith vulnerabilities` no longer stops with `IndexError` when a package has no vulnerability scan results. The command now shows the error "The package has no vulnerability scan results." and exits with the status of a 404 error. With `-F json`, it prints this error in the usual JSON error format.
+- `cloudsmith vulnerabilities` no longer stops with `TypeError` or `AttributeError` when the API returns scan data without a list of scans, a list of results, or a severity. The command counts a result with no severity as `Unknown`.
+- With `-F json`, list commands now give the correct `meta.pagination.page_results_len`. Earlier versions gave a value that was one less than the number of results on the page.
+- List commands no longer fail with `ValueError` when the server sends a pagination header that is not an integer, such as `many`. The JSON output then has no `meta.pagination` data.
+- `cloudsmith credential-helper uninstall docker` no longer creates the Docker `config.json` when the file does not exist. The command also no longer reports that it removed `credHelpers` entries when there is no file. This also applies to `--dry-run`.
+- Fixed `cloudsmith mcp configure`, `cloudsmith download` and `cloudsmith update` when their output goes to a pipe or a file on Windows. Windows then uses a legacy encoding, such as cp1252, and these commands failed with `UnicodeEncodeError` after they did their work. The CLI now prints only ASCII text in the messages of these commands and in the dry-run message of `cloudsmith credential-helper`.
+- Fixed `cloudsmith mcp configure` on Windows when a client configuration file contains non-ASCII text. The command read the UTF-8 file with the legacy Windows encoding. It then wrote incorrect characters back to the file, or it failed with `UnicodeDecodeError`. The CLI now reads the file as UTF-8.
+- When the API returns an error body that is a JSON list, string, number, or `null`, the CLI now shows the HTTP status and the API message. Before this fix, the CLI stopped with `AttributeError: 'list' object has no attribute 'get'`, and `-F json` wrote nothing to stdout.
+- `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
+- `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
+- `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
 - `cloudsmith list dependencies --help` now shows the help for the dependencies list. Before, it showed the help for the entitlements list.
 
 ## [1.30.0] - 2026-10-22
