@@ -11,6 +11,7 @@ from urllib3.exceptions import MaxRetryError, SSLError
 from ..api.init import initialise_api
 from ..rest import (
     NON_IDEMPOTENT_READ_TIMEOUT_SECONDS,
+    READ_TIMEOUT_SECONDS,
     REQUEST_TIMEOUT_SECONDS,
     RestClient,
 )
@@ -101,7 +102,7 @@ class TestRestClient:
     @pytest.mark.parametrize(
         "method, expected_timeout",
         [
-            ("GET", REQUEST_TIMEOUT_SECONDS),
+            ("GET", (REQUEST_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)),
             ("POST", (REQUEST_TIMEOUT_SECONDS, NON_IDEMPOTENT_READ_TIMEOUT_SECONDS)),
         ],
     )
