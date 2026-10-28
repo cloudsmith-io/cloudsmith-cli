@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `cloudsmith credential-helper uninstall pnpm` now removes the `pnpm-credential-cloudsmith` launcher when the `.npmrc` file does not exist. Previously, it printed `.npmrc file doesn't exist, nothing to do` and did not remove the launcher. The command does not create the `.npmrc` file.
 
 ## [1.30.0] - 2026-10-22
 
