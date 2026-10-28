@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import click
 
+from cloudsmith_cli.core.cache_utils import ConfigFileParseError
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
@@ -313,6 +314,7 @@ def install_cmd(
     try:
         actions = installer.install(**install_kwargs)
     except (
+        ConfigFileParseError,
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
@@ -401,6 +403,8 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
     installer = _get_installer(helper)
     try:
         actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+    except ConfigFileParseError as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"

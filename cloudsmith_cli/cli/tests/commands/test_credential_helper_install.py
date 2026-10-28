@@ -1231,6 +1231,37 @@ def test_docker_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
     assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
 
 
+@pytest.mark.parametrize(
+    "cmd_name,cli_args",
+    [
+        ("install_cmd", ["docker", "--no-discover"]),
+        ("uninstall_cmd", ["docker"]),
+    ],
+)
+def test_docker_unparsable_config_fails_without_write(
+    cmd_name, cli_args, runner, tmp_path, monkeypatch
+):
+    """install/uninstall exit non-zero, name the file, and do not write to it."""
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    config_path = docker_dir / "config.json"
+    original_text = '{"credsStore": "desktop",}'
+    config_path.write_text(original_text, encoding="utf-8")
+
+    from ....cli.commands.credential_helper import manage as manage_mod
+
+    result = runner.invoke(
+        getattr(manage_mod, cmd_name),
+        [*cli_args, "--bin-dir", str(tmp_path / "bin")],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert str(config_path) in result.output
+    assert config_path.read_text(encoding="utf-8") == original_text
+    assert not (docker_dir / "config.json.bak").exists()
+
+
 def test_pnpm_install_coerces_malformed_cred_helpers(tmp_path: Path, monkeypatch):
     """install coerces a non-dict credHelpers (list) rather than raising TypeError."""
     npm_path = tmp_path / ".npmrc"

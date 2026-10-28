@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `cloudsmith credential-helper install` and `uninstall` no longer replace a Docker `config.json` or a Cargo `config.toml` that does not parse. Previously, the CLI read such a file as empty and wrote over it, so your settings were lost. Now the command stops with an error that names the file, and it does not write to the file. Correct or remove the file. Then run the command again.
+- `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make.
 
 ## [1.30.0] - 2026-10-22
 
