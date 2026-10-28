@@ -15,7 +15,12 @@ import click
 
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
+from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
+from cloudsmith_cli.credential_helpers.maven.installer import MavenInstaller
+from cloudsmith_cli.credential_helpers.maven_tools import ProjectNotFound
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
     TerraformInstaller,
@@ -26,6 +31,7 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
 
+from ....core.session import create_requests_session
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
@@ -44,6 +50,9 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "maven": MavenInstaller,
+    "gradle": GradleInstaller,
+    "sbt": SbtInstaller,
 }
 
 
@@ -74,6 +83,42 @@ def _get_installer(name: str):
         )
         sys.exit(1)
     return cls()
+
+
+class HelperOption(click.Option):
+    """A flag that only the helpers in *helpers* accept."""
+
+    def __init__(self, *args, helpers: tuple[str, ...], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helpers = helpers
+
+
+def _helper_options(ctx: click.Context, helper: str) -> dict[str, bool]:
+    """Return the helper flags that were given, or fail if *helper* does not accept one."""
+    given = {}
+    for param in ctx.command.params:
+        if not isinstance(param, HelperOption) or not ctx.params[param.name]:
+            continue
+        if helper not in param.helpers:
+            raise click.UsageError(
+                f"{param.opts[0]} applies only to {' and '.join(param.helpers)}.", ctx
+            )
+        given[param.name] = True
+    return given
+
+
+def _download_session(opts):
+    """Return a session with the proxy and TLS settings of the command.
+
+    The session goes to the public maven-tools repository, so it does not get
+    the --api-headers that are for the API host.
+    """
+    return create_requests_session(
+        proxy=opts.proxy,
+        ssl_verify=opts.ssl_verify,
+        ssl_verify_strict=opts.ssl_verify_strict,
+        user_agent=opts.api_user_agent,
+    )
 
 
 def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...]:
@@ -241,6 +286,24 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
     "list (as `-r <repo>`) so `terraform init` needs no CLOUDSMITH_REPO env "
     "var. Terraform does not pass the repository to a credentials helper.",
 )
+@click.option(
+    "--local",
+    cls=HelperOption,
+    helpers=("maven", "sbt"),
+    is_flag=True,
+    default=False,
+    help="Maven and sbt only: set up the project in the current directory "
+    "instead of every build of the user.",
+)
+@click.option(
+    "--mavenrc",
+    cls=HelperOption,
+    helpers=("maven",),
+    is_flag=True,
+    default=False,
+    help="Maven only: load the extension through ~/.mavenrc instead of "
+    "~/.m2/extensions.xml. Use it for Maven 3.9 and earlier.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @common_api_auth_options
@@ -256,6 +319,8 @@ def install_cmd(
     no_discover: bool,
     refresh: bool,
     repo: str | None,
+    local: bool,
+    mavenrc: bool,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
@@ -290,6 +355,9 @@ def install_cmd(
         $ cloudsmith credential-helper install terraform -w acme --repo my-repo
     """
     installer = _get_installer(helper)
+    helper_options = _helper_options(ctx, helper)
+    if local and mavenrc:
+        raise click.UsageError("Use --local or --mavenrc, not both.", ctx)
 
     install_kwargs = {
         "bin_dir": bin_dir,
@@ -300,7 +368,10 @@ def install_cmd(
         "org": opts.org,
         "credential": opts.credential,
         "api_host": opts.api_host,
+        **helper_options,
     }
+    if getattr(installer, "downloads_files", False):
+        install_kwargs["session"] = _download_session(opts)
 
     # Terraform bakes the resolved org/profile into the terraformrc `args` list
     # so `terraform init` needs neither env vars nor a hand-edited config. The
@@ -316,6 +387,8 @@ def install_cmd(
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        ProjectNotFound,
+        ExtensionsFileError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -380,10 +453,21 @@ def install_cmd(
     default=False,
     help="Show what would be done without making any changes.",
 )
+@click.option(
+    "--local",
+    cls=HelperOption,
+    helpers=("maven", "sbt"),
+    is_flag=True,
+    default=False,
+    help="Maven and sbt only: remove the setup of the project in the current "
+    "directory.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
-def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) -> None:
+def uninstall_cmd(
+    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, local: bool
+) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
@@ -400,7 +484,13 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
     """
     installer = _get_installer(helper)
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+        actions = installer.uninstall(
+            bin_dir=bin_dir,
+            dry_run=dry_run,
+            **_helper_options(ctx, helper),
+        )
+    except ProjectNotFound as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"

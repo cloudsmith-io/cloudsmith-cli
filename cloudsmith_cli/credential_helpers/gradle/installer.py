@@ -1,0 +1,39 @@
+# Copyright 2026 Cloudsmith Ltd
+"""Apply the Cloudsmith Gradle plugin to every Gradle build of the user."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from ..maven_tools import REPOSITORY_URL, ConfigFileInstaller
+
+INIT_SCRIPT = """\
+// Written by `cloudsmith credential-helper install gradle`.
+initscript {{
+    repositories {{
+        maven {{ url = uri("{repository_url}") }}
+    }}
+    dependencies {{
+        classpath("io.cloudsmith:cloudsmith-gradle-plugin:{version}")
+    }}
+}}
+
+beforeSettings {{
+    pluginManager.apply(io.cloudsmith.gradle.CloudsmithPlugin::class.java)
+}}
+"""
+
+
+class GradleInstaller(ConfigFileInstaller):
+    name = "gradle"
+    summary = "Gradle plugin that gets credentials from the Cloudsmith CLI"
+    artifact_path = "io/cloudsmith/cloudsmith-gradle-plugin"
+
+    def path(self) -> Path:
+        gradle_user_home = os.environ.get("GRADLE_USER_HOME")
+        base = Path(gradle_user_home) if gradle_user_home else Path.home() / ".gradle"
+        return base / "init.d" / "cloudsmith.init.gradle.kts"
+
+    def render(self, version: str) -> str:
+        return INIT_SCRIPT.format(repository_url=REPOSITORY_URL, version=version)
