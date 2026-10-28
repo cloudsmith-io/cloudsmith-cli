@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `docker pull` of a public image from a Cloudsmith registry no longer fails when the Docker credential helper has no credential. The helper now writes `credentials not found in native keychain` to stdout, so Docker continues without credentials. A pull from a private repository now fails with the 401 error of the registry. The helper still writes its guidance to stderr.
 
 ## [1.30.0] - 2026-10-22
 
