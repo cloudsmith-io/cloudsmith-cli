@@ -4,6 +4,7 @@ import fnmatch
 import hashlib
 import os
 import sys
+from collections.abc import Iterator
 
 import click
 import requests
@@ -14,6 +15,9 @@ from . import ratelimits, utils
 from .api.exceptions import catch_raise_api_exception
 from .api.packages import get_packages_api, list_packages
 from .session import create_requests_session
+
+# The read timeout limits the wait for each socket read, not the full transfer.
+DOWNLOAD_TIMEOUT_SECONDS: tuple[float, float] = (30.0, 60.0)
 
 
 def resolve_auth(
@@ -466,9 +470,16 @@ def stream_download(
 
     # Attempt download with configured auth
     try:
-        response = session.get(url, headers=request_headers, auth=auth, stream=True)
+        response = session.get(
+            url,
+            headers=request_headers,
+            auth=auth,
+            stream=True,
+            timeout=DOWNLOAD_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
+        e.response.close()
         raise click.ClickException(
             f"Failed to download package: HTTP {e.response.status_code}"
         )
@@ -490,7 +501,7 @@ def stream_download(
             with click.progressbar(
                 length=total_size, label="Downloading"
             ) as progress_bar:
-                for chunk in response.iter_content(chunk_size=chunk_size):
+                for chunk in _iter_chunks(response, chunk_size):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
@@ -499,7 +510,7 @@ def stream_download(
             # No progress bar for unknown size or quiet mode
             if not quiet:
                 click.echo(f"Downloading to {outfile}...")
-            for chunk in response.iter_content(chunk_size=chunk_size):
+            for chunk in _iter_chunks(response, chunk_size):
                 if chunk:
                     f.write(chunk)
                     downloaded += len(chunk)
@@ -514,6 +525,14 @@ def stream_download(
             click.secho("Checksum verified", fg="green")
         else:
             click.secho("Warning: Checksum mismatch", fg="yellow", err=True)
+
+
+def _iter_chunks(response: requests.Response, chunk_size: int) -> Iterator[bytes]:
+    """Yield the response body, and raise a ClickException if a read fails."""
+    try:
+        yield from response.iter_content(chunk_size=chunk_size)
+    except requests.exceptions.RequestException as exc:
+        raise click.ClickException(f"Failed to download package: {exc!s}") from exc
 
 
 def _select_best_package(packages: list[dict]) -> dict:
