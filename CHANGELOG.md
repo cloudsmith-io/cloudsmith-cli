@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
+- `cloudsmith entitlements restrict` now sends a value of 0 for `--limit-num-clients`, `--limit-num-downloads` and `--limit-bandwidth`. A value of 0 removes the limit. Before, the CLI ignored 0, did not change the limit and showed OK.
 
 ## [1.30.0] - 2026-10-22
 
