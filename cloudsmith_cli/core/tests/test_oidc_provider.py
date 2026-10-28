@@ -8,7 +8,7 @@ import jwt
 import pytest
 
 from cloudsmith_cli.core.credentials.models import CredentialContext, CredentialResult
-from cloudsmith_cli.core.credentials.oidc.cache import _cache_key
+from cloudsmith_cli.core.credentials.oidc.cache import CachedToken, _cache_key
 from cloudsmith_cli.core.credentials.oidc.exchange import OidcExchangeError
 from cloudsmith_cli.core.credentials.providers.oidc_provider import OidcProvider
 
@@ -24,12 +24,73 @@ def test_cached_oidc_token_is_a_bearer_credential():
     """Cached exchanged tokens retain their HTTP authorization scheme."""
     with patch(
         "cloudsmith_cli.core.credentials.oidc.cache.get_cached_token",
-        return_value="cached-token",
+        return_value=CachedToken("cached-token"),
     ):
         credential = OidcProvider().resolve(_context())
 
     assert credential is not None
     assert credential.auth_type == "bearer"
+
+
+def test_cached_oidc_token_names_the_vendor():
+    """The source of a cached token names the CI vendor whose token was exchanged."""
+    with patch(
+        "cloudsmith_cli.core.credentials.oidc.cache.get_cached_token",
+        return_value=CachedToken("cached-token", detector="GitHub Actions"),
+    ):
+        credential = OidcProvider().resolve(_context())
+
+    assert credential.api_key == "cached-token"
+    assert credential.source_detail == (
+        "OIDC via GitHub Actions [cached] (org: cloudsmith, service: github-actions)"
+    )
+
+
+def test_cached_oidc_token_without_a_vendor_keeps_the_old_source():
+    """A token that an older CLI cached has no vendor name."""
+    with patch(
+        "cloudsmith_cli.core.credentials.oidc.cache.get_cached_token",
+        return_value=CachedToken("cached-token"),
+    ):
+        credential = OidcProvider().resolve(_context())
+
+    assert credential.source_detail == (
+        "OIDC [cached] (org: cloudsmith, service: github-actions)"
+    )
+
+
+def test_exchanged_oidc_token_is_cached_with_the_vendor():
+    """The cache keeps the vendor name, so a cached token can name it later."""
+    detector = Mock()
+    detector.name = "GitHub Actions"
+    detector.get_token.return_value = "vendor-token"
+
+    with (
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.cache.get_cached_token",
+            return_value=None,
+        ),
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.cache.store_cached_token",
+        ) as store,
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.detectors.detect_environment",
+            return_value=detector,
+        ),
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.exchange.exchange_oidc_token",
+            return_value="exchanged-token",
+        ),
+    ):
+        OidcProvider().resolve(_context())
+
+    store.assert_called_once_with(
+        "https://api.cloudsmith.io",
+        "cloudsmith",
+        "github-actions",
+        "exchanged-token",
+        detector="GitHub Actions",
+    )
 
 
 def test_exchanged_oidc_token_is_a_bearer_credential():
