@@ -156,6 +156,44 @@ class ConfigReader(ConfigFileReader):
         return True
 
     @classmethod
+    def get_user_filepath(cls):
+        """Get the user-level config file with the highest precedence, existing or not."""
+        user_paths = [
+            os.path.join(searchpath, filename)
+            for searchpath in cls.config_searchpath
+            for filename in cls.config_files
+            if os.path.isabs(os.path.join(searchpath, filename))
+        ]
+        existing_paths = [path for path in user_paths if os.path.isfile(path)]
+        return (existing_paths or user_paths)[0]
+
+    @classmethod
+    def save_workspace(cls, workspace, profile=None, path=None):
+        """Write the Workspace to the profile section; return the path if it changed."""
+        if path and os.path.isdir(path):
+            path = os.path.join(path, "config.ini")
+        path = path or cls.get_user_filepath()
+        if os.path.exists(path):
+            with open(path) as config_file:
+                content = config_file.read()
+        else:
+            content = read_file(get_data_path(), "config.ini")
+
+        section = (
+            f"profile:{profile}" if profile and profile != "default" else "default"
+        )
+        if _get_section_value(content, section, "workspace") == workspace:
+            return None
+        updated = _set_section_value(content, section, "workspace", workspace)
+        if _get_section_value(updated, section, "workspace") != workspace:
+            raise ValueError(f"the CLI cannot change the [{section}] section of {path}")
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as config_file:
+            config_file.write(updated)
+        return path
+
+    @classmethod
     def has_default_file(cls):
         """Check if a configuration file exists."""
         for filename in cls.config_files:
@@ -247,6 +285,36 @@ class ConfigReader(ConfigFileReader):
                 if v is None:
                     continue
             setattr(opts, k, v)
+
+
+def _get_section_value(content, section, key):
+    """Get `key` from the INI `section` of `content`, or None if it does not parse."""
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str
+    try:
+        parser.read_string(content)
+    except configparser.Error:
+        return None
+    return parser.get(section, key, fallback=None)
+
+
+def _set_section_value(content, section, key, value):
+    """Set `key` in the INI `section` of `content`, preserving comments and layout."""
+    line = f"{key} = {value}"
+    header = re.search(rf"^\[{re.escape(section)}\].*$", content, re.MULTILINE)
+    if not header:
+        separator = "\n\n" if content.strip() else ""
+        return f"{content.rstrip()}{separator}[{section}]\n{line}\n"
+
+    next_header = re.compile(r"^\[", re.MULTILINE).search(content, header.end())
+    body_end = next_header.start() if next_header else len(content)
+    body = content[header.end() : body_end]
+    entry = re.compile(rf"^{re.escape(key)}[ \t]*[=:].*$", re.MULTILINE)
+    if entry.search(body):
+        body = entry.sub(lambda _: line, body, count=1)
+    else:
+        body = f"\n{line}{body}"
+    return content[: header.end()] + body + content[body_end:]
 
 
 class CredentialsSchema:

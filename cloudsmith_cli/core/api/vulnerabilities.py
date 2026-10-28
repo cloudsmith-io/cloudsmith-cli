@@ -5,8 +5,10 @@ import cloudsmith_api
 
 from ...cli import utils
 from .. import ratelimits
-from .exceptions import catch_raise_api_exception
+from .exceptions import ApiException, catch_raise_api_exception
 from .init import get_api_client
+
+NO_SCAN_RESULTS_MSG = "The package has no vulnerability scan results."
 
 
 def get_vulnerabilities_api():
@@ -14,7 +16,16 @@ def get_vulnerabilities_api():
     return get_api_client(cloudsmith_api.VulnerabilitiesApi)
 
 
-def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_vulns):
+def _severity_of(result: cloudsmith_api.Vulnerability) -> str:
+    """Get the lowercase severity of a scan result, or "unknown" if it has none."""
+    return (getattr(result, "severity", None) or "unknown").lower()
+
+
+def _print_vulnerabilities_summary_table(
+    data: cloudsmith_api.VulnerabilityScanResults,
+    severity_filter: str | None,
+    total_filtered_vulns: int,
+) -> None:
     """Print vulnerabilities as a table."""
 
     severity_keys = {
@@ -44,11 +55,11 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
     counts = dict.fromkeys(severity_keys.values(), 0)
 
     # Parse the scans and aggregate results
-    scans = getattr(data, "scans", [])
+    scans = getattr(data, "scans", None) or []
     for scan in scans:
-        results = getattr(scan, "results", [])
+        results = getattr(scan, "results", None) or []
         for result in results:
-            severity = getattr(result, "severity", "unknown").lower()
+            severity = _severity_of(result)
             if severity in counts:
                 counts[severity] += 1
             elif "unknown" in counts:
@@ -68,17 +79,19 @@ def _print_vulnerabilities_summary_table(data, severity_filter, total_filtered_v
     if severity_filter:
         filters = severity_filter.upper()
         click.echo(
-            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
+            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', None) or 0}"
         )
         click.echo(f"\nTotal {filters} Vulnerabilities: {total_filtered_vulns}")
     else:
         click.echo(
-            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', 0)}"
+            f"\nTotal Vulnerabilities: {getattr(data, 'num_vulnerabilities', None) or 0}"
         )
     click.echo()
 
 
-def _print_vulnerabilities_assessment_table(data, severity_filter=None):
+def _print_vulnerabilities_assessment_table(
+    data: cloudsmith_api.VulnerabilityScanResults, severity_filter: str | None = None
+) -> None:
     """Print vulnerabilities assessment as a table."""
 
     # Group vulnerabilities by package
@@ -93,17 +106,17 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
     top_pkg_name = getattr(pkg_data, "name", "Unknown")
 
     # Get scan data
-    scans = getattr(data, "scans", [])
+    scans = getattr(data, "scans", None) or []
     for scan in scans:
-        results = getattr(scan, "results", [])
+        results = getattr(scan, "results", None) or []
         for result in results:
             # Filter by severity if requested
             if allowed_severities:
-                severity = getattr(result, "severity", "unknown").lower()
+                severity = _severity_of(result)
                 if severity not in allowed_severities:
                     continue
 
-            pkg_name = getattr(result, "package_name", top_pkg_name)
+            pkg_name = getattr(result, "package_name", None) or top_pkg_name
             if pkg_name not in grouped_vulns:
                 grouped_vulns[pkg_name] = []
             grouped_vulns[pkg_name].append(result)
@@ -120,14 +133,12 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
         vulns = grouped_vulns[pkg_name]
 
         # Sort vulns by severity (Critical first)
-        vulns.sort(
-            key=lambda r: sev_map.get(getattr(r, "severity", "unknown").lower(), 99)
-        )
+        vulns.sort(key=lambda r: sev_map.get(_severity_of(r), 99))
 
         rows = []
         for result in vulns:
             # Severity
-            severity = getattr(result, "severity", "Unknown").title()
+            severity = _severity_of(result).title()
             severity_style = "white"
             s = severity.lower()
             if s == "critical":
@@ -195,7 +206,7 @@ def _print_vulnerabilities_assessment_table(data, severity_filter=None):
     click.echo()
 
 
-def get_package_scan_identifier(owner, repo, package):
+def get_package_scan_identifier(owner: str, repo: str, package: str) -> str:
     """Get the scan identifier using the package identifier"""
     client = get_vulnerabilities_api()
 
@@ -205,6 +216,9 @@ def get_package_scan_identifier(owner, repo, package):
         )
 
     ratelimits.maybe_rate_limit(client, headers)
+
+    if not data or not getattr(data[0], "identifier", None):
+        raise ApiException(404, detail=NO_SCAN_RESULTS_MSG)
 
     return data[0].identifier
 
