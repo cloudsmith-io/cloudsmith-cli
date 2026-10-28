@@ -1,11 +1,14 @@
 """Tests for the OIDC credential provider."""
 
+import json
 import logging
 from unittest.mock import Mock, patch
 
 import jwt
+import pytest
 
-from cloudsmith_cli.core.credentials.models import CredentialContext
+from cloudsmith_cli.core.credentials.models import CredentialContext, CredentialResult
+from cloudsmith_cli.core.credentials.oidc.cache import _cache_key
 from cloudsmith_cli.core.credentials.oidc.exchange import OidcExchangeError
 from cloudsmith_cli.core.credentials.providers.oidc_provider import OidcProvider
 
@@ -128,3 +131,52 @@ def test_failed_exchange_reports_undecodable_vendor_jwt(caplog):
     assert credential is None
     assert "Vendor JWT could not be decoded" in caplog.text
     assert "not-a-jwt" not in caplog.text
+
+
+def _resolve_with_disk_cache(config_dir: str) -> CredentialResult | None:
+    detector = Mock()
+    detector.name = "github-actions"
+    detector.get_token.return_value = "vendor-token"
+
+    with (
+        patch("cloudsmith_cli.core.keyring.should_use_keyring", return_value=False),
+        patch(
+            "cloudsmith_cli.cli.config.get_default_config_path",
+            return_value=config_dir,
+        ),
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.detectors.detect_environment",
+            return_value=detector,
+        ),
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.exchange.exchange_oidc_token",
+            return_value="exchanged-token",
+        ),
+    ):
+        return OidcProvider().resolve(_context())
+
+
+def test_uncreatable_cache_dir_does_not_block_exchange(tmp_path):
+    with patch("os.makedirs", side_effect=PermissionError("read-only home")):
+        credential = _resolve_with_disk_cache(str(tmp_path / "missing"))
+
+    assert credential is not None
+    assert credential.api_key == "exchanged-token"
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [[], {"token": 123}, {"token": "cached-token", "expires_at": "soon"}],
+    ids=["not-an-object", "non-string-token", "non-numeric-expiry"],
+)
+def test_malformed_disk_cache_entry_does_not_block_exchange(tmp_path, entry):
+    context = _context()
+    cache_dir = tmp_path / "oidc_token_cache"
+    cache_dir.mkdir()
+    cache_key = _cache_key(context.api_host, context.org, context.oidc_service_slug)
+    (cache_dir / cache_key).write_text(json.dumps(entry))
+
+    credential = _resolve_with_disk_cache(str(tmp_path))
+
+    assert credential is not None
+    assert credential.api_key == "exchanged-token"
