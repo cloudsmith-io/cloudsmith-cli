@@ -4,6 +4,7 @@ import importlib
 from collections import OrderedDict
 
 import click.exceptions
+from click.utils import _PacifyFlushWrapper
 from click_didyoumean import DYMGroup
 
 from ..core.certificate_errors import describe_certificate_error
@@ -203,10 +204,13 @@ class AliasGroup(DYMGroup):
             _echo_certificate_hint(e)
             sys.exit(e.exit_code)
         except BrokenPipeError:
-            # Click handles a closed pipe, but not one that closes while it
+            # Click handles a closed pipe, but not a failed write while it
             # handles Ctrl+C. The pipe is gone, so print nothing.
             if not original_standalone_mode:
                 raise
+            # Python flushes the streams at exit. A failed flush gives status 120.
+            sys.stdout = _PacifyFlushWrapper(sys.stdout)
+            sys.stderr = _PacifyFlushWrapper(sys.stderr)
             sys.exit(1)
         except Exception as e:  # pylint: disable=broad-exception-caught
             # Anything reaching here is unexpected: click's own errors and
