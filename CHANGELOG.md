@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback.
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback.
 - `cloudsmith credential-helper list` now shows a helper as not configured when its config file is not valid, and it still lists the other helpers. This applies to a Docker `config.json` with a `credHelpers` value that is not an object, and to a Docker or Terraform config file that is not UTF-8. It also applies to a pnpm `.npmrc` that the CLI cannot read or decode. Previously, the command stopped with an error such as `AttributeError`.
+- `cloudsmith credential-helper install pnpm`, `uninstall pnpm`, and `list` now read and write `.npmrc` as UTF-8, as npm and pnpm do. On Windows, a home directory with characters such as Cyrillic or CJK letters caused a `UnicodeEncodeError`, and UTF-8 text in `.npmrc` was read incorrectly. The CLI keeps bytes that are not UTF-8 unchanged, and it reads a `.npmrc` that starts with a UTF-8 byte order mark.
 
 ## [1.30.0] - 2026-10-22
 
