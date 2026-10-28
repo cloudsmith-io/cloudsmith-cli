@@ -303,13 +303,21 @@ def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
     npm_path.write_text("//registry.npmjs.org/:_authToken=abc123")
 
     installer = PNPMInstaller()
-    installer.install(bin_dir=str(bin_dir), domains=("my.registry.example.com",))
+    actions = installer.install(
+        bin_dir=str(bin_dir), domains=("my.registry.example.com",)
+    )
 
     assert (
         npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123\n"
         f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
-        f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+        f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
+    assert actions[1:] == [
+        f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+        f" in {npm_path}",
+        f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+        f" in {npm_path}",
+    ]
     # Launcher written
     assert (bin_dir / "pnpm-credential-cloudsmith").exists()
 
@@ -425,6 +433,19 @@ def test_pnpm_installer_idempotent(tmp_path, monkeypatch):
     assert any("already up to date" in a for a in actions)
 
 
+def test_pnpm_installer_adds_missing_final_newline(tmp_path, monkeypatch):
+    """A reinstall adds the final newline that an earlier version left out."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    entry = f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+    npm_path.write_text(entry)
+
+    PNPMInstaller().install(bin_dir=str(bin_dir), discover=False)
+
+    assert npm_path.read_text() == f"{entry}\n"
+
+
 def test_pnpm_installer_updates_tokenhelper_with_different_bin_dir(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ):
@@ -523,6 +544,22 @@ def test_docker_installer_uninstall(tmp_path, monkeypatch):
     assert not launcher.exists()
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_docker_uninstall_without_config_creates_nothing(
+    dry_run, tmp_path, monkeypatch
+):
+    """uninstall with no config.json creates no file and claims no removal."""
+    docker_dir = tmp_path / ".docker"
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+
+    actions = DockerInstaller().uninstall(
+        bin_dir=str(tmp_path / "bin"), dry_run=dry_run
+    )
+
+    assert not docker_dir.exists()
+    assert any("no credHelpers entries to remove" in a for a in actions)
+
+
 def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
     """uninstall removes only cloudsmith entries (foreign kept) + removes launcher.
 
@@ -547,7 +584,7 @@ def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
     # Uninstall — removes cloudsmith keys and launcher
     installer.uninstall(bin_dir=str(custom_bin_dir))
 
-    assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123"
+    assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123\n"
     assert not launcher.exists()
 
 
@@ -703,7 +740,7 @@ def test_pnpm_install_uses_the_cloudsmith_owned_host_the_api_lists(
 
     assert npm_path.read_text() == (
         f"//npm.acme.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
-        f"//npm.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+        f"//npm.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
 
 
@@ -1231,7 +1268,7 @@ def test_pnpm_install_coerces_malformed_cred_helpers(tmp_path: Path, monkeypatch
         npm_path.read_text() == "badtext\n"
         "//registry.npmjs.org/:_authToken=abc123\n"
         "morebadtext\n"
-        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+        f"//npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
 
 
@@ -1273,7 +1310,7 @@ def test_pnpm_uninstall_tolerates_malformed_cred_helpers(tmp_path: Path, monkeyp
 
     assert (
         npm_path.read_text()
-        == "badtext\n//registry.npmjs.org/:_authToken=abc123\nmorebadtext"
+        == "badtext\n//registry.npmjs.org/:_authToken=abc123\nmorebadtext\n"
     )
 
 
@@ -1294,7 +1331,7 @@ def test_pnpm_uninstall_tolerates_comments(char, tmp_path: Path, monkeypatch):
     # Must not raise
     installer.uninstall(bin_dir=str(bin_dir))
 
-    assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123"
+    assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123\n"
 
 
 def test_pnpm_uninstall_tolerates_leading_whitespace(tmp_path: Path, monkeypatch):
@@ -1315,7 +1352,7 @@ def test_pnpm_uninstall_tolerates_leading_whitespace(tmp_path: Path, monkeypatch
 
     assert (
         npm_path.read_text()
-        == "//registry.npmjs.org/:_authToken=abc123\n//unrelated.registry/:_authToken=abc123"
+        == "//registry.npmjs.org/:_authToken=abc123\n//unrelated.registry/:_authToken=abc123\n"
     )
 
 
@@ -1337,7 +1374,7 @@ def test_pnpm_uninstall_preserves_leading_whitespace(tmp_path: Path, monkeypatch
 
     assert (
         npm_path.read_text()
-        == "    //registry.npmjs.org/:_authToken=abc123\n//unrelated.registry/:_authToken=abc123"
+        == "    //registry.npmjs.org/:_authToken=abc123\n//unrelated.registry/:_authToken=abc123\n"
     )
 
 
@@ -1355,8 +1392,8 @@ def test_pnpm_install_warn_on_auth_configured(kind, tmp_path: Path, monkeypatch)
     assert e.value.exit_code == 1
     actions = e.value.actions
 
-    # file was untouched
-    assert npm_path.read_text() == f"//npm.cloudsmith.io/:{kind}=token"
+    # file only got its final newline
+    assert npm_path.read_text() == f"//npm.cloudsmith.io/:{kind}=token\n"
 
     warning_actions = [a for a in actions if a.startswith("WARNING")]
     assert warning_actions, f"Expected a WARNING action, got: {actions}"
@@ -1384,7 +1421,7 @@ def test_pnpm_install_warn_on_auth_configured_partial_write(
     # file was partially written to
     assert (
         npm_path.read_text() == f"//npm.cloudsmith.io/:{kind}=token\n"
-        f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+        f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
 
     warning_actions = [a for a in actions if a.startswith("WARNING")]

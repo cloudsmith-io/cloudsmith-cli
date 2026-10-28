@@ -85,7 +85,7 @@ def _print_manual_update(opts, current, latest, manifest, data):
     if utils.maybe_print_as_json(opts, data):
         return
     click.echo(
-        f"A new version of the Cloudsmith CLI is available: {current} \u2192 {latest}"
+        f"A new version of the Cloudsmith CLI is available: {current} -> {latest}"
     )
     click.echo(f"See what's changed: {changelog}")
     click.echo("Self-update is not supported for the standalone binary on Windows.")
@@ -150,7 +150,7 @@ def update(ctx, opts, assume_yes):
         if utils.maybe_print_as_json(opts, data):
             return
         click.echo(
-            f"A new version of the Cloudsmith CLI is available: {current} \u2192 {latest}"
+            f"A new version of the Cloudsmith CLI is available: {current} -> {latest}"
         )
         click.echo(f"See what's changed: {changelog}")
         click.echo(f"The CLI was installed via {channel}. To update, run:")
