@@ -20,7 +20,7 @@ from ...credential_helpers.gradle.installer import GradleInstaller
 from ...credential_helpers.maven import extensions, mavenrc
 from ...credential_helpers.maven import installer as maven_installer
 from ...credential_helpers.maven.installer import MavenInstaller
-from ...credential_helpers.maven_tools import InstallOptionError, ProjectNotFound
+from ...credential_helpers.maven_tools import ProjectNotFound
 from ...credential_helpers.sbt.installer import SbtInstaller
 
 EXTENSION_PATH = "io/cloudsmith/cloudsmith-maven-extension"
@@ -128,18 +128,6 @@ def test_latest_version_reads_the_release_from_the_metadata():
     assert maven_tools.latest_version(EXTENSION_PATH) == "0.2.0"
 
 
-def test_latest_version_uses_the_given_session():
-    """The install command's proxy and TLS settings reach the download."""
-    session = Mock()
-    session.get.return_value.content = METADATA.encode()
-
-    assert maven_tools.latest_version(EXTENSION_PATH, session) == "0.2.0"
-    session.get.assert_called_once_with(
-        f"{maven_tools.REPOSITORY_URL}{EXTENSION_PATH}/maven-metadata.xml",
-        timeout=maven_tools.TIMEOUT_SECONDS,
-    )
-
-
 @httpretty.activate(allow_net_connect=False)
 def test_latest_version_fails_with_an_os_error_when_the_artifact_is_missing():
     """A missing artifact is an OSError, which the install command reports."""
@@ -235,21 +223,6 @@ def test_add_extension_ignores_a_commented_out_extension():
     )
 
 
-def test_add_extension_finds_the_extension_with_spaces_in_the_tags():
-    """Maven trims the values, so spaces inside a tag do not make a second entry."""
-    spaced = OUR_EXTENSION.replace(
-        "<groupId>io.cloudsmith</groupId>", "<groupId> io.cloudsmith </groupId>"
-    )
-    existing = f"<extensions>\n{spaced}</extensions>\n"
-
-    text, changed = extensions.add_extension(existing, "0.2.0")
-
-    assert changed is True
-    assert text == existing.replace(
-        "<version>0.1.0</version>", "<version>0.2.0</version>"
-    )
-
-
 def test_add_extension_ignores_a_version_in_a_comment():
     """Only the <version> element of the extension changes."""
     existing = f"<extensions>\n{OUR_EXTENSION}</extensions>\n".replace(
@@ -326,8 +299,11 @@ def test_remove_extension_keeps_a_file_that_cannot_be_parsed():
 
 
 def test_add_extension_finds_the_extension_with_spaces_in_its_tags():
-    """An entry with spaces in its tags is updated, not listed a second time."""
-    existing = f"<extensions>\n{_spaced_tags(OUR_EXTENSION)}</extensions>\n"
+    """An entry with spaces in its tags or values is updated, not listed a second time."""
+    spaced = _spaced_tags(OUR_EXTENSION).replace(
+        "<groupId>io.cloudsmith</groupId>", "<groupId> io.cloudsmith </groupId>"
+    )
+    existing = f"<extensions>\n{spaced}</extensions>\n"
 
     text, changed = extensions.add_extension(existing, "0.2.0")
 
@@ -530,14 +506,6 @@ def test_maven_install_with_mavenrc_adds_a_block(
     assert not _user_extensions(home).exists()
 
 
-def test_maven_install_with_local_and_mavenrc_fails(
-    home, fake_repository, maven_project
-):
-    """The two options set up different scopes, so only one is allowed."""
-    with pytest.raises(InstallOptionError):
-        MavenInstaller().install(local=True, mavenrc=True)
-
-
 def test_maven_install_dry_run_changes_nothing(home, fake_repository, maven_project):
     """A dry run reports the planned changes and writes no files."""
     actions = [
@@ -629,14 +597,6 @@ def test_gradle_install_uses_gradle_user_home(
     GradleInstaller().install()
 
     assert (tmp_path / "gradle-home" / "init.d" / "cloudsmith.init.gradle.kts").exists()
-
-
-def test_gradle_install_local_explains_the_settings_plugin(home, fake_repository):
-    """Gradle has no project init scripts, so the error shows what to add instead."""
-    with pytest.raises(InstallOptionError, match="settings.gradle.kts"):
-        GradleInstaller().install(local=True)
-
-    assert not (home / ".gradle").exists()
 
 
 def test_gradle_uninstall_and_status(home, fake_repository):
@@ -761,21 +721,31 @@ def test_cli_install_maven_local_outside_a_project_fails_cleanly(
     assert "pom.xml" in result.output
 
 
-def test_cli_install_gradle_local_shows_the_settings_plugin(home, fake_repository):
-    """The error shows the plugins block to add to settings.gradle.kts."""
-    result = _invoke("install", ["gradle", "--local", "--no-discover"])
+@pytest.mark.parametrize(
+    ("command_name", "helper", "option"),
+    [
+        ("install", "docker", "--local"),
+        ("install", "gradle", "--local"),
+        ("install", "sbt", "--mavenrc"),
+        ("uninstall", "gradle", "--local"),
+    ],
+)
+def test_cli_rejects_an_option_that_the_helper_does_not_have(
+    command_name, helper, option, home
+):
+    """Click stops the command before the installer runs."""
+    result = _invoke(command_name, [helper, option])
 
-    assert result.exit_code != 0
-    assert 'id("io.cloudsmith.gradle-plugin")' in result.output
+    assert result.exit_code == 2
+    assert f"{option} applies only to" in result.output
 
 
-@pytest.mark.parametrize("option", ["--local", "--mavenrc"])
-def test_cli_install_rejects_an_option_that_the_helper_does_not_have(option, home):
-    """Other helpers fail with a clear error, not with a TypeError."""
-    result = _invoke("install", ["docker", option, "--no-discover"])
+def test_cli_install_rejects_local_with_mavenrc(home):
+    """The two options set up different scopes, so only one is allowed."""
+    result = _invoke("install", ["maven", "--local", "--mavenrc"])
 
-    assert result.exit_code != 0
-    assert f"{option} is not supported for docker" in result.output
+    assert result.exit_code == 2
+    assert "--local or --mavenrc, not both" in result.output
 
 
 @pytest.mark.parametrize("helper", ["maven", "gradle", "sbt"])

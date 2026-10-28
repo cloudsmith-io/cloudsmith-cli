@@ -18,10 +18,7 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
 from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
 from cloudsmith_cli.credential_helpers.maven.installer import MavenInstaller
-from cloudsmith_cli.credential_helpers.maven_tools import (
-    InstallOptionError,
-    ProjectNotFound,
-)
+from cloudsmith_cli.credential_helpers.maven_tools import ProjectNotFound
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
@@ -88,13 +85,26 @@ def _get_installer(name: str):
     return cls()
 
 
-def _scope_options(installer, helper: str, **requested: bool) -> dict[str, bool]:
-    """Return the scope options that were given, or fail if *helper* has no such option."""
-    supported = getattr(installer, "install_options", ())
-    for option, given in requested.items():
-        if given and option not in supported:
-            raise click.UsageError(f"--{option} is not supported for {helper}.")
-    return {option: True for option, given in requested.items() if given}
+class HelperOption(click.Option):
+    """A flag that only the helpers in *helpers* accept."""
+
+    def __init__(self, *args, helpers: tuple[str, ...], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helpers = helpers
+
+
+def _helper_options(ctx: click.Context, helper: str) -> dict[str, bool]:
+    """Return the helper flags that were given, or fail if *helper* does not accept one."""
+    given = {}
+    for param in ctx.command.params:
+        if not isinstance(param, HelperOption) or not ctx.params[param.name]:
+            continue
+        if helper not in param.helpers:
+            raise click.UsageError(
+                f"{param.opts[0]} applies only to {' and '.join(param.helpers)}.", ctx
+            )
+        given[param.name] = True
+    return given
 
 
 def _download_session(opts):
@@ -278,6 +288,8 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 )
 @click.option(
     "--local",
+    cls=HelperOption,
+    helpers=("maven", "sbt"),
     is_flag=True,
     default=False,
     help="Maven and sbt only: set up the project in the current directory "
@@ -285,6 +297,8 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 )
 @click.option(
     "--mavenrc",
+    cls=HelperOption,
+    helpers=("maven",),
     is_flag=True,
     default=False,
     help="Maven only: load the extension through ~/.mavenrc instead of "
@@ -341,6 +355,9 @@ def install_cmd(
         $ cloudsmith credential-helper install terraform -w acme --repo my-repo
     """
     installer = _get_installer(helper)
+    helper_options = _helper_options(ctx, helper)
+    if local and mavenrc:
+        raise click.UsageError("Use --local or --mavenrc, not both.", ctx)
 
     install_kwargs = {
         "bin_dir": bin_dir,
@@ -351,7 +368,7 @@ def install_cmd(
         "org": opts.org,
         "credential": opts.credential,
         "api_host": opts.api_host,
-        **_scope_options(installer, helper, local=local, mavenrc=mavenrc),
+        **helper_options,
     }
     if getattr(installer, "downloads_files", False):
         install_kwargs["session"] = _download_session(opts)
@@ -371,7 +388,6 @@ def install_cmd(
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
         ProjectNotFound,
-        InstallOptionError,
         ExtensionsFileError,
     ) as exc:
         raise click.ClickException(str(exc))
@@ -439,6 +455,8 @@ def install_cmd(
 )
 @click.option(
     "--local",
+    cls=HelperOption,
+    helpers=("maven", "sbt"),
     is_flag=True,
     default=False,
     help="Maven and sbt only: remove the setup of the project in the current "
@@ -469,9 +487,9 @@ def uninstall_cmd(
         actions = installer.uninstall(
             bin_dir=bin_dir,
             dry_run=dry_run,
-            **_scope_options(installer, helper, local=local),
+            **_helper_options(ctx, helper),
         )
-    except (ProjectNotFound, InstallOptionError) as exc:
+    except ProjectNotFound as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(

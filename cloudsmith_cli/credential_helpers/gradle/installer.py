@@ -5,17 +5,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from ..maven_tools import (
-    REPOSITORY_URL,
-    ConfigFileInstaller,
-    InstallOptionError,
-    latest_version,
-)
-
-if TYPE_CHECKING:
-    import requests
+from ..maven_tools import REPOSITORY_URL, ConfigFileInstaller
 
 INIT_SCRIPT = """\
 // Written by `cloudsmith credential-helper install gradle`.
@@ -33,22 +24,6 @@ beforeSettings {{
 }}
 """
 
-SETTINGS_PLUGIN = """\
---local is not supported for gradle. To set up one build, add the plugin to \
-settings.gradle.kts:
-
-pluginManagement {{
-    repositories {{
-        maven {{ url = uri("{repository_url}") }}
-        gradlePluginPortal()
-    }}
-}}
-
-plugins {{
-    id("io.cloudsmith.gradle-plugin") version "{version}"
-}}
-"""
-
 
 class GradleInstaller(ConfigFileInstaller):
     name = "gradle"
@@ -59,27 +34,6 @@ class GradleInstaller(ConfigFileInstaller):
         gradle_user_home = os.environ.get("GRADLE_USER_HOME")
         base = Path(gradle_user_home) if gradle_user_home else Path.home() / ".gradle"
         return base / "init.d" / "cloudsmith.init.gradle.kts"
-
-    def install(
-        self,
-        *,
-        local: bool = False,
-        session: requests.Session | None = None,
-        **options,
-    ) -> list[str]:
-        if local:
-            # Gradle has no init scripts for one build, and a script edit of the
-            # build's settings file could break it.
-            raise InstallOptionError(
-                SETTINGS_PLUGIN.format(
-                    repository_url=REPOSITORY_URL,
-                    version=latest_version(self.artifact_path, session),
-                )
-            )
-        return super().install(session=session, **options)
-
-    def local_path(self) -> Path:
-        raise InstallOptionError("--local is not supported for gradle.")
 
     def render(self, version: str) -> str:
         return INIT_SCRIPT.format(repository_url=REPOSITORY_URL, version=version)

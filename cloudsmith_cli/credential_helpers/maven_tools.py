@@ -27,10 +27,6 @@ class ProjectNotFound(Exception):
     """The current directory is not the root directory of a project."""
 
 
-class InstallOptionError(Exception):
-    """The helper cannot install with the given options."""
-
-
 def _get(artifact_path: str, session: requests.Session | None) -> bytes:
     response = (session or create_requests_session()).get(
         REPOSITORY_URL + artifact_path, timeout=TIMEOUT_SECONDS
@@ -65,7 +61,6 @@ class ConfigFileInstaller:
     name = ""
     summary = ""
     artifact_path = ""
-    install_options = ("local",)
     # The install command passes a session with its proxy and TLS settings.
     downloads_files = True
 

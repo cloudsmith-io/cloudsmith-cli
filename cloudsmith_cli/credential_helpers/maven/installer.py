@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .. import maven_tools
-from ..maven_tools import InstallOptionError, ProjectNotFound
+from ..maven_tools import ProjectNotFound
 from . import extensions
 from .mavenrc import add_block, has_block, remove_block
 
@@ -153,7 +153,6 @@ def _remove(path: Path, edit: Callable, dry_run: bool) -> list[str]:
 class MavenInstaller:
     name = "maven"
     summary = "Maven extension that gets credentials from the Cloudsmith CLI"
-    install_options = ("local", "mavenrc")
     # The install command passes a session with its proxy and TLS settings.
     downloads_files = True
 
@@ -167,8 +166,6 @@ class MavenInstaller:
         **_options,
     ) -> list[str]:
         """Put the extension in ``~/.m2/repository`` and turn it on."""
-        if local and mavenrc:
-            raise InstallOptionError("Use --local or --mavenrc, not both.")
         project_file = _project_extensions_file() if local else None
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         actions = self._download(version, dry_run, session)
