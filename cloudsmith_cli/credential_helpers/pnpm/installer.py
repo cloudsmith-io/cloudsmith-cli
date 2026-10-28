@@ -163,13 +163,11 @@ class PNPMInstaller:
                         )
                     continue
 
-                if dry_run:
-                    if added:
-                        actions.append(f"would set {entry} in {config_path}")
-                    else:
-                        actions.append(
-                            f"{entry} already set in {config_path} (no change)"
-                        )
+                if added:
+                    verb = "would set" if dry_run else "set"
+                    actions.append(f"{verb} {entry} in {config_path}")
+                elif dry_run:
+                    actions.append(f"{entry} already set in {config_path} (no change)")
 
             if rc.failures > 0:
                 raise PartialInstallError(actions)
