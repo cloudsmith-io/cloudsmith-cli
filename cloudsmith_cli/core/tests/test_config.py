@@ -70,10 +70,22 @@ def test_update_api_key_saves_key_when_mode_cannot_change(tmp_path):
     creds_path = tmp_path / "credentials.ini"
     creds_path.write_text("[default]\napi_key = review_old_key\n")
 
-    with patch("cloudsmith_cli.cli.config.os.chmod", side_effect=PermissionError):
+    with patch("cloudsmith_cli.cli.config.os.fchmod", side_effect=PermissionError):
         CredentialsReader.update_api_key(str(creds_path), "review_new_key")
 
     assert "review_new_key" in creds_path.read_text()
+
+
+def test_update_api_key_keeps_read_only_file_unchanged(tmp_path):
+    creds_path = tmp_path / "credentials.ini"
+    creds_path.write_text("[default]\napi_key = review_old_key\n")
+    creds_path.chmod(0o400)
+
+    with pytest.raises(PermissionError):
+        CredentialsReader.update_api_key(str(creds_path), "review_new_key")
+
+    assert stat.S_IMODE(creds_path.stat().st_mode) == 0o400
+    assert "review_old_key" in creds_path.read_text()
 
 
 def test_update_api_key_restricts_mode_before_writing_the_key(tmp_path):
@@ -81,10 +93,10 @@ def test_update_api_key_restricts_mode_before_writing_the_key(tmp_path):
     creds_path.write_text("[default]\napi_key = review_old_key\n")
     content_at_chmod = []
 
-    def record_content(path, mode):
+    def record_content(fd, mode):
         content_at_chmod.append(creds_path.read_text())
 
-    with patch("cloudsmith_cli.cli.config.os.chmod", side_effect=record_content):
+    with patch("cloudsmith_cli.cli.config.os.fchmod", side_effect=record_content):
         CredentialsReader.update_api_key(str(creds_path), "review_new_key")
 
     assert content_at_chmod == ["[default]\napi_key = review_old_key\n"]
@@ -93,7 +105,7 @@ def test_update_api_key_restricts_mode_before_writing_the_key(tmp_path):
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows does not use group mode bits")
 def test_credentials_file_is_owner_only_before_mode_is_set(telemetry_config_dir):
-    with patch("cloudsmith_cli.cli.config.os.chmod"):
+    with patch("cloudsmith_cli.cli.config.os.fchmod"):
         CredentialsReader.create_default_file({"api_key": "review_new_key"}, 0o600)
 
     creds_path = telemetry_config_dir / "credentials.ini"

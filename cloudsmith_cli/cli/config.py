@@ -155,9 +155,8 @@ class ConfigReader(ConfigFileReader):
             filepath, "w+", opener=lambda path, flags: os.open(path, flags, file_mode)
         ) as f:
             f.write(config)
-
-        if mode is not None:
-            os.chmod(filepath, mode)
+            if mode is not None and hasattr(os, "fchmod"):
+                os.fchmod(f.fileno(), mode)
 
         return True
 
@@ -373,16 +372,20 @@ class CredentialsReader(ConfigReader):
             content,
             flags=re.MULTILINE,
         )
-        # Restrict the mode before the write, so the new key is never readable
-        # under the old mode.
-        try:
-            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-        except PermissionError:
-            # Only the owner can change the mode. Another user's group-shared
-            # file still takes the new key.
-            pass
-        with open(path, "w") as f:
+        # "r+" keeps a read-only file unchanged. The mode changes through the open
+        # file, so it applies to the file that gets the key.
+        with open(path, "r+") as f:
+            # Restrict the mode before the write, so the new key is never readable
+            # under the old mode.
+            if hasattr(os, "fchmod"):
+                try:
+                    os.fchmod(f.fileno(), stat.S_IRUSR | stat.S_IWUSR)
+                except PermissionError:
+                    # Only the owner can change the mode. Another user's
+                    # group-shared file still takes the new key.
+                    pass
             f.write(content)
+            f.truncate()
 
     @classmethod
     def clear_api_key(cls, path):
