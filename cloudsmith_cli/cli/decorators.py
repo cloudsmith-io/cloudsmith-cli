@@ -34,13 +34,16 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds, context=None):
+def report_retry(seconds: float, context: str | None = None) -> None:
     if context == "retry-after":
         click.echo(err=True)
         click.echo(
             f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
+    elif context == "backoff":
+        click.echo(err=True)
+        click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
