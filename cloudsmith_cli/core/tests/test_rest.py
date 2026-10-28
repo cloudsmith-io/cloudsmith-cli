@@ -3,6 +3,7 @@ import ssl
 import httpretty
 import pytest
 import requests
+from cloudsmith_api.rest import ApiException
 from urllib3.exceptions import MaxRetryError, SSLError
 
 from ..api.init import initialise_api
@@ -56,6 +57,22 @@ class TestRestClient:
 
         assert len(httpretty.latest_requests()) == 6
         assert r.status == 200
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_html_page_is_not_an_api_response(self):
+        """A proxy login page with status 200 raises an API error with status 0."""
+        initialise_api()
+        client = RestClient(backoff_factor=0)
+        url = "https://test.site"
+        httpretty.register_uri(
+            "GET", url, body="<html>Proxy login</html>", content_type="text/html"
+        )
+
+        with pytest.raises(ApiException) as raised:
+            client.request("GET", url)
+
+        assert raised.value.status == 0
+        assert "HTML page" in raised.value.reason
 
 
 class TestCreateRequestsSession:
