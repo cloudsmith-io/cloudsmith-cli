@@ -72,6 +72,7 @@ class NPMRC:
         self._failures = 0
         self._modifiable = modifiable
         self._modified = False
+        self._missing_final_newline = False
         self._path: Path = path
         self._lines: list[str | NPMRC.URLEntry] = []
         self._mapping: dict[str, str | None] = {}
@@ -103,9 +104,10 @@ class NPMRC:
         if not self._path.exists():
             self._path.touch()
 
-    def parse(self):
+    def parse(self) -> None:
         with open(self._path) as f:
             for line in f:
+                self._missing_final_newline = not line.endswith("\n")
                 if line.lstrip().startswith("//"):
                     try:
                         entry = NPMRC.URLEntry(line.rstrip("\n"))
@@ -173,12 +175,13 @@ class NPMRC:
             and line._value == v
         ]
 
-    def write(self):
+    def write(self) -> None:
         if not self._modifiable:
             return
 
-        if not self.modified:
+        if not self.modified and not self._missing_final_newline:
             return
 
+        # A final newline stops a shell append (``>>``) from joining the last line.
         with open(self._path, "w") as f:
-            f.write("\n".join(self._lines))
+            f.writelines(line + "\n" for line in self._lines)
