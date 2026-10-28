@@ -2,6 +2,9 @@ import json
 from contextlib import ExitStack
 from unittest.mock import patch
 
+import pytest
+from click.testing import CliRunner
+
 from ....cli.commands.update import update
 from ....core import installation
 
@@ -99,6 +102,13 @@ class TestPackageManagerChannel:
         assert installation.changelog_url(NEWER) in result.output
         record.assert_called_once_with(NEWER)
         self_update.assert_not_called()
+
+    @pytest.mark.windows
+    def test_prints_on_cp1252_console(self):
+        result, _record, _su = invoke_update(
+            CliRunner(charset="cp1252"), channel=installation.CHANNEL_PIP, latest=NEWER
+        )
+        assert f"{CURRENT} -> {NEWER}" in result.stdout
 
     def test_json_has_upgrade_command(self, runner):
         result, _record, _su = invoke_update(
