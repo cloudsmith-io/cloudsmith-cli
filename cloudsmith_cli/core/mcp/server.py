@@ -15,6 +15,7 @@ from mcp import types
 from mcp.server.mcpserver import MCPServer
 from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT, MCP_DEFAULT_TIMEOUT
 
+from ..api.exceptions import ApiException
 from ..session import disable_x509_strict
 from ..version import get_version as get_cli_version
 from .data import OpenAPITool
@@ -162,6 +163,28 @@ def create_http_client(
     return httpx2.AsyncClient(**kwargs)
 
 
+def api_exception_from_http_error(exc: httpx2.HTTPError) -> ApiException:
+    """Convert an httpx2 error into the ApiException that the CLI renders."""
+    if not isinstance(exc, httpx2.HTTPStatusError):
+        error_name = type(exc).__name__
+        return ApiException(
+            status=0, detail=f"{error_name}: {exc}" if str(exc) else error_name
+        )
+
+    response = exc.response
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return ApiException(
+        response.status_code,
+        detail=detail if isinstance(detail, str) else response.reason_phrase,
+        headers=response.headers,
+        body=response.text,
+    )
+
+
 class CustomFastMCP(MCPServer):
     """Custom FastMCP that overrides tool listing to clean up schemas to not overwhelm the LLM context"""
 
@@ -295,7 +318,7 @@ class DynamicMCPServer:
             self._ssl_context = create_ssl_context(self.api_config)
         return create_http_client(self.api_config, verify=self._ssl_context, **kwargs)
 
-    async def load_openapi_spec(self):
+    async def load_openapi_spec(self) -> None:
         """Load OpenAPI spec and generate tools dynamically"""
 
         if not self.api_base_url:
@@ -306,8 +329,11 @@ class DynamicMCPServer:
         ) as http_client:
             for version, endpoint in API_VERSIONS_TO_DISCOVER.items():
                 spec_url = f"{self.api_base_url}/{version}/{endpoint}"
-                response = await http_client.get(spec_url)
-                response.raise_for_status()
+                try:
+                    response = await http_client.get(spec_url)
+                    response.raise_for_status()
+                except httpx2.HTTPError as exc:
+                    raise api_exception_from_http_error(exc) from exc
                 self.spec = response.json()
                 await self._generate_tools_from_spec(f"{self.api_base_url}/{version}")
 
