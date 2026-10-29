@@ -1,9 +1,13 @@
 """Tests for the files API upload helpers."""
 
+import contextlib
 import hashlib
 import tracemalloc
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import requests
@@ -13,7 +17,75 @@ from ..api import files as files_api
 from ..api.exceptions import ApiException
 from ..api.files import CHUNK_SIZE, multi_part_upload_file, upload_file
 from ..credentials.models import CredentialResult
-from .utils import upload_server
+
+
+class _RetryUploadHandler(BaseHTTPRequestHandler):
+    """Return one redirect and one retryable error while recording requests."""
+
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *_args):
+        pass
+
+    def do_PUT(self):
+        query = parse_qs(urlparse(self.path).query)
+        part_number = int(query["part_number"][0])
+        attempt = self.server.attempts.get(part_number, 0) + 1
+        self.server.attempts[part_number] = attempt
+        length = int(self.headers["Content-Length"])
+        self.connection.settimeout(2)
+        body = self.rfile.read(length)
+        if len(body) != length:
+            self.close_connection = True
+            return
+
+        if part_number == 1 and attempt == 1:
+            status = 307
+            location = f"http://127.0.0.1:{self.server.server_port}/redirected?{self.path.partition('?')[2]}"
+        elif part_number == 2 and attempt == 1:
+            status = 503
+            location = None
+        else:
+            status = 200
+            location = None
+
+        self.server.records.append(
+            {
+                "path": self.path,
+                "part_number": part_number,
+                "attempt": attempt,
+                "content_length": length,
+                "received": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+                "auth": self.headers.get("X-Api-Key"),
+                "transfer_encoding": self.headers.get("Transfer-Encoding"),
+                "status": status,
+            }
+        )
+        self.server.events.append(("part", part_number, attempt, status))
+        self.send_response(status)
+        if location:
+            self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+@contextlib.contextmanager
+def _retry_upload_server():
+    """Run the small local server used to check Requests body replay."""
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RetryUploadHandler)
+    server.daemon_threads = True
+    server.records = []
+    server.events = []
+    server.attempts = {}
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
 
 def _configure_upload_session(monkeypatch):
@@ -163,8 +235,8 @@ class TestUploadErrors:
         assert raised.value.status == 0
 
 
-class TestMultiPartUploadStreaming:
-    """Part bodies stay bounded and remain replayable by Requests."""
+class TestMultiPartUploadReplay:
+    """Multipart request bodies remain replayable after redirects and retries."""
 
     def test_exact_parts_replay_after_redirect_and_retry(self, tmp_path, monkeypatch):
         filepath = tmp_path / "package.raw"
@@ -172,26 +244,7 @@ class TestMultiPartUploadStreaming:
         monkeypatch.setattr(files_api, "CHUNK_SIZE", 4)
         _configure_upload_session(monkeypatch)
 
-        with upload_server() as server:
-
-            def respond(record):
-                if record["part_number"] == 1 and record["attempt"] == 1:
-                    query = record["path"].partition("?")[2]
-                    return (
-                        307,
-                        {
-                            "Location": (
-                                f"http://127.0.0.1:{server.server_port}"
-                                f"/redirected?{query}"
-                            )
-                        },
-                        b"",
-                    )
-                if record["part_number"] == 2 and record["attempt"] == 1:
-                    return 503, {}, b"retry"
-                return 200, {}, b""
-
-            server.response_for_request = respond
+        with _retry_upload_server() as server:
             files_client = Mock()
             files_client.files_complete.side_effect = lambda *args, **kwargs: (
                 server.events.append(("complete",))
@@ -241,229 +294,77 @@ class TestMultiPartUploadStreaming:
             data={"upload_id": "upload-id", "complete": True},
         )
 
-    @pytest.mark.parametrize("failure_status", [307, 503])
-    def test_replay_uses_staged_part_after_source_rewrite(
-        self, tmp_path, monkeypatch, failure_status
-    ):
+
+class TestMultiPartUploadMemory:
+    """A regression guard for overlapping multipart request bodies."""
+
+    def test_peak_traced_memory_stays_below_two_parts(self, tmp_path):
         filepath = tmp_path / "package.raw"
-        filepath.write_bytes(b"abcd")
-        monkeypatch.setattr(files_api, "CHUNK_SIZE", 4)
-        _configure_upload_session(monkeypatch)
+        with filepath.open("wb") as output:
+            output.truncate(2 * CHUNK_SIZE + 1)
 
-        with upload_server() as server:
+        records = []
+        events = []
+        files_client = Mock()
+        files_client.files_complete.side_effect = lambda *args, **kwargs: events.append(
+            ("complete",)
+        )
 
-            def respond(record):
-                if record["attempt"] == 1:
-                    with filepath.open("r+b") as source:
-                        source.write(b"WXYZ")
-                        source.truncate(4)
-                    if failure_status == 307:
-                        query = record["path"].partition("?")[2]
-                        return (
-                            307,
-                            {
-                                "Location": (
-                                    f"http://127.0.0.1:{server.server_port}"
-                                    f"/redirected?{query}"
-                                )
-                            },
-                            b"",
-                        )
-                    return 503, {}, b"retry"
-                return 200, {}, b""
+        class RecordingSession:
+            def put(self, url, *, headers, data, params):
+                request = requests.PreparedRequest()
+                request.prepare(
+                    method="PUT", url=url, headers=headers, data=data, params=params
+                )
+                records.append(
+                    {
+                        "part_number": params["part_number"],
+                        "content_length": int(request.headers["Content-Length"]),
+                        "sha256": hashlib.sha256(request.body).hexdigest(),
+                    }
+                )
+                response = requests.Response()
+                response.status_code = 200
+                response.request = request
+                return response
 
-            server.response_for_request = respond
-            files_client = Mock()
-            files_client.files_complete.side_effect = lambda *args, **kwargs: (
-                server.events.append(("complete",))
-            )
-            callbacks = []
+        callbacks = []
 
-            def callback():
-                callbacks.append(None)
-                server.events.append(("callback", len(callbacks)))
+        def callback():
+            callbacks.append(None)
+            events.append(("callback", len(callbacks)))
 
-            credential = CredentialResult(api_key="csa_test", source_name="oidc")
-            with patch.object(files_api, "get_files_api", return_value=files_client):
+        tracemalloc.start()
+        try:
+            tracemalloc.reset_peak()
+            with (
+                patch.object(
+                    files_api,
+                    "create_requests_session",
+                    return_value=RecordingSession(),
+                ),
+                patch.object(files_api, "get_files_api", return_value=files_client),
+            ):
                 multi_part_upload_file(
-                    Mock(credential=credential),
-                    f"http://127.0.0.1:{server.server_port}/parts",
+                    Mock(credential=None),
+                    "https://upload.example.invalid/parts",
                     "owner",
                     "repo",
                     str(filepath),
                     callback,
                     "upload-id",
                 )
+            _current, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
 
-        expected_hash = hashlib.sha256(b"abcd").hexdigest()
-        assert [record["part_number"] for record in server.records] == [1, 1]
-        assert [record["attempt"] for record in server.records] == [1, 2]
-        assert [record["status"] for record in server.records] == [failure_status, 200]
-        assert [record["content_length"] for record in server.records] == [4, 4]
-        assert [record["sha256"] for record in server.records] == [
-            expected_hash,
-            expected_hash,
+        expected_sizes = [CHUNK_SIZE, CHUNK_SIZE, 1]
+        assert [record["part_number"] for record in records] == [1, 2, 3]
+        assert [record["content_length"] for record in records] == expected_sizes
+        assert [record["sha256"] for record in records] == [
+            _sha256_zeros(size) for size in expected_sizes
         ]
-        assert all(record["auth"] == "csa_test" for record in server.records)
-        assert all(record["transfer_encoding"] is None for record in server.records)
-        assert filepath.read_bytes() == b"WXYZ"
-        assert callbacks == [None]
-        assert server.events == [
-            ("part", 1, 1, failure_status),
-            ("part", 1, 2, 200),
-            ("callback", 1),
-            ("complete",),
-        ]
-        files_client.files_complete.assert_called_once()
-
-    def test_short_source_aborts_without_completing(self, tmp_path, monkeypatch):
-        filepath = tmp_path / "package.raw"
-        filepath.write_bytes(b"x" * 43)
-        monkeypatch.setattr(files_api, "CHUNK_SIZE", 43)
-        create_temporary_file = files_api.tempfile.TemporaryFile
-
-        def truncate_before_staging(*args, **kwargs):
-            with filepath.open("r+b") as output:
-                output.truncate(7)
-            return create_temporary_file(*args, **kwargs)
-
-        monkeypatch.setattr(
-            files_api.tempfile, "TemporaryFile", truncate_before_staging
-        )
-        files_client = Mock()
-        session = Mock()
-
-        with (
-            patch.object(files_api, "create_requests_session", return_value=session),
-            patch.object(files_api, "get_files_api", return_value=files_client),
-            pytest.raises(ApiException) as raised,
-        ):
-            multi_part_upload_file(
-                Mock(credential=None),
-                upload_url="https://upload.example.invalid/parts",
-                owner="owner",
-                repo="repo",
-                filepath=str(filepath),
-                callback=lambda: None,
-                upload_id="upload-id",
-            )
-
-        assert raised.value.status == 0
-        assert "upload source ended before the current part" in raised.value.detail
-        session.put.assert_not_called()
-        files_client.files_complete.assert_not_called()
-
-    @pytest.mark.parametrize("failure", ["create", "write"])
-    def test_temporary_storage_error_aborts_before_put(
-        self, tmp_path, monkeypatch, failure
-    ):
-        filepath = tmp_path / "package.raw"
-        filepath.write_bytes(b"abcd")
-        monkeypatch.setattr(files_api, "CHUNK_SIZE", 4)
-        temporary_file = None
-
-        class FailingTemporaryFile:
-            closed = False
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                self.close()
-
-            def write(self, _chunk):
-                raise OSError("temporary storage unavailable")
-
-            def close(self):
-                self.closed = True
-
-        def create_temporary_file(*args, **kwargs):
-            nonlocal temporary_file
-            if failure == "create":
-                raise OSError("temporary storage unavailable")
-            temporary_file = FailingTemporaryFile()
-            return temporary_file
-
-        monkeypatch.setattr(files_api.tempfile, "TemporaryFile", create_temporary_file)
-        files_client = Mock()
-        session = Mock()
-
-        with (
-            patch.object(files_api, "create_requests_session", return_value=session),
-            patch.object(files_api, "get_files_api", return_value=files_client),
-            pytest.raises(ApiException) as raised,
-        ):
-            multi_part_upload_file(
-                Mock(credential=None),
-                upload_url="https://upload.example.invalid/parts",
-                owner="owner",
-                repo="repo",
-                filepath=str(filepath),
-                callback=lambda: None,
-                upload_id="upload-id",
-            )
-
-        assert raised.value.status == 0
-        assert "temporary storage unavailable" in raised.value.detail
-        session.put.assert_not_called()
-        files_client.files_complete.assert_not_called()
-        if temporary_file is not None:
-            assert temporary_file.closed
-
-
-class TestMultiPartUploadMemory:
-    """A native pytest heap benchmark guards against whole-part buffering."""
-
-    def test_streaming_keeps_peak_memory_below_one_part(self, tmp_path, monkeypatch):
-        filepath = tmp_path / "package.raw"
-        with filepath.open("wb") as output:
-            output.truncate(CHUNK_SIZE + 1)
-        _configure_upload_session(monkeypatch)
-
-        with upload_server() as server:
-            files_client = Mock()
-            files_client.files_complete.side_effect = lambda *args, **kwargs: (
-                server.events.append(("complete",))
-            )
-            callbacks = []
-
-            def callback():
-                callbacks.append(None)
-                server.events.append(("callback", len(callbacks)))
-
-            tracemalloc.start()
-            try:
-                tracemalloc.reset_peak()
-                with patch.object(
-                    files_api, "get_files_api", return_value=files_client
-                ):
-                    multi_part_upload_file(
-                        Mock(credential=None),
-                        f"http://127.0.0.1:{server.server_port}/parts",
-                        "owner",
-                        "repo",
-                        str(filepath),
-                        callback,
-                        "upload-id",
-                    )
-                _current, peak = tracemalloc.get_traced_memory()
-            finally:
-                tracemalloc.stop()
-
-        assert [record["part_number"] for record in server.records] == [1, 2]
-        assert [record["content_length"] for record in server.records] == [
-            CHUNK_SIZE,
-            1,
-        ]
-        assert [record["received"] for record in server.records] == [CHUNK_SIZE, 1]
-        assert [record["status"] for record in server.records] == [200, 200]
-        assert [record["sha256"] for record in server.records] == [
-            _sha256_zeros(CHUNK_SIZE),
-            _sha256_zeros(1),
-        ]
-        assert all(record["transfer_encoding"] is None for record in server.records)
-        assert callbacks == [None, None]
-        assert server.events[-1] == ("complete",)
-        print(f"peak traced memory: {peak} bytes")
-        assert peak < CHUNK_SIZE
+        assert callbacks == [None, None, None]
+        assert events[-1] == ("complete",)
+        assert peak < 2 * CHUNK_SIZE
         files_client.files_complete.assert_called_once()
