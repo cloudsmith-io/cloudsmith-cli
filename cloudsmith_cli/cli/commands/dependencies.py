@@ -6,6 +6,7 @@ import click
 
 from ...core.api.packages import get_package_dependencies
 from .. import decorators, utils, validators
+from ..config import Options
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -32,14 +33,17 @@ def list_dependencies_options(f):
     return wrapper
 
 
-def list_dependencies(ctx, opts, owner_repo_package):
+def list_dependencies(
+    ctx: click.Context, opts: Options, owner_repo_package: tuple[str, str, str]
+) -> None:
     """
-    List direct (non-transitive) dependencies for a package.
+    List the direct dependencies of a package.
 
-    NOTE: These are not guaranteed to be complete, and only represent the *direct* /
-    *non-transitive* dependencies of a package. If packages consistently show
-    no dependencies then it is possible that dependency extraction isn't support
-    for the package format yet.
+    The list does not include transitive dependencies. For each dependency, the
+    list shows the type, the name, the version operator and the version.
+
+    The list can be incomplete. Cloudsmith does not extract dependencies for
+    all package formats. For those formats, the list is empty.
 
     - OWNER/REPO/PACKAGE: Specify the OWNER namespace (i.e. user or org), the
     REPO name where the package is stored, and the PACKAGE name (identifier/slug) of the
