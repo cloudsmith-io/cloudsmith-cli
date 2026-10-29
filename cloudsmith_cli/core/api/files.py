@@ -1,8 +1,6 @@
 """API - Files endpoints."""
 
 import os
-import tempfile
-from contextlib import contextmanager
 
 import click
 import cloudsmith_api
@@ -106,28 +104,6 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
         )
 
 
-@contextmanager
-def _stage_upload_part(source, length):
-    """Copy one part into a seekable temporary file using bounded memory."""
-    try:
-        with tempfile.TemporaryFile(mode="w+b") as part:
-            remaining = length
-            while remaining:
-                chunk = source.read(min(64 * 1024, remaining))
-                if not chunk:
-                    raise OSError("upload source ended before the current part")
-                if part.write(chunk) != len(chunk):
-                    raise OSError("could not stage the complete upload part")
-                remaining -= len(chunk)
-            part.flush()
-            part.seek(0)
-            yield part
-    except OSError as exc:
-        raise ApiException(
-            0, detail=f"Cannot stage multipart upload part: {exc}"
-        ) from exc
-
-
 def multi_part_upload_file(
     opts, upload_url, owner, repo, filepath, callback, upload_id
 ):
@@ -135,35 +111,29 @@ def multi_part_upload_file(
 
     with open(filepath, "rb") as f:
         chunk_number = 1
-        offset = 0
         session = create_requests_session()
-        while True:
-            file_size = os.fstat(f.fileno()).st_size
-            chunk_size = min(CHUNK_SIZE, file_size - offset)
-            if chunk_size <= 0:
-                break
-
-            with _stage_upload_part(f, chunk_size) as part:
-                resp = _send_upload_request(
-                    session.put,
-                    upload_url,
-                    headers=headers,
-                    data=part,
-                    params={
-                        "upload_id": upload_id,
-                        "part_number": chunk_number,
-                    },
+        while chunk := f.read(CHUNK_SIZE):
+            resp = _send_upload_request(
+                session.put,
+                upload_url,
+                headers=headers,
+                data=chunk,
+                params={
+                    "upload_id": upload_id,
+                    "part_number": chunk_number,
+                },
+            )
+            try:
+                resp.raise_for_status()
+            except requests.RequestException as exc:
+                raise ApiException(
+                    resp.status_code,
+                    headers=exc.response.headers,
+                    body=exc.response.content,
                 )
-                try:
-                    resp.raise_for_status()
-                except requests.RequestException as exc:
-                    raise ApiException(
-                        resp.status_code,
-                        headers=exc.response.headers,
-                        body=exc.response.content,
-                    )
+            # Drop the previous request body before the next full-part read.
+            del resp, chunk
             callback()
-            offset += chunk_size
             chunk_number += 1
 
     api = get_files_api()
