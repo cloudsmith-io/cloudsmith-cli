@@ -21,6 +21,7 @@ from ....cli.commands.credential_helper import credential_helper
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
+    UnsafeLauncherValue,
     _launcher_content,
     _launcher_filename,
     is_on_path,
@@ -41,6 +42,13 @@ if TYPE_CHECKING:
 def runner():
     """Return a CliRunner."""
     return click.testing.CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def clear_cloudsmith_env(monkeypatch):
+    """Keep the CLOUDSMITH_* settings of the developer shell out of the installs."""
+    for name in [name for name in os.environ if name.startswith("CLOUDSMITH_")]:
+        monkeypatch.delenv(name)
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +102,105 @@ def test_launcher_filename_and_content(
         _launcher_content(f"cloudsmith credential-helper {format}", windows=windows)
         == expected_content
     )
+
+
+@pytest.mark.parametrize(
+    "profile,value,expected",
+    [
+        ("C:\\Users\\jo", "C:\\Users\\jo\\a b&c!", "C:\\Users\\jo\\a b&c!"),
+        (
+            "C:\\Users\\José",
+            "c:\\users\\josé\\cs\\config.ini",
+            "%USERPROFILE%\\cs\\config.ini",
+        ),
+    ],
+)
+def test_windows_launcher_settings_are_ascii(monkeypatch, profile, value, expected):
+    """cmd.exe reads a batch file in the console code page, not UTF-8.
+
+    Only a non-ASCII path under the user profile is written as %USERPROFILE%,
+    because another account that runs the package manager has a different
+    profile.
+    """
+    monkeypatch.setenv("USERPROFILE", profile)
+    content = _launcher_content("cmd", windows=True, env={"CLOUDSMITH_X": value})
+    assert content == (
+        "@echo off\r\nsetlocal DisableDelayedExpansion\r\n"
+        f'set "CLOUDSMITH_X={expected}"\r\ncmd %*\r\n'
+    )
+
+
+@pytest.mark.parametrize("value", ["%PATH%", "D:\\Données"])
+def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, value):
+    monkeypatch.setenv("USERPROFILE", "C:\\Users\\José")
+    with pytest.raises(UnsafeLauncherValue, match="CLOUDSMITH_PROFILE"):
+        _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
+
+
+def test_install_passes_flag_and_environment_settings_to_the_launcher(
+    runner, monkeypatch, tmp_path
+):
+    """Settings from flags and CLOUDSMITH_* variables go to the launcher.
+
+    A value read from a config file does not, because the helper reads that
+    file itself.  Secrets and the proxy never go to the launcher.  A flag on
+    the parent command also counts.
+    """
+    from ....cli.commands.credential_helper import manage
+    from ....cli.commands.main import main
+
+    launcher_env = {}
+
+    class SettingsInstaller:
+        KEEPS_INSTALL_TIME_SETTINGS = True
+
+        def install(self, **kwargs):
+            launcher_env.update(kwargs["launcher_env"])
+            return []
+
+    monkeypatch.setitem(manage._INSTALLERS, "settings", SettingsInstaller)
+    config = tmp_path / "config.ini"
+    config.write_text("[default]\nssl_verify_strict = false\n")
+    result = runner.invoke(
+        main,
+        args=[
+            "-P",
+            "work",
+            "credential-helper",
+            "install",
+            "settings",
+            "-w",
+            "acme",
+            "--config-file",
+            str(config),
+            "--api-host",
+            "https://api.example.com",
+            "--proxy",
+            "http://proxy.example.com:3128",
+            "-S",
+        ],
+        env={
+            "CLOUDSMITH_API_KEY": "k_secret",
+            "CLOUDSMITH_API_HEADERS": "X-Secret=1",
+            "CLOUDSMITH_KEYRING_KEY": "keyring_secret",
+            "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
+            "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
+            "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
+        },
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert launcher_env == {
+        "CLOUDSMITH_WORKSPACE": "acme",
+        "CLOUDSMITH_PROFILE": "work",
+        "CLOUDSMITH_CONFIG_FILE": str(config.resolve()),
+        "CLOUDSMITH_API_HOST": "https://api.example.com",
+        "CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "true",
+        "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
+        "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
+        "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
+    }
 
 
 # ---------------------------------------------------------------------------
