@@ -36,6 +36,7 @@ LAZY_COMMANDS = {
     "resync": f"{_PACKAGE}.resync",
     "status": f"{_PACKAGE}.status",
     "tags": f"{_PACKAGE}.tags",
+    "telemetry": f"{_PACKAGE}.telemetry",
     "tokens": f"{_PACKAGE}.tokens",
     "update": f"{_PACKAGE}.update",
     "upstream": f"{_PACKAGE}.upstream",
