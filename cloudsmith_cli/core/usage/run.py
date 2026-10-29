@@ -157,6 +157,7 @@ def _finish(facts):  # pylint: disable=too-many-return-statements,too-many-local
         environment=env_name,
         cli_version=version.get_version(),
         ci_provider=provider,
+        agent=environment.agent(),
         sample_rate=sample_rate,
         internal=settings.internal(),
         timestamp=datetime.now(UTC).isoformat(),

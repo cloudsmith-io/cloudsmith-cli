@@ -28,7 +28,7 @@ def _facts(**overrides):
     return event.RunFacts(**base)
 
 
-def _build(facts, anonymous=True):
+def _build(facts, anonymous=True, ci_provider=None, agent=None):
     ident = Identity(
         "id-1", anonymous=anonymous, first_run=False, persisted=not anonymous
     )
@@ -44,11 +44,25 @@ def _build(facts, anonymous=True):
         channel="pip",
         environment="production",
         cli_version="1.31.0",
-        ci_provider=None,
+        ci_provider=ci_provider,
+        agent=agent,
         sample_rate=100,
         internal=False,
         timestamp="2026-10-23T12:00:00+00:00",
     )
+
+
+def test_agent_run_in_ci_keeps_both():
+    props = _build(_facts(), ci_provider="github_actions", agent="copilot")[
+        "properties"
+    ]
+    assert props["persona"] == "agent"
+    assert props["agent"] == "copilot"
+    assert props["ci"] is True and props["ci_provider"] == "github_actions"
+
+
+def test_no_agent_property_without_an_agent():
+    assert "agent" not in _build(_facts())["properties"]
 
 
 def test_only_declared_properties_are_sent():
