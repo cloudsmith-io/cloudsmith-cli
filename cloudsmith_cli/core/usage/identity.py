@@ -68,3 +68,17 @@ def reset():
             raise IdentityResetError(
                 "removed the install ID but could not restore other telemetry state"
             )
+
+
+def forget():
+    """Delete a stored install ID after an opt-out; silent, never raises.
+
+    Writes nothing when no ID is stored, so an opted-out run creates no file.
+    """
+    data = state.read()
+    if "install_id" not in data and "created_at" not in data:
+        return
+    try:
+        reset()
+    except IdentityResetError:
+        return

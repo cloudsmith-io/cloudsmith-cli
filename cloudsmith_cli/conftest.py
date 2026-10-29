@@ -1,3 +1,5 @@
+import json
+
 import cloudsmith_api
 import pytest
 
@@ -105,3 +107,74 @@ def usage_state_dir(monkeypatch, tmp_path_factory):
     path = tmp_path_factory.mktemp("usage-state")
     monkeypatch.setattr("cloudsmith_cli.core.usage.state.config_dir", lambda: str(path))
     return path
+
+
+@pytest.fixture(autouse=True)
+def blocked_usage_posts(monkeypatch):
+    """Never send a real usage event from the test suite.
+
+    Removes the developer's usage settings (AGENTS.md tells them to export a
+    test key) and replaces the POST with one that records the call and fails.
+    The sender swallows that failure in its thread, so the fixture fails the
+    test at teardown if any call was recorded. A test that expects a refused
+    call asserts on the returned list and clears it. Tests that exercise
+    sending opt back in with ``usage_events``.
+    """
+    from cloudsmith_cli.core.usage import sender, settings
+
+    calls = []
+
+    def refuse(*args, **kwargs):  # pylint: disable=unused-argument
+        calls.append(args)
+        raise AssertionError("unit tests must not send usage telemetry")
+
+    for name in (
+        settings.KEY_ENV,
+        settings.HOST_ENV,
+        settings.MODE_ENV,
+        settings.INSTALL_ID_ENV,
+        settings.INTERNAL_ENV,
+        settings.SAMPLE_RATE_ENV,
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(sender, "_post", refuse)
+    yield calls
+    if calls:
+        pytest.fail(f"unit test attempted {len(calls)} usage telemetry send(s)")
+
+
+@pytest.fixture()
+def usage_events(monkeypatch, telemetry_config_dir, blocked_usage_posts):  # pylint: disable=unused-argument
+    """Enable usage telemetry into a list instead of the network."""
+    from cloudsmith_cli.core import telemetry_common
+    from cloudsmith_cli.core.usage import environment, sender
+
+    events = []
+    for name in telemetry.OPT_OUT_ENVS:
+        monkeypatch.delenv(name, raising=False)
+    ci_names = [name for _, names in environment._CI_PROVIDERS for name in names] + [
+        "KUBERNETES_SERVICE_HOST"
+    ]
+    for name in ci_names + [
+        "CLOUDSMITH_TELEMETRY",
+        "CLOUDSMITH_TELEMETRY_CI_SAMPLE_RATE",
+        "CLOUDSMITH_TELEMETRY_INSTALL_ID",
+        "CLOUDSMITH_TELEMETRY_POSTHOG_HOST",
+        "CLOUDSMITH_TELEMETRY_INTERNAL",
+        "CLOUDSMITH_API_HOST",
+        "CLOUDSMITH_SSL_VERIFY",
+        "CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
+    ]:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY_POSTHOG_KEY", "phc_test")
+    # Later tests that call the real main() must never run the update check's
+    # network fetch.
+    monkeypatch.setenv("CLOUDSMITH_NO_UPDATE_CHECK", "1")
+    monkeypatch.setattr(environment, "is_container", lambda: False)
+    monkeypatch.setattr(
+        sender,
+        "_post",
+        lambda session, url, body, timeout: events.append(json.loads(body)) or True,
+    )
+    telemetry_common.WaitBudget.shared().reset(1.0)
+    return events
