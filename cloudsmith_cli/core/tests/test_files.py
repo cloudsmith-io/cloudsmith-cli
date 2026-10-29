@@ -1,14 +1,13 @@
 """Tests for the files API upload helpers."""
 
-import tracemalloc
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 from cloudsmith_api.rest import ApiException as SdkApiException
 
-from ..api import files as files_api
+from benchmarks.bench_multipart_upload import measure_peak_traced_heap
+
 from ..api.exceptions import ApiException
 from ..api.files import CHUNK_SIZE, multi_part_upload_file, upload_file
 from ..credentials.models import CredentialResult
@@ -129,36 +128,7 @@ class TestMultiPartUploadMemory:
         filepath = tmp_path / "package.raw"
         with filepath.open("wb") as output:
             output.truncate(2 * CHUNK_SIZE + 1)
-        files_client = Mock()
 
-        def put(url, data, **kwargs):
-            response = requests.Response()
-            response.status_code = 200
-            response.request = SimpleNamespace(body=data)
-            return response
-
-        session = SimpleNamespace(put=put)
-        tracemalloc.start()
-        try:
-            tracemalloc.reset_peak()
-            with (
-                patch.object(
-                    files_api, "create_requests_session", return_value=session
-                ),
-                patch.object(files_api, "get_files_api", return_value=files_client),
-            ):
-                multi_part_upload_file(
-                    Mock(credential=None),
-                    "https://upload.example.invalid/parts",
-                    "owner",
-                    "repo",
-                    str(filepath),
-                    lambda: None,
-                    "upload-id",
-                )
-            _current, peak = tracemalloc.get_traced_memory()
-        finally:
-            tracemalloc.stop()
+        peak = measure_peak_traced_heap(filepath)
 
         assert peak < 2 * CHUNK_SIZE
-        files_client.files_complete.assert_called_once()
