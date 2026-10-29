@@ -279,6 +279,21 @@ def test_handled_api_exception_is_not_reported(runner, tmp_path, sentry_events):
     assert sentry_events == []
 
 
+def test_skipped_api_error_is_printed_once_and_exits_0(runner, tmp_path, sentry_events):
+    args = ["cp", "o/r/p", "dest", "--skip-errors", *whoami_args(tmp_path)[1:]]
+    with patch(
+        "cloudsmith_cli.cli.commands.copy.copy_package",
+        side_effect=ApiException(status=400, detail="Destination does not exist"),
+    ):
+        result = runner.invoke(main, args)
+
+    assert result.exit_code == 0
+    assert result.return_value is None
+    assert result.stdout.count("Destination does not exist") == 1
+    assert "Skipping error and moving on." in result.stdout
+    assert sentry_events == []
+
+
 @pytest.mark.parametrize(
     "exc",
     [

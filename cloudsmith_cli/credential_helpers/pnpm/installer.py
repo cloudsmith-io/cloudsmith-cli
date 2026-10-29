@@ -216,7 +216,7 @@ class PNPMInstaller:
 
         return actions
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, str | list[str] | None]:
         """Return current installation status.
 
         Returns
@@ -225,29 +225,29 @@ class PNPMInstaller:
             A dict with keys:
 
             ``"launcher"``
-                The :class:`~pathlib.Path` of the launcher if it exists,
-                else ``None``.
+                The launcher path as a ``str`` if it exists in the bin
+                directory, else ``None``.
             ``"hosts"``
-                List of hostnames in ``config.json``'s ``credHelpers`` block
-                whose value equals ``"cloudsmith"``.
+                List of hostnames in ``.npmrc`` whose ``tokenHelper`` is a
+                pnpm launcher in any directory, also when it is missing.
         """
         target_dir = resolve_bin_dir()
         if os.name == "nt":
-            launcher_path: Path | None = target_dir / f"{self.LAUNCHER_NAME}.cmd"
+            launcher_path: Path = target_dir / f"{self.LAUNCHER_NAME}.cmd"
         else:
             launcher_path = target_dir / self.LAUNCHER_NAME
-
-        if launcher_path is not None and not launcher_path.exists():
-            launcher_path = None
 
         config_path = _config_path()
 
         hosts: list[str] = []
         if config_path.exists():
-            with NPMRC(config_path) as rc:
-                hosts: list[str] = rc.helped_hosts(str(launcher_path))
+            try:
+                with NPMRC(config_path) as rc:
+                    hosts = rc.helped_hosts(str(launcher_path))
+            except (UnicodeDecodeError, OSError):
+                pass
 
         return {
-            "launcher": str(launcher_path) if launcher_path is not None else None,
+            "launcher": str(launcher_path) if launcher_path.exists() else None,
             "hosts": hosts,
         }

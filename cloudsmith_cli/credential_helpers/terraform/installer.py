@@ -443,7 +443,7 @@ class TerraformInstaller:
 
         return actions
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, str | list[str] | None]:
         """Return current installation status.
 
         Returns
@@ -469,7 +469,7 @@ class TerraformInstaller:
         if rc_path.exists():
             try:
                 text = rc_path.read_text(encoding="utf-8")
-            except OSError:
+            except (UnicodeDecodeError, OSError):
                 text = ""
             match = terraformrc.find_block(text)
             if match is not None and match.group("name") == terraformrc.HELPER_NAME:
