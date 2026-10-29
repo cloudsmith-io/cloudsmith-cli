@@ -19,9 +19,10 @@ from ...decorators import (
     common_cli_config_options,
     resolve_credentials,
 )
+from ...usage_capture import TrackedCommand
 
 
-@click.command(context_settings={"ignore_unknown_options": True})
+@click.command(cls=TrackedCommand, context_settings={"ignore_unknown_options": True})
 @click.option(
     "-r",
     "--repo",

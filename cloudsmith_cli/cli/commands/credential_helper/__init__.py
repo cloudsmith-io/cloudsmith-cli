@@ -8,6 +8,7 @@ that follow their respective credential helper protocols.
 
 import click
 
+from ...usage_capture import TrackedGroup
 from ..main import main
 from .cargo import cargo as cargo_cmd
 from .docker import docker as docker_cmd
@@ -17,7 +18,7 @@ from .pnpm import pnpm as pnpm_cmd
 from .terraform import terraform as terraform_cmd
 
 
-@click.group()
+@click.group(cls=TrackedGroup)
 def credential_helper():
     """
     Credential helpers for package managers.

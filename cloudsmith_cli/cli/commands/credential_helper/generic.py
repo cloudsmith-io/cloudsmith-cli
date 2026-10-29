@@ -15,9 +15,10 @@ from ...decorators import (
     common_cli_config_options,
     resolve_credentials,
 )
+from ...usage_capture import TrackedCommand
 
 
-@click.command()
+@click.command(cls=TrackedCommand)
 @common_cli_config_options
 @common_api_auth_options
 @resolve_credentials
