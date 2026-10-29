@@ -11,7 +11,7 @@ import click
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
 
 from ..core.utils import get_data_path, read_file
-from . import utils, validators
+from . import deprecation, utils, validators
 
 OPTIONS = threading.local()
 
@@ -289,6 +289,10 @@ class ConfigReader(ConfigFileReader):
             else:
                 if v is None:
                     continue
+            # The schema defaults api_ssl_verify to true, so only false shows
+            # that the key is set, and only false changes what the CLI does.
+            if k in deprecation.CONFIG_KEY_REPLACEMENTS and v is not True:
+                opts.deprecated_config_keys.add(k)
             setattr(opts, k, v)
 
 
@@ -405,6 +409,7 @@ class Options:  # pylint: disable=too-many-public-methods
         """Initialise a new Options object."""
         super().__init__(*args, **kwargs)
         self.opts = {}
+        self.deprecated_config_keys = set()
         for k, v in kwargs.items():
             setattr(self, k, v)
 

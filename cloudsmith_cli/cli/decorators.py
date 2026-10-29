@@ -19,7 +19,7 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from . import config, utils
+from . import config, deprecation, utils
 
 
 def _expired_saml_renewal_message(error):
@@ -228,6 +228,11 @@ def common_cli_config_options(f):
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
         opts.api_key_from_file = opts.api_key
+        # A group loads the config again in its subcommand, which warns there,
+        # so a credential helper subcommand can stay quiet.
+        if not ctx.invoked_subcommand:
+            for key in opts.deprecated_config_keys:
+                deprecation.warn_config_key(key, ctx=ctx)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -331,16 +336,21 @@ def common_cli_list_options(f):
     )
     @click.option(
         "--page-all",
-        "--show-all",
         default=False,
         is_flag=True,
         help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
     )  # Validation performed post-parse for order-independence.
+    @deprecation.alias_options(deprecation.PAGE_ALL_ALIASES, is_flag=True)
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        show_all = deprecation.pop_alias_options(
+            ctx, kwargs, deprecation.PAGE_ALL_ALIASES
+        )
+        page_all = kwargs["page_all"] = bool(kwargs.get("page_all") or show_all)
 
         # Handle wildcard page_size (converts to page_all behavior)
         page_size = kwargs.get("page_size")
@@ -350,9 +360,8 @@ def common_cli_list_options(f):
             validators.enforce_page_all_exclusive(ctx, wildcard_used=True)
 
         # Order-independent validation: perform after all options parsed.
-        page_all = kwargs.get("page_all")
         if page_all:
-            validators.enforce_page_all_exclusive(ctx)
+            validators.enforce_page_all_exclusive(ctx, page_all=page_all)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -399,6 +408,25 @@ PROXY_SUFFIX_ENVVARS = (
     "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
     "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
 )
+SSL_VERIFY_LEGACY_ENVVAR = "CLOUDSMITH_WITHOUT_API_SSL_VERIFY"
+WORKSPACE_ENVVARS = ("CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG")
+
+
+def _resolve_alias(ctx, kwargs, name, envvars, aliases):
+    """Pop option `name` and its deprecated spellings, warning for each one used.
+
+    The current spelling wins on the command line, then a deprecated spelling,
+    then the environment (where the current variable name wins).
+    """
+    value = kwargs.pop(name)
+    alias_value = deprecation.pop_alias_options(ctx, kwargs, aliases)
+    if (
+        alias_value is not None
+        and ctx.get_parameter_source(name) != ParameterSource.COMMANDLINE
+    ):
+        return alias_value
+    deprecation.warn_deprecated_envvar(ctx, name, envvars)
+    return value
 
 
 def _parse_suffixes(value):
@@ -408,14 +436,17 @@ def _parse_suffixes(value):
     )
 
 
-def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
+def _guard_untrusted_endpoints(
+    ctx, opts, host_suffixes, proxy_suffixes, proxy_trusted=False
+):
     """Reject api_host/proxy redirections from directory-relative config.
 
     Enforcement applies only when the effective value originated from an
     untrusted (relative) config file and was not supplied via a CLI flag or
     environment variable. Both must match their allow-listed host suffixes;
     proxy has no public default suffixes, so it is rejected unless one is
-    supplied via the environment.
+    supplied via the environment. `proxy_trusted` marks a proxy given by the
+    deprecated `--api-proxy` flag, which is a separate parameter.
     """
     trusted_sources = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
     profile = ctx.meta.get("profile")
@@ -427,7 +458,7 @@ def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
         if relative_host and opts.api_host == relative_host:
             validators.validate_untrusted_api_host(opts.api_host, host_suffixes)
 
-    if ctx.get_parameter_source("proxy") not in trusted_sources:
+    if not proxy_trusted and ctx.get_parameter_source("proxy") not in trusted_sources:
         _guard_untrusted_proxy(ctx, opts, proxy_suffixes)
 
 
@@ -480,12 +511,11 @@ def initialise_session(f):
     )
     @click.option(
         "--proxy",
-        "--api-proxy",
         "proxy",
         envvar=list(PROXY_ENVVARS),
-        help="The proxy to connect through for all HTTP requests. "
-        "--api-proxy and CLOUDSMITH_API_PROXY are compatibility aliases.",
+        help="The proxy to connect through for all HTTP requests.",
     )
+    @deprecation.alias_options(deprecation.PROXY_ALIASES)
     @click.option(
         "--ssl-verify/--without-ssl-verify",
         default=None,
@@ -494,14 +524,10 @@ def initialise_session(f):
         "Disabling verification is dangerous; prefer --without-ssl-verify-strict "
         "if a TLS-intercepting proxy issues certificates that fail strict checks.",
     )
-    @click.option(
-        "-S",
-        "--without-api-ssl-verify",
-        default=None,
+    @deprecation.alias_options(
+        deprecation.SSL_VERIFY_ALIASES,
+        envvars={"--without-api-ssl-verify": SSL_VERIFY_LEGACY_ENVVAR},
         is_flag=True,
-        envvar="CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
-        help="Compatibility alias for --without-ssl-verify. Disabling SSL "
-        "certificate verification is dangerous.",
     )
     @click.option(
         "--ssl-verify-strict/--without-ssl-verify-strict",
@@ -531,12 +557,12 @@ def initialise_session(f):
     )
     @click.option(
         "--allowed-proxy-suffixes",
-        "--allowed-api-proxy-suffixes",
         "allowed_proxy_suffixes",
         envvar=list(PROXY_SUFFIX_ENVVARS),
         hidden=True,
         help="Comma-separated trusted proxy host suffixes (internal use).",
     )
+    @deprecation.alias_options(deprecation.PROXY_SUFFIXES_ALIASES)
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -546,17 +572,35 @@ def initialise_session(f):
 
         opts = config.get_or_create_options(ctx)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
-        proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_proxy_suffixes"))
+        proxy_suffixes = _parse_suffixes(
+            _resolve_alias(
+                ctx,
+                kwargs,
+                "allowed_proxy_suffixes",
+                PROXY_SUFFIX_ENVVARS,
+                deprecation.PROXY_SUFFIXES_ALIASES,
+            )
+        )
         opts.api_host = kwargs.pop("api_host")
-        opts.proxy = kwargs.pop("proxy")
+        opts.proxy = _resolve_alias(
+            ctx, kwargs, "proxy", PROXY_ENVVARS, deprecation.PROXY_ALIASES
+        )
+        proxy_from_alias = deprecation.used_on_command_line(
+            ctx, deprecation.PROXY_ALIASES
+        )
         ssl_verify = kwargs.pop("ssl_verify")
-        legacy_ssl_verify = _pop_boolean_flag(
-            kwargs, "without_api_ssl_verify", invert=True
+        legacy_without_ssl_verify = deprecation.pop_alias_options(
+            ctx,
+            kwargs,
+            deprecation.SSL_VERIFY_ALIASES,
+            envvar_replacements={SSL_VERIFY_LEGACY_ENVVAR: "CLOUDSMITH_SSL_VERIFY=0"},
+        )
+        legacy_ssl_verify = (
+            None if legacy_without_ssl_verify is None else not legacy_without_ssl_verify
         )
         if (
             ctx.get_parameter_source("ssl_verify") != ParameterSource.COMMANDLINE
-            and ctx.get_parameter_source("without_api_ssl_verify")
-            == ParameterSource.COMMANDLINE
+            and deprecation.used_on_command_line(ctx, deprecation.SSL_VERIFY_ALIASES)
         ) or ssl_verify is None:
             ssl_verify = legacy_ssl_verify
         opts.ssl_verify = ssl_verify
@@ -564,7 +608,9 @@ def initialise_session(f):
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
 
-        _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes)
+        _guard_untrusted_endpoints(
+            ctx, opts, host_suffixes, proxy_suffixes, proxy_trusted=proxy_from_alias
+        )
 
         set_default_proxy(opts.proxy)
         opts.session = _create_session(
@@ -639,15 +685,11 @@ def resolve_credentials(f):
     @click.option(
         "-w",
         "--workspace",
-        "--org",
-        "--organization",
-        "--oidc-org",
-        "-o",
-        "--owner",
         "org",
-        envvar=["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"],
+        envvar=list(WORKSPACE_ENVVARS),
         help="The Cloudsmith Workspace slug.",
     )
+    @deprecation.alias_options(deprecation.WORKSPACE_ALIASES)
     @click.option(
         "--oidc-service-slug",
         envvar="CLOUDSMITH_SERVICE_SLUG",
@@ -673,7 +715,9 @@ def resolve_credentials(f):
         opts = config.get_or_create_options(ctx)
 
         oidc_audience = kwargs.pop("oidc_audience")
-        org = kwargs.pop("org")
+        org = _resolve_alias(
+            ctx, kwargs, "org", WORKSPACE_ENVVARS, deprecation.WORKSPACE_ALIASES
+        )
         oidc_service_slug = kwargs.pop("oidc_service_slug")
         oidc_discovery_disabled = _pop_boolean_flag(kwargs, "oidc_discovery_disabled")
         oidc_detector_order = kwargs.pop("oidc_detector_order")
