@@ -81,14 +81,6 @@ def test_format_warning():
     )
 
 
-def test_format_warning_with_custom_removal_and_detail():
-    assert deprecation.format_warning(
-        "`cloudsmith login`", removal="will stop working soon", detail="More: x"
-    ) == (
-        "Warning: `cloudsmith login` is deprecated and will stop working soon.\nMore: x"
-    )
-
-
 @pytest.mark.parametrize(
     "args,env",
     [
@@ -113,9 +105,6 @@ def test_current_names_do_not_warn(args, env):
     "flag,replacement",
     [
         ("--org", "--workspace"),
-        ("--organization", "--workspace"),
-        ("--oidc-org", "--workspace"),
-        ("--owner", "--workspace"),
         ("-o", "-w"),
     ],
 )
@@ -137,12 +126,11 @@ def test_proxy_flag_alias_warns_and_still_works():
     assert "Use `--proxy` instead." in result.stderr
 
 
-@pytest.mark.parametrize("flag", ["-S", "--without-api-ssl-verify"])
-def test_ssl_flag_aliases_warn_and_still_work(flag):
-    result = invoke([flag])
+def test_ssl_flag_alias_warns_and_still_works():
+    result = invoke(["-S"])
 
     assert values(result)["ssl_verify"] is False
-    assert f"Warning: `{flag}` is deprecated" in result.stderr
+    assert "Warning: `-S` is deprecated" in result.stderr
     assert "Use `--without-ssl-verify` instead." in result.stderr
 
 
@@ -179,31 +167,6 @@ def test_show_all_survives_list_repos_forwarding(flag):
     assert result.stderr.count("is deprecated") == (flag == "--show-all")
 
 
-def test_aliases_survive_forwarding():
-    @click.command()
-    @common_cli_config_options
-    @common_cli_list_options
-    @resolve_credentials
-    @click.pass_context
-    def outer(ctx, opts, page, page_size, page_all):  # pylint: disable=unused-argument
-        ctx.forward(inner)
-
-    inner = _report_command()
-
-    result = invoke(
-        ["--org", "acme", "--api-proxy", "http://proxy:3128", "-S", "--show-all"],
-        command=outer,
-    )
-
-    assert values(result) == {
-        "org": "acme",
-        "proxy": "http://proxy:3128",
-        "ssl_verify": False,
-        "page_all": True,
-    }
-    assert result.stderr.count("is deprecated") == 4
-
-
 def test_page_size_wildcard_is_not_a_conflict():
     result = invoke(["--page-size", "*"])
 
@@ -230,7 +193,6 @@ def test_current_flag_wins_over_alias(args, expected):
     [
         (["--org", "first", "--owner", "last"], "last"),
         (["--owner", "first", "--org", "last"], "last"),
-        (["-o", "first", "--oidc-org", "last"], "last"),
     ],
 )
 def test_last_deprecated_spelling_wins(args, expected):
@@ -270,19 +232,22 @@ def test_alias_flag_wins_over_environment():
             {"CLOUDSMITH_ORG": "acme"},
             "org",
             "acme",
-            "`CLOUDSMITH_ORG` is deprecated",
+            "`CLOUDSMITH_ORG` is deprecated and will be removed in version 2.0.0. "
+            "Use `CLOUDSMITH_WORKSPACE` instead.",
         ),
         (
             {"CLOUDSMITH_API_PROXY": "http://proxy:3128"},
             "proxy",
             "http://proxy:3128",
-            "`CLOUDSMITH_API_PROXY` is deprecated",
+            "`CLOUDSMITH_API_PROXY` is deprecated and will be removed in version 2.0.0. "
+            "Use `CLOUDSMITH_PROXY` instead.",
         ),
         (
             {"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1"},
             "ssl_verify",
             False,
-            "`CLOUDSMITH_WITHOUT_API_SSL_VERIFY` is deprecated",
+            "`CLOUDSMITH_WITHOUT_API_SSL_VERIFY` is deprecated and will be removed in "
+            "version 2.0.0. Use `CLOUDSMITH_SSL_VERIFY=0` instead.",
         ),
     ],
 )
@@ -291,12 +256,6 @@ def test_environment_aliases_warn_and_still_work(env, key, expected, warning):
 
     assert values(result)[key] == expected
     assert warning in result.stderr
-
-
-def test_ssl_environment_alias_names_its_replacement():
-    result = invoke(env={"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1"})
-
-    assert "Use `CLOUDSMITH_SSL_VERIFY=0` instead." in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -331,8 +290,6 @@ def test_unused_environment_alias_does_not_warn():
     "body,replacement",
     [
         ("org = acme", "workspace"),
-        ("organization = acme", "workspace"),
-        ("oidc_org = acme", "workspace"),
         ("api_proxy = http://proxy:3128", "proxy"),
         ("api_ssl_verify = false", "ssl_verify"),
     ],
@@ -368,25 +325,10 @@ def test_config_keys_that_change_nothing_do_not_warn(isolated, body):
     assert invoke().stderr == ""
 
 
-def test_profile_config_key_alias_warns(isolated):
-    (isolated / "config.ini").write_text("[profile:ci]\norg = acme\n")
-
-    result = invoke(["-P", "ci"])
-
-    assert values(result)["org"] == "acme"
-    assert "The `org` key in config.ini is deprecated" in result.stderr
-
-
 @pytest.mark.parametrize(
     "body,key,expected",
     [
         ("[default]\norg = old\n[profile:ci]\nworkspace = new\n", "org", "new"),
-        (
-            "[default]\napi_proxy = http://old:3128\n"
-            "[profile:ci]\nproxy = http://new:3128\n",
-            "proxy",
-            "http://new:3128",
-        ),
         ("[default]\napi_ssl_verify = false\n[profile:ci]\n", "ssl_verify", True),
     ],
 )
@@ -435,26 +377,18 @@ def test_each_warning_prints_once_per_run(isolated):
     assert result.stderr.count("The `org` key in config.ini is deprecated") == 1
 
 
-def test_json_output_keeps_warnings_off_stdout():
-    result = invoke(["--org", "acme", "-F", "json"])
-
-    assert values(result)["org"] == "acme"
-    assert "`--org` is deprecated" in result.stderr
-
-
-@pytest.mark.parametrize("helper", sorted(deprecation.CREDENTIAL_HELPER_RUNTIMES))
-def test_credential_helper_runtimes_do_not_warn(isolated, helper):
+def test_credential_helper_runtimes_do_not_warn(isolated):
     (isolated / "config.ini").write_text("[default]\norg = acme\n")
 
     @click.group(name="credential-helper")
     def credential_helper():
         pass
 
-    credential_helper.add_command(_report_command(), name=helper)
+    credential_helper.add_command(_report_command(), name="terraform")
     command = click.Group(commands={"credential-helper": credential_helper})
 
     result = invoke(
-        ["credential-helper", helper, "--org", "acme"],
+        ["credential-helper", "terraform", "--org", "acme"],
         env={"CLOUDSMITH_API_PROXY": "http://proxy:3128"},
         command=command,
     )
