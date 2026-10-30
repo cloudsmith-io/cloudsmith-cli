@@ -29,6 +29,7 @@ UPSTREAM_URLS = {
     "python": "https://pypi.org",
     "rpm": "https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/35/Everything/x86_64/os",
     "ruby": "https://rubygems.org",
+    "skills": "https://clawhub.ai/",
     "swift": "https://example.org",
 }
 
@@ -62,6 +63,11 @@ def test_upstream_commands(
         # distro_versions is only required for deb and will be ignored for other formats.
         "distro_versions": ["ubuntu/xenial"],
     }
+
+    # Skills specific arguments
+    if upstream_format == "skills":
+        upstream_config["contents"] = "Skills"
+        upstream_config["mode"] = "Cache and Proxy"
 
     upstream_config_file = tmp_path / (f"cli-test-upstream-{upstream_format}.json")
     upstream_config_file.write_text(str(json.dumps(upstream_config)))
