@@ -1412,6 +1412,14 @@ def create_push_handlers():
                 ),
             )(push_handler)
 
+        elif key == "skills":
+            push_handler = click.option(
+                "--changelog",
+                "changelog",
+                default=None,
+                help="Changelog for skills",
+            )(push_handler)
+
         handlers[key] = push_handler
 
 
