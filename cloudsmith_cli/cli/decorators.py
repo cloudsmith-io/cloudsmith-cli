@@ -188,6 +188,18 @@ def keyring_options(f):
     return wrapper
 
 
+def _warn_deprecated_config_keys(ctx, opts):
+    """Warn about the deprecated config.ini keys that are in effect.
+
+    Only the command that runs warns, not its parent groups, so a credential
+    helper subcommand can stay quiet. A subcommand that inherits the config
+    from its group, such as `mcp start`, warns from its session setup.
+    """
+    if not ctx.invoked_subcommand:
+        for key in opts.deprecated_config_keys:
+            deprecation.warn_config_key(key, ctx=ctx)
+
+
 def common_cli_config_options(f):
     """Add common CLI config options to commands."""
 
@@ -228,11 +240,7 @@ def common_cli_config_options(f):
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
         opts.api_key_from_file = opts.api_key
-        # A group loads the config again in its subcommand, which warns there,
-        # so a credential helper subcommand can stay quiet.
-        if not ctx.invoked_subcommand:
-            for key in opts.deprecated_config_keys:
-                deprecation.warn_config_key(key, ctx=ctx)
+        _warn_deprecated_config_keys(ctx, opts)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -351,6 +359,8 @@ def common_cli_list_options(f):
             ctx, kwargs, deprecation.PAGE_ALL_ALIASES
         )
         page_all = kwargs["page_all"] = bool(kwargs.get("page_all") or show_all)
+        # `list repos` forwards ctx.params, which no longer holds --show-all.
+        ctx.params["page_all"] = page_all
 
         # Handle wildcard page_size (converts to page_all behavior)
         page_size = kwargs.get("page_size")
@@ -416,7 +426,8 @@ def _resolve_alias(ctx, kwargs, name, envvars, aliases):
     """Pop option `name` and its deprecated spellings, warning for each one used.
 
     The current spelling wins on the command line, then a deprecated spelling,
-    then the environment (where the current variable name wins).
+    then the environment (where the current variable name wins). The resolved
+    value is stored in `ctx.params`, so `ctx.forward` passes it on.
     """
     value = kwargs.pop(name)
     alias_value = deprecation.pop_alias_options(ctx, kwargs, aliases)
@@ -424,8 +435,10 @@ def _resolve_alias(ctx, kwargs, name, envvars, aliases):
         alias_value is not None
         and ctx.get_parameter_source(name) != ParameterSource.COMMANDLINE
     ):
-        return alias_value
-    deprecation.warn_deprecated_envvar(ctx, name, envvars)
+        value = alias_value
+    else:
+        deprecation.warn_deprecated_envvar(ctx, name, envvars)
+    ctx.params[name] = value
     return value
 
 
@@ -571,6 +584,7 @@ def initialise_session(f):
         from ..core.session import set_default_proxy
 
         opts = config.get_or_create_options(ctx)
+        _warn_deprecated_config_keys(ctx, opts)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
         proxy_suffixes = _parse_suffixes(
             _resolve_alias(
@@ -590,10 +604,7 @@ def initialise_session(f):
         )
         ssl_verify = kwargs.pop("ssl_verify")
         legacy_without_ssl_verify = deprecation.pop_alias_options(
-            ctx,
-            kwargs,
-            deprecation.SSL_VERIFY_ALIASES,
-            envvar_replacements={SSL_VERIFY_LEGACY_ENVVAR: "CLOUDSMITH_SSL_VERIFY=0"},
+            ctx, kwargs, deprecation.SSL_VERIFY_ALIASES
         )
         legacy_ssl_verify = (
             None if legacy_without_ssl_verify is None else not legacy_without_ssl_verify
@@ -603,6 +614,13 @@ def initialise_session(f):
             and deprecation.used_on_command_line(ctx, deprecation.SSL_VERIFY_ALIASES)
         ) or ssl_verify is None:
             ssl_verify = legacy_ssl_verify
+            # Warn about the variable only when its value is the one used.
+            legacy_envvar = deprecation.alias_envvar(
+                ctx, deprecation.SSL_VERIFY_ALIASES
+            )
+            if legacy_envvar:
+                deprecation.warn_envvar(legacy_envvar, "CLOUDSMITH_SSL_VERIFY=0")
+        ctx.params["ssl_verify"] = ssl_verify
         opts.ssl_verify = ssl_verify
         opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
         opts.api_user_agent = kwargs.pop("api_user_agent")

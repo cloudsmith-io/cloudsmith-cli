@@ -163,6 +163,47 @@ def test_show_all_still_conflicts_with_page():
     assert "Cannot be used with --page (-p) or --page-size (-l)." in result.output
 
 
+@pytest.mark.parametrize("flag", ["--page-all", "--show-all"])
+def test_show_all_survives_list_repos_forwarding(flag):
+    """`list repos` forwards its parameters to `repos get`."""
+    from ..commands.list_ import repos
+
+    with patch(
+        "cloudsmith_cli.cli.commands.repos.paginate_results", return_value=([], None)
+    ) as paginate:
+        result = invoke(
+            ["acme", flag, "--api-host", "https://api.example.invalid"], command=repos
+        )
+
+    assert paginate.call_args.args[1] is True
+    assert result.stderr.count("is deprecated") == (flag == "--show-all")
+
+
+def test_aliases_survive_forwarding():
+    @click.command()
+    @common_cli_config_options
+    @common_cli_list_options
+    @resolve_credentials
+    @click.pass_context
+    def outer(ctx, opts, page, page_size, page_all):  # pylint: disable=unused-argument
+        ctx.forward(inner)
+
+    inner = _report_command()
+
+    result = invoke(
+        ["--org", "acme", "--api-proxy", "http://proxy:3128", "-S", "--show-all"],
+        command=outer,
+    )
+
+    assert values(result) == {
+        "org": "acme",
+        "proxy": "http://proxy:3128",
+        "ssl_verify": False,
+        "page_all": True,
+    }
+    assert result.stderr.count("is deprecated") == 4
+
+
 def test_page_size_wildcard_is_not_a_conflict():
     result = invoke(["--page-size", "*"])
 
@@ -182,6 +223,38 @@ def test_current_flag_wins_over_alias(args, expected):
 
     assert values(result)["org"] == expected
     assert "`--org` is deprecated" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "args,expected",
+    [
+        (["--org", "first", "--owner", "last"], "last"),
+        (["--owner", "first", "--org", "last"], "last"),
+        (["-o", "first", "--oidc-org", "last"], "last"),
+    ],
+)
+def test_last_deprecated_spelling_wins(args, expected):
+    """The spellings were one option, where the last value given won."""
+    assert values(invoke(args))["org"] == expected
+
+
+def test_current_flag_still_wins_after_forwarding():
+    @click.command()
+    @common_cli_config_options
+    @resolve_credentials
+    @click.pass_context
+    def outer(ctx, opts):  # pylint: disable=unused-argument
+        ctx.forward(inner)
+
+    @click.command()
+    @common_cli_config_options
+    @resolve_credentials
+    def inner(opts):
+        click.echo(json.dumps({"org": opts.org}))
+
+    result = invoke(["--workspace", "new", "--org", "old"], command=outer)
+
+    assert values(result)["org"] == "new"
 
 
 def test_alias_flag_wins_over_environment():
@@ -224,6 +297,20 @@ def test_ssl_environment_alias_names_its_replacement():
     result = invoke(env={"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1"})
 
     assert "Use `CLOUDSMITH_SSL_VERIFY=0` instead." in result.stderr
+
+
+@pytest.mark.parametrize(
+    "args,env",
+    [
+        ([], {"CLOUDSMITH_SSL_VERIFY": "1"}),
+        (["--ssl-verify"], {}),
+    ],
+)
+def test_overridden_ssl_environment_alias_does_not_warn(args, env):
+    result = invoke(args, env={"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1", **env})
+
+    assert values(result)["ssl_verify"] is True
+    assert result.stderr == ""
 
 
 def test_proxy_suffixes_environment_alias_warns():
@@ -285,6 +372,48 @@ def test_profile_config_key_alias_warns(isolated):
     (isolated / "config.ini").write_text("[profile:ci]\norg = acme\n")
 
     result = invoke(["-P", "ci"])
+
+    assert values(result)["org"] == "acme"
+    assert "The `org` key in config.ini is deprecated" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "body,key,expected",
+    [
+        ("[default]\norg = old\n[profile:ci]\nworkspace = new\n", "org", "new"),
+        (
+            "[default]\napi_proxy = http://old:3128\n"
+            "[profile:ci]\nproxy = http://new:3128\n",
+            "proxy",
+            "http://new:3128",
+        ),
+        ("[default]\napi_ssl_verify = false\n[profile:ci]\n", "ssl_verify", True),
+    ],
+)
+def test_profile_override_clears_default_alias_warning(isolated, body, key, expected):
+    (isolated / "config.ini").write_text(body)
+
+    result = invoke(["-P", "ci"])
+
+    assert values(result)[key] == expected
+    assert result.stderr == ""
+
+
+def test_subcommand_inheriting_config_still_warns(isolated):
+    """Like `mcp start`, which takes its config options from the `mcp` group."""
+    (isolated / "config.ini").write_text("[default]\norg = acme\n")
+
+    @click.group()
+    @common_cli_config_options
+    def group(opts):  # pylint: disable=unused-argument
+        pass
+
+    @group.command()
+    @resolve_credentials
+    def start(opts):
+        click.echo(json.dumps({"org": opts.org}))
+
+    result = invoke(["start"], command=group)
 
     assert values(result)["org"] == "acme"
     assert "The `org` key in config.ini is deprecated" in result.stderr

@@ -289,10 +289,14 @@ class ConfigReader(ConfigFileReader):
             else:
                 if v is None:
                     continue
-            # The schema defaults api_ssl_verify to true, so only false shows
-            # that the key is set, and only false changes what the CLI does.
-            if k in deprecation.CONFIG_KEY_REPLACEMENTS and v is not True:
-                opts.deprecated_config_keys.add(k)
+            setting = deprecation.CONFIG_KEY_REPLACEMENTS.get(k, k)
+            if setting in deprecation.CONFIG_KEY_REPLACEMENTS.values():
+                # Record which key set the value last, so a profile that sets
+                # the new key clears a deprecated key from [default]. The
+                # schema defaults api_ssl_verify to true, so only false shows
+                # that the key is set, and only false changes the result.
+                is_alias = k != setting and v is not True
+                opts.config_keys_in_effect[setting] = k if is_alias else None
             setattr(opts, k, v)
 
 
@@ -409,9 +413,14 @@ class Options:  # pylint: disable=too-many-public-methods
         """Initialise a new Options object."""
         super().__init__(*args, **kwargs)
         self.opts = {}
-        self.deprecated_config_keys = set()
+        self.config_keys_in_effect = {}
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    @property
+    def deprecated_config_keys(self):
+        """The deprecated config.ini keys whose values are in effect."""
+        return [key for key in self.config_keys_in_effect.values() if key]
 
     @staticmethod
     def get_config_reader():

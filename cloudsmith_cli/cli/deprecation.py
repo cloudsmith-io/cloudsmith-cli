@@ -139,31 +139,55 @@ def alias_options(aliases, envvars=None, **attrs):
     return decorator
 
 
-def pop_alias_options(ctx, kwargs, aliases, envvar_replacements=None):
-    """Pop the hidden options of `aliases` and warn for each one that was used.
+def pop_alias_options(ctx, kwargs, aliases):
+    """Pop the hidden options of `aliases`, warning for each one on the command line.
 
-    Return the value of a used spelling, preferring the command line over the
-    environment, or None if none was used. `envvar_replacements` maps a
-    deprecated environment variable to the setting that replaces it.
+    Return the value of the deprecated spelling given last on the command line,
+    else the value from a deprecated environment variable, else None. The
+    caller warns about the environment variable (see `alias_envvar`) once it
+    knows that the value is used.
+
+    The options are also removed from `ctx.params`, so `ctx.forward` passes the
+    resolved value of the current option instead of the alias, which would
+    lose its parameter source on the way.
     """
-    envvar_replacements = envvar_replacements or {}
+    names = {alias_param_name(spelling): spelling for spelling in aliases}
+    order = list(ctx.params)
     value = None
-    from_command_line = False
-    for spelling, replacement in aliases.items():
-        name = alias_param_name(spelling)
+    from_command_line = []
+    for name, spelling in names.items():
         given = kwargs.pop(name)
+        ctx.params.pop(name, None)
         source = ctx.get_parameter_source(name)
         if source == ParameterSource.COMMANDLINE:
-            warn_option(spelling, replacement, ctx=ctx)
-            if not from_command_line:
-                value, from_command_line = given, True
+            warn_option(spelling, aliases[spelling], ctx=ctx)
+            from_command_line.append((name, given))
         elif source == ParameterSource.ENVIRONMENT:
-            param = next(p for p in ctx.command.params if p.name == name)
-            envvar = param.envvar
-            warn_envvar(envvar, envvar_replacements.get(envvar), ctx=ctx)
-            if value is None:
-                value = given
+            value = given
+    if from_command_line:
+        # Click records parameters in command-line order, so the last one
+        # given wins, as it did when the spellings were one option.
+        value = max(
+            from_command_line,
+            key=lambda item: order.index(item[0]) if item[0] in order else -1,
+        )[1]
     return value
+
+
+def alias_envvar(ctx, aliases):
+    """Return the deprecated environment variable that set one of `aliases`.
+
+    Return None if no alias came from the environment, or if a deprecated
+    spelling on the command line took precedence over it.
+    """
+    if used_on_command_line(ctx, aliases):
+        return None
+    for spelling in aliases:
+        name = alias_param_name(spelling)
+        if ctx.get_parameter_source(name) == ParameterSource.ENVIRONMENT:
+            param = next(p for p in ctx.command.params if p.name == name)
+            return param.envvar
+    return None
 
 
 def used_on_command_line(ctx, aliases):
