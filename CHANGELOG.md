@@ -11,7 +11,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 
-### Fixed
+### Deprecated
+
+- The old names of renamed options, environment variables, and `config.ini` keys are deprecated, and version 2.0.0 will remove them. Until then, they work as before, but the CLI prints a warning to stderr, once per run, that names the replacement. For example: ``Warning: `--org` is deprecated and will be removed in version 2.0.0. Use `--workspace` instead.`` The old names no longer show in `--help`.
+
+  | Setting | Deprecated name | Replacement |
+  | -- | -- | -- |
+  | Proxy | `--api-proxy` | `--proxy` |
+  | | `CLOUDSMITH_API_PROXY` | `CLOUDSMITH_PROXY` |
+  | | `api_proxy` config key | `proxy` |
+  | | `--allowed-api-proxy-suffixes`, `CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES` (hidden) | `--allowed-proxy-suffixes`, `CLOUDSMITH_ALLOWED_PROXY_SUFFIXES` |
+  | SSL verification | `--without-api-ssl-verify`, `-S` | `--without-ssl-verify` |
+  | | `CLOUDSMITH_WITHOUT_API_SSL_VERIFY` | `CLOUDSMITH_SSL_VERIFY=0` |
+  | | `api_ssl_verify` config key | `ssl_verify` |
+  | Workspace | `--org`, `--organization`, `--oidc-org`, `--owner` | `--workspace` |
+  | | `-o` | `-w` |
+  | | `CLOUDSMITH_ORG` | `CLOUDSMITH_WORKSPACE` |
+  | | `org`, `organization`, `oidc_org` config keys | `workspace` |
+  | Pagination | `--show-all` | `--page-all` |
+  | `cloudsmith auth` | `--token`, `--force` | `--request-api-key` |
+  | | `--json` | `--output-format json` |
+
+  - The CLI warns only when an old name changes the result. It does not warn for a config key that the new key in the same section overrides, for an environment variable that the new variable overrides, for an empty value, or for `api_ssl_verify = true`, which is the default.
+  - The credential helpers that Docker, Cargo, pnpm, Terraform, and other tools run (`cloudsmith credential-helper docker`, `cargo`, `pnpm`, `terraform`, and `generic`) do not print the warning. This includes a `~/.terraformrc` block with `--org` that an earlier version of `cloudsmith credential-helper install terraform` wrote. To update the block, run the install again.
+  - `cloudsmith auth --token`, `--force`, and `--json`, and the `cloudsmith login` and `cloudsmith token` commands, now use the same warning format. The warning prefix is now `Warning:` instead of `DEPRECATION WARNING:`. `cloudsmith login` still stops working on November 20, 2026.
+  - When you give an old and a new option on the same command line, such as `--org a --workspace b`, the new option now wins. Previously, the last option won.
 
 - `cloudsmith credential-helper install pnpm` now ends `.npmrc` with a newline. Previously, a line that a shell appended to the file, such as `echo '//host/:_authToken=...' >> ~/.npmrc`, joined the last `tokenHelper` line. This made the `tokenHelper` path incorrect, and npm did not read the appended token. The install now also shows each `tokenHelper` line that it sets and the file that it writes to. To add the newline to an existing `.npmrc`, run the install again. If a line is already joined, split it into two lines before you run the install. If you do not, the install removes the appended token.
 - OIDC authentication now works when the CLI cannot create its config directory, for example in a CI container with a read-only home directory. Previously, the CLI did not exchange the OIDC token and ran the command without credentials. Now the CLI exchanges the token. If the CLI cannot write the token to the disk cache, it continues without the cache. A malformed entry in the disk cache no longer stops the token exchange.
