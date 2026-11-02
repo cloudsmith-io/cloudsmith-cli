@@ -5,12 +5,16 @@ import click.testing
 import pytest
 
 from ...core import keyring as core_keyring
+from ...core.api.exceptions import ApiException
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
 from ...core.tests.test_certificate_errors import certificate_error
 from ...core.utils import get_data_path, read_file
+from ..commands.main import main
 from ..config import Options
 from ..decorators import (
+    common_cli_output_options,
+    common_package_action_options,
     initialise_api,
     initialise_session,
     keyring_options,
@@ -29,6 +33,17 @@ def test_report_retry_writes_to_stderr():
 
     assert result.stdout == '{"data": []}\n'
     assert "Request was throttled (429)" in result.stderr
+
+
+def test_report_retry_announces_backoff_on_stderr():
+    @click.command()
+    def command():
+        report_retry(4.0, context="backoff")
+
+    result = click.testing.CliRunner().invoke(command, catch_exceptions=False)
+
+    assert result.stdout == ""
+    assert result.stderr == "\nRequest failed: retrying in 4 second(s) ...\n"
 
 
 def _credential_command(name="example"):
@@ -74,6 +89,23 @@ def test_failed_saml_renewal_explains_the_certificate_error():
     assert "Missing Authority Key Identifier" in result.stderr
     assert "Hint: The TLS certificate failed a strict X.509 check" in result.stderr
     assert result.stdout == "command ran\n"
+
+
+def test_package_action_without_skip_errors_raises_api_errors():
+    @click.command()
+    @common_package_action_options
+    def command(**_kwargs):
+        raise ApiException(status=400)
+
+    with pytest.raises(ApiException):
+        click.testing.CliRunner().invoke(command, catch_exceptions=False)
+
+
+def test_skip_errors_help_does_not_name_copying():
+    result = click.testing.CliRunner().invoke(main, ["mv", "--help"])
+
+    assert "--skip-errors" in result.stdout
+    assert "copying" not in result.stdout
 
 
 @pytest.mark.parametrize("command_name", ["authenticate", "login"])
@@ -343,3 +375,16 @@ def test_malformed_api_headers_is_a_usage_error(api_headers):
 
     assert result.exit_code == 2, result.output
     assert "Invalid value for '--api-headers'" in result.output
+
+
+def test_color_choices_are_text_for_click_before_8_2():
+    @click.command()
+    @common_cli_output_options
+    def command(opts):
+        click.echo(click.get_current_context().color)
+
+    color_option = next(param for param in command.params if param.name == "color")
+    result = click.testing.CliRunner().invoke(command, ["--color", "NEVER"])
+
+    assert all(isinstance(choice, str) for choice in color_option.type.choices)
+    assert result.output == "False\n"
