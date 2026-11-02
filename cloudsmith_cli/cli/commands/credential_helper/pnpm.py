@@ -6,10 +6,12 @@ Implements the pnpm credential helper protocol for Cloudsmith registries.
 """
 
 import sys
+from typing import NoReturn
 
 import click
 
 from ....credential_helpers.pnpm import execute
+from ...config import Options
 from ...decorators import common_api_auth_options, resolve_credentials
 
 
@@ -17,18 +19,42 @@ from ...decorators import common_api_auth_options, resolve_credentials
 @click.argument("repo", required=False, default="npm.cloudsmith.io")
 @common_api_auth_options
 @resolve_credentials
-def pnpm(opts, repo):
+def pnpm(opts: Options, repo: str) -> NoReturn:
     """
-    Input (arg, optional):
-        Server URL as plain text (e.g. "npm.cloudsmith.io")
+    pnpm credential helper for Cloudsmith registries.
 
+    Prints the authorization value for a pnpm registry.  pnpm runs this
+    command through the ``tokenHelper`` setting in the user-level ``~/.npmrc``
+    file.  Use ``cloudsmith credential-helper install pnpm`` to add that
+    setting.
+
+    Provides credentials for all Cloudsmith npm registries: ``*.cloudsmith.io``,
+    ``*.cloudsmith.com``, and any custom domains configured for the Workspace
+    (requires a Workspace - ``--workspace``, CLOUDSMITH_WORKSPACE, or
+    ``workspace`` in ``config.ini``; legacy aliases are also accepted - and a
+    valid API key/token).
+
+    \b
+    Input (argument, optional):
+        Registry host (default: "npm.cloudsmith.io")
+
+    \b
     Output (stdout):
-        Text: <cloudsmith-token>
+        Text: token <cloudsmith-api-key>, or Bearer <cloudsmith-token>
 
     \b
     Exit codes:
         0: Success
         1: Error (no credentials available, not a Cloudsmith registry, etc.)
+
+    \b
+    Examples:
+        # Manual testing
+        $ cloudsmith credential-helper pnpm npm.cloudsmith.io
+
+    \b
+        # Called by pnpm via the launcher
+        $ pnpm-credential-cloudsmith
 
     \b
     Environment variables:

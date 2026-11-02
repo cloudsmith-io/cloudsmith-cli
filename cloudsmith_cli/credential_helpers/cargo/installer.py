@@ -12,7 +12,7 @@ at call time.  Installing therefore registers the
 provider globally — safe because the runtime answers ``url-not-supported`` for
 anything that is not a Cloudsmith registry, so Cargo falls through to the next
 provider — and additionally pins it on any already-configured registry whose
-index points at a known Cloudsmith Cargo host.
+index points at a known Cloudsmith Cargo host and that has no other provider.
 """
 
 from __future__ import annotations
@@ -90,8 +90,18 @@ class CargoInstaller:
     # config.toml mutation
     # ------------------------------------------------------------------
 
-    def _add_provider(self, config: dict, hosts: list[str]) -> None:
-        """Register the provider globally and on matching named registries."""
+    def _is_own_provider(self, value: object) -> bool:
+        """Return whether *value* names only this provider, in string or array form."""
+        return value in (self.PROVIDER_VALUE, [self.PROVIDER_VALUE])
+
+    def _add_provider(
+        self, config: dict, hosts: list[str]
+    ) -> tuple[list[str], dict[str, object]]:
+        """Register the provider globally and on matching named registries.
+
+        Return the names of the pinned registries, and the foreign provider of
+        each matching registry that the install does not change.
+        """
         registry = config.get("registry")
         if not isinstance(registry, dict):
             # tomlkit copies a plain dict into a new Table on assignment, so
@@ -113,8 +123,17 @@ class CargoInstaller:
 
         # A per-registry `credential-provider` shadows the global list, so pin
         # ours on any registry whose index is a known Cloudsmith Cargo host.
-        for _name, entry in self._cloudsmith_registries(config, hosts):
-            entry["credential-provider"] = self.PROVIDER_VALUE
+        # Keep a provider that the user set, because uninstall cannot restore it.
+        pinned: list[str] = []
+        kept: dict[str, object] = {}
+        for name, entry in self._cloudsmith_registries(config, hosts):
+            current = entry.get("credential-provider")
+            if current is None or self._is_own_provider(current):
+                entry["credential-provider"] = self.PROVIDER_VALUE
+                pinned.append(name)
+            else:
+                kept[name] = current
+        return pinned, kept
 
     def _remove_provider(self, config: dict) -> None:
         """Strip every trace of this provider from a parsed config."""
@@ -137,9 +156,8 @@ class CargoInstaller:
         registries = config.get("registries")
         if isinstance(registries, dict):
             for entry in registries.values():
-                if (
-                    isinstance(entry, dict)
-                    and entry.get("credential-provider") == self.PROVIDER_VALUE
+                if isinstance(entry, dict) and self._is_own_provider(
+                    entry.get("credential-provider")
                 ):
                     del entry["credential-provider"]
 
@@ -279,15 +297,15 @@ class CargoInstaller:
                 deduped.append(h)
         hosts = deduped
 
-        # Recorded for the action log: which named registries get pinned.
+        # Recorded for the action log: which named registries get pinned, and
+        # which keep a provider that the user set.
         pinned: list[str] = []
+        kept: dict[str, object] = {}
 
         def mutate(config: dict) -> None:
-            pinned.clear()
-            pinned.extend(
-                name for name, _ in self._cloudsmith_registries(config, hosts)
-            )
-            self._add_provider(config, hosts)
+            added, skipped = self._add_provider(config, hosts)
+            pinned[:] = added
+            kept.update(skipped)
 
         if dry_run:
             if os.name == "nt":
@@ -319,6 +337,11 @@ class CargoInstaller:
                     f"{self.PROVIDER_VALUE!r} already registered"
                     f" in {config_path} (no change)"
                 )
+            actions.extend(
+                f"WARNING: would not set registries.{name}.credential-provider"
+                f" in {config_path} because it is already set to {value!r}"
+                for name, value in kept.items()
+            )
             return actions
 
         # Real install
@@ -344,6 +367,11 @@ class CargoInstaller:
             )
         else:
             actions.append(f"config.toml already up to date ({config_path})")
+        actions.extend(
+            f"WARNING: did not set registries.{name}.credential-provider"
+            f" in {config_path} because it is already set to {value!r}"
+            for name, value in kept.items()
+        )
 
         if not is_on_path(target_dir):
             actions.append(
