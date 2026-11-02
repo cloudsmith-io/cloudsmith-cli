@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==84.1.0", "wheel==0.48.0"]
+requires = ["setuptools==84.2.1", "wheel==0.48.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -39,7 +39,7 @@ classifiers = [
 dependencies = [
     # The MCP server pins its TLS trust to certifi's bundle (see
     # core/mcp/server.py) rather than httpx2's OS-trust-store default.
-    "certifi>=2024.7.4",
+    "certifi>=2026.10.23",
     "click>=8.2,!=8.3.0",
     "click-configfile>=0.2.3",
     "click-didyoumean>=0.0.3",
@@ -96,14 +96,14 @@ dev = [
 ]
 binary = [
     "pyinstaller==6.22.3",
-    "pyinstaller-hooks-contrib==2026.8",
-    "setuptools==84.1.0",
+    "pyinstaller-hooks-contrib==2026.9",
+    "setuptools==84.2.1",
     "wheel==0.48.0",
 ]
 release = [
     "build==1.6.1",
     "check-wheel-contents==0.6.3",
-    "setuptools==84.1.0",
+    "setuptools==84.2.1",
     "twine==7.0.0",
     "wheel==0.48.0",
 ]
