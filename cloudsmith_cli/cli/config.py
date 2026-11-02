@@ -5,6 +5,7 @@ import configparser
 import locale
 import os
 import re
+import stat
 import threading
 from typing import ClassVar
 
@@ -157,7 +158,9 @@ class ConfigReader(ConfigFileReader):
         return os.path.join(filepath, filename)
 
     @classmethod
-    def create_default_file(cls, data=None, mode=None):
+    def create_default_file(
+        cls, data: dict[str, str | None] | None = None, mode: int | None = None
+    ) -> bool:
         """Create a config file and override data if specified."""
         filepath = cls.get_default_filepath()
         if not filepath:
@@ -180,11 +183,13 @@ class ConfigReader(ConfigFileReader):
         dirpath = os.path.dirname(filepath)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
-        with click.open_file(filepath, "w+") as f:
+        file_mode = 0o666 if mode is None else mode
+        with open(
+            filepath, "w+", opener=lambda path, flags: os.open(path, flags, file_mode)
+        ) as f:
             f.write(config)
-
-        if mode is not None:
-            os.chmod(filepath, mode)
+            if mode is not None and hasattr(os, "fchmod"):
+                os.fchmod(f.fileno(), mode)
 
         return True
 
@@ -408,25 +413,44 @@ class CredentialsReader(ConfigReader):
     @classmethod
     def _set_api_key(cls, path: str | os.PathLike[str], api_key: str = "") -> None:
         """Write api_key value in a credentials file, preserving structure."""
+        # Text mode reads CRLF as LF, so no "\r" reaches the pattern.
         with open(path, encoding=_get_file_encoding(path)) as f:
             content = f.read()
-        replacement = rf"\1 = {api_key}" if api_key else r"\1 ="
+        line = f"api_key = {api_key}" if api_key else "api_key ="
+        # "[ \t]" and not "\s": "\s" also matches a newline, so an empty
+        # key would consume the next lines and the next section header.
         content = re.sub(
-            r"^(api_key)\s*=\s*.*$",
-            replacement,
+            r"^api_key[ \t]*[=:].*$",
+            lambda _: line,
             content,
             flags=re.MULTILINE,
         )
-        with open(path, "w", encoding=_get_file_encoding(path)) as f:
+        if api_key:
+            # The CLI reads [default] when no profile is selected, so a new
+            # key must be saved there even when the file has no api_key line.
+            content = _set_section_value(content, "default", "api_key", api_key)
+        # "r+" keeps a read-only file unchanged. The mode changes through the open
+        # file, so it applies to the file that gets the key.
+        with open(path, "r+", encoding=_get_file_encoding(path)) as f:
+            # Restrict the mode before the write, so the new key is never readable
+            # under the old mode.
+            if hasattr(os, "fchmod"):
+                try:
+                    os.fchmod(f.fileno(), stat.S_IRUSR | stat.S_IWUSR)
+                except PermissionError:
+                    # Only the owner can change the mode. Another user's
+                    # group-shared file still takes the new key.
+                    pass
             f.write(content)
+            f.truncate()
 
     @classmethod
-    def clear_api_key(cls, path):
+    def clear_api_key(cls, path: str | os.PathLike[str]) -> None:
         """Clear api_key values in a credentials file, preserving structure."""
         cls._set_api_key(path)
 
     @classmethod
-    def update_api_key(cls, path, api_key):
+    def update_api_key(cls, path: str | os.PathLike[str], api_key: str) -> None:
         """Update api_key value in an existing credentials file, preserving structure."""
         cls._set_api_key(path, api_key)
 
