@@ -1,7 +1,13 @@
 import click
 import pytest
 
-from ..utils import confirm_operation, maybe_truncate_list, maybe_truncate_string
+from ...core.pagination import PageInfo
+from ..utils import (
+    confirm_operation,
+    maybe_truncate_list,
+    maybe_truncate_string,
+    pretty_print_list_info,
+)
 
 
 @pytest.mark.parametrize(
@@ -34,6 +40,30 @@ def test_maybe_truncate_string(data, max_length, expected_len):
 
     if expected_len > max_length:
         assert truncated[-4:-1] == "..."
+
+
+@pytest.mark.parametrize(
+    "num_results,headers",
+    [
+        (
+            0,
+            {
+                "X-Pagination-Count": "0",
+                "X-Pagination-Page": "1",
+                "X-Pagination-PageTotal": "1",
+                "X-Pagination-PageSize": "30",
+            },
+        ),
+        (2, {"X-Pagination-Page": "1", "X-Pagination-PageSize": "30"}),
+    ],
+    ids=["no-results", "invalid-page-info"],
+)
+def test_pretty_print_list_info_prints_only_the_count(capsys, num_results, headers):
+    pretty_print_list_info(
+        num_results, PageInfo.from_headers(headers), "repositories visible"
+    )
+
+    assert capsys.readouterr().out == f"Results: {num_results} repositories visible\n"
 
 
 class TestConfirmOperation:
