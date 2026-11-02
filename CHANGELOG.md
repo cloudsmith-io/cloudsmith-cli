@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper uninstall pnpm` now removes the `pnpm-credential-cloudsmith` launcher when the `.npmrc` file does not exist. Previously, it printed `.npmrc file doesn't exist, nothing to do` and did not remove the launcher. The command does not create the `.npmrc` file.
 - `cloudsmith credential-helper install` and `uninstall` no longer replace a Docker `config.json` or a Cargo `config.toml` that does not parse. Previously, the CLI read such a file as empty and wrote over it, so your settings were lost. Now the command stops with an error that names the file, and it does not write to the file. Correct or remove the file. Then run the command again.
 - `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make.
+- When the API host name or the proxy host name does not exist, for example because of a typo in `--api-host`, commands now fail immediately. Previously, they retried for approximately 62 seconds without output. The CLI still retries a DNS failure that the operating system reports as temporary.
+- When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
 
 ## [1.30.0] - 2026-10-22
 
