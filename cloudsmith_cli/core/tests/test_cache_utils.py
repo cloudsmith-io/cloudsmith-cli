@@ -5,9 +5,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 
-from cloudsmith_cli.core.cache_utils import atomic_write_json, merge_config_file
+import pytest
+
+from cloudsmith_cli.core.cache_utils import (
+    ConfigFileParseError,
+    atomic_write_json,
+    merge_config_file,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -271,36 +278,82 @@ class TestMergeJsonFileDryRun:
 
 
 class TestMergeJsonFileMalformedInput:
-    """Malformed file → treated as {}."""
+    """A file that does not parse → error, and the file stays as it was."""
 
-    def test_malformed_json_treated_as_empty(self, tmp_path):
+    @pytest.mark.parametrize(
+        "file_format,content",
+        [
+            ("json", '{"auths": {},}'),
+            ("json", "[1, 2, 3]"),
+            ("toml", "[registry]\nglobal-credential-providers = [\n"),
+        ],
+    )
+    def test_unparsable_file_raises_and_is_not_written(
+        self, tmp_path, file_format, content
+    ):
+        path = str(tmp_path / "config")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        with pytest.raises(ConfigFileParseError, match=re.escape(path)):
+            merge_config_file(path, _add_cred_helper("x"), format=file_format)
+
+        assert _read_text(path) == content
+        assert not os.path.exists(path + ".bak")
+
+    def test_undecodable_file_raises(self, tmp_path):
+        path = str(tmp_path / "config.json")
+        with open(path, "wb") as f:
+            f.write(b"\xff\xfe")
+
+        with pytest.raises(ConfigFileParseError, match=re.escape(path)):
+            merge_config_file(path, _add_cred_helper("x"))
+
+    def test_toml_with_utf8_bom_is_parsed(self, tmp_path):
+        path = str(tmp_path / "config.toml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\ufeff[build]\njobs = 4\n")
+
+        merge_config_file(path, _add_cred_helper("x"), format="toml")
+
+        assert "jobs = 4" in _read_text(path)
+
+    @pytest.mark.parametrize("content", ["", " \n"])
+    def test_empty_file_treated_as_empty_dict(self, tmp_path, content):
         path = str(tmp_path / "config.json")
         with open(path, "w", encoding="utf-8") as f:
-            f.write("not json")
-
-        changed = merge_config_file(path, _add_cred_helper("docker.cloudsmith.io"))
-        assert changed is True
-        result = _read_json(path)
-        assert result == {"credHelpers": {"docker.cloudsmith.io": "cloudsmith"}}
-
-    def test_empty_file_treated_as_empty_dict(self, tmp_path):
-        path = str(tmp_path / "config.json")
-        with open(path, "w", encoding="utf-8"):
-            pass  # touch / create empty file
+            f.write(content)
 
         merge_config_file(path, _add_cred_helper("x"))
         result = _read_json(path)
         assert "credHelpers" in result
 
-    def test_json_array_treated_as_empty_dict(self, tmp_path):
+
+class TestMergeJsonFileChangeDetection:
+    """Change detection compares the data, not the text."""
+
+    @pytest.mark.parametrize(
+        "original_text", ['{\n\t"credHelpers": {\n\t\t"x": "cloudsmith"\n\t}\n}', ""]
+    )
+    def test_unchanged_data_is_not_written(self, tmp_path, original_text):
         path = str(tmp_path / "config.json")
         with open(path, "w", encoding="utf-8") as f:
-            json.dump([1, 2, 3], f)
+            f.write(original_text)
 
-        merge_config_file(path, _add_cred_helper("x"))
-        result = _read_json(path)
-        assert isinstance(result, dict)
-        assert "credHelpers" in result
+        def remove_absent_helper(data: dict) -> None:
+            data.get("credHelpers", {}).pop("absent", None)
+
+        changed = merge_config_file(path, remove_absent_helper)
+
+        assert changed is False
+        assert _read_text(path) == original_text
+        assert not os.path.exists(path + ".bak")
+
+    def test_missing_file_is_not_created_when_data_unchanged(self, tmp_path):
+        path = str(tmp_path / "config.json")
+
+        assert merge_config_file(path, lambda data: None) is False
+        assert not os.path.exists(path)
 
 
 class TestMergeJsonFileStableSerialization:
