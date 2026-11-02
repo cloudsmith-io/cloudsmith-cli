@@ -1321,11 +1321,7 @@ def create_push_handlers():
                         # so reading it here always reflects this iteration.
                         results.append((res, opts.push_metadata_info))
                 except ApiException:
-                    click.secho(
-                        "Skipping error and moving on.",
-                        fg="yellow",
-                        err=utils.should_use_stderr(opts),
-                    )
+                    utils.echo_skipped_error(opts)
 
                 click.echo(err=utils.should_use_stderr(opts))
 

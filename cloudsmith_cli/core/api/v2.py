@@ -11,8 +11,6 @@ from ..credentials.models import CredentialResult
 from ..rest import RestClient
 from .exceptions import ApiException, catch_raise_api_exception
 
-REQUEST_TIMEOUT_SECONDS = 30
-
 
 class V2Client:
     """Small client for v2 endpoints not yet present in cloudsmith_api."""
@@ -56,14 +54,6 @@ def _is_same_origin(url, host):
     return (target.scheme, target.netloc) == (configured.scheme, configured.netloc)
 
 
-def _timeout(method):
-    # A retry after a read timeout sends the request again, so a POST gets
-    # only a connect timeout and cannot create a second entry.
-    if method.upper() == "POST":
-        return (REQUEST_TIMEOUT_SECONDS, None)
-    return REQUEST_TIMEOUT_SECONDS
-
-
 def request(client, method, *path_parts, query_params=None, body=None):
     """Send a request to the v2 endpoint that `path_parts` names."""
     url = _build_url(client.config, *path_parts)
@@ -82,7 +72,6 @@ def request_url(client, method, url, query_params=None, body=None):
             query_params=query_params,
             headers=_build_headers(client),
             body=body,
-            _request_timeout=_timeout(method),
         )
 
     ratelimits.maybe_rate_limit(client, response.getheaders())
