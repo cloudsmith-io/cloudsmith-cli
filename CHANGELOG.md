@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `skills` to `cloudsmith upstream`. Use `cloudsmith upstream skills list`, `create`, `update`, and `delete` to manage AI Skills upstreams. An AI Skills upstream caches skills and plugins from a GitHub repository.
+- Added `--changelog` to `cloudsmith push skills`. Use it to add release notes to an AI Skills package. The option is available only for the `skills` format.
+- Added `--compress-on-upload` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress-on-upload`, the command fails with a usage error. The option is available only for the `skills` format.
 
 ### Changed
 
