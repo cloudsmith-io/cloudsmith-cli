@@ -64,7 +64,7 @@ def create_config_files(
             reader=creds_reader,
             path=creds_path,
             present=has_creds,
-            mode=stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP,
+            mode=stat.S_IRUSR | stat.S_IWUSR,
             data={"api_key": api_key},
         ),
     )

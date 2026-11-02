@@ -5,14 +5,19 @@ import platform
 import sys
 from contextlib import contextmanager
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 import click
 from click_spinner import spinner
 
 from ..core import utils as core_utils
 from ..core.api.version import get_version as get_api_version
+from ..core.pagination import PageInfo
 from ..core.version import get_version as get_cli_version
 from .table import make_table
+
+if TYPE_CHECKING:
+    from .config import Options
 
 
 def make_user_agent(prefix=None):
@@ -21,13 +26,18 @@ def make_user_agent(prefix=None):
     return f"cloudsmith-cli/{prefix} cli:{get_cli_version()} api:{get_api_version()}"
 
 
-def pretty_print_list_info(num_results, page_info=None, suffix="", page_all=False):
+def pretty_print_list_info(
+    num_results: int,
+    page_info: PageInfo | None = None,
+    suffix: str = "",
+    page_all: bool = False,
+) -> None:
     """Print information about list results."""
     if page_all:
         click.echo(f"Results: {num_results} {suffix}")
-    elif page_info and page_info.page is not None and page_info.page_size is not None:
-        start = (page_info.page - 1) * page_info.page_size + 1
-        end = min(start + num_results - 1, page_info.count or 0)
+    elif page_info is not None and page_info.is_valid and num_results > 0:
+        start, end = page_info.calculate_range(num_results)
+        end = min(end, page_info.count)
         click.echo(
             f"Results: {start}-{end} ({num_results}) of {page_info.count} {suffix} "
             f"(page: {page_info.page}/{page_info.page_total}, page size: {page_info.page_size})"
@@ -253,6 +263,13 @@ def get_output_format(opts):
 def should_use_stderr(opts):
     """Keep the existing CLI utility available using the shared output rule."""
     return core_utils.should_use_stderr(opts)
+
+
+def echo_skipped_error(opts: "Options") -> None:
+    """Tell the user that --skip-errors ignored the API error printed above."""
+    click.secho(
+        "Skipping error and moving on.", fg="yellow", err=should_use_stderr(opts)
+    )
 
 
 def maybe_print_status_json(opts, status_dict):

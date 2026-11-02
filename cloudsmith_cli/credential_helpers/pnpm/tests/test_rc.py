@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+import builtins
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import IO
 
 import pytest
 
+from .. import rc as rc_module
 from ..rc import NPMRC, AuthKeyConflictError
 
 
@@ -1087,3 +1090,69 @@ class TestInstallingAndUninstallingWithRealWorldConfigs:
             assert "registry=https://registry.npmjs.org/" in lines
             assert "legacy-peer-deps=true" in lines
             assert "//cloudsmith.io/:tokenHelper=/path/helper" in lines
+
+
+class TestNPMRCEncoding:
+    """Tests that NPMRC reads and writes .npmrc as UTF-8, as npm and pnpm do."""
+
+    @pytest.mark.windows
+    def test_utf8_roundtrip_with_cp1252_locale(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-cp1252 text survives when the locale encoding is cp1252."""
+
+        def open_with_cp1252_default(
+            file: Path,
+            mode: str = "r",
+            *args: object,
+            encoding: str | None = None,
+            **kwargs: object,
+        ) -> IO[str]:
+            return builtins.open(
+                file, mode, *args, encoding=encoding or "cp1252", **kwargs
+            )
+
+        monkeypatch.setattr(rc_module, "open", open_with_cp1252_default, raising=False)
+        rc_path = tmp_path / ".npmrc"
+        rc_path.write_bytes("# Иван\n".encode())
+        helper = "C:\\Users\\Иван\\bin\\npm-credential-cloudsmith.cmd"
+
+        with NPMRC(rc_path, modifiable=True) as npmrc:
+            npmrc.add(
+                NPMRC.URLEntry.from_values("npm.cloudsmith.io", "tokenHelper", helper)
+            )
+
+        assert rc_path.read_text(encoding="utf-8").splitlines() == [
+            "# Иван",
+            f"//npm.cloudsmith.io/:tokenHelper={helper}",
+        ]
+
+    @pytest.mark.windows
+    def test_utf8_bom_does_not_hide_first_entry(self, tmp_path: Path) -> None:
+        """A BOM before the first line does not hide an _authToken entry."""
+        rc_path = tmp_path / ".npmrc"
+        rc_path.write_bytes(b"\xef\xbb\xbf//npm.cloudsmith.io/:_authToken=secret\n")
+
+        with (
+            NPMRC(rc_path, modifiable=True) as npmrc,
+            pytest.raises(AuthKeyConflictError),
+        ):
+            npmrc.add(
+                NPMRC.URLEntry.from_values("npm.cloudsmith.io", "tokenHelper", "helper")
+            )
+
+    @pytest.mark.windows
+    def test_non_utf8_bytes_are_kept(self, tmp_path: Path) -> None:
+        """Bytes that are not UTF-8, such as a cp1252 file, are written back unchanged."""
+        rc_path = tmp_path / ".npmrc"
+        rc_path.write_bytes(b"# Jos\xe9\n")
+
+        with NPMRC(rc_path, modifiable=True) as npmrc:
+            npmrc.add(
+                NPMRC.URLEntry.from_values("npm.cloudsmith.io", "tokenHelper", "helper")
+            )
+
+        assert rc_path.read_bytes().splitlines() == [
+            b"# Jos\xe9",
+            b"//npm.cloudsmith.io/:tokenHelper=helper",
+        ]
