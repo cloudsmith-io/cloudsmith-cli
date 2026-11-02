@@ -50,7 +50,7 @@ def create_config_files(ctx, opts, api_key, force=False):
         ConfigValues(
             reader=creds_reader,
             present=has_creds,
-            mode=stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP,
+            mode=stat.S_IRUSR | stat.S_IWUSR,
             data={"api_key": api_key},
         ),
     )

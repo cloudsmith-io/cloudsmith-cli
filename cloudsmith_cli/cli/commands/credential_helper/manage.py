@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import click
 
+from cloudsmith_cli.core.cache_utils import ConfigFileParseError
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
@@ -384,6 +385,7 @@ def install_cmd(
     try:
         actions = installer.install(**install_kwargs)
     except (
+        ConfigFileParseError,
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
@@ -489,7 +491,7 @@ def uninstall_cmd(
             dry_run=dry_run,
             **_helper_options(ctx, helper),
         )
-    except ProjectNotFound as exc:
+    except (ConfigFileParseError, ProjectNotFound) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
