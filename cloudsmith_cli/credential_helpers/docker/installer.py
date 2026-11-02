@@ -351,12 +351,12 @@ class DockerInstaller:
         """
         target_dir = resolve_bin_dir(bin_dir)
         config_path = _docker_config_path()
+        # A missing config has no entries. A merge would create an empty file.
+        config_exists: bool = config_path.exists()
         scope = (profile, workspace)
         helper = _helper_name(scope)
         launcher_name = _launcher_name(helper)
         _check_scope(_launcher_path(target_dir, helper), scope)
-        # A missing config has no entries. A merge would create an empty file.
-        config_exists: bool = config_path.exists()
 
         def mutate(config: dict[str, object]) -> None:
             helpers = config.get("credHelpers")
@@ -431,10 +431,12 @@ class DockerInstaller:
             try:
                 data = json.loads(config_path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    for host, helper in data.get("credHelpers", {}).items():
-                        if _is_cloudsmith_helper(helper):
-                            hosts_by_helper.setdefault(helper, []).append(host)
-            except (json.JSONDecodeError, OSError):
+                    cred_helpers = data.get("credHelpers", {})
+                    if isinstance(cred_helpers, dict):
+                        for host, helper in cred_helpers.items():
+                            if _is_cloudsmith_helper(helper):
+                                hosts_by_helper.setdefault(helper, []).append(host)
+            except (ValueError, OSError):
                 pass
 
         target_dir = resolve_bin_dir()

@@ -17,6 +17,7 @@ import pytest
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
+from ....cli.commands.credential_helper import credential_helper
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import (
     DockerInstaller,
@@ -845,6 +846,29 @@ def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
     assert not launcher.exists()
 
 
+@pytest.mark.parametrize(
+    ("dry_run", "expected_verb"),
+    [(False, "removed"), (True, "would remove")],
+)
+def test_pnpm_uninstall_removes_launcher_without_npmrc(
+    dry_run: bool, expected_verb: str, tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """uninstall removes the launcher and does not create .npmrc when .npmrc is missing."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+    npm_path.unlink()
+    launcher = bin_dir / "pnpm-credential-cloudsmith"
+
+    actions = installer.uninstall(bin_dir=str(bin_dir), dry_run=dry_run)
+
+    assert not npm_path.exists()
+    assert launcher.exists() == dry_run
+    assert f"{expected_verb} launcher {launcher}" in actions
+
+
 # ---------------------------------------------------------------------------
 # 9. DockerInstaller.status — str-not-Path guard
 # ---------------------------------------------------------------------------
@@ -924,6 +948,24 @@ def test_pnpm_installer_status_type_contract(tmp_path: Path, monkeypatch: Monkey
     )
     assert launcher.endswith("pnpm-credential-cloudsmith")
     assert not isinstance(launcher, Path)
+
+
+def test_pnpm_installer_status_lists_hosts_of_a_bin_dir_install(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """status() reports .npmrc hosts whose launcher is not in the default bin dir."""
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
+    bin_dir = tmp_path / "bin"
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(tmp_path / "custom-bin"))
+
+    with patch(
+        "cloudsmith_cli.credential_helpers.pnpm.installer.resolve_bin_dir",
+        return_value=bin_dir,
+    ):
+        result = installer.status()
+
+    assert result == {"launcher": None, "hosts": [PNPMInstaller.DEFAULT_HOST]}
 
 
 # ---------------------------------------------------------------------------
@@ -1490,6 +1532,37 @@ def test_docker_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
     assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
 
 
+@pytest.mark.parametrize(
+    "cmd_name,cli_args",
+    [
+        ("install_cmd", ["docker", "--no-discover"]),
+        ("uninstall_cmd", ["docker"]),
+    ],
+)
+def test_docker_unparsable_config_fails_without_write(
+    cmd_name, cli_args, runner, tmp_path, monkeypatch
+):
+    """install/uninstall exit non-zero, name the file, and do not write to it."""
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    config_path = docker_dir / "config.json"
+    original_text = '{"credsStore": "desktop",}'
+    config_path.write_text(original_text, encoding="utf-8")
+
+    from ....cli.commands.credential_helper import manage as manage_mod
+
+    result = runner.invoke(
+        getattr(manage_mod, cmd_name),
+        [*cli_args, "--bin-dir", str(tmp_path / "bin")],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert str(config_path) in result.output
+    assert config_path.read_text(encoding="utf-8") == original_text
+    assert not (docker_dir / "config.json.bak").exists()
+
+
 def test_pnpm_install_coerces_malformed_cred_helpers(tmp_path: Path, monkeypatch):
     """install coerces a non-dict credHelpers (list) rather than raising TypeError."""
     npm_path = tmp_path / ".npmrc"
@@ -1553,6 +1626,42 @@ def test_pnpm_uninstall_tolerates_malformed_cred_helpers(tmp_path: Path, monkeyp
         npm_path.read_text()
         == "badtext\n//registry.npmjs.org/:_authToken=abc123\nmorebadtext\n"
     )
+
+
+@pytest.mark.parametrize(
+    "helper,config_name,content",
+    [
+        ("docker", ".docker/config.json", b'{"credHelpers": ["x"]}'),
+        ("docker", ".docker/config.json", b"\xff\xfe"),
+        ("pnpm", ".npmrc", b"\xff\xfe"),
+        ("pnpm", ".npmrc", None),
+        ("terraform", ".terraformrc", b"\xff\xfe"),
+    ],
+)
+def test_list_shows_a_helper_with_a_bad_config_as_not_configured(
+    runner, tmp_path: Path, monkeypatch, helper: str, config_name: str, content
+):
+    """`list` reports no hosts for a bad config file and still lists every helper."""
+    from ....cli.commands.credential_helper.manage import _INSTALLERS, list_cmd
+
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(tmp_path / ".npmrc"))
+    monkeypatch.setenv("TF_CLI_CONFIG_FILE", str(tmp_path / ".terraformrc"))
+    monkeypatch.setenv("CARGO_HOME", str(tmp_path / ".cargo"))
+    config_path = tmp_path / config_name
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if content is None:
+        config_path.mkdir()
+    else:
+        config_path.write_bytes(content)
+
+    result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)["data"]
+    assert sorted(e["helper"] for e in data) == sorted(_INSTALLERS)
+    assert next(e for e in data if e["helper"] == helper)["hosts"] == []
 
 
 @pytest.mark.parametrize("char", [";", "#"])
@@ -1708,3 +1817,21 @@ def test_frozen_install_launcher_targets_executable(tmp_path, monkeypatch):
 
     body = (bin_dir / "docker-credential-cloudsmith").read_text(encoding="utf-8")
     assert f"exec '{exe}' credential-helper docker \"$@\"" in body
+
+
+@pytest.mark.parametrize(
+    "helper, summary",
+    [
+        ("cargo", "Cargo credential provider for Cloudsmith registries."),
+        ("docker", "Docker credential helper for Cloudsmith registries."),
+        ("generic", "Emit a Cloudsmith credential as JSON."),
+        ("pnpm", "pnpm credential helper for Cloudsmith registries."),
+        ("terraform", "Terraform credentials helper for Cloudsmith registries."),
+    ],
+)
+def test_group_help_shows_helper_summary(runner, helper: str, summary: str) -> None:
+    result = runner.invoke(credential_helper, ["--help"])
+
+    assert result.exit_code == 0
+    command_rows = [line.split(None, 1) for line in result.stdout.splitlines()]
+    assert [helper, summary] in command_rows

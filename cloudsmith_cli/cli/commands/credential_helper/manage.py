@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 import click
 from click.core import ParameterSource
 
+from cloudsmith_cli.core.cache_utils import ConfigFileParseError
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.launchers import UnsafeLauncherValue
@@ -377,6 +378,7 @@ def install_cmd(
     try:
         actions = installer.install(**install_kwargs)
     except (
+        ConfigFileParseError,
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
@@ -485,7 +487,7 @@ def uninstall_cmd(
         uninstall_kwargs["workspace"] = workspace
     try:
         actions = installer.uninstall(**uninstall_kwargs)
-    except HelperScopeConflict as exc:
+    except (ConfigFileParseError, HelperScopeConflict) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
