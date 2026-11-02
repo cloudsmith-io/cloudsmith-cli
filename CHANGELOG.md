@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - When the API or a proxy answers the SAML IdP request with an HTML page or a JSON value that is not an object, `cloudsmith auth` now shows "Failed to authenticate via SAML!" with the reason. Before this fix, the CLI stopped with a `JSONDecodeError` or an `AttributeError`. The 2FA code exchange and the SAML token refresh now also reject a response that is not a JSON object. The 2FA code exchange also rejects a response without an access token.
 - List commands that return no results now print `Results: 0 <items>`, not `Results: 1-0 (0) of 0 <items> (page: 1/1, ...)`. When the API response has no pagination headers, list commands print only the result count, not `of None`.
 - An API request no longer waits without a limit when the API host accepts the connection but does not reply. A request now fails when it cannot connect in 30 seconds, or when it gets no data for 90 seconds. The API CDN waits 60 seconds for the API, so the CLI does not stop a slow request before the CDN does. If a request fails, the CLI retries it up to 6 times by default (`--error-retry-max`). A POST request has only the 30-second connection timeout, because a retry after a read timeout can create a second entry. File uploads and downloads do not change.
+- `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1.
 
 ## [1.30.0] - 2026-10-22
 
