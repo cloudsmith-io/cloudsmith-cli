@@ -589,6 +589,29 @@ def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
     assert not launcher.exists()
 
 
+@pytest.mark.parametrize(
+    ("dry_run", "expected_verb"),
+    [(False, "removed"), (True, "would remove")],
+)
+def test_pnpm_uninstall_removes_launcher_without_npmrc(
+    dry_run: bool, expected_verb: str, tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """uninstall removes the launcher and does not create .npmrc when .npmrc is missing."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+    npm_path.unlink()
+    launcher = bin_dir / "pnpm-credential-cloudsmith"
+
+    actions = installer.uninstall(bin_dir=str(bin_dir), dry_run=dry_run)
+
+    assert not npm_path.exists()
+    assert launcher.exists() == dry_run
+    assert f"{expected_verb} launcher {launcher}" in actions
+
+
 # ---------------------------------------------------------------------------
 # 9. DockerInstaller.status — str-not-Path guard
 # ---------------------------------------------------------------------------
@@ -1248,6 +1271,37 @@ def test_docker_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
     cfg = json.loads((docker_dir / "config.json").read_text(encoding="utf-8"))
     assert isinstance(cfg["credHelpers"], dict)
     assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+
+@pytest.mark.parametrize(
+    "cmd_name,cli_args",
+    [
+        ("install_cmd", ["docker", "--no-discover"]),
+        ("uninstall_cmd", ["docker"]),
+    ],
+)
+def test_docker_unparsable_config_fails_without_write(
+    cmd_name, cli_args, runner, tmp_path, monkeypatch
+):
+    """install/uninstall exit non-zero, name the file, and do not write to it."""
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    config_path = docker_dir / "config.json"
+    original_text = '{"credsStore": "desktop",}'
+    config_path.write_text(original_text, encoding="utf-8")
+
+    from ....cli.commands.credential_helper import manage as manage_mod
+
+    result = runner.invoke(
+        getattr(manage_mod, cmd_name),
+        [*cli_args, "--bin-dir", str(tmp_path / "bin")],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert str(config_path) in result.output
+    assert config_path.read_text(encoding="utf-8") == original_text
+    assert not (docker_dir / "config.json.bak").exists()
 
 
 def test_pnpm_install_coerces_malformed_cred_helpers(tmp_path: Path, monkeypatch):
