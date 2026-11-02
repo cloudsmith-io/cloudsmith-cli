@@ -1,13 +1,14 @@
+import socket
 import ssl
 
 import httpretty
 import pytest
 import requests
 from cloudsmith_api.rest import ApiException
-from urllib3.exceptions import MaxRetryError, SSLError
+from urllib3.exceptions import MaxRetryError, NameResolutionError, ProxyError, SSLError
 
 from ..api.init import initialise_api
-from ..rest import RestClient
+from ..rest import READ_TIMEOUT_SECONDS, REQUEST_TIMEOUT_SECONDS, RestClient
 from ..session import create_requests_session
 
 
@@ -57,6 +58,61 @@ class TestRestClient:
 
         assert len(httpretty.latest_requests()) == 6
         assert r.status == 200
+
+    @staticmethod
+    def _sent_timeouts(monkeypatch, client):
+        timeouts = []
+        original_request = client.session.request
+
+        def _record_timeout(*args, **kwargs):
+            timeouts.append(kwargs.get("timeout"))
+            return original_request(*args, **kwargs)
+
+        monkeypatch.setattr(client.session, "request", _record_timeout)
+        return timeouts
+
+    @pytest.mark.parametrize(
+        "method, expected_timeout",
+        [
+            ("GET", (REQUEST_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)),
+            ("POST", (REQUEST_TIMEOUT_SECONDS, None)),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_sets_a_default_timeout(self, monkeypatch, method, expected_timeout):
+        """A stalled API does not block the CLI forever.
+
+        A POST gets no read timeout, because the retry after a read timeout
+        sends the POST again and can create a second entry.
+        """
+        initialise_api()
+        client = RestClient()
+        httpretty.register_uri(method, "https://test.site", body="{}")
+        timeouts = self._sent_timeouts(monkeypatch, client)
+
+        client.request(method, "https://test.site")
+
+        assert timeouts == [expected_timeout]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_keeps_an_explicit_timeout(self, monkeypatch):
+        initialise_api()
+        client = RestClient()
+        httpretty.register_uri("GET", "https://test.site", body="{}")
+        timeouts = self._sent_timeouts(monkeypatch, client)
+
+        client.request("GET", "https://test.site", _request_timeout=(5, 120))
+
+        assert timeouts == [(5, 120)]
+
+    def test_rejects_an_invalid_timeout(self):
+        initialise_api()
+        client = RestClient()
+
+        with pytest.raises(ApiException) as raised:
+            client.request("GET", "https://test.site", _request_timeout=(5, 10, 15))
+
+        assert raised.value.status == 0
 
     @httpretty.activate(allow_net_connect=False)
     def test_html_page_is_not_an_api_response(self):
@@ -189,13 +245,56 @@ class TestSSLVerifyStrict:
         assert "ssl_context" in self._pool_kwargs(session)
 
 
+@pytest.fixture
+def retry():
+    session = create_requests_session(retries=6)
+    return session.get_adapter("https://api.example.com/").max_retries
+
+
 class TestRetryOnSSLErrors:
-    def test_certificate_errors_are_not_retried(self):
-        session = create_requests_session(retries=6)
-        retry = session.get_adapter("https://api.example.com/").max_retries
+    def test_certificate_errors_are_not_retried(self, retry):
         error = SSLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
 
         with pytest.raises(MaxRetryError) as raised:
             retry.increment("GET", "/", error=error)
 
         assert raised.value.reason is error
+
+
+def name_resolution_error(reason):
+    """Return the ``NameResolutionError`` that urllib3 raises from ``reason``."""
+    error = NameResolutionError("api.example.com", None, reason)
+    error.__cause__ = reason
+    return error
+
+
+class TestRetryOnNameResolutionErrors:
+    @pytest.mark.parametrize("errno", [socket.EAI_NONAME, 11001])
+    def test_unknown_hosts_are_not_retried(self, retry, errno):
+        error = name_resolution_error(socket.gaierror(errno, "not known"))
+
+        with pytest.raises(MaxRetryError) as raised:
+            retry.increment("GET", "/", error=error)
+
+        assert raised.value.reason is error
+
+    def test_unknown_proxy_hosts_are_not_retried(self, retry):
+        reason = name_resolution_error(socket.gaierror(socket.EAI_NONAME, "not known"))
+        error = ProxyError("Unable to connect to proxy", reason)
+        error.__cause__ = reason
+
+        with pytest.raises(MaxRetryError) as raised:
+            retry.increment("GET", "/", error=error)
+
+        assert raised.value.reason is error
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            name_resolution_error(socket.gaierror(socket.EAI_AGAIN, "try again")),
+            NameResolutionError("api.example.com", None, None),
+        ],
+        ids=["temporary-failure", "no-gaierror"],
+    )
+    def test_other_name_resolution_errors_are_retried(self, retry, error):
+        assert retry.increment("GET", "/", error=error).total == 5

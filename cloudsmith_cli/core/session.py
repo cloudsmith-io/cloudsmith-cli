@@ -1,19 +1,30 @@
 """HTTP session creation with retry support."""
 
+import socket
 import ssl
 import sys
 import time
+from types import TracebackType
+from typing import Self
 
 import requests
 import urllib3
 from requests.adapters import HTTPAdapter
+from urllib3.connectionpool import ConnectionPool
 from urllib3.exceptions import MaxRetryError
+from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 from urllib3.util.ssl_ import create_urllib3_context
 
 from .certificate_errors import find_certificate_error
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+#: getaddrinfo() error codes for a host name that does not exist. Windows
+#: reports WSAHOST_NOT_FOUND (11001).
+UNKNOWN_HOST_ERRNOS = frozenset(
+    {socket.EAI_NONAME, getattr(socket, "EAI_NODATA", socket.EAI_NONAME), 11001}
+)
 
 _default_proxy = {"url": None}
 
@@ -46,6 +57,17 @@ class ApiKeySafeSession(requests.Session):
         return settings
 
 
+def _is_unknown_host_error(error: BaseException | None) -> bool:
+    """Return True when DNS reports that the host name does not exist."""
+    seen = set()
+    while error is not None and id(error) not in seen:
+        if isinstance(error, socket.gaierror):
+            return error.errno in UNKNOWN_HOST_ERRNOS
+        seen.add(id(error))
+        error = error.__cause__
+    return False
+
+
 class RetryWithCallback(Retry):
     """A urllib3 Retry with a callback on retries."""
 
@@ -59,15 +81,18 @@ class RetryWithCallback(Retry):
 
     def increment(
         self,
-        method=None,
-        url=None,
-        response=None,
-        error=None,
-        _pool=None,
-        _stacktrace=None,
-    ):
-        # A failed certificate check fails the same way on every attempt.
-        if error is not None and find_certificate_error(error) is not None:
+        method: str | None = None,
+        url: str | None = None,
+        response: BaseHTTPResponse | None = None,
+        error: Exception | None = None,
+        _pool: ConnectionPool | None = None,
+        _stacktrace: TracebackType | None = None,
+    ) -> Self:
+        # A failed certificate check or an unknown host fails the same way on
+        # every attempt.
+        if error is not None and (
+            find_certificate_error(error) is not None or _is_unknown_host_error(error)
+        ):
             raise MaxRetryError(_pool, url, error) from error
         return super().increment(method, url, response, error, _pool, _stacktrace)
 
