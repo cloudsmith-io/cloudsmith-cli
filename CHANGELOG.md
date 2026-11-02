@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - List commands that return no results now print `Results: 0 <items>`, not `Results: 1-0 (0) of 0 <items> (page: 1/1, ...)`. When the API response has no pagination headers, list commands print only the result count, not `of None`.
 - An API request no longer waits without a limit when the API host accepts the connection but does not reply. A request now fails when it cannot connect in 30 seconds, or when it gets no data for 90 seconds. The API CDN waits 60 seconds for the API, so the CLI does not stop a slow request before the CDN does. If a request fails, the CLI retries it up to 6 times by default (`--error-retry-max`). A POST request has only the 30-second connection timeout, because a retry after a read timeout can create a second entry. File uploads and downloads do not change.
 - `cloudsmith credential-helper install cargo` no longer replaces a `credential-provider` that you set on a Cloudsmith registry in `config.toml`. The install keeps your provider and shows a warning that names the registry. Previously, the install replaced your provider, and `uninstall cargo` then removed it.
+- `cloudsmith credential-helper uninstall pnpm` now removes the `pnpm-credential-cloudsmith` launcher when the `.npmrc` file does not exist. Previously, it printed `.npmrc file doesn't exist, nothing to do` and did not remove the launcher. The command does not create the `.npmrc` file.
 
 ## [1.30.0] - 2026-10-22
 
