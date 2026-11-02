@@ -20,7 +20,7 @@ NOTICE_TEXT = (
     "To opt out, set CLOUDSMITH_NO_TELEMETRY=1 or DO_NOT_TRACK=1, or add "
     "'telemetry = false' to config.ini. To see exactly what is sent, set "
     "CLOUDSMITH_TELEMETRY=log.\n"
-    "Learn more: https://docs.cloudsmith.com/developer-tools/cli\n"
+    "Learn more: https://docs.cloudsmith.com/developer-tools/cli-telemetry\n"
     "Nothing was sent for this command. This notice will not be shown again."
 )
 
