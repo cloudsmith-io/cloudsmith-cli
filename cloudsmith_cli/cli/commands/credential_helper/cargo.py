@@ -69,6 +69,7 @@ def cargo(opts, cargo_plugin, provider_args):  # pylint: disable=unused-argument
         $ echo '{"v":1,"kind":"get","operation":"read","registry":{"index-url":"sparse+https://cargo.cloudsmith.io/org/repo/"}}' \\
             | cloudsmith credential-helper cargo
 
+    \b
         # Called by Cargo via the launcher
         $ cargo-credential-cloudsmith --cargo-plugin
 
