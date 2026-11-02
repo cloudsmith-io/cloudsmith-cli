@@ -3,10 +3,11 @@ import ssl
 import httpretty
 import pytest
 import requests
+from cloudsmith_api.rest import ApiException
 from urllib3.exceptions import MaxRetryError, SSLError
 
 from ..api.init import initialise_api
-from ..rest import RestClient
+from ..rest import READ_TIMEOUT_SECONDS, REQUEST_TIMEOUT_SECONDS, RestClient
 from ..session import create_requests_session
 
 
@@ -56,6 +57,61 @@ class TestRestClient:
 
         assert len(httpretty.latest_requests()) == 6
         assert r.status == 200
+
+    @staticmethod
+    def _sent_timeouts(monkeypatch, client):
+        timeouts = []
+        original_request = client.session.request
+
+        def _record_timeout(*args, **kwargs):
+            timeouts.append(kwargs.get("timeout"))
+            return original_request(*args, **kwargs)
+
+        monkeypatch.setattr(client.session, "request", _record_timeout)
+        return timeouts
+
+    @pytest.mark.parametrize(
+        "method, expected_timeout",
+        [
+            ("GET", (REQUEST_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)),
+            ("POST", (REQUEST_TIMEOUT_SECONDS, None)),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_sets_a_default_timeout(self, monkeypatch, method, expected_timeout):
+        """A stalled API does not block the CLI forever.
+
+        A POST gets no read timeout, because the retry after a read timeout
+        sends the POST again and can create a second entry.
+        """
+        initialise_api()
+        client = RestClient()
+        httpretty.register_uri(method, "https://test.site", body="{}")
+        timeouts = self._sent_timeouts(monkeypatch, client)
+
+        client.request(method, "https://test.site")
+
+        assert timeouts == [expected_timeout]
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_keeps_an_explicit_timeout(self, monkeypatch):
+        initialise_api()
+        client = RestClient()
+        httpretty.register_uri("GET", "https://test.site", body="{}")
+        timeouts = self._sent_timeouts(monkeypatch, client)
+
+        client.request("GET", "https://test.site", _request_timeout=(5, 120))
+
+        assert timeouts == [(5, 120)]
+
+    def test_rejects_an_invalid_timeout(self):
+        initialise_api()
+        client = RestClient()
+
+        with pytest.raises(ApiException) as raised:
+            client.request("GET", "https://test.site", _request_timeout=(5, 10, 15))
+
+        assert raised.value.status == 0
 
 
 class TestCreateRequestsSession:
