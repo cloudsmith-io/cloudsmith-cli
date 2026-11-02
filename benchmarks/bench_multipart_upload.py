@@ -1,3 +1,4 @@
+# Copyright 2026 Cloudsmith Ltd
 """Measure traced heap while the multipart upload helper sends adjacent parts."""
 
 import json
