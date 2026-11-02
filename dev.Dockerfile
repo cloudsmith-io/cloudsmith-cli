@@ -1,10 +1,10 @@
-FROM astral/uv:0.13.4-alpine3.23@sha256:325c1a47db636422f3d1e6a935a0a9d0e6395031665e5baa033d1691ddc9c27e AS build
+FROM astral/uv:0.13.6-alpine3.23@sha256:95f501aef734a5aaf167ff0640e02f215dcc7043ff48685de70328e5c55a57b0 AS build
 
 WORKDIR /root/cloudsmith-cli
 
 RUN apk add --no-cache binutils
 
-ARG PYTHON_VERSION=3.14
+ARG PYTHON_VERSION=3.14.10
 
 # Install dependencies before copying the source, so the layer is reused until
 # pyproject.toml or uv.lock change.
@@ -22,7 +22,7 @@ ARG CLOUDSMITH_CLI_VERSION
 RUN uv sync --locked --no-dev --no-editable --group binary --extra all --python "${PYTHON_VERSION}"
 RUN uv run --no-sync pyinstaller --clean --noconfirm packaging/pyinstaller/cloudsmith.spec
 
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
 COPY --from=build /root/cloudsmith-cli/dist/cloudsmith /opt/cloudsmith
 
