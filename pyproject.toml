@@ -39,7 +39,7 @@ classifiers = [
 dependencies = [
     # The MCP server pins its TLS trust to certifi's bundle (see
     # core/mcp/server.py) rather than httpx2's OS-trust-store default.
-    "certifi>=2024.7.4",
+    "certifi>=2026.10.23",
     "click>=8.2,!=8.3.0",
     "click-configfile>=0.2.3",
     "click-didyoumean>=0.0.3",
