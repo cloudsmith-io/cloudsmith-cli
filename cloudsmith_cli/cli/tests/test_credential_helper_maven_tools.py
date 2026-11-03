@@ -428,6 +428,31 @@ def test_extension_with_namespaces_is_found_updated_and_removed():
     )
 
 
+@pytest.mark.parametrize(
+    "existing",
+    [
+        '<m:extensions xmlns:m="http://maven.apache.org/EXTENSIONS/1.0.0">\n'
+        "</m:extensions>\n",
+        '<m:extensions xmlns:m="http://maven.apache.org/EXTENSIONS/1.0.0"/>\n',
+    ],
+)
+def test_add_extension_uses_the_prefix_of_the_extensions_element(existing):
+    """The new extension is in the same namespace as the <extensions> element."""
+    text, changed = extensions.add_extension(existing, "0.2.0")
+
+    assert changed is True
+    assert text == (
+        '<m:extensions xmlns:m="http://maven.apache.org/EXTENSIONS/1.0.0">\n'
+        "  <m:extension>\n"
+        "    <m:groupId>io.cloudsmith</m:groupId>\n"
+        "    <m:artifactId>cloudsmith-maven-extension</m:artifactId>\n"
+        "    <m:version>0.2.0</m:version>\n"
+        "  </m:extension>\n"
+        "</m:extensions>\n"
+    )
+    assert extensions.has_extension(text)
+
+
 def test_a_self_closing_extension_is_not_the_start_of_a_block():
     """An empty <extension/> element does not join the next extension."""
     existing = f"<extensions>\n  <extension/>\n{OUR_EXTENSION}</extensions>\n"

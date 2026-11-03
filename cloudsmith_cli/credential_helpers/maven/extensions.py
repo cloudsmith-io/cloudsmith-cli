@@ -30,8 +30,8 @@ def _end_tag(name: str) -> str:
 _EXTENSION_BLOCK = re.compile(
     rf"{_start_tag('extension')}.*?{_end_tag('extension')}", re.DOTALL
 )
-_EMPTY_EXTENSIONS = re.compile(r"<extensions\b([^>]*?)\s*/>")
-_CLOSING_EXTENSIONS = re.compile(r"</extensions\s*>")
+_EMPTY_EXTENSIONS = re.compile(r"<((?:[\w.-]+:)?)extensions\b([^>]*?)\s*/>")
+_CLOSING_EXTENSIONS = re.compile(r"</((?:[\w.-]+:)?)extensions\s*>")
 _VERSION = re.compile(rf"{_start_tag('version')}([^<]*){_end_tag('version')}")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _GROUP_ID = re.compile(
@@ -46,13 +46,14 @@ class ExtensionsFileError(Exception):
     """The extensions.xml file has no <extensions> element to add to."""
 
 
-def _render(version: str) -> str:
+def _render(version: str, prefix: str = "") -> str:
+    """Return the extension element, with the namespace *prefix* of <extensions>."""
     return (
-        "  <extension>\n"
-        f"    <groupId>{GROUP_ID}</groupId>\n"
-        f"    <artifactId>{ARTIFACT_ID}</artifactId>\n"
-        f"    <version>{version}</version>\n"
-        "  </extension>\n"
+        f"  <{prefix}extension>\n"
+        f"    <{prefix}groupId>{GROUP_ID}</{prefix}groupId>\n"
+        f"    <{prefix}artifactId>{ARTIFACT_ID}</{prefix}artifactId>\n"
+        f"    <{prefix}version>{version}</{prefix}version>\n"
+        f"  </{prefix}extension>\n"
     )
 
 
@@ -100,12 +101,17 @@ def add_extension(text: str | None, version: str) -> tuple[str, bool]:
         return new_text, new_text != text
     empty = _EMPTY_EXTENSIONS.search(masked)
     if empty:
-        opened = f"<extensions{empty.group(1)}>\n{_render(version)}</extensions>"
+        prefix, attributes = empty.groups()
+        opened = (
+            f"<{prefix}extensions{attributes}>\n"
+            f"{_render(version, prefix)}</{prefix}extensions>"
+        )
         return text[: empty.start()] + opened + text[empty.end() :], True
     closing = _CLOSING_EXTENSIONS.search(masked)
     if closing is None:
         raise ExtensionsFileError("The file has no <extensions> element.")
-    return text[: closing.start()] + _render(version) + text[closing.start() :], True
+    rendered = _render(version, closing.group(1))
+    return text[: closing.start()] + rendered + text[closing.start() :], True
 
 
 def remove_extension(text: str) -> tuple[str | None, bool]:
