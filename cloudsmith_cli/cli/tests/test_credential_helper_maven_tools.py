@@ -1094,7 +1094,14 @@ def test_sbt_install_local_outside_a_project_fails(
 
 
 @pytest.mark.parametrize(
-    "build_file", ["main.sbt", "project/build.properties", "project/cloudsmith.sbt"]
+    "build_file",
+    [
+        "main.sbt",
+        "project/build.properties",
+        "project/cloudsmith.sbt",
+        "project/plugins.sbt",
+        "project/Build.scala",
+    ],
 )
 def test_sbt_finds_a_project_without_a_build_sbt(outside_projects, build_file):
     """sbt reads any .sbt file in the root and the project/ directory."""
