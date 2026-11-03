@@ -1,5 +1,7 @@
-"""Registered-command tests for ``cloudsmith push skills --changelog``."""
+"""Registered-command tests for ``cloudsmith push skills``."""
 
+import os
+import zipfile
 from unittest.mock import patch
 
 import pytest
@@ -81,3 +83,154 @@ def test_push_non_skills_format_has_no_changelog_option(runner):
 
     assert result.exit_code == 0, result.output
     assert "--changelog" not in result.output
+
+
+def test_directory_is_compressed_and_uploaded_with_compress_on_upload(runner, tmp_path):
+    skill_dir = tmp_path / "my-skill"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n")
+    (skill_dir / "scripts" / "run.sh").write_text("echo hi\n")
+
+    uploaded = {}
+
+    # The archive lives in a temp dir that is removed after the push, so
+    # inspect it while the upload is in flight.
+    def capture_upload(*args, filepath, **kwargs):
+        with zipfile.ZipFile(filepath) as archive:
+            uploaded["filename"] = os.path.basename(filepath)
+            uploaded["members"] = sorted(archive.namelist())
+        return "uploaded:my-skill.zip"
+
+    with (
+        patch(_MOCK_TARGETS[0]) as mock_validate_create_package,
+        patch(_MOCK_TARGETS[1], return_value="checksum"),
+        patch(_MOCK_TARGETS[2], side_effect=capture_upload),
+        patch(
+            _MOCK_TARGETS[3], return_value=("slug-perm", "slug")
+        ) as mock_create_package,
+        patch(_MOCK_TARGETS[4]),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "push",
+                "skills",
+                "example/repo",
+                str(skill_dir),
+                "--name",
+                "my-skill",
+                "--version",
+                "1.0.0",
+                "--compress-on-upload",
+                "--api-key",
+                "fake-api-key",
+            ],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    assert uploaded["filename"] == "my-skill.zip"
+    # Members are relative to the skill directory, not the absolute path
+    assert "SKILL.md" in uploaded["members"]
+    assert "scripts/run.sh" in uploaded["members"]
+
+    # The flag is client-side only and must not leak into the API payload
+    assert "compress_on_upload" not in mock_validate_create_package.call_args.kwargs
+    assert "compress_on_upload" not in mock_create_package.call_args.kwargs
+
+
+def test_directory_without_compress_on_upload_is_rejected(runner, tmp_path):
+    skill_dir = tmp_path / "my-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n")
+
+    with (
+        patch(_MOCK_TARGETS[0]),
+        patch(_MOCK_TARGETS[1]),
+        patch(_MOCK_TARGETS[2]) as mock_upload_file,
+        patch(_MOCK_TARGETS[3]) as mock_create_package,
+        patch(_MOCK_TARGETS[4]),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "push",
+                "skills",
+                "example/repo",
+                str(skill_dir),
+                "--name",
+                "my-skill",
+                "--version",
+                "1.0.0",
+                "--api-key",
+                "fake-api-key",
+            ],
+        )
+
+    assert result.exit_code == 2, result.output
+    assert "Directories require --compress-on-upload" in result.output
+    assert not mock_upload_file.called
+    assert not mock_create_package.called
+
+
+def test_file_with_compress_on_upload_is_uploaded_unchanged(runner, tmp_path):
+    package_file = tmp_path / "my-skill.zip"
+    package_file.write_bytes(b"dummy content")
+
+    with (
+        patch(_MOCK_TARGETS[0]),
+        patch(_MOCK_TARGETS[1], return_value="checksum"),
+        patch(
+            _MOCK_TARGETS[2], return_value="uploaded:my-skill.zip"
+        ) as mock_upload_file,
+        patch(_MOCK_TARGETS[3], return_value=("slug-perm", "slug")),
+        patch(_MOCK_TARGETS[4]),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "push",
+                "skills",
+                "example/repo",
+                str(package_file),
+                "--name",
+                "my-skill",
+                "--version",
+                "1.0.0",
+                "--compress-on-upload",
+                "--api-key",
+                "fake-api-key",
+            ],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    assert mock_upload_file.call_args.kwargs["filepath"] == str(package_file)
+
+
+def test_push_skills_help_documents_compress_on_upload_option(runner):
+    result = runner.invoke(main, ["push", "skills", "--help"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    assert "--compress-on-upload" in result.output
+
+
+def test_push_non_skills_format_rejects_directory(runner, tmp_path):
+    package_dir = tmp_path / "not-a-file"
+    package_dir.mkdir()
+
+    result = runner.invoke(
+        main,
+        [
+            "push",
+            "raw",
+            "example/repo",
+            str(package_dir),
+            "--api-key",
+            "fake-api-key",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "is a directory" in result.output
+    assert "--compress-on-upload" not in result.output
