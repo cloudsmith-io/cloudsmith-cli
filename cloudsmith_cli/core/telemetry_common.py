@@ -5,6 +5,7 @@ Keep this module's imports light (no ``requests``, ``ssl`` or ``urllib3``):
 it is imported on every command.
 """
 
+import enum
 import os
 import sys
 from urllib.parse import urlsplit
@@ -13,6 +14,71 @@ NO_TELEMETRY_ENV = "CLOUDSMITH_NO_TELEMETRY"
 DO_NOT_TRACK_ENV = "DO_NOT_TRACK"
 OPT_OUT_ENVS = (DO_NOT_TRACK_ENV, NO_TELEMETRY_ENV)
 _TRUTHY_ENV_VALUES = ("1", "true", "yes")
+
+#: ``CLOUDSMITH_TELEMETRY=log`` prints what would be sent (error reports and
+#: usage events) to stderr instead of sending it.
+MODE_ENV = "CLOUDSMITH_TELEMETRY"
+MODE_LOG = "log"
+
+
+def log_mode(env: "os._Environ[str] | dict[str, str] | None" = None) -> bool:
+    env = os.environ if env is None else env
+    return env.get(MODE_ENV, "").strip().lower() == MODE_LOG
+
+
+class Send(enum.Flag):
+    """What a command may send. ``ALL`` is the default for every command.
+
+    A command's policy only narrows what is sent: the user's opt-outs and
+    every other rule still apply on top of it.
+    """
+
+    NONE = 0
+    #: Sentry reports of unexpected exceptions.
+    ERRORS = enum.auto()
+    #: The end-of-run usage event.
+    USAGE = enum.auto()
+    ALL = ERRORS | USAGE
+
+
+_POLICY_ATTR = "__cloudsmith_telemetry__"
+
+
+def send(policy: Send):
+    """Set what a command (or a group and every command under it) may send.
+
+    Works above or below ``@<group>.command()``; below it, put it directly
+    under that line. The policy nearest the command that runs wins.
+    """
+    if not isinstance(policy, Send):
+        raise TypeError(f"send() takes a telemetry policy, not {policy!r}")
+
+    def mark(f):
+        target = getattr(f, "callback", None) or f
+        setattr(target, _POLICY_ATTR, policy)
+        return f
+
+    return mark
+
+
+def declared_policy(command) -> "Send | None":
+    """The policy set on a Click command or its callback, if any."""
+    for obj in (command, getattr(command, "callback", None)):
+        policy = getattr(obj, _POLICY_ATTR, None)
+        if isinstance(policy, Send):
+            return policy
+    return None
+
+
+def resolve_policy(ctx) -> Send:
+    """The policy nearest ``ctx``'s command, walking up to the root."""
+    while ctx is not None:
+        policy = declared_policy(getattr(ctx, "command", None))
+        if policy is not None:
+            return policy
+        ctx = getattr(ctx, "parent", None)
+    return Send.ALL
+
 
 PROFILE_ENV = "CLOUDSMITH_PROFILE"
 CONFIG_FILE_ENV = "CLOUDSMITH_CONFIG_FILE"
