@@ -328,6 +328,7 @@ You can specify the following configuration options:
 - `ssl_verify_strict`: Whether or not to apply strict X.509 certificate verification (`VERIFY_X509_STRICT`, enabled by default on Python 3.13+). Set to `false` (or use `--without-ssl-verify-strict` / `CLOUDSMITH_SSL_VERIFY_STRICT=0`) if a TLS-intercepting proxy issues certificates that fail these checks. `CLOUDSMITH_SSL_VERIFY_STRICT=1` keeps strict verification enabled (the default). Certificates are still verified.
 - `api_user_agent`: The user agent to use for requests.
 - `workspace`: The Cloudsmith Workspace slug. Use `-w`/`--workspace` or `CLOUDSMITH_WORKSPACE` to set it for one command. The config keys `org`, `organization`, and `oidc_org`, the flags `--org`, `--organization`, `--oidc-org`, `--owner`, and `-o`, and the environment variable `CLOUDSMITH_ORG` still work, but they are deprecated and will be removed in version 2.0.0; the CLI prints a warning when you use them.
+- `telemetry`: Set to `false` to turn off error reports and usage telemetry. See [Telemetry](#telemetry).
 
 ### Credentials (credentials.ini)
 
@@ -565,6 +566,25 @@ To downgrade failures to a warning (the package is still uploaded, and a copy-pa
    [default]
    metadata_failure_mode = warn
    ```
+
+
+## Telemetry
+
+The CLI sends two kinds of data to Cloudsmith, to help us fix errors and improve the CLI:
+
+- **Error reports** (Sentry): when a command fails with an unexpected error, the CLI sends the error and stack trace. It first removes credentials, email and IP addresses, user and machine names, and file paths.
+- **Usage telemetry** (PostHog, EU): after each command, the CLI sends one pseudonymous event. It contains the command name, the names of the options and environment variables that you set, how the command ended and how long it took, and your CLI, Python, and operating system versions. It never contains option or argument values, file names, credentials, or workspace, repository, or package names. The first interactive command shows a notice and sends nothing. PostHog deletes the events after 12 to 13 months.
+
+The CLI stores a random install ID for usage telemetry. Use `cloudsmith telemetry id` to see it, `cloudsmith telemetry reset` to replace it, and `cloudsmith telemetry status` to see whether usage telemetry is on.
+
+To see what the CLI would send, without sending it, set `CLOUDSMITH_TELEMETRY=log`.
+
+To turn off both kinds, do one of these:
+
+- Set `DO_NOT_TRACK=1` or `CLOUDSMITH_NO_TELEMETRY=1`.
+- Add `telemetry = false` to the `[default]` section or a `[profile:NAME]` section of `config.ini`.
+
+For more information, see [CLI telemetry](https://docs.cloudsmith.com/developer-tools/cli-telemetry).
 
 
 ## Contributing
