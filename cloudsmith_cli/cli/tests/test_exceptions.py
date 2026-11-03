@@ -120,6 +120,48 @@ def test_status_0_certificate_failure_renders_the_hint(runner, tmp_path):
     assert "Hint: The TLS certificate failed a strict X.509 check" in result.output
 
 
+class TestNonStringFieldErrors:
+    """Field errors can hold any JSON value, not only lists of strings."""
+
+    def test_text_output_renders_nested_field_errors(self, runner, tmp_path):
+        error = ApiException(
+            status=400,
+            detail="bad",
+            fields={"items": [{"name": ["required"], "price": ["invalid"]}]},
+        )
+
+        result = invoke_credentialed_401(runner, tmp_path, error=error)
+
+        assert "Items Field: name: required; price: invalid" in result.output
+
+    def test_text_output_renders_a_detail_object(self, runner, tmp_path):
+        error = ApiException(status=400, detail={"code": ["invalid"]})
+
+        result = invoke_credentialed_401(runner, tmp_path, error=error)
+
+        assert "Detail: code: invalid" in result.output
+
+    def test_json_output_renders_non_field_error_objects(self, runner, tmp_path):
+        error = ApiException(
+            status=400, detail="bad", fields={"non_field_errors": [{"code": 1}]}
+        )
+
+        result = invoke_credentialed_401(
+            runner, tmp_path, output_format="json", error=error
+        )
+
+        assert json.loads(result.stdout)["detail"] == "bad code: 1"
+
+    def test_json_output_renders_fields_that_are_not_an_object(self, runner, tmp_path):
+        error = ApiException(status=400, detail="bad", fields=["oops"])
+
+        result = invoke_credentialed_401(
+            runner, tmp_path, output_format="json", error=error
+        )
+
+        assert json.loads(result.stdout)["detail"] == "bad oops"
+
+
 class Opts:
     """The handful of attributes the renderer reads off opts."""
 

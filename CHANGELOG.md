@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make.
 - When the API host name or the proxy host name does not exist, for example because of a typo in `--api-host`, commands now fail immediately. Previously, they retried for approximately 62 seconds without output. The CLI still retries a DNS failure that the operating system reports as temporary.
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
+- The CLI now shows the API error when the field errors of the error contain objects, for example `{"non_field_errors": [{"code": 1}]}` or nested serializer errors. Previously, the CLI stopped with `TypeError: sequence item 0: expected str instance, dict found` and did not show the API error.
 
 ## [1.30.0] - 2026-10-22
 
