@@ -1,4 +1,5 @@
 # pylint: disable=too-many-lines
+import io
 import json
 import os
 import tempfile
@@ -8,12 +9,14 @@ from unittest.mock import ANY, MagicMock, patch
 
 import click
 import pytest
+from requests_toolbelt import MultipartEncoder, MultipartEncoderMonitor
 
 from ...core.api.exceptions import ApiException
 from ..commands.push import (
     _print_metadata_retry_hint,
     attach_metadata_to_package,
     resolve_push_metadata_options,
+    upload_file,
     upload_files_and_create_package,
     validate_metadata_payload,
     wait_for_package_sync,
@@ -1525,3 +1528,61 @@ def test_wait_for_package_sync_json_mode_prints_status_reason_on_failure(capsys)
     assert envelope["detail"] == status_reason
     assert envelope["meta"]["stage"] == "Parsing Package Metadata"
     assert envelope["meta"]["status"] == "Failed"
+
+
+def _push_single_part(tmp_path, failed_reads):
+    """Push a small file, and return the bar length and the progress per read."""
+    filepath = tmp_path / "package.raw"
+    filepath.write_bytes(b"payload" * 3000)
+    bars = []
+    progress = []
+    real_progressbar = click.progressbar
+
+    def quiet_progressbar(**kwargs):
+        bars.append(real_progressbar(file=io.StringIO(), **kwargs))
+        return bars[-1]
+
+    def fake_upload(upload_url, upload_fields, filepath, callback):
+        for reads_before_failure in (*failed_reads, None):
+            with open(filepath, "rb") as file_obj:
+                fields = [*upload_fields.items(), ("file", ("package.raw", file_obj))]
+                monitor = MultipartEncoderMonitor(MultipartEncoder(fields), callback)
+                while monitor.read(1024) and len(progress) != reads_before_failure:
+                    progress.append((monitor.bytes_read, monitor.len, bars[0].pos))
+
+    with (
+        patch(
+            "cloudsmith_cli.cli.commands.push.request_file_upload",
+            return_value=("id", "https://upload.example.invalid/", {"key": "value"}),
+        ),
+        patch(
+            "cloudsmith_cli.cli.commands.push.api_upload_file", side_effect=fake_upload
+        ),
+        patch("click.progressbar", quiet_progressbar),
+    ):
+        upload_file(
+            MagicMock(),
+            SimpleNamespace(output=None, debug=True),
+            "owner",
+            "repo",
+            str(filepath),
+            False,
+            "md5",
+        )
+
+    return bars[0].length, progress
+
+
+def test_single_part_progress_is_full_only_when_the_body_is_read(tmp_path):
+    length, progress = _push_single_part(tmp_path, failed_reads=())
+
+    for bytes_read, body_length, position in progress:
+        assert (position == length) == (bytes_read == body_length)
+
+
+def test_single_part_progress_does_not_go_back_on_a_retry(tmp_path):
+    length, progress = _push_single_part(tmp_path, failed_reads=(10,))
+    positions = [position for _, _, position in progress]
+
+    assert positions == sorted(positions)
+    assert positions[-1] == length
