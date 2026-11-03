@@ -203,6 +203,32 @@ def test_write_atomically_keeps_the_old_file_when_the_write_fails(
     assert [entry.name for entry in tmp_path.iterdir()] == [".mavenrc"]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no POSIX file modes.")
+def test_write_atomically_never_widens_the_mode_of_a_private_file(
+    tmp_path, monkeypatch
+):
+    """The temporary copy of a private file is never readable by other users."""
+    path = tmp_path / ".mavenrc"
+    path.write_bytes(b"export SECRET=1\n")
+    path.chmod(0o600)
+    modes_while_writing = []
+    write_bytes = Path.write_bytes
+
+    def record_mode_and_write(partial, data):
+        if partial.exists():
+            modes_while_writing.append(partial.stat().st_mode & 0o777)
+        else:
+            modes_while_writing.append(None)
+        return write_bytes(partial, data)
+
+    monkeypatch.setattr(Path, "write_bytes", record_mode_and_write)
+
+    maven_tools.write_atomically(path, b"export SECRET=2\n")
+
+    assert modes_while_writing == [0o600]
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Symbolic links need extra rights.")
 def test_write_atomically_keeps_a_symbolic_link_and_the_file_mode(tmp_path):
     """A dotfile that links to another file stays a link, with the same mode."""

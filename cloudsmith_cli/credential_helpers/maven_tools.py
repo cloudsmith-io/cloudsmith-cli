@@ -13,6 +13,7 @@ import contextlib
 import os
 import re
 import shutil
+import stat
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
 
@@ -69,7 +70,10 @@ def write_atomically(path: Path, data: bytes) -> None:
     # Write through a symbolic link, such as a dotfile, so that the link stays.
     target = path.resolve()
     partial = target.with_name(f"{target.name}.{os.getpid()}.part")
+    # Make the copy before the data goes in, never with a wider mode than the file.
+    mode = stat.S_IMODE(target.stat().st_mode) if target.exists() else 0o666
     try:
+        partial.touch(mode=mode, exist_ok=False)
         partial.write_bytes(data)
         if target.exists():
             shutil.copymode(target, partial)
