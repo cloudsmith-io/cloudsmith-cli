@@ -28,6 +28,8 @@ def render_block(jar: Path) -> str:
     """Return the block that adds *jar* to the Maven extension class path."""
     option = "-Dmaven.ext.class.path="
     after_last = "cloudsmith_after_class_path"
+    # The shell expands \ " $ and ` in double quotes, so the path escapes them.
+    jar_text = re.sub(r'([\\"$`])', r"\\\1", str(jar))
     return (
         f"{BEGIN}\n"
         "# Java uses only the last -D value, so add the JAR to that value.\n"
@@ -35,12 +37,12 @@ def render_block(jar: Path) -> str:
         f"  *{option}*)\n"
         f'    {after_last}="${{MAVEN_OPTS##*{option}}}"\n'
         f'    case "{os.pathsep}${{{after_last}%% *}}{os.pathsep}" in\n'
-        f'      *"{os.pathsep}{jar}{os.pathsep}"*) ;;\n'
-        f'      *) MAVEN_OPTS="${{MAVEN_OPTS%{option}*}}{option}{jar}{os.pathsep}'
+        f'      *"{os.pathsep}{jar_text}{os.pathsep}"*) ;;\n'
+        f'      *) MAVEN_OPTS="${{MAVEN_OPTS%{option}*}}{option}{jar_text}{os.pathsep}'
         f'${after_last}" ;;\n'
         "    esac\n"
         f"    unset {after_last} ;;\n"
-        f'  *) MAVEN_OPTS="$MAVEN_OPTS {option}{jar}" ;;\n'
+        f'  *) MAVEN_OPTS="$MAVEN_OPTS {option}{jar_text}" ;;\n'
         "esac\n"
         f"{END}\n"
     )

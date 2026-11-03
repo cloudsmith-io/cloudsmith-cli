@@ -456,9 +456,9 @@ def test_remove_block_without_a_block_changes_nothing():
     assert mavenrc.remove_block("export A=1\n") == ("export A=1\n", False)
 
 
-def _maven_opts_after_block(maven_opts: str) -> str:
+def _maven_opts_after_block(maven_opts: str, block: str = BLOCK) -> str:
     """Run the block in the shell that the mvn script uses, and return MAVEN_OPTS."""
-    script = f'MAVEN_OPTS="$1"\n{BLOCK}printf %s "$MAVEN_OPTS"\n'
+    script = f'MAVEN_OPTS="$1"\n{block}printf %s "$MAVEN_OPTS"\n'
     result = subprocess.run(
         ["sh", "-c", script, "sh", maven_opts],
         capture_output=True,
@@ -477,6 +477,19 @@ POSIX_SHELL_ONLY = pytest.mark.skipif(
 def test_block_adds_the_class_path_to_maven_opts():
     """Without a class path in MAVEN_OPTS, the block adds one with only the JAR."""
     assert _maven_opts_after_block("-Xmx1g") == f"-Xmx1g -Dmaven.ext.class.path={JAR}"
+
+
+@POSIX_SHELL_ONLY
+@pytest.mark.parametrize("maven_opts", ["", "-Dmaven.ext.class.path=/opt/other.jar"])
+def test_block_reads_shell_characters_in_the_jar_path_as_text(maven_opts):
+    """The shell does not expand or run the characters of the JAR path."""
+    jar = Path('/home/a$(id)`id`"d\\e/extension.jar')
+    block = mavenrc.render_block(jar)
+
+    once = _maven_opts_after_block(maven_opts, block)
+
+    assert f"-Dmaven.ext.class.path={jar}" in once
+    assert _maven_opts_after_block(once, block) == once
 
 
 @POSIX_SHELL_ONLY
