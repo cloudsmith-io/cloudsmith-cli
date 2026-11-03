@@ -27,6 +27,12 @@ def _utf8(stream, **kwargs):
     return stream
 
 
+def _resolve_credential(opts):
+    """Resolve the credential and keep it on *opts*, where telemetry redacts it."""
+    opts.credential = CredentialProviderChain().resolve(opts.credential_context)
+    return opts.credential
+
+
 @click.command(
     context_settings={"ignore_unknown_options": True, "allow_interspersed_args": False}
 )
@@ -43,7 +49,9 @@ def _utf8(stream, **kwargs):
 )
 @click.argument("nuget_args", nargs=-1, type=click.UNPROCESSED)
 @common_api_auth_options
-@initialise_api
+# NuGet gives the handshake a deadline, so a slow credential, such as an OIDC
+# exchange, resolves at the first credentials request.
+@initialise_api(defer_credentials=True)
 def nuget(opts, domains, no_discover, nuget_args):
     """
     NuGet credential provider for Cloudsmith feeds.
@@ -79,12 +87,9 @@ def nuget(opts, domains, no_discover, nuget_args):
         nuget_args,
         _utf8(sys.stdin, errors="replace"),
         protocol_stdout,
-        credential=opts.credential,
         api_host=opts.api_host,
         workspace=opts.org,
-        refresh_credential=lambda: CredentialProviderChain().resolve(
-            opts.credential_context
-        ),
+        refresh_credential=lambda: _resolve_credential(opts),
         domains=domains,
         discover=not no_discover,
     )

@@ -29,6 +29,7 @@ from ...credential_helpers.nuget.runtime import (
 from ..commands.credential_helper.manage import install_cmd, list_cmd
 from ..commands.credential_helper.nuget import nuget
 from ..commands.main import main
+from ..config import OPTIONS
 
 CLOUDSMITH_FEED = "https://nuget.cloudsmith.io/acme/repo/v3/index.json"
 CUSTOM_FEED = "https://nuget.acme.com/repo/v3/index.json"
@@ -404,17 +405,48 @@ def test_cli_writes_only_protocol_messages_to_stdout_with_debug(runner, extra_ar
     assert _responses(sent)["c"]["Payload"]["Password"] == "k_abc"
 
 
-def test_cli_retries_with_a_freshly_resolved_credential(runner):
+def test_cli_retries_with_a_freshly_resolved_credential(runner, credential):
     retry = _credentials_request()
+    retry["RequestId"] = "r"
     retry["Payload"]["IsRetry"] = True
     renewed = CredentialResult(api_key="k_renewed", source_name="test")
     with patch(
         "cloudsmith_cli.cli.commands.credential_helper.nuget.CredentialProviderChain"
     ) as chain:
-        chain.return_value.resolve.return_value = renewed
-        sent = _run_cli(runner, ["-k", "k_abc", "--", "-Plugin"], retry)
+        chain.return_value.resolve.side_effect = [credential, renewed]
+        sent = _run_cli(
+            runner, ["-k", "k_abc", "--", "-Plugin"], _credentials_request(), retry
+        )
 
-    assert _responses(sent)["c"]["Payload"]["Password"] == "k_renewed"
+    assert _responses(sent)["c"]["Payload"]["Password"] == "k_abc"
+    assert _responses(sent)["r"]["Payload"]["Password"] == "k_renewed"
+
+
+def test_cli_resolves_the_credential_at_the_first_credentials_request(runner):
+    """The handshake does not wait for a slow credential, such as an OIDC exchange."""
+    oidc = CredentialResult(api_key="k_oidc", source_name="test")
+    with (
+        patch("cloudsmith_cli.cli.decorators.CredentialProviderChain") as chain,
+        patch(
+            "cloudsmith_cli.cli.commands.credential_helper.nuget.CredentialProviderChain",
+            chain,
+        ),
+    ):
+        chain.return_value.resolve.return_value = oidc
+        _run_cli(runner, ["--", "-Plugin"], HANDSHAKE)
+        assert not chain.return_value.resolve.called
+
+        requests = (_credentials_request(), _credentials_request())
+        sent = _run_cli(runner, ["--", "-Plugin"], *requests)
+
+    assert chain.return_value.resolve.call_count == 1
+    assert _responses(sent)["c"]["Payload"]["Password"] == "k_oidc"
+
+
+def test_cli_keeps_the_resolved_credential_on_the_options(runner):
+    """Telemetry redacts ``opts.credential``, so the late credential goes there."""
+    _run_cli(runner, ["-k", "k_abc", "--", "-Plugin"], _credentials_request())
+    assert OPTIONS.value.credential.api_key == "k_abc"
 
 
 def test_cli_matches_explicit_domains(runner):

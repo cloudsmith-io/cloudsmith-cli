@@ -170,6 +170,7 @@ class PluginSession:
         self.api_host = api_host
         self.workspace = workspace
         self.refresh_credential = refresh_credential
+        self._credential_resolved = credential is not None
         self.domains = frozenset(extract_hostname(domain) for domain in domains)
         self.discover = discover
         self.refused = False
@@ -214,10 +215,14 @@ class PluginSession:
 
     def _handle_get_credentials(self, payload) -> dict:
         payload = payload if isinstance(payload, dict) else {}
-        if payload.get("IsRetry") and self.refresh_credential:
+        if self.refresh_credential and (
+            payload.get("IsRetry") or not self._credential_resolved
+        ):
+            # The first request resolves a credential that the caller did not give.
             # NuGet retries after the feed rejected the last credential, which
             # can have expired since the plugin started.
             self.credential = self.refresh_credential()
+            self._credential_resolved = True
         uri = payload.get("Uri")
         # A failed custom-domain lookup matches no host, so NuGet gets
         # NotFound and tries its other credential sources.
@@ -412,8 +417,9 @@ def execute(
         credential: Pre-resolved CredentialResult from the provider chain
         api_host: Cloudsmith API host URL
         workspace: Workspace slug whose custom domains to match against
-        refresh_credential: Callable that resolves the credential again when
-            NuGet retries a request
+        refresh_credential: Callable that resolves the credential at the
+            first request when *credential* is None, and again when NuGet
+            retries a request
         domains: Feed hosts that always match
         discover: When False, do not look up the Workspace's NuGet domains
 
