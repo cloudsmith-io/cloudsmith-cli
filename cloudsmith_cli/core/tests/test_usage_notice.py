@@ -13,10 +13,10 @@ def test_show_prints_to_stderr_only(usage_state_dir, capsys):
     assert notice.show() is True
     out, err = capsys.readouterr()
     assert out == ""
-    assert "usage data" in err and "CLOUDSMITH_NO_TELEMETRY" in err
-    # The notice names the install ID and how to see and reset it.
-    assert "install ID" in err
-    assert "cloudsmith telemetry id" in err and "cloudsmith telemetry reset" in err
+    assert "usage data" in err
+    # The details and the opt-outs live on the docs page; the notice links it.
+    assert "https://docs.cloudsmith.com/developer-tools/cli-telemetry" in err
+    assert "opt out" in err
     assert state.read()["notice_version"] == notice.NOTICE_VERSION
 
 
