@@ -182,6 +182,44 @@ def test_download_leaves_no_partial_file_when_the_write_fails(tmp_path, monkeypa
     assert list(tmp_path.iterdir()) == []
 
 
+def _write_half_and_fail(path, data):
+    with open(path, "wb") as partial_file:
+        partial_file.write(data[: len(data) // 2])
+    raise OSError(errno.ENOSPC, "No space left on device")
+
+
+def test_write_atomically_keeps_the_old_file_when_the_write_fails(
+    tmp_path, monkeypatch
+):
+    """A full disk does not leave a config file with only part of its text."""
+    path = tmp_path / ".mavenrc"
+    path.write_bytes(b"export A=1\n")
+    monkeypatch.setattr(Path, "write_bytes", _write_half_and_fail)
+
+    with pytest.raises(OSError, match="No space left"):
+        maven_tools.write_atomically(path, b"export A=1\nexport B=2\n")
+
+    assert path.read_bytes() == b"export A=1\n"
+    assert [entry.name for entry in tmp_path.iterdir()] == [".mavenrc"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Symbolic links need extra rights.")
+def test_write_atomically_keeps_a_symbolic_link_and_the_file_mode(tmp_path):
+    """A dotfile that links to another file stays a link, with the same mode."""
+    target = tmp_path / "dotfiles" / "mavenrc"
+    target.parent.mkdir()
+    target.write_bytes(b"export A=1\n")
+    target.chmod(0o600)
+    link = tmp_path / ".mavenrc"
+    link.symlink_to(target)
+
+    maven_tools.write_atomically(link, b"export B=2\n")
+
+    assert link.is_symlink()
+    assert target.read_bytes() == b"export B=2\n"
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
 # ---------------------------------------------------------------------------
 # 2. .mvn/extensions.xml
 # ---------------------------------------------------------------------------
@@ -441,6 +479,14 @@ def test_add_block_with_the_same_jar_changes_nothing():
 def test_remove_block_keeps_the_other_lines():
     """Only the block, and the blank line that install added before it, go."""
     assert mavenrc.remove_block(f"export A=1\n\n{BLOCK}export B=2\n") == (
+        "export A=1\nexport B=2\n",
+        True,
+    )
+
+
+def test_remove_block_keeps_the_lines_around_it_apart():
+    """Without a blank line before the block, the line before it keeps its newline."""
+    assert mavenrc.remove_block(f"export A=1\n{BLOCK}export B=2\n") == (
         "export A=1\nexport B=2\n",
         True,
     )

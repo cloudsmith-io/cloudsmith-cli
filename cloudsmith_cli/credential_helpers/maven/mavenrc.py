@@ -20,8 +20,10 @@ END = "# <<< cloudsmith credential-helper install maven <<<"
 
 _BLOCK_PATTERN = rf"^{re.escape(BEGIN)}\n.*?^{re.escape(END)}\n?"
 _BLOCK = re.compile(_BLOCK_PATTERN, re.DOTALL | re.MULTILINE)
-# Also matches the newline that add_block puts before the block.
-_BLOCK_WITH_SEPARATOR = re.compile(rf"\n?{_BLOCK_PATTERN}", re.DOTALL | re.MULTILINE)
+# Also matches the blank line that add_block puts before the block.
+_BLOCK_WITH_SEPARATOR = re.compile(
+    rf"(?:(?<=\n)\n)?{_BLOCK_PATTERN}", re.DOTALL | re.MULTILINE
+)
 
 
 def render_block(jar: Path) -> str:

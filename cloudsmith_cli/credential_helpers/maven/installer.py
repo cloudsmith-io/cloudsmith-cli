@@ -133,7 +133,7 @@ def _add(path: Path, edit: Callable, version: str, dry_run: bool) -> list[str]:
     if dry_run:
         return [f"would add version {version} to {path}"]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8", errors="surrogateescape")
+    maven_tools.write_atomically(path, text.encode("utf-8", "surrogateescape"))
     return [f"added version {version} to {path}"]
 
 
@@ -149,7 +149,7 @@ def _remove(path: Path, edit: Callable, dry_run: bool) -> list[str]:
     if text is None:
         path.unlink()
         return [f"removed {path}"]
-    path.write_text(text, encoding="utf-8", errors="surrogateescape")
+    maven_tools.write_atomically(path, text.encode("utf-8", "surrogateescape"))
     return [f"removed the extension from {path}"]
 
 

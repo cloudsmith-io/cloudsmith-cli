@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+import shutil
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
 
@@ -60,10 +61,19 @@ def download(
     content = _get(artifact_path, session)
     destination.parent.mkdir(parents=True, exist_ok=True)
     # Install skips a file that exists, so a failed write must not leave a partial file.
-    partial = destination.with_name(f"{destination.name}.{os.getpid()}.part")
+    write_atomically(destination, content)
+
+
+def write_atomically(path: Path, data: bytes) -> None:
+    """Write *data* to *path*, so that a failed write leaves the old file as it was."""
+    # Write through a symbolic link, such as a dotfile, so that the link stays.
+    target = path.resolve()
+    partial = target.with_name(f"{target.name}.{os.getpid()}.part")
     try:
-        partial.write_bytes(content)
-        partial.replace(destination)
+        partial.write_bytes(data)
+        if target.exists():
+            shutil.copymode(target, partial)
+        partial.replace(target)
     except OSError:
         partial.unlink(missing_ok=True)
         raise
@@ -125,7 +135,7 @@ class ConfigFileInstaller:
         if dry_run:
             return [f"would write {path} for version {version}"]
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        write_atomically(path, text.encode("utf-8"))
         return [f"wrote {path} for version {version}"]
 
     def uninstall(
