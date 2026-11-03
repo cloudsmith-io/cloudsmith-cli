@@ -32,12 +32,12 @@ def render_block(jar: Path) -> str:
     after_last = "cloudsmith_after_class_path"
     # The shell expands \ " $ and ` in double quotes, so the path escapes them.
     jar_text = re.sub(r'([\\"$`])', r"\\\1", str(jar))
-    # mvn splits MAVEN_OPTS at spaces, so an option starts after a space.
+    # mvn splits MAVEN_OPTS at spaces, tabs and new lines. The copy has only spaces.
     words = "cloudsmith_maven_opts"
     return (
         f"{BEGIN}\n"
         "# Java uses only the last -D value, so add the JAR to that value.\n"
-        f'{words}=" $MAVEN_OPTS"\n'
+        f"{words}=\" $(printf %s \"$MAVEN_OPTS\" | tr '\\t\\n' '  ')\"\n"
         f'case "${words}" in\n'
         f'  *" {option}"*)\n'
         f'    {after_last}="${{{words}##* {option}}}"\n'

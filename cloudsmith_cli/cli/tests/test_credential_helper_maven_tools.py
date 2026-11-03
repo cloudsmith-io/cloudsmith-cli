@@ -633,6 +633,17 @@ def test_block_ignores_the_class_path_option_inside_another_value():
 
 
 @POSIX_SHELL_ONLY
+@pytest.mark.parametrize("separator", ["\t", "\n"])
+def test_block_finds_the_class_path_after_a_tab_or_a_new_line(separator):
+    """mvn splits MAVEN_OPTS at tabs and new lines too."""
+    maven_opts = f"-Xmx1g{separator}-Dmaven.ext.class.path=/opt/other.jar"
+
+    assert _maven_opts_after_block(maven_opts) == (
+        f"-Xmx1g -Dmaven.ext.class.path={JAR}{os.pathsep}/opt/other.jar"
+    )
+
+
+@POSIX_SHELL_ONLY
 def test_block_keeps_the_other_extensions_in_the_class_path():
     """Java uses only the last -D value, so the block adds the JAR to that value."""
     maven_opts = "-Xmx1g -Dmaven.ext.class.path=/opt/other.jar -Dquiet=true"
