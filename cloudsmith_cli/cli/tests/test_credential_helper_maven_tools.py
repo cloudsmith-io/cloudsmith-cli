@@ -7,6 +7,8 @@ plugin, which gets its credential from `cloudsmith credential-helper generic`.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -318,11 +320,7 @@ def test_add_extension_finds_the_extension_with_spaces_in_its_tags():
 # ---------------------------------------------------------------------------
 
 JAR = Path("/home/me/.m2/repository/cloudsmith-maven-extension-0.2.0.jar")
-BLOCK = (
-    "# >>> cloudsmith credential-helper install maven >>>\n"
-    f'MAVEN_OPTS="$MAVEN_OPTS -Dmaven.ext.class.path={JAR}"\n'
-    "# <<< cloudsmith credential-helper install maven <<<\n"
-)
+BLOCK = mavenrc.render_block(JAR)
 
 
 def test_add_block_makes_a_new_file():
@@ -370,6 +368,47 @@ def test_remove_the_only_block_returns_no_text():
 def test_remove_block_without_a_block_changes_nothing():
     """A file without the block stays as it is."""
     assert mavenrc.remove_block("export A=1\n") == ("export A=1\n", False)
+
+
+def _maven_opts_after_block(maven_opts: str) -> str:
+    """Run the block in the shell that the mvn script uses, and return MAVEN_OPTS."""
+    script = f'MAVEN_OPTS="$1"\n{BLOCK}printf %s "$MAVEN_OPTS"\n'
+    result = subprocess.run(
+        ["sh", "-c", script, "sh", maven_opts],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout
+
+
+POSIX_SHELL_ONLY = pytest.mark.skipif(
+    os.name == "nt", reason="The mvn script that reads ~/.mavenrc is a POSIX script."
+)
+
+
+@POSIX_SHELL_ONLY
+def test_block_adds_the_class_path_to_maven_opts():
+    """Without a class path in MAVEN_OPTS, the block adds one with only the JAR."""
+    assert _maven_opts_after_block("-Xmx1g") == f"-Xmx1g -Dmaven.ext.class.path={JAR}"
+
+
+@POSIX_SHELL_ONLY
+def test_block_keeps_the_other_extensions_in_the_class_path():
+    """Java uses only the last -D value, so the block adds the JAR to that value."""
+    maven_opts = "-Xmx1g -Dmaven.ext.class.path=/opt/other.jar -Dquiet=true"
+
+    assert _maven_opts_after_block(maven_opts) == (
+        f"-Xmx1g -Dmaven.ext.class.path={JAR}{os.pathsep}/opt/other.jar -Dquiet=true"
+    )
+
+
+@POSIX_SHELL_ONLY
+def test_block_does_not_add_the_jar_twice():
+    """A nested mvn gets MAVEN_OPTS with the JAR, so the block leaves it as it is."""
+    maven_opts = f"-Dmaven.ext.class.path={JAR}{os.pathsep}/opt/other.jar"
+
+    assert _maven_opts_after_block(maven_opts) == maven_opts
 
 
 # ---------------------------------------------------------------------------

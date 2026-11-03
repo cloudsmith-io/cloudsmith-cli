@@ -8,6 +8,7 @@ reads. The functions change only the block, so the other lines stay as they are.
 
 from __future__ import annotations
 
+import os
 import re
 from typing import TYPE_CHECKING
 
@@ -25,7 +26,19 @@ _BLOCK_WITH_SEPARATOR = re.compile(rf"\n?{_BLOCK_PATTERN}", re.DOTALL | re.MULTI
 
 def render_block(jar: Path) -> str:
     """Return the block that adds *jar* to the Maven extension class path."""
-    return f'{BEGIN}\nMAVEN_OPTS="$MAVEN_OPTS -Dmaven.ext.class.path={jar}"\n{END}\n'
+    option = "-Dmaven.ext.class.path="
+    return (
+        f"{BEGIN}\n"
+        "# Java uses only the last -D value, so add the JAR to that value.\n"
+        'case "$MAVEN_OPTS" in\n'
+        f'  *"{jar}"*) ;;\n'
+        f"  *{option}*)\n"
+        f'    MAVEN_OPTS="${{MAVEN_OPTS%{option}*}}{option}{jar}{os.pathsep}'
+        f'${{MAVEN_OPTS##*{option}}}" ;;\n'
+        f'  *) MAVEN_OPTS="$MAVEN_OPTS {option}{jar}" ;;\n'
+        "esac\n"
+        f"{END}\n"
+    )
 
 
 def has_block(text: str) -> bool:
