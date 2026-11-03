@@ -137,6 +137,7 @@ class NuGetInstaller:
         The plugin is host-agnostic: NuGet sends it every feed URL, so
         ``hosts`` is a single marker when the launcher exists.
         """
+        # resolve_bin_dir() gives ~/.cloudsmith/bin, where `install` writes by default.
         launcher_path = self._launcher_path(resolve_bin_dir())
         if not launcher_path.exists():
             return {"launcher": None, "hosts": []}
