@@ -405,6 +405,39 @@ def _spaced_tags(extension: str) -> str:
     )
 
 
+NAMESPACED_EXTENSION = """  <m:extension xmlns:m="http://maven.apache.org/EXTENSIONS/1.0.0">
+    <m:groupId>io.cloudsmith</m:groupId>
+    <m:artifactId xml:space="default">cloudsmith-maven-extension</m:artifactId>
+    <m:version>0.1.0</m:version>
+  </m:extension>
+"""
+
+
+def test_extension_with_namespaces_is_found_updated_and_removed():
+    """A namespace prefix or attribute does not hide the Cloudsmith extension."""
+    existing = f"<extensions>\n{NAMESPACED_EXTENSION}{OTHER_EXTENSION}</extensions>\n"
+
+    updated, changed = extensions.add_extension(existing, "0.2.0")
+
+    assert extensions.has_extension(existing)
+    assert changed is True
+    assert updated == existing.replace("<m:version>0.1.0<", "<m:version>0.2.0<")
+    assert extensions.remove_extension(existing) == (
+        f"<extensions>\n{OTHER_EXTENSION}</extensions>\n",
+        True,
+    )
+
+
+def test_a_self_closing_extension_is_not_the_start_of_a_block():
+    """An empty <extension/> element does not join the next extension."""
+    existing = f"<extensions>\n  <extension/>\n{OUR_EXTENSION}</extensions>\n"
+
+    assert extensions.remove_extension(existing) == (
+        "<extensions>\n  <extension/>\n</extensions>\n",
+        True,
+    )
+
+
 def test_remove_extension_keeps_an_extension_with_spaces_in_its_tags():
     """XML allows spaces before the > of a tag, so the other extension still counts."""
     other = _spaced_tags(OTHER_EXTENSION)

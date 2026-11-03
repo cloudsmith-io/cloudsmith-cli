@@ -12,15 +12,33 @@ from xml.etree import ElementTree
 GROUP_ID = "io.cloudsmith"
 ARTIFACT_ID = "cloudsmith-maven-extension"
 
+
+def _start_tag(name: str) -> str:
+    """Return a pattern for the start tag *name*, with a namespace prefix or attributes.
+
+    The ``(?<!/)`` stops an empty ``<name/>`` element.
+    """
+    return rf"<(?:[\w.-]+:)?{name}(?:\s[^>]*)?(?<!/)>"
+
+
+def _end_tag(name: str) -> str:
+    """Return a pattern for the end tag *name*, with a namespace prefix."""
+    return rf"</(?:[\w.-]+:)?{name}\s*>"
+
+
 # XML allows spaces and new lines before the > of a tag.
-_EXTENSION_BLOCK = re.compile(r"<extension\s*>.*?</extension\s*>", re.DOTALL)
+_EXTENSION_BLOCK = re.compile(
+    rf"{_start_tag('extension')}.*?{_end_tag('extension')}", re.DOTALL
+)
 _EMPTY_EXTENSIONS = re.compile(r"<extensions\b([^>]*?)\s*/>")
 _CLOSING_EXTENSIONS = re.compile(r"</extensions\s*>")
-_VERSION = re.compile(r"<version\s*>([^<]*)</version\s*>")
+_VERSION = re.compile(rf"{_start_tag('version')}([^<]*){_end_tag('version')}")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-_GROUP_ID = re.compile(rf"<groupId\s*>\s*{re.escape(GROUP_ID)}\s*</groupId\s*>")
+_GROUP_ID = re.compile(
+    rf"{_start_tag('groupId')}\s*{re.escape(GROUP_ID)}\s*{_end_tag('groupId')}"
+)
 _ARTIFACT_ID = re.compile(
-    rf"<artifactId\s*>\s*{re.escape(ARTIFACT_ID)}\s*</artifactId\s*>"
+    rf"{_start_tag('artifactId')}\s*{re.escape(ARTIFACT_ID)}\s*{_end_tag('artifactId')}"
 )
 
 
