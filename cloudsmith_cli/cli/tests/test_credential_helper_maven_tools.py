@@ -404,6 +404,30 @@ def test_block_keeps_the_other_extensions_in_the_class_path():
 
 
 @POSIX_SHELL_ONLY
+@pytest.mark.parametrize(
+    ("maven_opts", "expected"),
+    [
+        (
+            f"-Dmaven.ext.class.path={JAR} -Dmaven.ext.class.path=/opt/other.jar",
+            f"-Dmaven.ext.class.path={JAR} "
+            f"-Dmaven.ext.class.path={JAR}{os.pathsep}/opt/other.jar",
+        ),
+        (
+            f"-Dmaven.ext.class.path=/opt/other.jar -Dnote={JAR}",
+            f"-Dmaven.ext.class.path={JAR}{os.pathsep}/opt/other.jar -Dnote={JAR}",
+        ),
+        (
+            f"-Dmaven.ext.class.path={JAR}.old",
+            f"-Dmaven.ext.class.path={JAR}{os.pathsep}{JAR}.old",
+        ),
+    ],
+)
+def test_block_looks_for_the_jar_only_in_the_last_class_path(maven_opts, expected):
+    """Java uses only the last -D value, so the JAR in other text does not count."""
+    assert _maven_opts_after_block(maven_opts) == expected
+
+
+@POSIX_SHELL_ONLY
 def test_block_does_not_add_the_jar_twice():
     """A nested mvn gets MAVEN_OPTS with the JAR, so the block leaves it as it is."""
     maven_opts = f"-Dmaven.ext.class.path={JAR}{os.pathsep}/opt/other.jar"
