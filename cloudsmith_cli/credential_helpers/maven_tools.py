@@ -92,7 +92,7 @@ class ConfigFileInstaller:
         """Return the text of *path*, or ``None`` when there is no file."""
         if not path.exists():
             return None
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8", errors="surrogateescape")
         if not self._written_by_install(text):
             raise ConfigFileConflict(
                 f"{path} has settings that `cloudsmith credential-helper install "

@@ -656,6 +656,20 @@ def test_maven_uninstall_removes_only_what_install_added(
     assert _local_extension_dir(home, "0.2.0").exists()
 
 
+def test_maven_install_and_uninstall_keep_a_mavenrc_that_is_not_utf_8(
+    home, fake_repository, outside_projects
+):
+    """The block is added and removed, and the other bytes stay as they are."""
+    original = b"# \xe9\nexport A=1\n"
+    (home / ".mavenrc").write_bytes(original)
+
+    MavenInstaller().install(mavenrc=True)
+    assert (home / ".mavenrc").read_bytes().startswith(original)
+
+    MavenInstaller().uninstall()
+    assert (home / ".mavenrc").read_bytes() == original
+
+
 def test_maven_uninstall_local_removes_the_extension_from_the_project(
     home, fake_repository, maven_project
 ):
@@ -755,6 +769,18 @@ def test_gradle_install_upgrades_an_init_script_that_it_wrote(home, fake_reposit
     GradleInstaller().install()
 
     assert script.read_text(encoding="utf-8") == GradleInstaller().render("0.2.0")
+
+
+def test_gradle_install_keeps_an_init_script_that_is_not_utf_8(home, fake_repository):
+    """A file that is not UTF-8 is not a file that install wrote."""
+    script = home / ".gradle" / "init.d" / "cloudsmith.init.gradle.kts"
+    script.parent.mkdir(parents=True)
+    script.write_bytes(b"// \xe9\n")
+
+    with pytest.raises(ConfigFileConflict):
+        GradleInstaller().install()
+
+    assert script.read_bytes() == b"// \xe9\n"
 
 
 def test_gradle_uninstall_keeps_an_init_script_with_other_settings(

@@ -67,7 +67,10 @@ def _version_dir(version: str) -> Path:
 
 
 def _read(path: Path) -> str | None:
-    return path.read_text(encoding="utf-8") if path.exists() else None
+    # Keep bytes that are not UTF-8, for example comments in ~/.mavenrc.
+    if not path.exists():
+        return None
+    return path.read_text(encoding="utf-8", errors="surrogateescape")
 
 
 def _maven_version() -> str | None:
@@ -130,7 +133,7 @@ def _add(path: Path, edit: Callable, version: str, dry_run: bool) -> list[str]:
     if dry_run:
         return [f"would add version {version} to {path}"]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", errors="surrogateescape")
     return [f"added version {version} to {path}"]
 
 
@@ -146,7 +149,7 @@ def _remove(path: Path, edit: Callable, dry_run: bool) -> list[str]:
     if text is None:
         path.unlink()
         return [f"removed {path}"]
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", errors="surrogateescape")
     return [f"removed the extension from {path}"]
 
 
