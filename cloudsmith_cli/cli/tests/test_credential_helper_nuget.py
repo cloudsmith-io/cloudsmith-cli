@@ -7,6 +7,7 @@ import io
 import json
 import os
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import click.testing
@@ -437,21 +438,20 @@ def test_installer_passes_explicit_domains_to_the_plugin(bin_dir):
     ) in (bin_dir / LAUNCHER).read_text()
 
 
-def test_list_command_reports_the_launcher(runner, bin_dir):
-    with patch(
-        "cloudsmith_cli.credential_helpers.nuget.installer.resolve_bin_dir",
-        return_value=bin_dir,
-    ):
-        before = runner.invoke(list_cmd, args=["-F", "json"], catch_exceptions=False)
-        NuGetInstaller().install(bin_dir=str(bin_dir))
-        after = runner.invoke(list_cmd, args=["-F", "json"], catch_exceptions=False)
+def test_list_command_reports_the_launcher(runner, bin_dir, monkeypatch):
+    """`list` finds the launcher where `install` puts it by default."""
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: bin_dir.parent))
+    before = runner.invoke(list_cmd, args=["-F", "json"], catch_exceptions=False)
+    runner.invoke(install_cmd, args=["nuget"], catch_exceptions=False)
+    after = runner.invoke(list_cmd, args=["-F", "json"], catch_exceptions=False)
 
     def nuget_entry(result):
         data = json.loads(result.stdout)["data"]
         return next(entry for entry in data if entry["helper"] == "nuget")
 
+    default_dir = bin_dir.parent / ".cloudsmith" / "bin"
     assert nuget_entry(before)["launcher"] is None
-    assert nuget_entry(after)["launcher"] == str(bin_dir / LAUNCHER)
+    assert nuget_entry(after)["launcher"] == str(default_dir / LAUNCHER)
     assert nuget_entry(after)["hosts"] == ["all Cloudsmith NuGet feeds (nuget-plugin)"]
 
 
