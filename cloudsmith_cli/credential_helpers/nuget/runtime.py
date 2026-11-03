@@ -240,7 +240,10 @@ class PluginSession:
             # The first request resolves a credential that the caller did not give.
             # NuGet retries after the feed rejected the last credential, which
             # can have expired since the plugin started.
-            self.credential = self.refresh_credential()
+            self.credential = self.refresh_credential(
+                # A plugin must not prompt unless NuGet allows it.
+                non_interactive=payload.get("IsNonInteractive", True)
+            )
             self._credential_resolved = True
         uri = payload.get("Uri")
         # A failed custom-domain lookup matches no host, so NuGet gets
@@ -453,7 +456,8 @@ def execute(
         workspace: Workspace slug whose custom domains to match against
         refresh_credential: Callable that resolves the credential at the
             first request when *credential* is None, and again when NuGet
-            retries a request
+            retries a request. It takes the request's ``IsNonInteractive``
+            value as ``non_interactive``.
         domains: Feed hosts that always match
         discover: When False, do not look up the Workspace's NuGet domains
 

@@ -951,6 +951,15 @@ class TestNonInteractivePasswordPrompt:
             assert store_oidc_token(*OIDC_ARGS, "token-data") is True
             assert get_oidc_token(*OIDC_ARGS) == "token-data"
 
+    def test_forbidden_prompts_skip_keyring_at_a_terminal(
+        self, tmp_path, mock_get_user
+    ):
+        """A caller that must not prompt, such as NuGet, stops a terminal prompt too."""
+        core_keyring.forbid_password_prompts()
+        backend = CryptFileKeyring()
+        with _keyring_session(backend, _keyring_env(tmp_path), has_terminal=True):
+            assert store_oidc_token(*OIDC_ARGS, "token-data") is False
+
     def test_wrong_key_reports_not_found(self, tmp_path, mock_get_user):
         _write_oidc_entry(CryptFileKeyring(), tmp_path)
         core_keyring.configure(KeyringSettings(key="wrong-password"))

@@ -16,6 +16,7 @@ import click.testing
 import cloudsmith_api
 import pytest
 
+from ...core import keyring as core_keyring
 from ...core.api.exceptions import ApiException
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.common import REFUSAL_MESSAGE
@@ -552,6 +553,23 @@ def test_cli_resolves_the_credential_at_the_first_credentials_request(runner):
 
     assert chain.return_value.resolve.call_count == 1
     assert _responses(sent)["c"]["Payload"]["Password"] == "k_oidc"
+
+
+@pytest.mark.parametrize("non_interactive", [True, False])
+def test_cli_passes_the_interaction_policy_to_the_keyring(runner, non_interactive):
+    """When NuGet forbids prompts, the keyring does not ask for its password."""
+    request = _credentials_request()
+    request["Payload"]["IsNonInteractive"] = non_interactive
+    no_prompt = []
+    with patch(
+        "cloudsmith_cli.cli.commands.credential_helper.nuget.CredentialProviderChain"
+    ) as chain:
+        chain.return_value.resolve.side_effect = lambda context: no_prompt.append(
+            core_keyring.current_settings().no_prompt
+        )
+        _run_cli(runner, ["--", "-Plugin"], request)
+
+    assert no_prompt == [non_interactive]
 
 
 def test_cli_keeps_the_resolved_credential_on_the_options(runner):

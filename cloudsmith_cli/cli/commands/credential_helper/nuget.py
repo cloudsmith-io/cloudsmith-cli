@@ -13,6 +13,7 @@ import sys
 
 import click
 
+from ....core import keyring
 from ....core.credentials.chain import CredentialProviderChain
 from ....credential_helpers.nuget import execute
 from ...decorators import common_api_auth_options, initialise_api
@@ -27,8 +28,10 @@ def _utf8(stream, **kwargs):
     return stream
 
 
-def _resolve_credential(opts):
+def _resolve_credential(opts, non_interactive):
     """Resolve the credential and keep it on *opts*, where telemetry redacts it."""
+    if non_interactive:
+        keyring.forbid_password_prompts()
     opts.credential = CredentialProviderChain().resolve(opts.credential_context)
     return opts.credential
 
@@ -89,7 +92,9 @@ def nuget(opts, domains, no_discover, nuget_args):
         protocol_stdout,
         api_host=opts.api_host,
         workspace=opts.org,
-        refresh_credential=lambda: _resolve_credential(opts),
+        refresh_credential=lambda non_interactive: _resolve_credential(
+            opts, non_interactive
+        ),
         domains=domains,
         discover=not no_discover,
     )
