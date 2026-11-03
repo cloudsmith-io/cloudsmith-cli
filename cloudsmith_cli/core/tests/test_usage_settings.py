@@ -3,9 +3,21 @@ import pytest
 from cloudsmith_cli.core.usage import settings
 
 
-def test_no_production_key_and_override_wins():
-    assert settings.POSTHOG_PROJECT_KEY == ""
-    assert settings.project_key({}) == ""
+def test_the_production_key_is_built_in():
+    # Read from the source: the autouse conftest guard blanks it at runtime.
+    import re
+
+    with open(settings.__file__, encoding="utf-8") as source:
+        match = re.search(
+            r'^POSTHOG_PROJECT_KEY = \(?\s*"([^"]*)"', source.read(), re.M
+        )
+    assert match and re.fullmatch(r"phc_[A-Za-z0-9]{40,50}", match.group(1))
+    assert settings.POSTHOG_HOST == "https://eu.i.posthog.com"
+
+
+def test_the_override_replaces_the_key(monkeypatch):
+    monkeypatch.setattr(settings, "POSTHOG_PROJECT_KEY", "phc_builtin")
+    assert settings.project_key({}) == "phc_builtin"
     assert settings.override_set({}) is False
     env = {settings.KEY_ENV: "phc_test", settings.HOST_ENV: "https://eu.i.posthog.com"}
     assert settings.project_key(env) == "phc_test"

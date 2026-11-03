@@ -1,8 +1,9 @@
 # Copyright 2026 Cloudsmith Ltd
 """Switches and endpoints for usage telemetry.
 
-There is no production project key yet: only the developer override
-(``CLOUDSMITH_TELEMETRY_POSTHOG_KEY``) can make the CLI send.
+Released builds send to the "CLI" PostHog EU project (336063). Development
+builds (source checkouts, editable installs) send nothing unless a developer
+sets ``CLOUDSMITH_TELEMETRY_POSTHOG_KEY``, which also replaces the key.
 """
 
 import os
@@ -11,7 +12,12 @@ import os
 from ..telemetry_common import MODE_ENV  # noqa: F401
 from ..telemetry_common import log_mode as _shared_log_mode
 
-POSTHOG_PROJECT_KEY = ""
+#: Project key of the dedicated "CLI" PostHog EU project (336063). Not a
+#: secret: a PostHog project key can only send events, and every client that
+#: reports to PostHog ships one (like the Sentry DSN in core/telemetry.py).
+POSTHOG_PROJECT_KEY = (
+    "phc_p989pbFFZ98a4eDbLc4yxAjSPWF8en2fjodbrhtMc2yY"  # gitleaks:allow
+)
 POSTHOG_HOST = "https://eu.i.posthog.com"
 
 KEY_ENV = "CLOUDSMITH_TELEMETRY_POSTHOG_KEY"
