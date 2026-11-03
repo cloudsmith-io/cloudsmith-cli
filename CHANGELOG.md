@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
+- Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
 
 ### Fixed
 
@@ -52,6 +53,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
 - `cloudsmith whoami --verbose` now shows a credential from OIDC auto-discovery as `Authentication Method: OIDC Auto-Discovery`, with its source, for example `OIDC via GitHub Actions (org: acme, service: ci-service)`. Since 1.26.0, it showed these credentials as `SAML Token (primary)` with no source. In the JSON output, `auth.active_method` is now `oidc` instead of `sso_token`, and the new `auth.oidc.source` field gives the source.
 - The source of a cached OIDC token now names the CI vendor, for example `OIDC via GitHub Actions [cached] (org: acme, service: ci-service)`. The OIDC token cache now stores the name of the vendor. A token that an earlier version cached still shows `OIDC [cached]` until it expires.
+- `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
 
 ## [1.30.0] - 2026-10-22
 
