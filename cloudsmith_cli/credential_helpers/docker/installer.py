@@ -90,8 +90,9 @@ def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
     if not launcher_path.exists():
         return
     env = parse_launcher_env(launcher_path.read_text(encoding="utf-8"))
-    installed = tuple(env.get(name) for name in _SCOPE_ENVVARS)
-    if installed != scope:
+    # An empty value gives the same helper name as no value.
+    installed = tuple(env.get(name) or None for name in _SCOPE_ENVVARS)
+    if installed != tuple(value or None for value in scope):
         flags = "".join(
             f" {flag} {_shell_quote(value)}"
             for flag, value in zip(_SCOPE_FLAGS, installed)

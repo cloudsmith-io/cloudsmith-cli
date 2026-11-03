@@ -602,6 +602,22 @@ def test_docker_reinstalls_a_launcher_with_a_line_break_in_a_setting(
     assert not list(bin_dir.iterdir())
 
 
+def test_docker_uninstall_removes_a_launcher_with_an_empty_profile(
+    tmp_path, monkeypatch
+):
+    """An empty CLOUDSMITH_PROFILE gives the helper of an install without a profile."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    installer = DockerInstaller()
+    installer.install(
+        bin_dir=str(bin_dir), discover=False, launcher_env={"CLOUDSMITH_PROFILE": ""}
+    )
+
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    assert not list(bin_dir.iterdir())
+
+
 def test_docker_conflict_command_removes_the_conflicting_launcher(
     runner, tmp_path, monkeypatch
 ):
