@@ -22,7 +22,7 @@ from ...credential_helpers.gradle.installer import GradleInstaller
 from ...credential_helpers.maven import extensions, mavenrc
 from ...credential_helpers.maven import installer as maven_installer
 from ...credential_helpers.maven.installer import MavenInstaller
-from ...credential_helpers.maven_tools import ProjectNotFound
+from ...credential_helpers.maven_tools import ConfigFileConflict, ProjectNotFound
 from ...credential_helpers.sbt.installer import SbtInstaller
 
 EXTENSION_PATH = "io/cloudsmith/cloudsmith-maven-extension"
@@ -650,6 +650,31 @@ def test_gradle_uninstall_and_status(home, fake_repository):
     assert GradleInstaller().status() == {"launcher": None, "hosts": []}
 
 
+def test_gradle_install_upgrades_an_init_script_that_it_wrote(home, fake_repository):
+    """An init script for an older version gets the new version."""
+    script = home / ".gradle" / "init.d" / "cloudsmith.init.gradle.kts"
+    script.parent.mkdir(parents=True)
+    script.write_text(GradleInstaller().render("0.1.0"), encoding="utf-8")
+
+    GradleInstaller().install()
+
+    assert script.read_text(encoding="utf-8") == GradleInstaller().render("0.2.0")
+
+
+def test_gradle_uninstall_keeps_an_init_script_with_other_settings(
+    home, fake_repository
+):
+    """Uninstall stops before it removes settings that install did not write."""
+    script = home / ".gradle" / "init.d" / "cloudsmith.init.gradle.kts"
+    script.parent.mkdir(parents=True)
+    script.write_text('println("hello")\n', encoding="utf-8")
+
+    with pytest.raises(ConfigFileConflict, match="did not write"):
+        GradleInstaller().uninstall()
+
+    assert script.read_text(encoding="utf-8") == 'println("hello")\n'
+
+
 # ---------------------------------------------------------------------------
 # 6. SbtInstaller
 # ---------------------------------------------------------------------------
@@ -695,6 +720,37 @@ def test_sbt_install_local_outside_a_project_fails(
         SbtInstaller().install(local=True)
 
     assert not (outside_projects / "project").exists()
+
+
+def test_sbt_install_keeps_a_plugin_file_with_other_settings(
+    home, fake_repository, outside_projects
+):
+    """Install stops before it replaces settings that it did not write."""
+    (outside_projects / "build.sbt").write_text("", encoding="utf-8")
+    plugin_file = outside_projects / "project" / "cloudsmith.sbt"
+    plugin_file.parent.mkdir()
+    other_plugin = 'addSbtPlugin("com.example" % "sbt-other" % "1.0.0")\n'
+    plugin_file.write_text(other_plugin, encoding="utf-8")
+
+    with pytest.raises(ConfigFileConflict, match="did not write"):
+        SbtInstaller().install(local=True)
+
+    assert plugin_file.read_text(encoding="utf-8") == other_plugin
+
+
+def test_sbt_install_keeps_lines_added_to_its_plugin_file(home, fake_repository):
+    """A line that the user adds to the file stops a later install and uninstall."""
+    plugin_file = home / ".sbt" / "1.0" / "plugins" / "cloudsmith.sbt"
+    plugin_file.parent.mkdir(parents=True)
+    edited = SbtInstaller().render("0.1.0") + 'addSbtPlugin("a" % "b" % "1")\n'
+    plugin_file.write_text(edited, encoding="utf-8")
+
+    with pytest.raises(ConfigFileConflict):
+        SbtInstaller().install()
+    with pytest.raises(ConfigFileConflict):
+        SbtInstaller().uninstall()
+
+    assert plugin_file.read_text(encoding="utf-8") == edited
 
 
 def test_sbt_uninstall_and_status(home, fake_repository):
@@ -758,6 +814,21 @@ def test_cli_install_maven_local_outside_a_project_fails_cleanly(
 
     assert result.exit_code != 0
     assert "pom.xml" in result.output
+
+
+@pytest.mark.parametrize("command_name", ["install", "uninstall"])
+def test_cli_with_a_config_file_that_install_did_not_write_fails_cleanly(
+    command_name, home, fake_repository, outside_projects
+):
+    """The error names the file, without a traceback."""
+    plugin_file = home / ".sbt" / "1.0" / "plugins" / "cloudsmith.sbt"
+    plugin_file.parent.mkdir(parents=True)
+    plugin_file.write_text("// my settings\n", encoding="utf-8")
+
+    result = _invoke(command_name, ["sbt"])
+
+    assert result.exit_code == 1
+    assert str(plugin_file) in result.output
 
 
 @pytest.mark.parametrize(

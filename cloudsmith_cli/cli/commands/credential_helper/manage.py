@@ -19,7 +19,10 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
 from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
 from cloudsmith_cli.credential_helpers.maven.installer import MavenInstaller
-from cloudsmith_cli.credential_helpers.maven_tools import ProjectNotFound
+from cloudsmith_cli.credential_helpers.maven_tools import (
+    ConfigFileConflict,
+    ProjectNotFound,
+)
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
@@ -391,6 +394,7 @@ def install_cmd(
         TerraformPluginDirError,
         ProjectNotFound,
         ExtensionsFileError,
+        ConfigFileConflict,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -491,7 +495,7 @@ def uninstall_cmd(
             dry_run=dry_run,
             **_helper_options(ctx, helper),
         )
-    except (ConfigFileParseError, ProjectNotFound) as exc:
+    except (ConfigFileParseError, ProjectNotFound, ConfigFileConflict) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(

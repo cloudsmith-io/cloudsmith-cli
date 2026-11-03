@@ -9,6 +9,7 @@ Cloudsmith repository.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
 
@@ -25,6 +26,10 @@ TIMEOUT_SECONDS = 30
 
 class ProjectNotFound(Exception):
     """The current directory is not the root directory of a project."""
+
+
+class ConfigFileConflict(Exception):
+    """The config file has content that the installer did not write."""
 
 
 def _get(artifact_path: str, session: requests.Session | None) -> bytes:
@@ -76,6 +81,25 @@ class ConfigFileInstaller:
         """Return the content of the config file for *version*."""
         raise NotImplementedError
 
+    def _written_by_install(self, text: str) -> bool:
+        placeholder = "\0"
+        template = self.render(placeholder)
+        before, after = (re.escape(part) for part in template.split(placeholder))
+        return re.fullmatch(rf"{before}[^\s\"]+{after}", text) is not None
+
+    def _read_own_file(self, path: Path) -> str | None:
+        """Return the text of *path*, or ``None`` when there is no file."""
+        if not path.exists():
+            return None
+        text = path.read_text(encoding="utf-8")
+        if not self._written_by_install(text):
+            raise ConfigFileConflict(
+                f"{path} has settings that `cloudsmith credential-helper install "
+                f"{self.name}` did not write. Move them to a different file, "
+                "and then run the command again."
+            )
+        return text
+
     def install(
         self,
         *,
@@ -87,7 +111,7 @@ class ConfigFileInstaller:
         path = self.local_path() if local else self.path()
         version = latest_version(self.artifact_path, session)
         text = self.render(version)
-        if path.exists() and path.read_text(encoding="utf-8") == text:
+        if self._read_own_file(path) == text:
             return [f"{path} already uses version {version} (no change)"]
         if dry_run:
             return [f"would write {path} for version {version}"]
@@ -99,7 +123,7 @@ class ConfigFileInstaller:
         self, *, dry_run: bool = False, local: bool = False, **_options
     ) -> list[str]:
         path = self.local_path() if local else self.path()
-        if not path.exists():
+        if self._read_own_file(path) is None:
             return [f"{path} not found (nothing to remove)"]
         if dry_run:
             return [f"would remove {path}"]
