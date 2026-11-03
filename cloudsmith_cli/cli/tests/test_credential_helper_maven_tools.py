@@ -7,6 +7,7 @@ plugin, which gets its credential from `cloudsmith credential-helper generic`.
 
 from __future__ import annotations
 
+import errno
 import os
 import subprocess
 from pathlib import Path
@@ -156,6 +157,29 @@ def test_download_writes_the_file(tmp_path):
     maven_tools.download(f"{EXTENSION_PATH}/0.2.0/extension.jar", destination)
 
     assert destination.read_bytes() == b"jar bytes"
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_download_leaves_no_partial_file_when_the_write_fails(tmp_path, monkeypatch):
+    """A later install finds no file, so it downloads the file again."""
+    httpretty.register_uri(
+        httpretty.GET,
+        f"{maven_tools.REPOSITORY_URL}{EXTENSION_PATH}/0.2.0/extension.jar",
+        body=b"jar bytes",
+    )
+
+    def write_half_and_fail(path, data):
+        with open(path, "wb") as partial_file:
+            partial_file.write(data[: len(data) // 2])
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(Path, "write_bytes", write_half_and_fail)
+    destination = tmp_path / "extension.jar"
+
+    with pytest.raises(OSError, match="No space left"):
+        maven_tools.download(f"{EXTENSION_PATH}/0.2.0/extension.jar", destination)
+
+    assert list(tmp_path.iterdir()) == []
 
 
 # ---------------------------------------------------------------------------

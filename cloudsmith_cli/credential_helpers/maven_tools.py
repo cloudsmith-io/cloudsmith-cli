@@ -10,6 +10,7 @@ Cloudsmith repository.
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
@@ -58,7 +59,14 @@ def download(
     """Download the file at *artifact_path* to *destination*."""
     content = _get(artifact_path, session)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(content)
+    # Install skips a file that exists, so a failed write must not leave a partial file.
+    partial = destination.with_name(f"{destination.name}.{os.getpid()}.part")
+    try:
+        partial.write_bytes(content)
+        partial.replace(destination)
+    except OSError:
+        partial.unlink(missing_ok=True)
+        raise
 
 
 class ConfigFileInstaller:
