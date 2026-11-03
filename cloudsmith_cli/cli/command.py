@@ -278,13 +278,30 @@ class AliasGroup(TrackingMixin, DYMGroup):
             from ..core import telemetry
 
             # Reporting is silent: the user sees the same line either way.
-            telemetry.report_exception(e)
+            if _errors_allowed():
+                telemetry.report_exception(e)
             click.echo(f"Error: {telemetry.format_exception_summary(e)}", err=True)
             _echo_certificate_hint(e)
             sys.exit(1)
         finally:
             _finish_usage(usage, started, nested=depth > 1)
             usage_capture.exit_run()
+
+
+def _errors_allowed():
+    """Whether the command's ``@telemetry.send`` policy allows error reports.
+
+    The contexts are still recorded here (they are cleared in ``finally``).
+    """
+    try:
+        from ..core.telemetry_common import Send
+        from . import usage_capture
+
+        return Send.ERRORS in usage_capture.current_policy()
+    except Exception:  # pylint: disable=broad-exception-caught
+        # A policy narrows reporting; if it cannot be read, fall back to the
+        # default (the user's opt-outs are still checked by the reporter).
+        return True
 
 
 def _finish_usage(usage, started, *, nested):

@@ -493,3 +493,78 @@ def test_python_m_exits_1_on_unexpected_exception(tmp_path, monkeypatch, capsys)
 
     assert exc_info.value.code == 1
     assert "Error: RuntimeError: boom" in capsys.readouterr().err
+
+
+# --- Per-command policy (@telemetry.send) and log mode ----------------------
+
+
+def _crashing_app():
+    from cloudsmith_cli.cli import telemetry as policy
+    from cloudsmith_cli.cli.command import AliasGroup
+
+    @click.group(cls=AliasGroup)
+    def app():
+        pass
+
+    def crash():
+        raise RuntimeError("boom")
+
+    for name, level in [
+        ("default", None),
+        ("errors", policy.ERRORS),
+        ("usage", policy.USAGE),
+        ("none", policy.NONE),
+    ]:
+        callback = crash if level is None else policy.send(level)(lambda: crash())
+        app.command(name=name)(callback)
+    return app
+
+
+@pytest.mark.parametrize(
+    "command, reported", [("default", 1), ("errors", 1), ("usage", 0), ("none", 0)]
+)
+def test_only_commands_whose_policy_has_errors_report(
+    runner, sentry_events, command, reported
+):
+    result = runner.invoke(_crashing_app(), [command])
+    # The user sees the same thing either way.
+    assert result.exit_code == 1
+    assert result.stderr.strip().endswith("Error: RuntimeError: boom")
+    assert len(sentry_events) == reported
+
+
+def test_log_mode_prints_the_scrubbed_report_and_sends_nothing(
+    runner, tmp_path, sentry_events, monkeypatch
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert sentry_events == []
+    assert "would send error report (log mode, nothing sent)" in result.stderr
+    printed = result.stderr.split("nothing sent):\n", 1)[1]
+    logged, _ = json.JSONDecoder().raw_decode(printed)
+    assert logged["tags"]["command"] == "whoami"
+    assert logged["exception"]["values"][-1]["type"] == "RuntimeError"
+    # Scrubbed exactly as a sent report would be.
+    assert API_KEY not in result.stderr
+
+
+def test_log_mode_prints_without_a_dsn(runner, tmp_path, sentry_events, monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    monkeypatch.setenv(telemetry.DSN_ENV, "")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+    assert "would send error report" in result.stderr
+
+
+def test_log_mode_still_honours_the_opt_out(
+    runner, tmp_path, sentry_events, monkeypatch
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+    assert "would send error report" not in result.stderr
+    assert sentry_events == []
