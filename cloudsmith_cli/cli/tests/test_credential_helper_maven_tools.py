@@ -684,6 +684,26 @@ def test_maven_status_names_the_file_that_loads_the_extension(
     }
 
 
+def test_maven_status_skips_a_file_that_cannot_be_decoded(home, outside_projects):
+    """A ~/.mavenrc that is not UTF-8 does not stop `credential-helper list`."""
+    (home / ".mavenrc").write_bytes(b"# \xe9\nexport A=1\n")
+
+    assert MavenInstaller().status() == {"launcher": None, "hosts": []}
+
+
+def test_maven_status_skips_a_file_that_cannot_be_read(
+    home, fake_repository, outside_projects
+):
+    """An unreadable candidate does not hide the next file that loads the extension."""
+    MavenInstaller().install(mavenrc=True)
+    _user_extensions(home).mkdir(parents=True)
+
+    assert MavenInstaller().status() == {
+        "launcher": str(home / ".mavenrc"),
+        "hosts": [],
+    }
+
+
 # ---------------------------------------------------------------------------
 # 5. GradleInstaller
 # ---------------------------------------------------------------------------

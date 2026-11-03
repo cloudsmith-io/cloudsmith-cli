@@ -229,7 +229,10 @@ class MavenInstaller:
             (_project_dir() / ".mvn" / "extensions.xml", extensions.has_extension),
         )
         for path, loads_extension in candidates:
-            current = _read(path)
+            try:
+                current = _read(path)
+            except (ValueError, OSError):
+                continue
             if current is not None and loads_extension(current):
                 return {"launcher": str(path), "hosts": []}
         return {"launcher": None, "hosts": []}
