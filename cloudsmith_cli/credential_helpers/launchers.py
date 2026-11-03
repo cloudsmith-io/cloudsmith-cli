@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import shlex
 import sys
+from itertools import pairwise
 from pathlib import Path
 
 
@@ -116,14 +117,18 @@ def _launcher_content(
 
 def parse_launcher_env(content: str) -> dict[str, str]:
     """Return the environment variables that a launcher body sets."""
+    if content.startswith("@echo off"):
+        settings = [
+            line[len('set "') : -1]
+            for line in content.splitlines()
+            if line.startswith('set "')
+        ]
+    else:
+        # A quoted value can hold a line break, so split the whole script.
+        words = shlex.split(content)
+        settings = [word for prev, word in pairwise(words) if prev == "export"]
     env = {}
-    for line in content.splitlines():
-        if line.startswith("export "):
-            setting = shlex.split(line)[1]
-        elif line.startswith('set "'):
-            setting = line[len('set "') : -1]
-        else:
-            continue
+    for setting in settings:
         name, _, value = setting.partition("=")
         env[name] = value
     return env

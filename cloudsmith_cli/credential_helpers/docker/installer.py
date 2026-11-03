@@ -91,6 +91,7 @@ def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
             f"{launcher_path} is the helper of an install with a different"
             " profile or Workspace. To remove it, run: cloudsmith"
             f" credential-helper uninstall docker{flags}"
+            f" --bin-dir {shlex.quote(str(launcher_path.parent))}"
         )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import stat
 import sys
 from pathlib import Path
@@ -477,6 +478,28 @@ def test_docker_install_scopes_the_helper_to_the_install_time_settings(
         ]
 
 
+def test_docker_launcher_keeps_the_resolved_tls_setting(runner, tmp_path, monkeypatch):
+    """-S overrides CLOUDSMITH_SSL_VERIFY=1, so the launcher turns verification off."""
+    from ....cli.commands.credential_helper.manage import install_cmd
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    bin_dir = tmp_path / "bin"
+
+    result = runner.invoke(
+        install_cmd,
+        ["docker", "--bin-dir", str(bin_dir), "--no-discover", "-S"],
+        env={"CLOUDSMITH_SSL_VERIFY": "1"},
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (bin_dir / "docker-credential-cloudsmith").read_text() == (
+        "#!/bin/sh\n"
+        "export CLOUDSMITH_SSL_VERIFY=false\n"
+        'exec cloudsmith credential-helper docker "$@"\n'
+    )
+
+
 def test_docker_dry_run_shows_the_scoped_launcher_and_its_settings(
     tmp_path, monkeypatch
 ):
@@ -544,7 +567,7 @@ def test_docker_refuses_the_helper_of_another_install(runner, tmp_path, monkeypa
     launcher = bin_dir / "docker-credential-cloudsmith-acme"
     content = launcher.read_text()
 
-    with pytest.raises(HelperScopeConflict, match="uninstall docker -P acme$"):
+    with pytest.raises(HelperScopeConflict, match="docker -P acme --bin-dir "):
         installer.install(
             bin_dir=str(bin_dir),
             discover=False,
@@ -557,6 +580,54 @@ def test_docker_refuses_the_helper_of_another_install(runner, tmp_path, monkeypa
     assert result.exit_code == 1
     assert "uninstall docker -P acme" in result.output
     assert launcher.read_text() == content
+
+
+def test_docker_reinstalls_a_launcher_with_a_line_break_in_a_setting(
+    tmp_path, monkeypatch
+):
+    """A quoted value in a Unix launcher can hold a line break."""
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    launcher_env = {
+        "CLOUDSMITH_CONFIG_FILE": str(tmp_path / "a\nb"),
+        "CLOUDSMITH_WORKSPACE": "acme",
+    }
+    installer = DockerInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False, launcher_env=launcher_env)
+
+    installer.install(bin_dir=str(bin_dir), discover=False, launcher_env=launcher_env)
+    installer.uninstall(bin_dir=str(bin_dir), workspace="acme")
+
+    assert not list(bin_dir.iterdir())
+
+
+def test_docker_conflict_command_removes_the_conflicting_launcher(
+    runner, tmp_path, monkeypatch
+):
+    """The command in the conflict message names the --bin-dir of the launcher."""
+    from ....cli.commands.main import main
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    installer = DockerInstaller()
+    installer.install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        launcher_env={"CLOUDSMITH_PROFILE": "acme"},
+    )
+    with pytest.raises(HelperScopeConflict) as conflict:
+        installer.install(
+            bin_dir=str(bin_dir),
+            discover=False,
+            launcher_env={"CLOUDSMITH_WORKSPACE": "acme"},
+        )
+
+    command = shlex.split(str(conflict.value).partition("run: ")[2])
+    result = runner.invoke(main, command[1:])
+
+    assert result.exit_code == 0, result.output
+    assert not list(bin_dir.iterdir())
 
 
 def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
