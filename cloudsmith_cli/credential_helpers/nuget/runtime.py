@@ -234,6 +234,13 @@ class PluginSession:
 
     def _handle_get_credentials(self, payload) -> dict:
         payload = payload if isinstance(payload, dict) else {}
+        uri = payload.get("Uri")
+        # Without discovery the host check needs no credential, so another
+        # provider's feed does not wait for one.
+        if not self.discover and not is_supported_source(
+            uri, domains=self.domains, discover=False
+        ):
+            return {"ResponseCode": "NotFound", "Message": _NOT_APPLICABLE_MESSAGE}
         if self.refresh_credential and (
             payload.get("IsRetry") or not self._credential_resolved
         ):
@@ -244,8 +251,8 @@ class PluginSession:
                 # A plugin must not prompt unless NuGet allows it.
                 non_interactive=payload.get("IsNonInteractive", True)
             )
-            self._credential_resolved = True
-        uri = payload.get("Uri")
+            # A failed resolution is not kept, so a later request tries again.
+            self._credential_resolved = self.credential is not None
         # A failed custom-domain lookup matches no host, so NuGet gets
         # NotFound and tries its other credential sources.
         if not is_supported_source(

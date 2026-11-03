@@ -10,7 +10,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import click.testing
 import cloudsmith_api
@@ -410,6 +410,33 @@ def test_plugin_ends_the_session_while_a_request_runs(credential, after, error, 
 
 
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_plugin_resolves_again_after_a_failed_resolution(credential):
+    """A first failure does not stay, so a later request can get the credential."""
+    resolve = Mock(side_effect=[None, credential])
+    session = PluginSession(io.StringIO(), io.StringIO(), refresh_credential=resolve)
+    payload = _credentials_request()["Payload"]
+
+    first = session.handle_request("GetAuthenticationCredentials", payload)
+    second = session.handle_request("GetAuthenticationCredentials", payload)
+
+    assert first["ResponseCode"] == "Error"
+    assert second["Password"] == "k_abc"
+
+
+def test_plugin_without_discovery_declines_a_feed_before_it_resolves(credential):
+    """The feed of another provider does not wait for a credential."""
+    resolve = Mock(return_value=credential)
+    session = PluginSession(
+        io.StringIO(), io.StringIO(), refresh_credential=resolve, discover=False
+    )
+    payload = _credentials_request(CUSTOM_FEED)["Payload"]
+
+    response = session.handle_request("GetAuthenticationCredentials", payload)
+
+    assert response["ResponseCode"] == "NotFound"
+    assert not resolve.called
+
+
 def test_plugin_faults_a_request_that_fails(credential):
     """A request that raises gets a Fault, so NuGet does not wait for it."""
     with patch(
