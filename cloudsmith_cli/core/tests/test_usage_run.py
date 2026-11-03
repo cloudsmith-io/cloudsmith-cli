@@ -21,17 +21,10 @@ def test_sends_one_event(usage_events, interactive):
     assert usage_events[0]["properties"]["command"] == "whoami"
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        "credential-helper docker",
-        "credential-helper terraform",
-        "mcp start",
-        "telemetry reset",
-    ],
-)
-def test_excluded_commands_send_nothing_and_touch_no_state(usage_events, command):
-    run.finish(facts(command=command))
+def test_a_command_without_usage_in_its_policy_sends_nothing_and_touches_no_state(
+    usage_events,
+):
+    run.finish(facts(usage_allowed=False))
     assert usage_events == [] and state.read() == {}
 
 
@@ -200,11 +193,6 @@ def test_config_file_opt_out_sends_nothing(
     assert usage_events == []
 
 
-def test_credential_helper_install_still_sends(usage_events, interactive):
-    run.finish(facts(command="credential-helper install"))
-    assert len(usage_events) == 1
-
-
 class _Loader:
     """A deferred-sources loader that records how often it ran."""
 
@@ -222,7 +210,7 @@ class _Loader:
 
 def test_excluded_command_never_loads_deferred_sources(usage_events):
     loader = _Loader({"workspace": "config_file"})
-    run.finish(facts(command="credential-helper docker", deferred_sources=loader))
+    run.finish(facts(usage_allowed=False, deferred_sources=loader))
     assert loader.calls == 0 and usage_events == []
 
 
@@ -426,7 +414,7 @@ def test_opting_back_in_creates_a_new_install_id(stored_id, usage_events, monkey
 
 def test_excluded_command_keeps_the_install_id_when_opted_out(stored_id, monkeypatch):
     monkeypatch.setenv("DO_NOT_TRACK", "1")
-    run.finish(facts(command="credential-helper docker"))
+    run.finish(facts(usage_allowed=False))
     assert state.read()["install_id"] == stored_id
 
 

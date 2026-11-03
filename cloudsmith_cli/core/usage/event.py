@@ -95,6 +95,9 @@ class RunFacts:
     stdout_tty: bool = False
     stdin_tty: bool = False
     nested: bool = False
+    #: False when the command's ``@telemetry.send`` policy leaves out USAGE;
+    #: the run sends nothing. Not an event property.
+    usage_allowed: bool = True
     #: A typed ``--config-file``/``--profile`` the command never loaded; the
     #: run sends nothing. Not an event property.
     config_unresolved: bool = False

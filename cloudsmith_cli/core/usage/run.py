@@ -1,8 +1,9 @@
 # Copyright 2026 Cloudsmith Ltd
 """Decide whether to send a usage event for this run, and send it.
 
-Checks run cheapest-first and stop at the first "no", so excluded commands
-(credential helpers on every pull) pay almost nothing. Never raises.
+Checks run cheapest-first and stop at the first "no", so commands that send
+no usage event (``@telemetry.send`` without USAGE, e.g. credential helpers
+on every pull) pay almost nothing. Never raises.
 """
 
 import functools
@@ -10,25 +11,7 @@ import random
 import time
 from datetime import UTC, datetime
 
-EXCLUDED_COMMANDS = frozenset({"mcp start"})
-#: Machine-invoked or telemetry-managing commands. ``install``,
-#: ``uninstall`` and ``list`` under credential-helper are run by people and
-#: do send.
-EXCLUDED_PREFIXES = (
-    "credential-helper cargo",
-    "credential-helper docker",
-    "credential-helper generic",
-    "credential-helper pnpm",
-    "credential-helper terraform",
-    "telemetry",
-)
 BACKOFF_SECONDS = 24 * 60 * 60
-
-
-def _excluded(command):
-    if command in EXCLUDED_COMMANDS:
-        return True
-    return any(command == p or command.startswith(p + " ") for p in EXCLUDED_PREFIXES)
 
 
 def _load_deferred_sources(facts):
@@ -89,10 +72,11 @@ def finish(facts):
 
 
 def _finish(facts):  # pylint: disable=too-many-return-statements,too-many-locals
-    if facts.nested or facts.config_unresolved or _excluded(facts.command):
+    if facts.nested or facts.config_unresolved or not facts.usage_allowed:
         return
 
-    # Imported late so an excluded command pays for none of these modules.
+    # Imported late so a command that sends no usage event pays for none of
+    # these modules.
     from .. import installation, telemetry_common, version
     from . import environment, event, identity, notice, sender, settings, state
 
