@@ -13,7 +13,6 @@ import logging
 import os
 import re
 import shlex
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -74,8 +73,12 @@ def _helper_name(scope: tuple[str | None, ...]) -> str:
 
 def _shell_quote(value: str) -> str:
     """Return *value* quoted as one argument for the shell of the user."""
-    # cmd.exe does not read single quotes as quotes.
-    return subprocess.list2cmdline([value]) if is_windows() else shlex.quote(value)
+    if not is_windows():
+        return shlex.quote(value)
+    # cmd.exe reads & | < > ^ as text only in double quotes. A backslash
+    # before the closing quote must be doubled, or it escapes the quote.
+    trailing_backslashes = "\\" * (len(value) - len(value.rstrip("\\")))
+    return f'"{value}{trailing_backslashes}"'
 
 
 def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:

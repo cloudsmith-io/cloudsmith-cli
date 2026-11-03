@@ -646,7 +646,25 @@ def test_docker_conflict_command_uses_windows_quoting(tmp_path, monkeypatch):
     with pytest.raises(HelperScopeConflict) as conflict:
         _check_scope(launcher, (None, "acme"))
 
-    assert str(conflict.value).endswith(f' -P acme --bin-dir "{bin_dir}"')
+    assert str(conflict.value).endswith(f' -P "acme" --bin-dir "{bin_dir}"')
+
+
+def test_docker_conflict_command_quotes_cmd_metacharacters(tmp_path, monkeypatch):
+    """cmd.exe splits a command at an & that is not in double quotes."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.docker.installer.is_windows", lambda: True
+    )
+    bin_dir = tmp_path / "bin&tools"
+    bin_dir.mkdir()
+    launcher = bin_dir / "docker-credential-cloudsmith-work-team.cmd"
+    launcher.write_text(
+        _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": "work&team"})
+    )
+
+    with pytest.raises(HelperScopeConflict) as conflict:
+        _check_scope(launcher, (None, "acme"))
+
+    assert str(conflict.value).endswith(f' -P "work&team" --bin-dir "{bin_dir}"')
 
 
 def test_docker_root_profile_flag_overrides_the_environment(
