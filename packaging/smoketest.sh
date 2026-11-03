@@ -165,10 +165,11 @@ run_offline() {
   echo "== credential-helper install docker (frozen launcher self-references binary) =="
   # A standalone binary is not guaranteed to be on PATH as `cloudsmith`, so the
   # frozen install must point the docker-credential launcher at the absolute
-  # executable. Prove it by running the launcher with an empty PATH: a bare
-  # `cloudsmith` lookup would fail, so reaching the CLI proves the self-reference.
+  # executable. Prove it by running the launcher with a shell-only PATH: env
+  # can find sh, but a bare `cloudsmith` lookup still fails.
   INSTALL_TMP="$(mktemp -d 2>/dev/null || echo /tmp/cloudsmith-credhelper-install)"
-  mkdir -p "$INSTALL_TMP/bin" "$INSTALL_TMP/docker"
+  mkdir -p "$INSTALL_TMP/bin" "$INSTALL_TMP/docker" "$INSTALL_TMP/path"
+  ln -s "$(command -v sh)" "$INSTALL_TMP/path/sh"
   OUT=$( (
     unset CLOUDSMITH_API_KEY CLOUDSMITH_API_TOKEN 2>/dev/null
     DOCKER_CONFIG="$INSTALL_TMP/docker" \
@@ -190,7 +191,7 @@ run_offline() {
       [ -f "$LAUNCHER" ] || fail "install did not write a launcher; got: $OUT"
       LOUT=$( (
         unset CLOUDSMITH_API_KEY CLOUDSMITH_API_TOKEN 2>/dev/null
-        printf 'docker.cloudsmith.io' | PATH= \
+        printf 'docker.cloudsmith.io' | PATH="$INSTALL_TMP/path" \
           CLOUDSMITH_OIDC_DISCOVERY_DISABLED=true \
           PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring \
           "$LAUNCHER" 2>&1
