@@ -184,6 +184,17 @@ def test_add_extension_keeps_other_extensions():
     )
 
 
+@pytest.mark.parametrize("closing_tag", ["</extensions >", "</extensions\n>"])
+def test_add_extension_finds_a_closing_tag_with_spaces(closing_tag):
+    """XML allows spaces before the > of the closing tag."""
+    existing = f"<extensions>\n{OTHER_EXTENSION}{closing_tag}\n"
+
+    assert extensions.add_extension(existing, "0.1.0") == (
+        f"<extensions>\n{OTHER_EXTENSION}{OUR_EXTENSION}{closing_tag}\n",
+        True,
+    )
+
+
 def test_add_extension_to_an_empty_element():
     """A self-closing <extensions/> element is opened to hold the extension."""
     text, changed = extensions.add_extension("<extensions/>\n", "0.1.0")

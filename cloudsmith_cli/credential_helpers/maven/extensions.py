@@ -17,6 +17,7 @@ _EXTENSION_BLOCK = re.compile(
     r"[ \t]*<extension\s*>.*?</extension\s*>[ \t]*\n?", re.DOTALL
 )
 _EMPTY_EXTENSIONS = re.compile(r"<extensions\b([^>]*?)\s*/>")
+_CLOSING_EXTENSIONS = re.compile(r"</extensions\s*>")
 _VERSION = re.compile(r"<version\s*>([^<]*)</version\s*>")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _GROUP_ID = re.compile(rf"<groupId\s*>\s*{re.escape(GROUP_ID)}\s*</groupId\s*>")
@@ -84,10 +85,10 @@ def add_extension(text: str | None, version: str) -> tuple[str, bool]:
     if empty:
         opened = f"<extensions{empty.group(1)}>\n{_render(version)}</extensions>"
         return text[: empty.start()] + opened + text[empty.end() :], True
-    closing = masked.rfind("</extensions>")
-    if closing == -1:
+    closing = _CLOSING_EXTENSIONS.search(masked)
+    if closing is None:
         raise ExtensionsFileError("The file has no <extensions> element.")
-    return text[:closing] + _render(version) + text[closing:], True
+    return text[: closing.start()] + _render(version) + text[closing.start() :], True
 
 
 def remove_extension(text: str) -> tuple[str | None, bool]:
