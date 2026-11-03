@@ -29,10 +29,49 @@ def _launcher_filename(name: str, *, windows: bool) -> str:
     return f"{name}.cmd" if windows else name
 
 
-def launcher_arg(value: str) -> str:
+# A batch file expands % even inside quotes and cannot hold " or a line break.
+_UNSAFE_IN_BATCH = ('"', "%", "\r", "\n")
+
+
+class UnsafeLauncherValue(ValueError):
+    """Raised when a value cannot go into a launcher script."""
+
+
+def batch_value(name: str, value: str) -> str:
+    """Return *value* in a form that a batch file holds without change.
+
+    ``cmd.exe`` reads a batch file in the console code page, so the file must
+    be ASCII.  A path under the user profile is written as ``%USERPROFILE%``,
+    which ``cmd.exe`` expands to the correct Unicode path when it runs.  An
+    ASCII path stays literal, because another account that runs the package
+    manager has a different profile.
+    """
+    if any(char in value for char in _UNSAFE_IN_BATCH):
+        raise UnsafeLauncherValue(
+            f"{name} {value!r} cannot go into the launcher: a batch file cannot "
+            "hold a '\"', a '%' or a line break."
+        )
+    profile = os.environ.get("USERPROFILE", "")
+    lowered = value.lower()
+    if (
+        not value.isascii()
+        and profile
+        and (lowered == profile.lower() or lowered.startswith(profile.lower() + "\\"))
+    ):
+        value = "%USERPROFILE%" + value[len(profile) :]
+    if not value.isascii():
+        raise UnsafeLauncherValue(
+            f"{name} {value!r} cannot go into the launcher: outside the user "
+            "profile, a batch file can only hold ASCII characters. Set it in "
+            "the environment that runs the package manager instead."
+        )
+    return value
+
+
+def launcher_arg(name: str, value: str) -> str:
     """Return *value* quoted as one argument of a launcher command."""
     if is_windows():
-        return f'"{value}"'
+        return f'"{batch_value(name, value)}"'
     return shlex.quote(value)
 
 
@@ -43,23 +82,45 @@ def helper_command(helper: str) -> str:
     ``cloudsmith``, so the launcher runs the absolute executable.
     """
     if getattr(sys, "frozen", False):
-        return f"{launcher_arg(sys.executable)} credential-helper {helper}"
+        executable = launcher_arg("cloudsmith", sys.executable)
+        return f"{executable} credential-helper {helper}"
     return f"cloudsmith credential-helper {helper}"
 
 
-def _launcher_content(target_cmd: str, *, windows: bool) -> str:
+def _launcher_content(
+    target_cmd: str, *, windows: bool, env: dict[str, str] | None = None
+) -> str:
     """Return the launcher script body for the platform.
 
     Windows uses a ``.cmd`` batch file (``@echo off`` keeps stdout clean for
     Docker's credential JSON); Unix uses a ``#!/bin/sh`` script that ``exec``s
-    the target so signals and the exit code pass straight through.
+    the target so signals and the exit code pass straight through.  The
+    ``env`` variables replace the caller's values, so the helper gives the
+    same result as the install.
     """
+    env = env or {}
     if windows:
-        return f"@echo off\r\n{target_cmd} %*\r\n"
-    return f'#!/bin/sh\nexec {target_cmd} "$@"\n'
+        settings = "".join(
+            f'set "{name}={batch_value(name, value)}"\r\n'
+            for name, value in env.items()
+        )
+        if settings:
+            # Keep "!" literal and the settings local to the launcher.
+            settings = f"setlocal DisableDelayedExpansion\r\n{settings}"
+        return f"@echo off\r\n{settings}{target_cmd} %*\r\n"
+    settings = "".join(
+        f"export {name}={shlex.quote(value)}\n" for name, value in env.items()
+    )
+    return f'#!/bin/sh\n{settings}exec {target_cmd} "$@"\n'
 
 
-def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> Path:
+def write_launcher(
+    bin_dir: Path,
+    name: str,
+    target_cmd: str,
+    dry_run=False,
+    env: dict[str, str] | None = None,
+) -> Path:
     """Write a launcher script for *name* in *bin_dir* that execs *target_cmd*.
 
     Parameters
@@ -71,6 +132,8 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
     target_cmd:
         The command the launcher forwards to (e.g.
         ``cloudsmith credential-helper docker``).
+    env:
+        Environment variables that the launcher sets.
 
     Returns
     -------
@@ -78,6 +141,7 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
         The path of the written file.
     """
     windows = is_windows()
+    content = _launcher_content(target_cmd, windows=windows, env=env)
     if dry_run:
         if windows:
             return bin_dir / f"{name}.cmd"
@@ -87,9 +151,7 @@ def write_launcher(bin_dir: Path, name: str, target_cmd: str, dry_run=False) -> 
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     dest = bin_dir / _launcher_filename(name, windows=windows)
-    dest.write_text(
-        _launcher_content(target_cmd, windows=windows), encoding="utf-8", newline=""
-    )
+    dest.write_text(content, encoding="utf-8", newline="")
     if not windows:
         dest.chmod(0o755)
 
