@@ -311,6 +311,16 @@ def test_remove_extension_keeps_comments_on_the_same_lines():
     )
 
 
+def test_remove_extension_keeps_a_file_that_is_not_utf_8():
+    """A byte that is not UTF-8 stops the XML check, so the file stays."""
+    existing = f"<extensions>\n<!-- \udce9 -->\n{OUR_EXTENSION}{OTHER_EXTENSION}</extensions>\n"
+
+    assert extensions.remove_extension(existing) == (
+        f"<extensions>\n<!-- \udce9 -->\n{OTHER_EXTENSION}</extensions>\n",
+        True,
+    )
+
+
 def test_remove_the_only_extension_returns_no_text():
     """When nothing else is listed, the file is not needed."""
     assert extensions.remove_extension(
@@ -781,6 +791,15 @@ def test_gradle_uninstall_and_status(home, fake_repository):
     GradleInstaller().uninstall()
 
     assert not script.exists()
+    assert GradleInstaller().status() == {"launcher": None, "hosts": []}
+
+
+def test_gradle_status_ignores_an_init_script_that_install_did_not_write(home):
+    """Status reports only a file that uninstall can remove."""
+    script = home / ".gradle" / "init.d" / "cloudsmith.init.gradle.kts"
+    script.parent.mkdir(parents=True)
+    script.write_text("// my own settings\n", encoding="utf-8")
+
     assert GradleInstaller().status() == {"launcher": None, "hosts": []}
 
 

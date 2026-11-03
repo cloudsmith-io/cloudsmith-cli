@@ -144,5 +144,12 @@ class ConfigFileInstaller:
         # Gradle has no local config, and the current directory is often not a project.
         with contextlib.suppress(NotImplementedError, ProjectNotFound):
             paths.append(self.local_path())
-        path = next((path for path in paths if path.exists()), None)
+        path = next((path for path in paths if self._is_own_file(path)), None)
         return {"launcher": str(path) if path else None, "hosts": []}
+
+    def _is_own_file(self, path: Path) -> bool:
+        """Return whether *path* is a file that uninstall can remove."""
+        try:
+            return self._read_own_file(path) is not None
+        except (ConfigFileConflict, OSError):
+            return False

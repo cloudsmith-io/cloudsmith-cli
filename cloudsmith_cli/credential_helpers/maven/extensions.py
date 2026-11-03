@@ -54,7 +54,8 @@ def _has_extension_element(text: str) -> bool:
     """Return whether *text* has an <extension> element, or is not valid XML."""
     try:
         root = ElementTree.fromstring(text)
-    except ElementTree.ParseError:
+    # A byte that is not UTF-8 gives a UnicodeEncodeError, which is a ValueError.
+    except (ElementTree.ParseError, ValueError):
         return True
     return any(element.tag.rpartition("}")[2] == "extension" for element in root.iter())
 
