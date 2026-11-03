@@ -32,20 +32,24 @@ def render_block(jar: Path) -> str:
     after_last = "cloudsmith_after_class_path"
     # The shell expands \ " $ and ` in double quotes, so the path escapes them.
     jar_text = re.sub(r'([\\"$`])', r"\\\1", str(jar))
+    # mvn splits MAVEN_OPTS at spaces, so an option starts after a space.
+    words = "cloudsmith_maven_opts"
     return (
         f"{BEGIN}\n"
         "# Java uses only the last -D value, so add the JAR to that value.\n"
-        'case "$MAVEN_OPTS" in\n'
-        f"  *{option}*)\n"
-        f'    {after_last}="${{MAVEN_OPTS##*{option}}}"\n'
+        f'{words}=" $MAVEN_OPTS"\n'
+        f'case "${words}" in\n'
+        f'  *" {option}"*)\n'
+        f'    {after_last}="${{{words}##* {option}}}"\n'
         f'    case "{os.pathsep}${{{after_last}%% *}}{os.pathsep}" in\n'
         f'      *"{os.pathsep}{jar_text}{os.pathsep}"*) ;;\n'
-        f'      *) MAVEN_OPTS="${{MAVEN_OPTS%{option}*}}{option}{jar_text}{os.pathsep}'
-        f'${after_last}" ;;\n'
-        "    esac\n"
-        f"    unset {after_last} ;;\n"
+        f'      *) MAVEN_OPTS="${{{words}% {option}*}} {option}{jar_text}{os.pathsep}'
+        f'${after_last}"\n'
+        '         MAVEN_OPTS="${MAVEN_OPTS# }" ;;\n'
+        "    esac ;;\n"
         f'  *) MAVEN_OPTS="$MAVEN_OPTS {option}{jar_text}" ;;\n'
         "esac\n"
+        f"unset {words} {after_last}\n"
         f"{END}\n"
     )
 

@@ -623,6 +623,16 @@ def test_block_reads_shell_characters_in_the_jar_path_as_text(maven_opts):
 
 
 @POSIX_SHELL_ONLY
+def test_block_ignores_the_class_path_option_inside_another_value():
+    """Java reads only an option that starts a word of MAVEN_OPTS."""
+    maven_opts = "-DargLine=-Dmaven.ext.class.path=/opt/test.jar -Xmx1g"
+
+    assert _maven_opts_after_block(maven_opts) == (
+        f"{maven_opts} -Dmaven.ext.class.path={JAR}"
+    )
+
+
+@POSIX_SHELL_ONLY
 def test_block_keeps_the_other_extensions_in_the_class_path():
     """Java uses only the last -D value, so the block adds the JAR to that value."""
     maven_opts = "-Xmx1g -Dmaven.ext.class.path=/opt/other.jar -Dquiet=true"
