@@ -1,5 +1,8 @@
 """Tests for the files API upload helpers."""
 
+import io
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import Mock, patch
 
 import pytest
@@ -7,7 +10,12 @@ import requests
 from cloudsmith_api.rest import ApiException as SdkApiException
 
 from ..api.exceptions import ApiException
-from ..api.files import multi_part_upload_file, upload_file
+from ..api.files import (
+    UPLOAD_TIMEOUT_SECONDS,
+    _RewindableMultipartBody,
+    multi_part_upload_file,
+    upload_file,
+)
 from ..credentials.models import CredentialResult
 
 
@@ -93,6 +101,12 @@ class TestUploadErrors:
         assert raised.value.status == 0
         assert raised.value.__cause__ is error
 
+    def test_missing_file(self, tmp_path):
+        with pytest.raises(ApiException) as raised:
+            upload_file("https://upload.example.invalid/", {}, str(tmp_path / "gone"))
+
+        assert raised.value.status == 0
+
     def test_failed_multi_part_completion(self, tmp_path):
         filepath = tmp_path / "package.raw"
         filepath.write_bytes(b"payload")
@@ -117,3 +131,82 @@ class TestUploadErrors:
             )
 
         assert raised.value.status == 0
+
+
+class FailOnceHandler(BaseHTTPRequestHandler):
+    """Answer the first upload with first_status and record each body."""
+
+    timeout = 1
+    first_status = 503
+    bodies = []
+
+    def do_POST(self):
+        expected = int(self.headers["Content-Length"])
+        try:
+            body = self.rfile.read(expected)
+        except TimeoutError:
+            body = b""
+        self.bodies.append((expected, body))
+        status = self.first_status if len(self.bodies) == 1 else 204
+        if len(body) < expected:
+            status = 400
+        self.send_response(status)
+        self.send_header("Location", "/")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+class TestUploadRetry:
+    @pytest.mark.parametrize("first_status", [503, 307])
+    def test_retry_resends_the_whole_body(self, tmp_path, first_status):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"payload" * 1000)
+        FailOnceHandler.first_status = first_status
+        FailOnceHandler.bodies = []
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FailOnceHandler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        files_api = Mock(**{"api_client.user_agent": "cloudsmith-cli-test"})
+        try:
+            with patch(
+                "cloudsmith_cli.core.api.files.get_files_api", return_value=files_api
+            ):
+                upload_file(
+                    f"http://127.0.0.1:{server.server_port}/",
+                    {"key": "value"},
+                    str(filepath),
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert FailOnceHandler.bodies[1] == FailOnceHandler.bodies[0]
+        assert b"payload" * 1000 in FailOnceHandler.bodies[1][1]
+
+    def test_body_rewinds_only_to_the_start(self, tmp_path):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"payload")
+        with filepath.open("rb") as file_obj:
+            body = _RewindableMultipartBody(
+                [("file", ("package.raw", file_obj))], file_obj, callback=None
+            )
+
+            with pytest.raises(io.UnsupportedOperation):
+                body.seek(1)
+
+    def test_upload_sends_a_timeout(self, tmp_path):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"payload")
+        session = Mock(**{"post.return_value.raise_for_status.return_value": None})
+        with (
+            patch(
+                "cloudsmith_cli.core.api.files.create_requests_session",
+                return_value=session,
+            ),
+            patch("cloudsmith_cli.core.api.files.get_files_api"),
+        ):
+            upload_file("https://upload.example.invalid/", {}, str(filepath))
+
+        assert session.post.call_args.kwargs["timeout"] == UPLOAD_TIMEOUT_SECONDS

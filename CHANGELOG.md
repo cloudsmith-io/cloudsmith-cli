@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make.
 - When the API host name or the proxy host name does not exist, for example because of a typo in `--api-host`, commands now fail immediately. Previously, they retried for approximately 62 seconds without output. The CLI still retries a DNS failure that the operating system reports as temporary.
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
+- `cloudsmith push` now sends the full file again when it retries an upload after a server error. It also sends the full file again after a 307 or 308 redirect from the upload host. Before, the second request sent an empty body and the upload failed with a read timeout or stopped responding.
+- A `cloudsmith push` upload attempt now times out when the upload host sends or accepts no data for 120 seconds. The CLI then retries the upload. Before, a stalled upload host made the command wait forever. A slow upload that continues to move does not time out.
 
 ## [1.30.0] - 2026-10-22
 
