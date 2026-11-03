@@ -342,7 +342,7 @@ def test_remove_extension_ignores_a_commented_out_extension():
 
     assert extensions.remove_extension(
         f"<extensions>\n{comment}{OUR_EXTENSION}</extensions>\n"
-    ) == (None, True)
+    ) == (f"<extensions>\n{comment}</extensions>\n", True)
     assert extensions.remove_extension(f"<extensions>\n{comment}</extensions>\n") == (
         f"<extensions>\n{comment}</extensions>\n",
         False,

@@ -117,7 +117,8 @@ def add_extension(text: str | None, version: str) -> tuple[str, bool]:
 def remove_extension(text: str) -> tuple[str | None, bool]:
     """Return *text* without the Cloudsmith extension, and whether it changed.
 
-    The text is ``None`` when no other extension is left, so the file is not needed.
+    The text is ``None`` when no other extension or comment is left, so the file is
+    not needed.
     A file that is not valid XML without the extension is kept.
     """
     masked = _without_comments(text)
@@ -130,6 +131,6 @@ def remove_extension(text: str) -> tuple[str | None, bool]:
     end = len(text) - len(text[block.end() :].lstrip(" \t"))
     end += text.startswith("\n", end)
     new_text = text[:start] + text[end:]
-    if not _has_extension_element(new_text):
+    if not _has_extension_element(new_text) and not _COMMENT.search(new_text):
         return None, True
     return new_text, True
