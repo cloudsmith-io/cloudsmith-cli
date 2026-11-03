@@ -137,6 +137,8 @@ def blocked_usage_posts(monkeypatch):
         settings.SAMPLE_RATE_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
+    # Tests run as if no key were built in; usage_events supplies a test key.
+    monkeypatch.setattr(settings, "POSTHOG_PROJECT_KEY", "")
     monkeypatch.setattr(sender, "_post", refuse)
     yield calls
     if calls:
