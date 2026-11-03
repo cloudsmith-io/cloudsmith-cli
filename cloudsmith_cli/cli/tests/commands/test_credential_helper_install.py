@@ -18,6 +18,7 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
 from ....cli.commands.credential_helper import credential_helper
+from ....core import telemetry
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import (
     DockerInstaller,
@@ -53,6 +54,13 @@ def clear_cloudsmith_env(monkeypatch):
     """Keep the CLOUDSMITH_* settings of the developer shell out of the installs."""
     for name in [name for name in os.environ if name.startswith("CLOUDSMITH_")]:
         monkeypatch.delenv(name)
+    monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
+    monkeypatch.setenv(telemetry.DSN_ENV, "")
+
+
+def test_cleared_install_settings_keep_the_error_report_controls():
+    assert os.environ[telemetry.NO_TELEMETRY_ENV] == "1"
+    assert os.environ[telemetry.DSN_ENV] == ""
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +206,7 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
             "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
             "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
             "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
+            "CLOUDSMITH_SSL_VERIFY": "1",
         },
         catch_exceptions=False,
     )
@@ -208,7 +217,7 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
         "CLOUDSMITH_PROFILE": "work",
         "CLOUDSMITH_CONFIG_FILE": str(config.resolve()),
         "CLOUDSMITH_API_HOST": "https://api.example.com",
-        "CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "true",
+        "CLOUDSMITH_SSL_VERIFY": "false",
         "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
         "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
         "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
