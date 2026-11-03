@@ -25,12 +25,19 @@ class SbtInstaller(ConfigFileInstaller):
     def local_path(self) -> Path:
         # sbt loads every .sbt file in project/, so the build's own files stay as they are.
         project_dir = Path.cwd()
-        if not (project_dir / "build.sbt").is_file():
+        plugin_file = project_dir / "project" / "cloudsmith.sbt"
+        # sbt reads any .sbt file in the root, and a build can have only project/.
+        is_project = (
+            any(path.is_file() for path in project_dir.glob("*.sbt"))
+            or (project_dir / "project" / "build.properties").is_file()
+            or plugin_file.is_file()
+        )
+        if not is_project:
             raise ProjectNotFound(
                 f"No build.sbt in {project_dir}. "
                 "Run the command in the root directory of an sbt project."
             )
-        return project_dir / "project" / "cloudsmith.sbt"
+        return plugin_file
 
     def render(self, version: str) -> str:
         return GLOBAL_PLUGIN.format(repository_url=REPOSITORY_URL, version=version)

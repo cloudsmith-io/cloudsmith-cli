@@ -46,7 +46,8 @@ def _project_dir() -> Path:
 
 def _project_extensions_file() -> Path:
     project_dir = _project_dir()
-    if not (project_dir / "pom.xml").is_file():
+    # Maven finds the project root by its .mvn directory, whatever the POM is called.
+    if not (project_dir / "pom.xml").is_file() and not (project_dir / ".mvn").is_dir():
         raise ProjectNotFound(
             f"No pom.xml in {project_dir}. "
             "Run the command in the root directory of a Maven project."

@@ -782,6 +782,21 @@ def test_maven_install_local_outside_a_project_fails(
     assert not fake_repository
 
 
+def test_maven_uninstall_local_finds_a_project_by_its_mvn_directory(
+    home, outside_projects
+):
+    """Maven finds the project root by its .mvn directory, also without a pom.xml."""
+    extensions_file = outside_projects / ".mvn" / "extensions.xml"
+    extensions_file.parent.mkdir()
+    extensions_file.write_text(
+        f"<extensions>\n{OUR_EXTENSION}</extensions>\n", encoding="utf-8"
+    )
+
+    MavenInstaller().uninstall(local=True)
+
+    assert not extensions_file.exists()
+
+
 def test_maven_install_with_mavenrc_adds_a_block(
     home, fake_repository, outside_projects
 ):
@@ -1028,6 +1043,20 @@ def test_sbt_install_local_outside_a_project_fails(
         SbtInstaller().install(local=True)
 
     assert not (outside_projects / "project").exists()
+
+
+@pytest.mark.parametrize(
+    "build_file", ["main.sbt", "project/build.properties", "project/cloudsmith.sbt"]
+)
+def test_sbt_finds_a_project_without_a_build_sbt(outside_projects, build_file):
+    """sbt reads any .sbt file in the root and the project/ directory."""
+    path = outside_projects / build_file
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("", encoding="utf-8")
+
+    assert SbtInstaller().local_path() == (
+        outside_projects / "project" / "cloudsmith.sbt"
+    )
 
 
 def test_sbt_install_keeps_a_plugin_file_with_other_settings(
