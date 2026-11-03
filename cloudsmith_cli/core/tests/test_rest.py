@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import httpretty
 import pytest
 import requests
+import urllib3
 from cloudsmith_api.rest import ApiException
 from urllib3.exceptions import MaxRetryError, NameResolutionError, ProxyError, SSLError
 
@@ -42,9 +43,12 @@ def silent_api():
         def _read_and_stall(self):
             self.rfile.read(int(self.headers.get("Content-Length", 0)))
             requests_seen.append(self.command)
+            if self.path == "/drop":
+                self.close_connection = True
+                return
             release.wait()
 
-        do_GET = do_POST = _read_and_stall
+        do_GET = do_POST = do_PATCH = _read_and_stall
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), SilentHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -55,8 +59,9 @@ def silent_api():
 
 
 class TestRestClient:
+    @pytest.mark.parametrize("method", ["GET", "POST", "PATCH"])
     @httpretty.activate(allow_net_connect=False, verbose=True)
-    def test_implicit_retry_for_status_codes(self):
+    def test_implicit_retry_for_status_codes(self, method):
         """Assert that the rest client retries certain status codes automatically."""
         # initialise_api() needs to be called before RestClient can be instantiated,
         # because it adds default attributes to cloudsmith_api.Configuration which
@@ -67,7 +72,6 @@ class TestRestClient:
 
         client = RestClient(backoff_factor=0)
 
-        method = "GET"
         url = "https://test.site"
 
         httpretty.register_uri(
@@ -142,7 +146,9 @@ class TestRestClient:
 
         assert raised.value.status == 0
 
-    @pytest.mark.parametrize("method, expected_requests", [("POST", 1), ("GET", 3)])
+    @pytest.mark.parametrize(
+        "method, expected_requests", [("POST", 1), ("PATCH", 1), ("GET", 3)]
+    )
     def test_retries_a_read_timeout_only_for_idempotent_methods(
         self, silent_api, method, expected_requests
     ):
@@ -155,6 +161,48 @@ class TestRestClient:
             client.request(method, url, _request_timeout=(1, 0.2))
 
         assert len(requests_seen) == expected_requests
+
+    @pytest.mark.parametrize(
+        "method, expected_requests", [("POST", 1), ("PATCH", 1), ("GET", 3)]
+    )
+    def test_retries_a_dropped_connection_only_for_idempotent_methods(
+        self, silent_api, method, expected_requests
+    ):
+        """The server can drop the connection after it processed the request."""
+        url, requests_seen = silent_api
+        initialise_api()
+        client = RestClient(retries=2, backoff_factor=0)
+
+        with pytest.raises(ApiException):
+            client.request(method, f"{url}drop", body={}, _request_timeout=(1, 5))
+
+        assert len(requests_seen) == expected_requests
+
+    @pytest.mark.parametrize("method", ["POST", "PATCH"])
+    def test_retries_a_connect_error_for_non_idempotent_methods(
+        self, monkeypatch, method
+    ):
+        """The server cannot process a request that did not connect."""
+        with socket.socket() as unused_socket:
+            unused_socket.bind(("127.0.0.1", 0))
+            closed_port = unused_socket.getsockname()[1]
+        connect_attempts = []
+        original_connect = urllib3.connection.HTTPConnection.connect
+
+        def _count_connect(connection):
+            connect_attempts.append(connection.port)
+            return original_connect(connection)
+
+        monkeypatch.setattr(
+            urllib3.connection.HTTPConnection, "connect", _count_connect
+        )
+        initialise_api()
+        client = RestClient(retries=2, backoff_factor=0)
+
+        with pytest.raises(ApiException):
+            client.request(method, f"http://127.0.0.1:{closed_port}/", body={})
+
+        assert len(connect_attempts) == 3
 
 
 class TestCreateRequestsSession:
