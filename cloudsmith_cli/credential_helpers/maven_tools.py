@@ -9,6 +9,7 @@ Cloudsmith repository.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
@@ -131,5 +132,9 @@ class ConfigFileInstaller:
         return [f"removed {path}"]
 
     def status(self) -> dict:
-        path = self.path()
-        return {"launcher": str(path) if path.exists() else None, "hosts": []}
+        paths = [self.path()]
+        # Gradle has no local config, and the current directory is often not a project.
+        with contextlib.suppress(NotImplementedError, ProjectNotFound):
+            paths.append(self.local_path())
+        path = next((path for path in paths if path.exists()), None)
+        return {"launcher": str(path) if path else None, "hosts": []}

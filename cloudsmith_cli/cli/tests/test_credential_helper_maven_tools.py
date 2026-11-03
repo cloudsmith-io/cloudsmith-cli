@@ -765,6 +765,20 @@ def test_sbt_uninstall_and_status(home, fake_repository):
     assert SbtInstaller().status() == {"launcher": None, "hosts": []}
 
 
+def test_sbt_status_names_the_plugin_file_of_the_project(
+    home, fake_repository, outside_projects
+):
+    """After install --local, status names project/cloudsmith.sbt."""
+    assert SbtInstaller().status() == {"launcher": None, "hosts": []}
+    (outside_projects / "build.sbt").write_text("", encoding="utf-8")
+    SbtInstaller().install(local=True)
+
+    assert SbtInstaller().status() == {
+        "launcher": str(outside_projects / "project" / "cloudsmith.sbt"),
+        "hosts": [],
+    }
+
+
 # ---------------------------------------------------------------------------
 # 7. CLI wiring
 # ---------------------------------------------------------------------------
