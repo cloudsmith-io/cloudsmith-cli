@@ -2,7 +2,7 @@
 """The one-time usage telemetry notice.
 
 Bump ``NOTICE_VERSION`` whenever what is collected changes, so the notice is
-shown again. The wording is a draft.
+shown again.
 """
 
 import click
@@ -11,17 +11,11 @@ from . import state
 
 NOTICE_VERSION = 2
 NOTICE_TEXT = (
-    "The Cloudsmith CLI collects pseudonymous usage data: which commands run, "
-    "how they end and how long they take, plus CLI, Python and OS versions. It "
-    "never collects argument values, file names, credentials or account "
-    "names. A random install ID is kept on this machine so repeat use can "
-    "be counted; see it with 'cloudsmith telemetry id' and replace it with "
-    "'cloudsmith telemetry reset'.\n"
-    "To opt out, set CLOUDSMITH_NO_TELEMETRY=1 or DO_NOT_TRACK=1, or add "
-    "'telemetry = false' to config.ini. To see exactly what is sent, set "
-    "CLOUDSMITH_TELEMETRY=log.\n"
-    "Learn more: https://docs.cloudsmith.com/developer-tools/cli-telemetry\n"
-    "Nothing was sent for this command. This notice will not be shown again."
+    "The Cloudsmith CLI collects pseudonymous usage data to help improve the "
+    "CLI. It never collects argument values, file names or credentials.\n"
+    "Read what is collected (and how to opt out): "
+    "https://docs.cloudsmith.com/developer-tools/cli-telemetry\n"
+    "Nothing was sent for this command."
 )
 
 
