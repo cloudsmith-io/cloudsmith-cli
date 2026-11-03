@@ -7,6 +7,7 @@ import io
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +24,7 @@ from ...credential_helpers.nuget.runtime import (
     is_plugin_mode,
     is_supported_source,
     negotiate_version,
+    parse_timespan,
 )
 from ..commands.credential_helper.manage import install_cmd, list_cmd
 from ..commands.credential_helper.nuget import nuget
@@ -67,10 +69,10 @@ def _credentials_request(uri=CLOUDSMITH_FEED) -> dict:
     )
 
 
-def _session(*messages, credential=None, workspace=None):
+def _session(*messages, credential=None, workspace=None, stdout=None):
     """Run a plugin session over *messages*; return (code, stderr, responses)."""
     stdin = io.StringIO("".join(json.dumps(m) + "\n" for m in messages))
-    stdout = io.StringIO()
+    stdout = io.StringIO() if stdout is None else stdout
     code, stderr = PluginSession(
         stdin, stdout, credential=credential, workspace=workspace
     ).run()
@@ -244,6 +246,75 @@ def test_plugin_session_handles_unexpected_messages(credential, first_line, answ
 
     sent = [json.loads(line) for line in stdout.getvalue().splitlines()]
     assert {m["RequestId"]: m["Type"] for m in sent[1:]} == answered
+
+
+class _MessageWatcher(io.StringIO):
+    """A stdout that sets ``seen`` when the plugin sends a message of one type."""
+
+    def __init__(self, message_type):
+        super().__init__()
+        self.message_type = message_type
+        self.seen = threading.Event()
+
+    def write(self, text):
+        if json.loads(text)["Type"] == self.message_type:
+            self.seen.set()
+        return super().write(text)
+
+
+def test_plugin_sends_progress_while_a_request_runs(credential):
+    """Progress before each Initialize deadline keeps NuGet waiting."""
+    stdout = _MessageWatcher("Progress")
+    initialize = _message("i", "Initialize", {"RequestTimeout": "00:00:00.0200000"})
+    with patch(
+        "cloudsmith_cli.credential_helpers.nuget.runtime.is_cloudsmith_domain",
+        lambda *args, **kwargs: stdout.seen.wait(timeout=1),
+    ):
+        _, _, sent = _session(
+            initialize,
+            _credentials_request(CUSTOM_FEED),
+            credential=credential,
+            workspace="acme",
+            stdout=stdout,
+        )
+
+    answers = [m for m in sent if m["RequestId"] == "c"]
+    assert answers[0] == {
+        "RequestId": "c",
+        "Type": "Progress",
+        "Method": "GetAuthenticationCredentials",
+        "Payload": {},
+    }
+    assert {m["Type"] for m in answers[:-1]} == {"Progress"}
+    assert answers[-1]["Type"] == "Response"
+    assert answers[-1]["Payload"]["ResponseCode"] == "Success"
+
+
+def test_plugin_answers_a_cancel_while_a_request_runs(credential):
+    """A Cancel gets a Cancel at once, and the late result is not sent."""
+    stdout = _MessageWatcher("Cancel")
+    cancel = _message("c", "GetAuthenticationCredentials", message_type="Cancel")
+    with patch(
+        "cloudsmith_cli.credential_helpers.nuget.runtime.is_cloudsmith_domain",
+        lambda *args, **kwargs: stdout.seen.wait(timeout=1),
+    ):
+        _, _, sent = _session(
+            _credentials_request(CUSTOM_FEED),
+            cancel,
+            credential=credential,
+            workspace="acme",
+            stdout=stdout,
+        )
+
+    assert [(m["RequestId"], m["Type"]) for m in sent[1:]] == [("c", "Cancel")]
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [("00:00:05", 5.0), ("1.02:03:04.5", 93784.5), ("5", None), (None, None)],
+)
+def test_parse_timespan(value, expected):
+    assert parse_timespan(value) == expected
 
 
 class _BrokenPipe(io.StringIO):

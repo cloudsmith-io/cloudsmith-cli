@@ -16,9 +16,15 @@ See:
     https://learn.microsoft.com/en-us/nuget/reference/extensibility/nuget-cross-platform-plugins
 """
 
+import collections
 import json
 import logging
+import queue
+import re
+import threading
+import time
 import uuid
+from concurrent.futures import Future, ThreadPoolExecutor
 from urllib.parse import urlsplit
 
 from ..backends import BackendKind
@@ -34,6 +40,14 @@ logger = logging.getLogger(__name__)
 #: Plugin protocol version spoken; authentication needs at least 2.0.0.
 PROTOCOL_VERSION = "2.0.0"
 MINIMUM_PROTOCOL_VERSION = "2.0.0"
+
+#: The request timeout in seconds until NuGet sends ``Initialize``.
+DEFAULT_REQUEST_TIMEOUT = 5.0
+
+#: A .NET TimeSpan in the constant format, ``[d.]hh:mm:ss[.fffffff]``.
+_TIMESPAN = re.compile(r"(?:(\d+)\.)?(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+_END_OF_INPUT = object()
 
 _NOT_APPLICABLE_MESSAGE = "Not a Cloudsmith NuGet feed."
 
@@ -102,6 +116,17 @@ def _parse_version(value) -> tuple[int, ...] | None:
         return None
 
 
+def parse_timespan(value) -> float | None:
+    """Return the seconds in a .NET TimeSpan string such as ``00:00:05``, or None."""
+    match = _TIMESPAN.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
+        return None
+    days, hours, minutes, seconds = match.groups()
+    return ((int(days or 0) * 24 + int(hours)) * 60 + int(minutes)) * 60 + float(
+        seconds
+    )
+
+
 def negotiate_version(payload) -> str | None:
     """Return the protocol version for a Handshake request, or None if incompatible."""
     if not isinstance(payload, dict):
@@ -114,6 +139,15 @@ def negotiate_version(payload) -> str | None:
     if not their_minimum <= ours <= theirs:
         return None
     return PROTOCOL_VERSION
+
+
+def _is_cancel(message, request_id) -> bool:
+    """Return True when *message* cancels the request *request_id*."""
+    return (
+        isinstance(message, dict)
+        and message.get("Type") == "Cancel"
+        and message.get("RequestId") == request_id
+    )
 
 
 class PluginSession:
@@ -139,7 +173,12 @@ class PluginSession:
         self.domains = frozenset(extract_hostname(domain) for domain in domains)
         self.discover = discover
         self.refused = False
+        self.request_timeout = DEFAULT_REQUEST_TIMEOUT
         self._handshake_id = str(uuid.uuid4())
+        self._inbox = queue.Queue()
+        self._backlog = collections.deque()
+        # One worker thread runs one request at a time, also after a Cancel.
+        self._worker = ThreadPoolExecutor(max_workers=1)
 
     def _send(self, request_id, message_type, method, payload=None) -> None:
         """Write one message and flush it; NuGet reads line by line."""
@@ -165,6 +204,13 @@ class PluginSession:
         if payload.get("PackageSourceRepository") or payload.get("ServiceIndex"):
             return {"Claims": []}
         return {"Claims": ["Authentication"]}
+
+    def _handle_initialize(self, payload) -> dict:
+        payload = payload if isinstance(payload, dict) else {}
+        request_timeout = parse_timespan(payload.get("RequestTimeout"))
+        if request_timeout:
+            self.request_timeout = request_timeout
+        return {"ResponseCode": "Success"}
 
     def _handle_get_credentials(self, payload) -> dict:
         payload = payload if isinstance(payload, dict) else {}
@@ -204,16 +250,66 @@ class PluginSession:
             return self._handle_operation_claims(payload)
         if method == "GetAuthenticationCredentials":
             return self._handle_get_credentials(payload)
+        if method == "Initialize":
+            return self._handle_initialize(payload)
         if method in (
-            "Initialize",
             "SetLogLevel",
             "SetCredentials",
             "MonitorNuGetProcessExit",
         ):
             # Nothing to configure: credentials come from the CLI's own
-            # provider chain and every request is answered immediately.
+            # provider chain.
             return {"ResponseCode": "Success"}
         return None
+
+    def _answer_with_progress(self, request_id, method, payload) -> None:
+        """Answer a request from the worker, with Progress before each deadline.
+
+        A Cancel for the request ends the wait. Other messages wait in the backlog.
+        """
+        future = self._worker.submit(self.handle_request, method, payload)
+        future.add_done_callback(self._inbox.put)
+        interval = self.request_timeout / 2
+        progress_due = time.monotonic() + interval
+        while True:
+            try:
+                item = self._inbox.get(
+                    timeout=max(0.0, progress_due - time.monotonic())
+                )
+            except queue.Empty:
+                self._send(request_id, "Progress", method, {})
+                progress_due = time.monotonic() + interval
+                continue
+            if item is future:
+                self._send(request_id, "Response", method, future.result())
+                return
+            if _is_cancel(item, request_id):
+                self._send(request_id, "Cancel", method)
+                return
+            if not isinstance(item, Future):
+                self._backlog.append(item)
+
+    def _read_messages(self) -> None:
+        """Queue each stdin message, then the end of input, for the main thread."""
+        try:
+            for line in self.stdin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    self._inbox.put(json.loads(line))
+                except ValueError as exc:
+                    logger.debug("Ignoring malformed NuGet message: %s", exc)
+        except (OSError, ValueError) as exc:
+            self._inbox.put(exc)
+        self._inbox.put(_END_OF_INPUT)
+
+    def _next_message(self):
+        """Return the next message, or raise the error that ended stdin."""
+        message = self._backlog.popleft() if self._backlog else self._inbox.get()
+        if isinstance(message, Exception):
+            raise message
+        return message
 
     def _dispatch(self, message) -> bool:
         """Handle one decoded message; return False when the session ends."""
@@ -242,8 +338,11 @@ class PluginSession:
         if method == "Close":
             return False
 
-        response = self.handle_request(method, message.get("Payload"))
-        if response is None:
+        if method == "GetAuthenticationCredentials":
+            # A domain lookup or a credential renewal can take longer than
+            # NuGet's request timeout.
+            self._answer_with_progress(request_id, method, message.get("Payload"))
+        elif (response := self.handle_request(method, message.get("Payload"))) is None:
             self._send(
                 request_id,
                 "Fault",
@@ -276,15 +375,8 @@ class PluginSession:
                 },
             )
 
-            for line in self.stdin:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    message = json.loads(line)
-                except ValueError as exc:
-                    logger.debug("Ignoring malformed NuGet message: %s", exc)
-                    continue
+            threading.Thread(target=self._read_messages, daemon=True).start()
+            while (message := self._next_message()) is not _END_OF_INPUT:
                 if not self._dispatch(message):
                     break
         except (OSError, ValueError) as exc:
