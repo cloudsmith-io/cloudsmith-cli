@@ -24,7 +24,6 @@ import re
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
 from urllib.parse import urlsplit
 
 from ..backends import BackendKind
@@ -150,6 +149,26 @@ def _is_cancel(message, request_id) -> bool:
     )
 
 
+def _ends_session(message) -> bool:
+    """Return True for input that ends the session: Close, end of input or an error."""
+    if message is _END_OF_INPUT or isinstance(message, Exception):
+        return True
+    return (
+        isinstance(message, dict)
+        and message.get("Type") == "Request"
+        and message.get("Method") == "Close"
+        and bool(message.get("RequestId"))
+    )
+
+
+class _Answer:
+    """A worker's answer to one request. It stays a Fault if the request fails."""
+
+    def __init__(self):
+        self.message_type = "Fault"
+        self.payload = {"Message": "The plugin could not answer the request."}
+
+
 class PluginSession:
     """One NuGet plugin conversation over newline-delimited JSON streams."""
 
@@ -178,8 +197,8 @@ class PluginSession:
         self._handshake_id = str(uuid.uuid4())
         self._inbox = queue.Queue()
         self._backlog = collections.deque()
-        # One worker thread runs one request at a time, also after a Cancel.
-        self._worker = ThreadPoolExecutor(max_workers=1)
+        # One request runs at a time, also after a Cancel.
+        self._request_lock = threading.Lock()
 
     def _send(self, request_id, message_type, method, payload=None) -> None:
         """Write one message and flush it; NuGet reads line by line."""
@@ -267,13 +286,25 @@ class PluginSession:
             return {"ResponseCode": "Success"}
         return None
 
+    def _work(self, answer, method, payload) -> None:
+        """Answer one request in a daemon thread, which cannot delay the exit."""
+        try:
+            with self._request_lock:
+                answer.payload = self.handle_request(method, payload)
+                answer.message_type = "Response"
+        finally:
+            self._inbox.put(answer)
+
     def _answer_with_progress(self, request_id, method, payload) -> None:
-        """Answer a request from the worker, with Progress before each deadline.
+        """Answer a request from a worker thread, with Progress before each deadline.
 
         A Cancel for the request ends the wait. Other messages wait in the backlog.
+        Close, end of input or a stdin error ends the session at once.
         """
-        future = self._worker.submit(self.handle_request, method, payload)
-        future.add_done_callback(self._inbox.put)
+        answer = _Answer()
+        threading.Thread(
+            target=self._work, args=(answer, method, payload), daemon=True
+        ).start()
         interval = self.request_timeout / 2
         progress_due = time.monotonic() + interval
         while True:
@@ -285,14 +316,17 @@ class PluginSession:
                 self._send(request_id, "Progress", method, {})
                 progress_due = time.monotonic() + interval
                 continue
-            if item is future:
-                self._send(request_id, "Response", method, future.result())
+            if item is answer:
+                self._send(request_id, answer.message_type, method, answer.payload)
                 return
             if _is_cancel(item, request_id):
                 self._send(request_id, "Cancel", method)
                 return
-            if not isinstance(item, Future):
-                self._backlog.append(item)
+            if _ends_session(item):
+                # NuGet has gone, so the session ends before the backlog.
+                self._backlog.appendleft(item)
+                return
+            self._backlog.append(item)
 
     def _read_messages(self) -> None:
         """Queue each stdin message, then the end of input, for the main thread."""

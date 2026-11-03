@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import collections
 import io
 import json
 import os
@@ -70,21 +71,77 @@ def _credentials_request(uri=CLOUDSMITH_FEED) -> dict:
     )
 
 
+class _NuGetFeed:
+    """NuGet's end of stdin: it sends Close or ends the input only after each answer.
+
+    A message can be a raw line, which needs no answer.
+    """
+
+    def __init__(self, messages):
+        self.messages = messages
+        self.requests = collections.Counter()
+        self.answers = collections.Counter()
+        self.answered = threading.Condition()
+
+    def record(self, send):
+        """Wrap ``PluginSession._send`` so that the feed sees each answer."""
+
+        def send_and_record(session, request_id, message_type, method, payload=None):
+            send(session, request_id, message_type, method, payload)
+            if message_type not in ("Request", "Progress"):
+                with self.answered:
+                    self.answers[request_id] += 1
+                    self.answered.notify_all()
+
+        return send_and_record
+
+    def _wait_for_answers(self):
+        with self.answered:
+            self.answered.wait_for(lambda: self.answers >= self.requests, timeout=2)
+
+    def lines(self):
+        """Yield each message as the line that NuGet writes."""
+        for message in self.messages:
+            if isinstance(message, str):
+                yield message + "\n"
+                continue
+            if message.get("Method") == "Close":
+                self._wait_for_answers()
+            elif message.get("Type") == "Request":
+                self.requests[message["RequestId"]] += 1
+            yield json.dumps(message, ensure_ascii=False) + "\n"
+        self._wait_for_answers()
+
+
 def _session(*messages, credential=None, workspace=None, stdout=None):
     """Run a plugin session over *messages*; return (code, stderr, responses)."""
-    stdin = io.StringIO("".join(json.dumps(m) + "\n" for m in messages))
+    feed = _NuGetFeed(messages)
     stdout = io.StringIO() if stdout is None else stdout
-    code, stderr = PluginSession(
-        stdin, stdout, credential=credential, workspace=workspace
-    ).run()
+    with patch.object(PluginSession, "_send", feed.record(PluginSession._send)):
+        code, stderr = PluginSession(
+            feed.lines(), stdout, credential=credential, workspace=workspace
+        ).run()
     sent = [json.loads(line) for line in stdout.getvalue().splitlines()]
     return code, stderr, sent
 
 
-def _run_cli(runner, args, *messages, command=nuget) -> list[dict]:
+def _run_cli(runner, args, *messages, command=nuget, encoding="utf-8") -> list[dict]:
     """Run the CLI over *messages* and return the messages on stdout."""
-    stdin = "".join(json.dumps(m) + "\n" for m in messages)
-    result = runner.invoke(command, args=args, input=stdin, catch_exceptions=False)
+    feed = _NuGetFeed(messages)
+    read_fd, write_fd = os.pipe()
+
+    def write_feed():
+        with open(write_fd, "w", encoding=encoding) as pipe:
+            for line in feed.lines():
+                pipe.write(line)
+                pipe.flush()
+
+    threading.Thread(target=write_feed, daemon=True).start()
+    with (
+        open(read_fd, "rb") as stdin,
+        patch.object(PluginSession, "_send", feed.record(PluginSession._send)),
+    ):
+        result = runner.invoke(command, args=args, input=stdin, catch_exceptions=False)
     return [json.loads(line) for line in result.stdout.splitlines()]
 
 
@@ -237,15 +294,12 @@ def test_plugin_reports_missing_credentials_for_a_cloudsmith_feed():
     ids=["malformed-line", "unknown-method", "handshake-rejected"],
 )
 def test_plugin_session_handles_unexpected_messages(credential, first_line, answered):
-    stdin = io.StringIO(f"{first_line}\n{json.dumps(_credentials_request())}\n")
-    stdout = io.StringIO()
     with patch(
         "cloudsmith_cli.credential_helpers.nuget.runtime.uuid.uuid4",
         return_value="ours",
     ):
-        PluginSession(stdin, stdout, credential=credential).run()
+        _, _, sent = _session(first_line, _credentials_request(), credential=credential)
 
-    sent = [json.loads(line) for line in stdout.getvalue().splitlines()]
     assert {m["RequestId"]: m["Type"] for m in sent[1:]} == answered
 
 
@@ -310,6 +364,64 @@ def test_plugin_answers_a_cancel_while_a_request_runs(credential):
     assert [(m["RequestId"], m["Type"]) for m in sent[1:]] == [("c", "Cancel")]
 
 
+def _lines_then(lines, error):
+    """Yield *lines* as NuGet's stdin, then raise *error* if it is given."""
+    yield from lines
+    if error is not None:
+        raise error
+
+
+@pytest.mark.parametrize(
+    "after,error,code",
+    [
+        ([json.dumps(_message("x", "Close"))], None, 0),
+        ([], None, 0),
+        ([], OSError("stdin closed"), 1),
+    ],
+    ids=["close", "end-of-input", "stdin-error"],
+)
+def test_plugin_ends_the_session_while_a_request_runs(credential, after, error, code):
+    """NuGet has gone, so the plugin drops the late answer and does not wait for it."""
+    entered, release = threading.Event(), threading.Event()
+    daemon = []
+
+    def slow_lookup(*args, **kwargs):
+        daemon.append(threading.current_thread().daemon)
+        entered.set()
+        return release.wait(timeout=1)
+
+    lines = [json.dumps(_credentials_request(CUSTOM_FEED)), *after]
+    stdout = io.StringIO()
+    with patch(
+        "cloudsmith_cli.credential_helpers.nuget.runtime.is_cloudsmith_domain",
+        slow_lookup,
+    ):
+        result = PluginSession(
+            _lines_then(lines, error), stdout, credential=credential, workspace="acme"
+        ).run()
+        assert entered.wait(timeout=1)
+        release.set()
+
+    sent = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert result == (code, None)
+    assert [m["Method"] for m in sent] == ["Handshake"]
+    assert daemon == [True]
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_plugin_faults_a_request_that_fails(credential):
+    """A request that raises gets a Fault, so NuGet does not wait for it."""
+    with patch(
+        "cloudsmith_cli.credential_helpers.nuget.runtime.is_cloudsmith_domain",
+        side_effect=RuntimeError("lookup failed"),
+    ):
+        _, _, sent = _session(
+            _credentials_request(CUSTOM_FEED), credential=credential, workspace="acme"
+        )
+
+    assert _responses(sent)["c"]["Type"] == "Fault"
+
+
 @pytest.mark.parametrize(
     "value,expected",
     [("00:00:05", 5.0), ("1.02:03:04.5", 93784.5), ("5", None), (None, None)],
@@ -342,16 +454,15 @@ def test_cli_speaks_the_plugin_protocol(runner):
 
 def test_cli_reads_input_that_is_not_utf8(runner):
     """On Windows, NuGet writes to the plugin in the console code page."""
-    proxy_login = json.dumps(
-        _message("p", "SetCredentials", {"ProxyPassword": "\u00e9t\u00e9"}),
-        ensure_ascii=False,
-    )
-    stdin = f"{proxy_login}\n{json.dumps(_credentials_request())}\n".encode("cp1252")
-    result = runner.invoke(
-        nuget, args=["-k", "k_abc", "-Plugin"], input=stdin, catch_exceptions=False
+    proxy_login = _message("p", "SetCredentials", {"ProxyPassword": "\u00e9t\u00e9"})
+    sent = _run_cli(
+        runner,
+        ["-k", "k_abc", "-Plugin"],
+        proxy_login,
+        _credentials_request(),
+        encoding="cp1252",
     )
 
-    sent = [json.loads(line) for line in result.stdout.splitlines()]
     assert _responses(sent)["c"]["Payload"]["Password"] == "k_abc"
 
 
