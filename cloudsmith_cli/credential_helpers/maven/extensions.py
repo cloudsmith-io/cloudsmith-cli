@@ -17,10 +17,12 @@ _EXTENSION_BLOCK = re.compile(
     r"[ \t]*<extension\s*>.*?</extension\s*>[ \t]*\n?", re.DOTALL
 )
 _EMPTY_EXTENSIONS = re.compile(r"<extensions\b([^>]*?)\s*/>")
-_VERSION = re.compile(r"<version>[^<]*</version>")
+_VERSION = re.compile(r"<version\s*>([^<]*)</version\s*>")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-_GROUP_ID = re.compile(rf"<groupId>\s*{re.escape(GROUP_ID)}\s*</groupId>")
-_ARTIFACT_ID = re.compile(rf"<artifactId>\s*{re.escape(ARTIFACT_ID)}\s*</artifactId>")
+_GROUP_ID = re.compile(rf"<groupId\s*>\s*{re.escape(GROUP_ID)}\s*</groupId\s*>")
+_ARTIFACT_ID = re.compile(
+    rf"<artifactId\s*>\s*{re.escape(ARTIFACT_ID)}\s*</artifactId\s*>"
+)
 
 
 class ExtensionsFileError(Exception):
@@ -76,11 +78,7 @@ def add_extension(text: str | None, version: str) -> tuple[str, bool]:
         old_version = _VERSION.search(masked, block.start(), block.end())
         if old_version is None:
             raise ExtensionsFileError("The Cloudsmith extension has no <version>.")
-        new_text = (
-            text[: old_version.start()]
-            + f"<version>{version}</version>"
-            + text[old_version.end() :]
-        )
+        new_text = text[: old_version.start(1)] + version + text[old_version.end(1) :]
         return new_text, new_text != text
     empty = _EMPTY_EXTENSIONS.search(masked)
     if empty:

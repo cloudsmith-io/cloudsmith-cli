@@ -315,6 +315,31 @@ def test_add_extension_finds_the_extension_with_spaces_in_its_tags():
     )
 
 
+def _spaced_child_tags(extension: str) -> str:
+    for name in ("groupId", "artifactId", "version"):
+        extension = extension.replace(f"<{name}>", f"<{name} >")
+        extension = extension.replace(f"</{name}>", f"</{name}\n    >")
+    return extension
+
+
+def test_add_extension_finds_the_extension_with_spaces_in_its_child_tags():
+    """XML allows spaces before the > of each child tag, so only the version changes."""
+    existing = f"<extensions>\n{_spaced_child_tags(OUR_EXTENSION)}</extensions>\n"
+
+    assert extensions.add_extension(existing, "0.2.0") == (
+        existing.replace(">0.1.0<", ">0.2.0<"),
+        True,
+    )
+
+
+def test_remove_extension_finds_the_extension_with_spaces_in_its_child_tags():
+    """Status and uninstall find the entry with spaces in its child tags."""
+    existing = f"<extensions>\n{_spaced_child_tags(OUR_EXTENSION)}</extensions>\n"
+
+    assert extensions.has_extension(existing)
+    assert extensions.remove_extension(existing) == (None, True)
+
+
 # ---------------------------------------------------------------------------
 # 3. ~/.mavenrc
 # ---------------------------------------------------------------------------
