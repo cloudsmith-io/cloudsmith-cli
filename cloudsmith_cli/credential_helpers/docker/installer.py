@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import shlex
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -71,6 +72,12 @@ def _helper_name(scope: tuple[str | None, ...]) -> str:
     return "-".join(["cloudsmith", *filter(None, segments)])
 
 
+def _shell_quote(value: str) -> str:
+    """Return *value* quoted as one argument for the shell of the user."""
+    # cmd.exe does not read single quotes as quotes.
+    return subprocess.list2cmdline([value]) if is_windows() else shlex.quote(value)
+
+
 def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
     """Raise :class:`HelperScopeConflict` if another scope wrote the launcher.
 
@@ -83,7 +90,7 @@ def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
     installed = tuple(env.get(name) for name in _SCOPE_ENVVARS)
     if installed != scope:
         flags = "".join(
-            f" {flag} {shlex.quote(value)}"
+            f" {flag} {_shell_quote(value)}"
             for flag, value in zip(_SCOPE_FLAGS, installed)
             if value
         )
@@ -91,7 +98,7 @@ def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
             f"{launcher_path} is the helper of an install with a different"
             " profile or Workspace. To remove it, run: cloudsmith"
             f" credential-helper uninstall docker{flags}"
-            f" --bin-dir {shlex.quote(str(launcher_path.parent))}"
+            f" --bin-dir {_shell_quote(str(launcher_path.parent))}"
         )
 
 
@@ -296,6 +303,9 @@ class DockerInstaller:
             return actions + replaced
 
         # Real install
+        # The caller resolves -S and CLOUDSMITH_SSL_VERIFY into one
+        # CLOUDSMITH_SSL_VERIFY value, so the launcher keeps the TLS setting
+        # of the install.
         launcher_path = write_launcher(
             target_dir, launcher_name, helper_command(self.name), env=launcher_env
         )

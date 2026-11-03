@@ -24,6 +24,7 @@ from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import (
     DockerInstaller,
     HelperScopeConflict,
+    _check_scope,
 )
 from ....credential_helpers.launchers import (
     UnsafeLauncherValue,
@@ -625,6 +626,70 @@ def test_docker_conflict_command_removes_the_conflicting_launcher(
 
     command = shlex.split(str(conflict.value).partition("run: ")[2])
     result = runner.invoke(main, command[1:])
+
+    assert result.exit_code == 0, result.output
+    assert not list(bin_dir.iterdir())
+
+
+def test_docker_conflict_command_uses_windows_quoting(tmp_path, monkeypatch):
+    """cmd.exe does not read single quotes as quotes."""
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.docker.installer.is_windows", lambda: True
+    )
+    bin_dir = tmp_path / "my bin"
+    bin_dir.mkdir()
+    launcher = bin_dir / "docker-credential-cloudsmith-acme.cmd"
+    launcher.write_text(
+        _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": "acme"})
+    )
+
+    with pytest.raises(HelperScopeConflict) as conflict:
+        _check_scope(launcher, (None, "acme"))
+
+    assert str(conflict.value).endswith(f' -P acme --bin-dir "{bin_dir}"')
+
+
+def test_docker_root_profile_flag_overrides_the_environment(
+    runner, tmp_path, monkeypatch
+):
+    """A -P flag on the root command overrides CLOUDSMITH_PROFILE."""
+    from ....cli.commands.main import main
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    args = ["docker", "--bin-dir", str(bin_dir), "-w", "acme"]
+    env = {"CLOUDSMITH_PROFILE": "other"}
+
+    installed = runner.invoke(
+        main,
+        ["-P", "work", "credential-helper", "install", *args, "--no-discover"],
+        env=env,
+    )
+    launchers = sorted(path.name for path in bin_dir.iterdir())
+    uninstalled = runner.invoke(
+        main, ["-P", "work", "credential-helper", "uninstall", *args], env=env
+    )
+
+    assert installed.exit_code == 0, installed.output
+    assert uninstalled.exit_code == 0, uninstalled.output
+    assert launchers == ["docker-credential-cloudsmith-work-acme"]
+    assert not list(bin_dir.iterdir())
+
+
+def test_docker_uninstall_accepts_the_oidc_org_alias(runner, tmp_path, monkeypatch):
+    from ....cli.commands.credential_helper.manage import uninstall_cmd
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    bin_dir = tmp_path / "bin"
+    DockerInstaller().install(
+        bin_dir=str(bin_dir),
+        discover=False,
+        launcher_env={"CLOUDSMITH_WORKSPACE": "acme"},
+    )
+
+    result = runner.invoke(
+        uninstall_cmd, ["docker", "--bin-dir", str(bin_dir), "--oidc-org", "acme"]
+    )
 
     assert result.exit_code == 0, result.output
     assert not list(bin_dir.iterdir())

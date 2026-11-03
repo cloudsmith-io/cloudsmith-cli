@@ -190,6 +190,9 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     # not keep that precedence, so the launcher keeps only the resolved value.
     if [settings.pop(name) for name in _TLS_ENVVARS if name in settings]:
         settings["CLOUDSMITH_SSL_VERIFY"] = str(opts.ssl_verify).lower()
+    # Keep the profile that the install used to load the config files.
+    if "CLOUDSMITH_PROFILE" in settings:
+        settings["CLOUDSMITH_PROFILE"] = contexts[-1].meta["profile"]
     return settings
 
 
@@ -459,6 +462,7 @@ def install_cmd(
     "--workspace",
     "--org",
     "--organization",
+    "--oidc-org",
     "-o",
     "--owner",
     "workspace",

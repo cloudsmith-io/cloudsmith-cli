@@ -219,7 +219,10 @@ def common_cli_config_options(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
-        profile = kwargs.pop("profile") or ctx.meta.get("profile")
+        profile = kwargs.pop("profile")
+        # A -P flag of a parent command overrides CLOUDSMITH_PROFILE.
+        if ctx.get_parameter_source("profile") != ParameterSource.COMMANDLINE:
+            profile = ctx.meta.get("profile") or profile
         config_file = kwargs.pop("config_file") or ctx.meta.get("config_file")
         creds_file = kwargs.pop("credentials_file") or ctx.meta.get("creds_file")
 
