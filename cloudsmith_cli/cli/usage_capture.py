@@ -309,6 +309,19 @@ def _ssl_verify_strict(opts):
     return value if isinstance(value, bool) else None
 
 
+def policy(meta):
+    """What this run may send, from ``@telemetry.send`` nearest its command."""
+    from ..core.telemetry_common import resolve_policy
+
+    contexts = (meta or {}).get(META_KEY, {}).get("contexts", [])
+    return resolve_policy(contexts[-1] if contexts else None)
+
+
+def current_policy():
+    """What the current run may send; ``ALL`` before any command is parsed."""
+    return policy(current_root_meta())
+
+
 def typed_flags(meta):
     """The option spellings typed in this run, from its root ``ctx.meta``."""
     return sorted(set((meta or {}).get(META_KEY, {}).get("typed", [])))
@@ -316,6 +329,7 @@ def typed_flags(meta):
 
 def collect_facts(meta, *, outcome, exit_code, duration_ms, nested):
     """Build the ``RunFacts`` for a run from its recorded context metadata."""
+    from ..core.telemetry_common import Send
     from ..core.usage.event import RunFacts
 
     store = meta.get(META_KEY, {})
@@ -348,6 +362,7 @@ def collect_facts(meta, *, outcome, exit_code, duration_ms, nested):
         stdout_tty=bool(sys.stdout and sys.stdout.isatty()),
         stdin_tty=bool(sys.stdin and sys.stdin.isatty()),
         nested=nested,
+        usage_allowed=Send.USAGE in policy(meta),
         # A typed config file or profile that the leaf never loaded may hold
         # an opt-out or a host this run cannot see: never send.
         config_unresolved=bool(CONFIG_SPELLINGS & set(typed))
