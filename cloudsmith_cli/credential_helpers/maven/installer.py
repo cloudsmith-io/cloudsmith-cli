@@ -154,6 +154,14 @@ def _remove(path: Path, edit: Callable, dry_run: bool) -> list[str]:
     return [f"removed the extension from {path}"]
 
 
+def _turn_off(path: Path, edit: Callable, dry_run: bool) -> list[str]:
+    """Remove the other user-level activation, because Maven 3.10 reads both files."""
+    current = _read(path)
+    if current is None or not edit(current)[1]:
+        return []
+    return _remove(path, edit, dry_run)
+
+
 class MavenInstaller:
     name = "maven"
     summary = "Maven extension that gets credentials from the Cloudsmith CLI"
@@ -175,8 +183,12 @@ class MavenInstaller:
         actions = self._download(version, dry_run, session)
         if mavenrc:
             jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
-            return actions + _add(
-                _mavenrc_file(), partial(add_block, jar=jar), version, dry_run
+            return (
+                actions
+                + _add(_mavenrc_file(), partial(add_block, jar=jar), version, dry_run)
+                + _turn_off(
+                    _user_extensions_file(), extensions.remove_extension, dry_run
+                )
             )
         add_extension = partial(extensions.add_extension, version=version)
         if project_file:
@@ -184,6 +196,7 @@ class MavenInstaller:
         return (
             actions
             + _add(_user_extensions_file(), add_extension, version, dry_run)
+            + _turn_off(_mavenrc_file(), remove_block, dry_run)
             + _old_maven_warning()
         )
 

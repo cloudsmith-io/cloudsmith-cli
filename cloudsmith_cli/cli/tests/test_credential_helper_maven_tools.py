@@ -834,6 +834,33 @@ def test_maven_install_with_mavenrc_adds_a_block(
     assert not _user_extensions(home).exists()
 
 
+def test_maven_install_with_mavenrc_turns_off_the_user_extensions_file(
+    home, fake_repository, outside_projects
+):
+    """Maven 3.10 loads both, so only one of them loads the extension."""
+    MavenInstaller().install()
+
+    MavenInstaller().install(mavenrc=True)
+
+    assert not _user_extensions(home).exists()
+    assert mavenrc.has_block((home / ".mavenrc").read_text(encoding="utf-8"))
+
+
+def test_maven_install_turns_off_the_mavenrc_block(
+    home, fake_repository, outside_projects
+):
+    """Maven 3.10 loads both, so only one of them loads the extension."""
+    (home / ".mavenrc").write_text('export JAVA_HOME="/opt/java"\n', encoding="utf-8")
+    MavenInstaller().install(mavenrc=True)
+
+    MavenInstaller().install()
+
+    assert extensions.has_extension(_user_extensions(home).read_text(encoding="utf-8"))
+    assert (home / ".mavenrc").read_text(encoding="utf-8") == (
+        'export JAVA_HOME="/opt/java"\n'
+    )
+
+
 def test_maven_install_dry_run_changes_nothing(home, fake_repository, maven_project):
     """A dry run reports the planned changes and writes no files."""
     actions = [
