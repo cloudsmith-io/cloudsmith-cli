@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
+- Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
 
 ### Fixed
 
@@ -52,6 +53,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
 - `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
 - `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
 
 ## [1.30.0] - 2026-10-22
 
