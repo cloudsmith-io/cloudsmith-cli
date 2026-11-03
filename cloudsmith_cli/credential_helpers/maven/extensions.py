@@ -13,9 +13,7 @@ GROUP_ID = "io.cloudsmith"
 ARTIFACT_ID = "cloudsmith-maven-extension"
 
 # XML allows spaces and new lines before the > of a tag.
-_EXTENSION_BLOCK = re.compile(
-    r"[ \t]*<extension\s*>.*?</extension\s*>[ \t]*\n?", re.DOTALL
-)
+_EXTENSION_BLOCK = re.compile(r"<extension\s*>.*?</extension\s*>", re.DOTALL)
 _EMPTY_EXTENSIONS = re.compile(r"<extensions\b([^>]*?)\s*/>")
 _CLOSING_EXTENSIONS = re.compile(r"</extensions\s*>")
 _VERSION = re.compile(r"<version\s*>([^<]*)</version\s*>")
@@ -101,7 +99,12 @@ def remove_extension(text: str) -> tuple[str | None, bool]:
     block = _find_extension(masked)
     if not block:
         return text, False
-    new_text = text[: block.start()] + text[block.end() :]
+    # Read the blanks around the block from the real text, because the masked
+    # text shows a comment as blanks.
+    start = len(text[: block.start()].rstrip(" \t"))
+    end = len(text) - len(text[block.end() :].lstrip(" \t"))
+    end += text.startswith("\n", end)
+    new_text = text[:start] + text[end:]
     if not _has_extension_element(new_text):
         return None, True
     return new_text, True

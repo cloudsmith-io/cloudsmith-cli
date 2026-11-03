@@ -271,6 +271,22 @@ def test_remove_extension_keeps_other_extensions():
     assert text == f"<extensions>\n{OTHER_EXTENSION}</extensions>\n"
 
 
+def test_remove_extension_keeps_comments_on_the_same_lines():
+    """A comment next to the Cloudsmith extension is not part of it."""
+    ours = OUR_EXTENSION.rstrip("\n")
+    existing = (
+        f"<extensions>\n<!-- before -->{ours}<!-- after -->\n"
+        f"{OTHER_EXTENSION}</extensions>\n"
+    )
+
+    text, changed = extensions.remove_extension(existing)
+
+    assert changed is True
+    assert text == (
+        f"<extensions>\n<!-- before --><!-- after -->\n{OTHER_EXTENSION}</extensions>\n"
+    )
+
+
 def test_remove_the_only_extension_returns_no_text():
     """When nothing else is listed, the file is not needed."""
     assert extensions.remove_extension(
