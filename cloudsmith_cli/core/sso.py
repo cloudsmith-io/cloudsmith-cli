@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
+from typing import Any
 
 import requests
 
@@ -16,6 +17,7 @@ from .api.exceptions import ApiException, error_detail_and_fields
 logger = logging.getLogger(__name__)
 REFRESH_REJECTED_STATUSES = frozenset({400, 401, 403, 422})
 TOKEN_EXPIRY_LEEWAY = timedelta(seconds=30)
+MISSING_SAML_TOKENS = "The API did not return SAML tokens."
 
 
 class SsoRenewalStatus(str, Enum):
@@ -202,7 +204,24 @@ def raise_for_api_error(response):
         )
 
 
-def refresh_access_token(api_host, access_token, refresh_token, session):
+def response_json_object(
+    response: requests.Response, missing_detail: str
+) -> dict[str, Any]:
+    """Return the JSON object in *response*, or raise :class:`ApiException`."""
+    # A proxy or a captive portal can send a 200 response with an HTML page.
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+
+    if not isinstance(body, dict):
+        raise ApiException(0, detail=missing_detail)
+    return body
+
+
+def refresh_access_token(
+    api_host: str, access_token: str, refresh_token: str, session: requests.Session
+) -> tuple[str | None, str | None]:
     data = {"refresh_token": refresh_token}
     url = f"{api_host}/user/refresh-token/"
 
@@ -217,7 +236,7 @@ def refresh_access_token(api_host, access_token, refresh_token, session):
 
     raise_for_api_error(response)
 
-    response_data = response.json()
+    response_data = response_json_object(response, MISSING_SAML_TOKENS)
     access_token = response_data.get("access_token")
     refresh_token = response_data.get("refresh_token")
 

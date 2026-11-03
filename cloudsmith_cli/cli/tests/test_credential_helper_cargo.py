@@ -505,6 +505,95 @@ def test_installer_pins_the_provider_on_matching_named_registries(cargo_home, bi
     assert any("registries.acme.credential-provider" in a for a in actions)
 
 
+def test_installer_keeps_a_foreign_registry_provider(cargo_home, bin_dir):
+    """install and uninstall leave a per-registry provider that the CLI did not set."""
+    cargo_home.parent.mkdir(parents=True)
+    cargo_home.write_text(
+        tomlkit.dumps(
+            {
+                "registries": {
+                    "acme": {
+                        "index": CLOUDSMITH_INDEX,
+                        "credential-provider": "cargo:libsecret",
+                    }
+                }
+            }
+        )
+    )
+    installer = CargoInstaller()
+
+    actions = installer.install(bin_dir=str(bin_dir), discover=False)
+
+    acme = tomlkit.loads(cargo_home.read_text())["registries"]["acme"]
+    assert acme["credential-provider"] == "cargo:libsecret"
+    assert (
+        f"WARNING: did not set registries.acme.credential-provider in {cargo_home}"
+        " because it is already set to 'cargo:libsecret'"
+    ) in actions
+    assert not any(a.startswith("set registries.acme") for a in actions)
+
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    acme = tomlkit.loads(cargo_home.read_text())["registries"]["acme"]
+    assert acme["credential-provider"] == "cargo:libsecret"
+
+
+def test_installer_dry_run_warns_about_a_foreign_registry_provider(cargo_home, bin_dir):
+    """--dry-run warns even when the global list needs no change."""
+    cargo_home.parent.mkdir(parents=True)
+    cargo_home.write_text(
+        tomlkit.dumps(
+            {
+                "registry": {"global-credential-providers": [TOKEN_PROVIDER, PROVIDER]},
+                "registries": {
+                    "acme": {
+                        "index": CLOUDSMITH_INDEX,
+                        "credential-provider": ["cargo:libsecret"],
+                    }
+                },
+            }
+        )
+    )
+
+    actions = CargoInstaller().install(bin_dir=str(bin_dir), dry_run=True)
+
+    assert (
+        f"WARNING: would not set registries.acme.credential-provider in {cargo_home}"
+        " because it is already set to ['cargo:libsecret']"
+    ) in actions
+
+
+def test_installer_treats_the_array_form_as_its_own_provider(cargo_home, bin_dir):
+    """A one-item array of the Cloudsmith provider is not a foreign provider."""
+    cargo_home.parent.mkdir(parents=True)
+    cargo_home.write_text(
+        tomlkit.dumps(
+            {
+                "registries": {
+                    "acme": {
+                        "index": CLOUDSMITH_INDEX,
+                        "credential-provider": [PROVIDER],
+                    }
+                }
+            }
+        )
+    )
+    installer = CargoInstaller()
+
+    actions = installer.install(bin_dir=str(bin_dir), discover=False)
+
+    assert not any(a.startswith("WARNING") for a in actions)
+
+    config = tomlkit.loads(cargo_home.read_text())
+    config["registries"]["acme"]["credential-provider"] = [PROVIDER]
+    cargo_home.write_text(tomlkit.dumps(config))
+
+    installer.uninstall(bin_dir=str(bin_dir))
+
+    acme = tomlkit.loads(cargo_home.read_text())["registries"]["acme"]
+    assert "credential-provider" not in acme
+
+
 def test_installer_registers_global_provider_in_existing_config(cargo_home, bin_dir):
     """An existing config.toml without [registry] must still get the provider."""
     cargo_home.parent.mkdir(parents=True)
