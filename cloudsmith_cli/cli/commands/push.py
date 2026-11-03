@@ -6,6 +6,8 @@ import json
 import math
 import os
 import shlex
+import shutil
+import tempfile
 import time
 from datetime import UTC, datetime
 
@@ -1056,6 +1058,34 @@ def upload_files_and_create_package(
     return slug_perm, slug
 
 
+def _push_package_file(
+    ctx, opts, package_file, args, kwargs, metadata_kwargs, metadata, failure_info
+):
+    """Upload one package file, returning ``(result, metadata_info)`` or None."""
+    result = None
+    click.echo(err=utils.should_use_stderr(opts))
+    try:
+        res = upload_files_and_create_package(
+            ctx,
+            *args,
+            **kwargs,
+            **metadata_kwargs,
+            package_file=package_file,
+            metadata=metadata,
+            metadata_failure_info=failure_info,
+        )
+        if res:
+            # ``upload_files_and_create_package`` resets and then populates
+            # ``opts.push_metadata_info`` on every call, so reading it here
+            # always reflects this file.
+            result = (res, opts.push_metadata_info)
+    except ApiException:
+        utils.echo_skipped_error(opts)
+
+    click.echo(err=utils.should_use_stderr(opts))
+    return result
+
+
 def _implied_dsc_file(package_file):
     """Return ``package_file`` if it is itself a Debian ``.dsc``, else None."""
     if isinstance(package_file, str) and package_file.endswith(DSC_SUFFIX):
@@ -1136,7 +1166,7 @@ def create_push_handlers():
             "package_file",
             nargs=1 if has_additional_params else -1,
             type=ExpandPath(
-                dir_okay=False, exists=True, writable=False, resolve_path=True
+                dir_okay=key == "skills", exists=True, writable=False, resolve_path=True
             ),
         )
         @click.option(
@@ -1277,6 +1307,10 @@ def create_push_handlers():
             if cli_failure_mode is not None:
                 opts.cli_metadata_failure_mode = cli_failure_mode
 
+            # ``--compress-on-upload`` is a client-side switch, not a
+            # package-create field, so keep it out of the API payload.
+            compress_on_upload = kwargs.pop("compress_on_upload", False)
+
             package_files = kwargs.pop("package_file")
             if not isinstance(package_files, tuple):
                 package_files = (package_files,)
@@ -1301,29 +1335,53 @@ def create_push_handlers():
                 **metadata_kwargs, opts=opts
             )
 
+            def push_file(package_file):
+                result = _push_package_file(
+                    ctx,
+                    opts,
+                    package_file,
+                    args,
+                    kwargs,
+                    metadata_kwargs,
+                    metadata,
+                    metadata_failure_info,
+                )
+                if result:
+                    results.append(result)
+
             results = []
             for package_file in package_files:
-                kwargs["package_file"] = package_file
-
-                try:
-                    click.echo(err=utils.should_use_stderr(opts))
-                    res = upload_files_and_create_package(
-                        ctx,
-                        *args,
-                        **kwargs,
-                        **metadata_kwargs,
-                        metadata=metadata,
-                        metadata_failure_info=metadata_failure_info,
+                # Case: If a directory is selected as package upload target (only for AI skills at the moment)
+                # but does not specify the `--compress-on-upload flag`
+                if os.path.isdir(package_file) and not compress_on_upload:
+                    raise click.BadParameter(
+                        "Directories require --compress-on-upload.",
+                        param_hint="PACKAGE_FILE",
                     )
-                    if res:
-                        # ``upload_files_and_create_package`` resets and then
-                        # populates ``opts.push_metadata_info`` on every call,
-                        # so reading it here always reflects this iteration.
-                        results.append((res, opts.push_metadata_info))
-                except ApiException:
-                    utils.echo_skipped_error(opts)
+                # Case: If a directory is selected as package upload target and flag is set -> zip the directory
+                elif os.path.isdir(package_file) and compress_on_upload:
+                    # Upload inside the temp dir context so the archive still exists
+                    with tempfile.TemporaryDirectory() as tmp:
+                        use_stderr = utils.should_use_stderr(opts)
 
-                click.echo(err=utils.should_use_stderr(opts))
+                        click.echo(
+                            f"Compressing {click.style(package_file, bold=True)} directory ... ",
+                            nl=False,
+                            err=use_stderr,
+                        )
+
+                        archive = shutil.make_archive(
+                            base_name=os.path.join(tmp, os.path.basename(package_file)),
+                            format="zip",
+                            root_dir=package_file,
+                        )
+
+                        click.secho("OK", fg="green", nl=False, err=use_stderr)
+
+                        push_file(archive)
+                # Default case: regular package file
+                else:
+                    push_file(package_file)
 
             if utils.should_use_stderr(opts):
                 data = []
@@ -1418,6 +1476,14 @@ def create_push_handlers():
                 "changelog",
                 default=None,
                 help="Changelog for skills",
+            )(push_handler)
+
+            push_handler = click.option(
+                "--compress-on-upload",
+                "compress_on_upload",
+                default=False,
+                is_flag=True,
+                help="Compress a skills directory into a .zip before upload",
             )(push_handler)
 
         handlers[key] = push_handler
