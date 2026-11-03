@@ -71,7 +71,7 @@ def test_cleared_install_settings_keep_the_error_report_controls():
             False,
             "docker",
             "docker-credential-cloudsmith",
-            '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n',
+            '#!/usr/bin/env sh\nexec cloudsmith credential-helper docker "$@"\n',
         ),
         (
             True,
@@ -83,7 +83,7 @@ def test_cleared_install_settings_keep_the_error_report_controls():
             False,
             "pnpm",
             "pnpm-credential-cloudsmith",
-            '#!/bin/sh\nexec cloudsmith credential-helper pnpm "$@"\n',
+            '#!/usr/bin/env sh\nexec cloudsmith credential-helper pnpm "$@"\n',
         ),
         (
             True,
@@ -231,7 +231,7 @@ def test_write_launcher_writes_executable_script(format, tmp_path):
         f"{format}-credential-cloudsmith",
         f"cloudsmith credential-helper {format}",
     )
-    expected = f'#!/bin/sh\nexec cloudsmith credential-helper {format} "$@"\n'
+    expected = f'#!/usr/bin/env sh\nexec cloudsmith credential-helper {format} "$@"\n'
     assert dest.read_text(encoding="utf-8") == expected
     assert stat.S_IMODE(dest.stat().st_mode) == 0o755
 
@@ -430,10 +430,14 @@ def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
         f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
     assert actions[1:] == [
-        f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
-        f" in {npm_path}",
-        f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
-        f" in {npm_path}",
+        (
+            f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+            f" in {npm_path}"
+        ),
+        (
+            f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+            f" in {npm_path}"
+        ),
     ]
     # Launcher written
     assert (bin_dir / "pnpm-credential-cloudsmith").exists()
