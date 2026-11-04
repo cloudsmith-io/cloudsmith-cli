@@ -1307,9 +1307,9 @@ def create_push_handlers():
             if cli_failure_mode is not None:
                 opts.cli_metadata_failure_mode = cli_failure_mode
 
-            # ``--compress-on-upload`` is a client-side switch, not a
+            # ``--compress`` is a client-side switch, not a
             # package-create field, so keep it out of the API payload.
-            compress_on_upload = kwargs.pop("compress_on_upload", False)
+            compress = kwargs.pop("compress", False)
 
             package_files = kwargs.pop("package_file")
             if not isinstance(package_files, tuple):
@@ -1352,14 +1352,14 @@ def create_push_handlers():
             results = []
             for package_file in package_files:
                 # Case: If a directory is selected as package upload target (only for AI skills at the moment)
-                # but does not specify the `--compress-on-upload flag`
-                if os.path.isdir(package_file) and not compress_on_upload:
+                # but does not specify the `--compress flag`
+                if os.path.isdir(package_file) and not compress:
                     raise click.BadParameter(
-                        "Directories require --compress-on-upload.",
+                        "Directories require --compress.",
                         param_hint="PACKAGE_FILE",
                     )
                 # Case: If a directory is selected as package upload target and flag is set -> zip the directory
-                elif os.path.isdir(package_file) and compress_on_upload:
+                elif os.path.isdir(package_file) and compress:
                     # Upload inside the temp dir context so the archive still exists
                     with tempfile.TemporaryDirectory() as tmp:
                         use_stderr = utils.should_use_stderr(opts)
@@ -1479,8 +1479,8 @@ def create_push_handlers():
             )(push_handler)
 
             push_handler = click.option(
-                "--compress-on-upload",
-                "compress_on_upload",
+                "--compress",
+                "compress",
                 default=False,
                 is_flag=True,
                 help="Compress a skills directory into a .zip before upload",

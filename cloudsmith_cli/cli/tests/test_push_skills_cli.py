@@ -85,7 +85,7 @@ def test_push_non_skills_format_has_no_changelog_option(runner):
     assert "--changelog" not in result.output
 
 
-def test_directory_is_compressed_and_uploaded_with_compress_on_upload(runner, tmp_path):
+def test_directory_is_compressed_and_uploaded_with_compress(runner, tmp_path):
     skill_dir = tmp_path / "my-skill"
     (skill_dir / "scripts").mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n")
@@ -121,7 +121,7 @@ def test_directory_is_compressed_and_uploaded_with_compress_on_upload(runner, tm
                 "my-skill",
                 "--version",
                 "1.0.0",
-                "--compress-on-upload",
+                "--compress",
                 "--api-key",
                 "fake-api-key",
             ],
@@ -135,11 +135,11 @@ def test_directory_is_compressed_and_uploaded_with_compress_on_upload(runner, tm
     assert "scripts/run.sh" in uploaded["members"]
 
     # The flag is client-side only and must not leak into the API payload
-    assert "compress_on_upload" not in mock_validate_create_package.call_args.kwargs
-    assert "compress_on_upload" not in mock_create_package.call_args.kwargs
+    assert "compress" not in mock_validate_create_package.call_args.kwargs
+    assert "compress" not in mock_create_package.call_args.kwargs
 
 
-def test_directory_without_compress_on_upload_is_rejected(runner, tmp_path):
+def test_directory_without_compress_is_rejected(runner, tmp_path):
     skill_dir = tmp_path / "my-skill"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n")
@@ -168,12 +168,12 @@ def test_directory_without_compress_on_upload_is_rejected(runner, tmp_path):
         )
 
     assert result.exit_code == 2, result.output
-    assert "Directories require --compress-on-upload" in result.output
+    assert "Directories require --compress" in result.output
     assert not mock_upload_file.called
     assert not mock_create_package.called
 
 
-def test_file_with_compress_on_upload_is_uploaded_unchanged(runner, tmp_path):
+def test_file_with_compress_is_uploaded_unchanged(runner, tmp_path):
     package_file = tmp_path / "my-skill.zip"
     package_file.write_bytes(b"dummy content")
 
@@ -197,7 +197,7 @@ def test_file_with_compress_on_upload_is_uploaded_unchanged(runner, tmp_path):
                 "my-skill",
                 "--version",
                 "1.0.0",
-                "--compress-on-upload",
+                "--compress",
                 "--api-key",
                 "fake-api-key",
             ],
@@ -208,11 +208,11 @@ def test_file_with_compress_on_upload_is_uploaded_unchanged(runner, tmp_path):
     assert mock_upload_file.call_args.kwargs["filepath"] == str(package_file)
 
 
-def test_push_skills_help_documents_compress_on_upload_option(runner):
+def test_push_skills_help_documents_compress_option(runner):
     result = runner.invoke(main, ["push", "skills", "--help"], catch_exceptions=False)
 
     assert result.exit_code == 0, result.output
-    assert "--compress-on-upload" in result.output
+    assert "--compress" in result.output
 
 
 def test_push_non_skills_format_rejects_directory(runner, tmp_path):
@@ -233,4 +233,4 @@ def test_push_non_skills_format_rejects_directory(runner, tmp_path):
 
     assert result.exit_code == 2, result.output
     assert "is a directory" in result.output
-    assert "--compress-on-upload" not in result.output
+    assert "--compress" not in result.output
