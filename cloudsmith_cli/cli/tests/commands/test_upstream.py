@@ -6,7 +6,7 @@ from ...commands.upstream import UPSTREAM_FORMATS, upstream
 from ..utils import random_str
 
 #: The canonical public upstream for each format. These are already indexed,
-#: so the API validates them quickly, and none needs credentials. The API
+#: so the API validates them quickly, and only skills (GitHub) takes a token. The API
 #: strips trailing slashes, so none is written with one. Formats without a
 #: single canonical source (generic, swift) use a small placeholder page.
 UPSTREAM_URLS = {
@@ -29,6 +29,7 @@ UPSTREAM_URLS = {
     "python": "https://pypi.org",
     "rpm": "https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/35/Everything/x86_64/os",
     "ruby": "https://rubygems.org",
+    "skills": "https://github.com/anthropics/claude-plugins-official",
     "swift": "https://example.org",
 }
 
@@ -51,7 +52,7 @@ def assert_succeeded(result):
 @pytest.mark.integration
 @pytest.mark.parametrize("upstream_format", UPSTREAM_FORMATS)
 def test_upstream_commands(
-    runner, organization, upstream_format, tmp_repository, tmp_path
+    request, runner, organization, upstream_format, tmp_repository, tmp_path
 ):
     upstream_config = {
         # "name" and "upstream_url" are the only required properties for most formats.
@@ -62,6 +63,15 @@ def test_upstream_commands(
         # distro_versions is only required for deb and will be ignored for other formats.
         "distro_versions": ["ubuntu/xenial"],
     }
+
+    # Skills specific arguments
+    if upstream_format == "skills":
+        # This GitHub host only offers skills and plugins together.
+        upstream_config["contents"] = "Skills and plugins"
+        upstream_config["mode"] = "Cache Only"
+        # Requested here rather than as a parameter so only skills skips without it.
+        upstream_config["auth_mode"] = "Token"
+        upstream_config["auth_secret"] = request.getfixturevalue("github_token")
 
     upstream_config_file = tmp_path / (f"cli-test-upstream-{upstream_format}.json")
     upstream_config_file.write_text(str(json.dumps(upstream_config)))
