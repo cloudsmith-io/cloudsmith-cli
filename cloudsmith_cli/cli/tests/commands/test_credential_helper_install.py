@@ -18,9 +18,11 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 
 from ....cli.commands.credential_helper import credential_helper
+from ....core import telemetry
 from ....core.credentials.models import CredentialResult
 from ....credential_helpers.docker.installer import DockerInstaller
 from ....credential_helpers.launchers import (
+    UnsafeLauncherValue,
     _launcher_content,
     _launcher_filename,
     is_on_path,
@@ -43,6 +45,20 @@ def runner():
     return click.testing.CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def clear_cloudsmith_env(monkeypatch):
+    """Keep the CLOUDSMITH_* settings of the developer shell out of the installs."""
+    for name in [name for name in os.environ if name.startswith("CLOUDSMITH_")]:
+        monkeypatch.delenv(name)
+    monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
+    monkeypatch.setenv(telemetry.DSN_ENV, "")
+
+
+def test_cleared_install_settings_keep_the_error_report_controls():
+    assert os.environ[telemetry.NO_TELEMETRY_ENV] == "1"
+    assert os.environ[telemetry.DSN_ENV] == ""
+
+
 # ---------------------------------------------------------------------------
 # 1. launcher filename + content (pure, platform-parameterised)
 # ---------------------------------------------------------------------------
@@ -55,7 +71,7 @@ def runner():
             False,
             "docker",
             "docker-credential-cloudsmith",
-            '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n',
+            '#!/usr/bin/env sh\nexec cloudsmith credential-helper docker "$@"\n',
         ),
         (
             True,
@@ -67,7 +83,7 @@ def runner():
             False,
             "pnpm",
             "pnpm-credential-cloudsmith",
-            '#!/bin/sh\nexec cloudsmith credential-helper pnpm "$@"\n',
+            '#!/usr/bin/env sh\nexec cloudsmith credential-helper pnpm "$@"\n',
         ),
         (
             True,
@@ -96,6 +112,106 @@ def test_launcher_filename_and_content(
     )
 
 
+@pytest.mark.parametrize(
+    "profile,value,expected",
+    [
+        ("C:\\Users\\jo", "C:\\Users\\jo\\a b&c!", "C:\\Users\\jo\\a b&c!"),
+        (
+            "C:\\Users\\José",
+            "c:\\users\\josé\\cs\\config.ini",
+            "%USERPROFILE%\\cs\\config.ini",
+        ),
+    ],
+)
+def test_windows_launcher_settings_are_ascii(monkeypatch, profile, value, expected):
+    """cmd.exe reads a batch file in the console code page, not UTF-8.
+
+    Only a non-ASCII path under the user profile is written as %USERPROFILE%,
+    because another account that runs the package manager has a different
+    profile.
+    """
+    monkeypatch.setenv("USERPROFILE", profile)
+    content = _launcher_content("cmd", windows=True, env={"CLOUDSMITH_X": value})
+    assert content == (
+        "@echo off\r\nsetlocal DisableDelayedExpansion\r\n"
+        f'set "CLOUDSMITH_X={expected}"\r\ncmd %*\r\n'
+    )
+
+
+@pytest.mark.parametrize("value", ["%PATH%", "D:\\Données"])
+def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, value):
+    monkeypatch.setenv("USERPROFILE", "C:\\Users\\José")
+    with pytest.raises(UnsafeLauncherValue, match="CLOUDSMITH_PROFILE"):
+        _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
+
+
+def test_install_passes_flag_and_environment_settings_to_the_launcher(
+    runner, monkeypatch, tmp_path
+):
+    """Settings from flags and CLOUDSMITH_* variables go to the launcher.
+
+    A value read from a config file does not, because the helper reads that
+    file itself.  Secrets and the proxy never go to the launcher.  A flag on
+    the parent command also counts.
+    """
+    from ....cli.commands.credential_helper import manage
+    from ....cli.commands.main import main
+
+    launcher_env = {}
+
+    class SettingsInstaller:
+        KEEPS_INSTALL_TIME_SETTINGS = True
+
+        def install(self, **kwargs):
+            launcher_env.update(kwargs["launcher_env"])
+            return []
+
+    monkeypatch.setitem(manage._INSTALLERS, "settings", SettingsInstaller)
+    config = tmp_path / "config.ini"
+    config.write_text("[default]\nssl_verify_strict = false\n")
+    result = runner.invoke(
+        main,
+        args=[
+            "-P",
+            "work",
+            "credential-helper",
+            "install",
+            "settings",
+            "-w",
+            "acme",
+            "--config-file",
+            str(config),
+            "--api-host",
+            "https://api.example.com",
+            "--proxy",
+            "http://proxy.example.com:3128",
+            "-S",
+        ],
+        env={
+            "CLOUDSMITH_API_KEY": "k_secret",
+            "CLOUDSMITH_API_HEADERS": "X-Secret=1",
+            "CLOUDSMITH_KEYRING_KEY": "keyring_secret",
+            "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
+            "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
+            "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
+            "CLOUDSMITH_SSL_VERIFY": "1",
+        },
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert launcher_env == {
+        "CLOUDSMITH_WORKSPACE": "acme",
+        "CLOUDSMITH_PROFILE": "work",
+        "CLOUDSMITH_CONFIG_FILE": str(config.resolve()),
+        "CLOUDSMITH_API_HOST": "https://api.example.com",
+        "CLOUDSMITH_SSL_VERIFY": "false",
+        "CLOUDSMITH_OIDC_AUDIENCE": "cloudsmith-test",
+        "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
+        "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
+    }
+
+
 # ---------------------------------------------------------------------------
 # 2. write_launcher / remove_launcher — end-to-end on the host platform
 # ---------------------------------------------------------------------------
@@ -115,7 +231,7 @@ def test_write_launcher_writes_executable_script(format, tmp_path):
         f"{format}-credential-cloudsmith",
         f"cloudsmith credential-helper {format}",
     )
-    expected = f'#!/bin/sh\nexec cloudsmith credential-helper {format} "$@"\n'
+    expected = f'#!/usr/bin/env sh\nexec cloudsmith credential-helper {format} "$@"\n'
     assert dest.read_text(encoding="utf-8") == expected
     assert stat.S_IMODE(dest.stat().st_mode) == 0o755
 
@@ -314,10 +430,14 @@ def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
         f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
     assert actions[1:] == [
-        f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
-        f" in {npm_path}",
-        f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
-        f" in {npm_path}",
+        (
+            f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+            f" in {npm_path}"
+        ),
+        (
+            f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+            f" in {npm_path}"
+        ),
     ]
     # Launcher written
     assert (bin_dir / "pnpm-credential-cloudsmith").exists()
@@ -587,6 +707,29 @@ def test_pnpm_installer_uninstall(tmp_path: Path, monkeypatch):
 
     assert npm_path.read_text() == "//registry.npmjs.org/:_authToken=abc123\n"
     assert not launcher.exists()
+
+
+@pytest.mark.parametrize(
+    ("dry_run", "expected_verb"),
+    [(False, "removed"), (True, "would remove")],
+)
+def test_pnpm_uninstall_removes_launcher_without_npmrc(
+    dry_run: bool, expected_verb: str, tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """uninstall removes the launcher and does not create .npmrc when .npmrc is missing."""
+    npm_path = tmp_path / ".npmrc"
+    monkeypatch.setenv("NPM_CONFIG_USERCONFIG", str(npm_path))
+    bin_dir = tmp_path / "bin"
+    installer = PNPMInstaller()
+    installer.install(bin_dir=str(bin_dir), discover=False)
+    npm_path.unlink()
+    launcher = bin_dir / "pnpm-credential-cloudsmith"
+
+    actions = installer.uninstall(bin_dir=str(bin_dir), dry_run=dry_run)
+
+    assert not npm_path.exists()
+    assert launcher.exists() == dry_run
+    assert f"{expected_verb} launcher {launcher}" in actions
 
 
 # ---------------------------------------------------------------------------
@@ -1248,6 +1391,37 @@ def test_docker_install_coerces_malformed_cred_helpers(tmp_path, monkeypatch):
     cfg = json.loads((docker_dir / "config.json").read_text(encoding="utf-8"))
     assert isinstance(cfg["credHelpers"], dict)
     assert cfg["credHelpers"]["docker.cloudsmith.io"] == "cloudsmith"
+
+
+@pytest.mark.parametrize(
+    "cmd_name,cli_args",
+    [
+        ("install_cmd", ["docker", "--no-discover"]),
+        ("uninstall_cmd", ["docker"]),
+    ],
+)
+def test_docker_unparsable_config_fails_without_write(
+    cmd_name, cli_args, runner, tmp_path, monkeypatch
+):
+    """install/uninstall exit non-zero, name the file, and do not write to it."""
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    monkeypatch.setenv("DOCKER_CONFIG", str(docker_dir))
+    config_path = docker_dir / "config.json"
+    original_text = '{"credsStore": "desktop",}'
+    config_path.write_text(original_text, encoding="utf-8")
+
+    from ....cli.commands.credential_helper import manage as manage_mod
+
+    result = runner.invoke(
+        getattr(manage_mod, cmd_name),
+        [*cli_args, "--bin-dir", str(tmp_path / "bin")],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert str(config_path) in result.output
+    assert config_path.read_text(encoding="utf-8") == original_text
+    assert not (docker_dir / "config.json.bak").exists()
 
 
 def test_pnpm_install_coerces_malformed_cred_helpers(tmp_path: Path, monkeypatch):

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import tempfile
@@ -13,6 +14,13 @@ import tomlkit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+_FIX_CONFIG_FILE_HINT = "Correct or remove the file. Then run the command again."
+
+
+class ConfigFileParseError(ValueError):
+    """The config file exists but does not contain a valid object."""
 
 
 def _atomic_write_text(dest: str, text: str, *, mode: int = 0o600) -> None:
@@ -49,9 +57,36 @@ def atomic_write_json(path: str | os.PathLike, data: Any, *, mode: int = 0o600) 
     _atomic_write_text(dest, json.dumps(data), mode=mode)
 
 
+def _parse_config_text(
+    dest: str, text: str | None, file_format: Literal["json", "toml"]
+) -> dict[str, Any]:
+    """Parse *text* as a top-level object; raise ConfigFileParseError if it is not one."""
+    if file_format not in ("json", "toml"):
+        raise ValueError(f"Unsupported format {file_format!r}")
+    if text is None or not text.strip():
+        return {}
+    try:
+        if file_format == "json":
+            parsed: Any = json.loads(text)
+        else:
+            # Cargo accepts a UTF-8 BOM, but tomlkit does not.
+            parsed = tomlkit.loads(text.removeprefix("\ufeff"))
+    except ValueError as exc:
+        raise ConfigFileParseError(
+            f"Cannot parse {dest} as {file_format.upper()}: {exc}."
+            f" {_FIX_CONFIG_FILE_HINT}"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise ConfigFileParseError(
+            f"Cannot use {dest}: the top-level {file_format.upper()} value is not"
+            f" an object. {_FIX_CONFIG_FILE_HINT}"
+        )
+    return parsed
+
+
 def merge_config_file(
-    path: str | os.PathLike,
-    mutate: Callable[[dict], None],
+    path: str | os.PathLike[str],
+    mutate: Callable[[dict[str, Any]], None],
     *,
     backup: bool = True,
     dry_run: bool = False,
@@ -84,10 +119,17 @@ def merge_config_file(
         ``True`` if the file content changed (or would change under
         ``dry_run``), ``False`` otherwise.
 
+    Raises
+    ------
+    ConfigFileParseError
+        The file is not UTF-8, does not parse, or its top-level value is not
+        an object. The function does not write the file.
+
     Notes
     -----
-    * If the file is missing, empty, or does not parse as a JSON object
-      (``dict``), the starting value is ``{}``.
+    * If the file is missing or empty, the starting value is ``{}``.
+    * The function compares the data before and after *mutate*, not the text,
+      so a no-op leaves a file in another valid formatting untouched.
     * Key order is preserved — ``sort_keys`` is **not** used.
     * The on-disk form is ``json.dumps(data, indent=2, ensure_ascii=False) + "\\n"``.
     * Parent directory is created (mode ``0o700``) if absent.
@@ -112,26 +154,18 @@ def merge_config_file(
             existing_text = f.read()
     except FileNotFoundError:
         existing_text = None
+    except UnicodeDecodeError as exc:
+        raise ConfigFileParseError(
+            f"Cannot read {dest}: the file is not valid UTF-8 ({exc})."
+            f" {_FIX_CONFIG_FILE_HINT}"
+        ) from exc
 
     # ------------------------------------------------------------------
-    # 2. Parse → dict (treat missing/empty/non-dict/malformed as {})
+    # 2. Parse → dict (missing/empty is {}; anything unparsable is an error)
     # ------------------------------------------------------------------
-    data: dict = {}
-    parsed: dict = {}
-    if existing_text:
-        match format:
-            case "json":
-                try:
-                    parsed = json.loads(existing_text)
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            case "toml":
-                try:
-                    parsed = tomlkit.loads(existing_text)
-                except (tomlkit.exceptions.ParseError, ValueError):
-                    pass
-    if isinstance(parsed, dict) and parsed != {}:
-        data = parsed
+    data = _parse_config_text(dest, existing_text, format)
+    before = copy.deepcopy(data)
+
     # ------------------------------------------------------------------
     # 3. Mutate in place
     # ------------------------------------------------------------------
@@ -140,24 +174,15 @@ def merge_config_file(
     # ------------------------------------------------------------------
     # 4. Stable serialisation + change detection
     # ------------------------------------------------------------------
+    if data == before:
+        return False
+
     new_text = ""
 
     if format == "json":
         new_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
-    elif format == "toml":
+    else:
         new_text = tomlkit.dumps(data)
-    else:
-        raise ValueError(f"Unsupported format {format!r}")
-
-    if existing_text is not None:
-        # Normalise existing content for comparison: if the file already has
-        # the exact canonical form we produce, treat as no-change.
-        no_change = new_text == existing_text
-    else:
-        no_change = False  # file didn't exist → always a change
-
-    if no_change:
-        return False
 
     if dry_run:
         return True

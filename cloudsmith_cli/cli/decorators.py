@@ -34,13 +34,16 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds, context=None):
+def report_retry(seconds: float, context: str | None = None) -> None:
     if context == "retry-after":
         click.echo(err=True)
         click.echo(
             f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
+    elif context == "backoff":
+        click.echo(err=True)
+        click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
@@ -254,7 +257,9 @@ def common_cli_output_options(f):
         "--color",
         envvar="CLOUDSMITH_COLOR",
         default="auto",
-        type=click.Choice(ColorMode, case_sensitive=False),
+        type=click.Choice(
+            [mode.name.lower() for mode in ColorMode], case_sensitive=False
+        ),
         help="Control whether ANSI colour output is used: auto, always or never.",
     )
     @click.option(
@@ -309,7 +314,7 @@ def common_cli_output_options(f):
                 "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
                 "TERM": kwargs.pop("term_env"),
             },
-            kwargs.pop("color"),
+            ColorMode[kwargs.pop("color").upper()],
             TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
         )
 

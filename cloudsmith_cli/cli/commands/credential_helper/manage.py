@@ -12,9 +12,12 @@ import sys
 from urllib.parse import urlsplit
 
 import click
+from click.core import ParameterSource
 
+from cloudsmith_cli.core.cache_utils import ConfigFileParseError
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.launchers import UnsafeLauncherValue
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
@@ -132,6 +135,52 @@ def _terraform_proxy_next_steps(opts) -> list[str]:
             " in the environment that runs `terraform init`."
         ),
     ]
+
+
+# Other users can read a launcher, so it never holds a secret.  A proxy URL can
+# hold credentials.
+_NEVER_KEPT = ("api_key", "api_headers", "keyring_key", "proxy")
+
+_TLS_ENVVARS = ("CLOUDSMITH_SSL_VERIFY", "CLOUDSMITH_WITHOUT_API_SSL_VERIFY")
+
+
+def _main_envvar(option) -> str:
+    """Return the main environment variable of *option*."""
+    names = option.envvar
+    return names if isinstance(names, str) else names[0]
+
+
+def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
+    """Return the ``CLOUDSMITH_*`` settings that a launcher keeps.
+
+    An option with a ``CLOUDSMITH_*`` environment variable is kept when its
+    value came from a flag or from the environment.  A value from a config
+    file is not kept, because the helper reads that file itself.  An option
+    of this command replaces the same option of a parent command.
+    """
+    contexts = []
+    while ctx is not None:
+        contexts.insert(0, ctx)
+        ctx = ctx.parent
+
+    supplied = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
+    settings = {}
+    for context in contexts:
+        for option in context.command.params:
+            if option.name in _NEVER_KEPT or not option.envvar:
+                continue
+            envvar = _main_envvar(option)
+            source = context.get_parameter_source(option.name)
+            if envvar.startswith("CLOUDSMITH_") and source in supplied:
+                value = context.params[option.name]
+                settings[envvar] = (
+                    str(value).lower() if isinstance(value, bool) else value
+                )
+    # A -S flag overrides CLOUDSMITH_SSL_VERIFY.  Two environment variables do
+    # not keep that precedence, so the launcher keeps only the resolved value.
+    if [settings.pop(name) for name in _TLS_ENVVARS if name in settings]:
+        settings["CLOUDSMITH_SSL_VERIFY"] = str(opts.ssl_verify).lower()
+    return settings
 
 
 _REPO_FLAGS = ("-r", "--repo", "--repository")
@@ -310,12 +359,17 @@ def install_cmd(
         helper_args = _terraform_helper_args(ctx, opts, repo)
         install_kwargs["helper_args"] = helper_args
 
+    if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
+        install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx, opts)
+
     try:
         actions = installer.install(**install_kwargs)
     except (
+        ConfigFileParseError,
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        UnsafeLauncherValue,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -401,6 +455,8 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
     installer = _get_installer(helper)
     try:
         actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
+    except ConfigFileParseError as exc:
+        raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
             f"Failed to uninstall {helper!r} credential helper: {exc}"
