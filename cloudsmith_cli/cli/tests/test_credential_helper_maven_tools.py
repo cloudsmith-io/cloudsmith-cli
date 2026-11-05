@@ -832,6 +832,28 @@ def test_maven_install_local_reads_maven_repo_local_of_the_project(
     assert _jar(maven_project / "repo").exists()
 
 
+@pytest.mark.parametrize(
+    ("maven_config", "repository"),
+    [
+        ("# -Dmaven.repo.local=old-repo", "opts"),
+        ("-Dmaven.repo.local=my repo", "my repo"),
+    ],
+)
+def test_maven_install_local_reads_maven_config_one_argument_per_line(
+    maven_config, repository, home, fake_repository, maven_project, monkeypatch
+):
+    """Maven skips # lines in .mvn/maven.config and reads each other line as one argument."""
+    monkeypatch.setenv("MAVEN_OPTS", f"-Dmaven.repo.local={maven_project / 'opts'}")
+    (maven_project / ".mvn").mkdir()
+    (maven_project / ".mvn" / "maven.config").write_text(
+        f"{maven_config}\n", encoding="utf-8"
+    )
+
+    MavenInstaller().install(local=True)
+
+    assert _jar(maven_project / repository).exists()
+
+
 @pytest.mark.parametrize("local_repository", ["${env.NOT_SET}", "</settings>"])
 def test_maven_install_with_unusable_settings_fails(
     local_repository, home, fake_repository, outside_projects, monkeypatch

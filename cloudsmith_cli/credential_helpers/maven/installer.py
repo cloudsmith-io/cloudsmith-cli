@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
+_REPO_LOCAL_ARGUMENT = "-Dmaven.repo.local="
 _REPO_LOCAL_OPTION = re.compile(r"(?:^|\s)-Dmaven\.repo\.local=(\S+)")
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 
@@ -72,17 +73,24 @@ def _repo_local_option(local: bool) -> str | None:
     """Return the last ``-Dmaven.repo.local`` value, which is the one Java uses.
 
     ``mvn`` puts ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and the arguments in
-    ``.mvn/maven.config`` override both.
+    ``.mvn/maven.config`` override both. Each line of ``.mvn/maven.config`` is one
+    argument, and Maven skips the lines that start with ``#``.
     """
     sources = [os.environ.get("MAVEN_OPTS", "")]
+    maven_config = ""
     if local:
         mvn_dir = _project_dir() / ".mvn"
         sources = [
             _read(mvn_dir / "jvm.config") or "",
             *sources,
-            _read(mvn_dir / "maven.config") or "",
         ]
+        maven_config = _read(mvn_dir / "maven.config") or ""
     values = _REPO_LOCAL_OPTION.findall(" ".join(sources))
+    values += [
+        line.removeprefix(_REPO_LOCAL_ARGUMENT)
+        for line in maven_config.splitlines()
+        if line.startswith(_REPO_LOCAL_ARGUMENT)
+    ]
     return values[-1] if values else None
 
 
