@@ -323,10 +323,11 @@ See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsm
 You can specify the following configuration options:
 
 - `api_host`: The API host to connect to.
-- `proxy`: The proxy to connect through for all HTTP requests, including API, SAML, upload, download, MCP, update, credential helper, OIDC, and error report connections. Use `--proxy` or `CLOUDSMITH_PROXY` to set it for one command. The config key `api_proxy`, flag `--api-proxy`, and environment variable `CLOUDSMITH_API_PROXY` remain supported for compatibility. In config and environment variables, the new name takes precedence over the alias. Without `proxy`, the CLI uses the `HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY` environment variables. When `proxy` is set, it takes precedence over them.
-- `ssl_verify`: Whether or not to verify SSL certificates for HTTPS requests, including API, SAML, uploads, downloads, and MCP (default: `true`). Use `CLOUDSMITH_SSL_VERIFY=1` to enable verification or `CLOUDSMITH_SSL_VERIFY=0` / `--without-ssl-verify` to disable it. Disabling verification is dangerous; prefer disabling only strict checks where possible. The config key `api_ssl_verify`, flag `--without-api-ssl-verify` / `-S`, and environment variable `CLOUDSMITH_WITHOUT_API_SSL_VERIFY` remain supported for compatibility. Command-line settings override environment variables, which override config; within the same source, the new spelling takes precedence.
+- `proxy`: The proxy to connect through for all HTTP requests, including API, SAML, upload, download, MCP, update, credential helper, OIDC, and error report connections. Use `--proxy` or `CLOUDSMITH_PROXY` to set it for one command. The config key `api_proxy`, flag `--api-proxy`, and environment variable `CLOUDSMITH_API_PROXY` still work, but they are deprecated and will be removed in version 2.0.0; the CLI prints a warning when you use them. The new name takes precedence over the old one. Without `proxy`, the CLI uses the `HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY` environment variables. When `proxy` is set, it takes precedence over them.
+- `ssl_verify`: Whether or not to verify SSL certificates for HTTPS requests, including API, SAML, uploads, downloads, and MCP (default: `true`). Use `CLOUDSMITH_SSL_VERIFY=1` to enable verification or `CLOUDSMITH_SSL_VERIFY=0` / `--without-ssl-verify` to disable it. Disabling verification is dangerous; prefer disabling only strict checks where possible. The config key `api_ssl_verify`, flag `--without-api-ssl-verify` / `-S`, and environment variable `CLOUDSMITH_WITHOUT_API_SSL_VERIFY` still work, but they are deprecated and will be removed in version 2.0.0; the CLI prints a warning when you use them. Command-line settings override environment variables, which override config; within the same source, the new spelling takes precedence.
 - `ssl_verify_strict`: Whether or not to apply strict X.509 certificate verification (`VERIFY_X509_STRICT`, enabled by default on Python 3.13+). Set to `false` (or use `--without-ssl-verify-strict` / `CLOUDSMITH_SSL_VERIFY_STRICT=0`) if a TLS-intercepting proxy issues certificates that fail these checks. `CLOUDSMITH_SSL_VERIFY_STRICT=1` keeps strict verification enabled (the default). Certificates are still verified.
 - `api_user_agent`: The user agent to use for requests.
+- `workspace`: The Cloudsmith Workspace slug. Use `-w`/`--workspace` or `CLOUDSMITH_WORKSPACE` to set it for one command. The config keys `org`, `organization`, and `oidc_org`, the flags `--org`, `--organization`, `--oidc-org`, `--owner`, and `-o`, and the environment variable `CLOUDSMITH_ORG` still work, but they are deprecated and will be removed in version 2.0.0; the CLI prints a warning when you use them.
 
 ### Credentials (credentials.ini)
 
@@ -345,7 +346,7 @@ You'll need to provide authentication to Cloudsmith for any CLI actions that res
 
 You can authenticate using your organization's SAML provider, if configured, with the `cloudsmith auth` command:
 ```
-cloudsmith auth --owner example
+cloudsmith auth --workspace example
 Beginning authentication for the example org ...
 Your organization's SAML IDP URL is: https://example.com/some-saml-idp
 
@@ -357,7 +358,7 @@ Authentication complete
 The CLI opens the IDP URL in your browser automatically. If it can't (for example in Cygwin or a headless shell), it tells you to open the URL above manually and carries on waiting for the callback. Use `--no-browser` to skip the automatic launch entirely:
 
 ```
-cloudsmith auth --owner example --no-browser
+cloudsmith auth --workspace example --no-browser
 ```
 
 *Note:* The authentication callback is served on `127.0.0.1`, on the first free port between `12400` and `12404`. The browser you open the URL in must run on the same machine as the CLI.

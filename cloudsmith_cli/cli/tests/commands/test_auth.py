@@ -11,6 +11,7 @@ import requests
 
 from ....core.api.exceptions import ApiException
 from ....core.sso import SsoRenewalResult, SsoRenewalStatus
+from ... import deprecation
 from ...commands.auth import _renew_existing_sso_session, authenticate
 from ...commands.main import main
 from .conftest import MockToken
@@ -117,6 +118,30 @@ class TestAuthenticateCommand:
 
         assert result.exit_code == 0, result.output
         assert mock_auth_server.call_args.kwargs["owner"] == "test-workspace"
+
+    @pytest.mark.parametrize(
+        "flag,replacement",
+        [
+            ("--token", "--request-api-key"),
+            ("--force", "--request-api-key"),
+            ("--json", "--output-format json"),
+        ],
+    )
+    def test_deprecated_flags_use_the_shared_warning(
+        self,
+        flag,
+        replacement,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        result = runner.invoke(authenticate, ["-w", "acme", "--no-browser", flag])
+
+        assert (
+            deprecation.format_warning(f"`{flag}`", f"`{replacement}`") in result.stderr
+        )
 
     def test_auth_command_invokes_webserver(
         self,

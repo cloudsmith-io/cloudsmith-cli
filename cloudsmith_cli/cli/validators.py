@@ -262,7 +262,7 @@ def validate_page_size(ctx, param, value):
     return value
 
 
-def enforce_page_all_exclusive(ctx, wildcard_used=False):
+def enforce_page_all_exclusive(ctx, wildcard_used=False, page_all=None):
     """Order-independent mutual exclusivity check for pagination options.
 
     Raises click.BadParameter bound to the --page-all option if it was used
@@ -273,8 +273,11 @@ def enforce_page_all_exclusive(ctx, wildcard_used=False):
         ctx: Click context
         wildcard_used: If True, validates even if --page-all wasn't explicitly passed
                       (used when --page-size '*' or -1 was used)
+        page_all: The resolved --page-all value, if it can differ from the
+                  parsed parameter (the deprecated --show-all also sets it)
     """
-    page_all = ctx.params.get("page_all")
+    if page_all is None:
+        page_all = ctx.params.get("page_all")
     if not page_all and not wildcard_used:
         return
 
@@ -299,7 +302,7 @@ def enforce_page_all_exclusive(ctx, wildcard_used=False):
         page_all_param = next(
             (p for p in ctx.command.params if p.name == "page_all"), None
         )
-        error_msg = "Cannot be used with --page (-p) or --page-size (-l). (--show-all is an alias for --page-all)"
+        error_msg = "Cannot be used with --page (-p) or --page-size (-l)."
         if wildcard_used:
             error_msg = "Wildcard '*' or -1 in --page-size cannot be used with --page (-p). Use --page-all instead."
         raise click.BadParameter(

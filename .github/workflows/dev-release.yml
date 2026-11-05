@@ -33,7 +33,7 @@ jobs:
     env:
       CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_DEV_REPO: ${{ vars.CLOUDSMITH_DEV_REPO }}
-      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
       BRANCH: ${{ github.ref_name }}
     steps:
