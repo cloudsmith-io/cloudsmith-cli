@@ -6,7 +6,7 @@ import cloudsmith_api
 from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token
 from ...core.config import create_config_files, new_config_messaging
-from .. import decorators, utils
+from .. import decorators, deprecation, utils
 from ..exceptions import handle_api_exceptions
 from ..utils import maybe_spinner
 from .main import main
@@ -26,9 +26,12 @@ API_KEY_DOCS_URL = (
     "https://docs.cloudsmith.com/developer-tools/cli#getting-your-api-key"
 )
 
-DEPRECATION_WARNING = (
-    "Warning: `cloudsmith {name}` is deprecated and will stop working on "
-    "November 20, 2026, when Cloudsmith disables username and password login. "
+DEPRECATION_REMOVAL = (
+    "will stop working on November 20, 2026, when Cloudsmith disables username "
+    "and password login"
+)
+
+DEPRECATION_DETAIL = (
     "See https://cloudsmith.com/changelog\n"
     "Use an API key or SAML instead: set `CLOUDSMITH_API_KEY` to an API key from "
     "the Cloudsmith web app (your user menu, then Personal API Keys), or run "
@@ -64,11 +67,13 @@ class DeprecatedLoginCommand(click.Command):
     def parse_args(self, ctx, args):
         # Click prompts for --login and --password while parsing, so the
         # warning must be printed here rather than in the command body.
-        # Shell completion also parses (resiliently) and must stay quiet.
-        if not ctx.resilient_parsing:
-            click.secho(
-                DEPRECATION_WARNING.format(name=ctx.info_name), fg="yellow", err=True
-            )
+        # Shell completion also parses (resiliently); the warning skips it.
+        deprecation.warn(
+            f"`cloudsmith {ctx.info_name}`",
+            removal=DEPRECATION_REMOVAL,
+            detail=DEPRECATION_DETAIL,
+            ctx=ctx,
+        )
         return super().parse_args(ctx, args)
 
 

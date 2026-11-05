@@ -37,6 +37,7 @@ UPSTREAM_FORMATS = [
     "python",
     "rpm",
     "ruby",
+    "skills",
     "swift",
 ]
 

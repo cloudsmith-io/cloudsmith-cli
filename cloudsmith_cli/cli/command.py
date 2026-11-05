@@ -4,6 +4,7 @@ import importlib
 from collections import OrderedDict
 
 import click.exceptions
+from click.utils import _PacifyFlushWrapper
 from click_didyoumean import DYMGroup
 
 from ..core.certificate_errors import describe_certificate_error
@@ -202,6 +203,13 @@ class AliasGroup(DYMGroup):
             e.show()
             _echo_certificate_hint(e)
             sys.exit(e.exit_code)
+        except BrokenPipeError:
+            # Click does not catch a failed write in its Ctrl+C handler.
+            if not original_standalone_mode:
+                raise
+            sys.stdout = _PacifyFlushWrapper(sys.stdout)
+            sys.stderr = _PacifyFlushWrapper(sys.stderr)
+            sys.exit(1)
         except Exception as e:  # pylint: disable=broad-exception-caught
             # Anything reaching here is unexpected: click's own errors and
             # handled API errors (which exit via ctx.exit) are dealt with
