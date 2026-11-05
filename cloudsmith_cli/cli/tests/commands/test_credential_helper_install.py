@@ -145,17 +145,10 @@ def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, 
         _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
 
 
-def test_install_passes_flag_and_environment_settings_to_the_launcher(
-    runner, monkeypatch, tmp_path
-):
-    """Settings from flags and CLOUDSMITH_* variables go to the launcher.
-
-    A value read from a config file does not, because the helper reads that
-    file itself.  Secrets and the proxy never go to the launcher.  A flag on
-    the parent command also counts.
-    """
+@pytest.fixture()
+def launcher_env(monkeypatch):
+    """Register a `settings` helper that keeps install-time settings, and return them."""
     from ....cli.commands.credential_helper import manage
-    from ....cli.commands.main import main
 
     launcher_env = {}
 
@@ -167,6 +160,20 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
             return []
 
     monkeypatch.setitem(manage._INSTALLERS, "settings", SettingsInstaller)
+    return launcher_env
+
+
+def test_install_passes_flag_and_environment_settings_to_the_launcher(
+    runner, launcher_env, tmp_path
+):
+    """Settings from flags and CLOUDSMITH_* variables go to the launcher.
+
+    A value read from a config file does not, because the helper reads that
+    file itself.  Secrets and the proxy never go to the launcher.  A flag on
+    the parent command also counts.
+    """
+    from ....cli.commands.main import main
+
     config = tmp_path / "config.ini"
     config.write_text("[default]\nssl_verify_strict = false\n")
     result = runner.invoke(
@@ -210,6 +217,33 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
         "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
         "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
     }
+
+
+@pytest.mark.parametrize(
+    "args, env, expected",
+    [
+        (["--org", "acme"], {}, {"CLOUDSMITH_WORKSPACE": "acme"}),
+        (
+            [],
+            {"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1"},
+            {"CLOUDSMITH_SSL_VERIFY": "false"},
+        ),
+    ],
+)
+def test_install_keeps_a_deprecated_setting_under_its_new_name(
+    runner, launcher_env, args, env, expected
+):
+    from ....cli.commands.main import main
+
+    result = runner.invoke(
+        main,
+        args=["credential-helper", "install", "settings", *args],
+        env=env,
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert launcher_env == expected
 
 
 # ---------------------------------------------------------------------------
