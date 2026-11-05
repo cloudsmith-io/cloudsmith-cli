@@ -87,7 +87,16 @@ class ConfigSchema:
 
     @matches_section("profile:*")
     class Profile(Default):
-        """Profile-specific configuration schema."""
+        """Profile-specific configuration schema.
+
+        Has no defaults, so a key that a profile leaves out keeps its
+        [default] value instead of being reset to the schema default.
+        """
+
+        api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool)
+        ssl_verify_strict = ConfigParam(name="ssl_verify_strict", type=bool)
+        check_for_update = ConfigParam(name="check_for_update", type=bool)
+        telemetry = ConfigParam(name="telemetry", type=bool)
 
 
 class ConfigReader(ConfigFileReader):
