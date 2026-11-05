@@ -12,13 +12,14 @@ ACCESS_TOKEN_KEY = "cloudsmith_cli-access_token-{api_host}"
 
 @dataclasses.dataclass(frozen=True)
 class KeyringSettings:
-    """The CLOUDSMITH_*KEYRING* settings that the CLI parsed."""
+    """The CLOUDSMITH_*KEYRING* settings that the CLI parsed, and the prompt policy."""
 
     no_keyring: bool = False
     backend: str | None = None
     key: str | None = None
     file_path: str | None = None
     directory: str | None = None
+    no_prompt: bool = False
 
 
 class _Current:
@@ -36,6 +37,12 @@ def configure(settings):
 def current_settings():
     """Return the keyring settings of this process."""
     return _Current.settings
+
+
+def forbid_password_prompts():
+    """Make the keyring backend refuse to prompt for a password in this process."""
+    if not _Current.settings.no_prompt:
+        configure(dataclasses.replace(_Current.settings, no_prompt=True))
 
 
 def should_use_keyring():
@@ -139,7 +146,9 @@ def _disable_password_prompts(backend):
     key. A chain calls a member only when the earlier members did not
     handle the call, so the error occurs only for a member that is in use.
     """
-    if is_interactive(os.environ, controlling_terminal_mode()):
+    if not _Current.settings.no_prompt and is_interactive(
+        os.environ, controlling_terminal_mode()
+    ):
         return
     for member in getattr(backend, "backends", None) or [backend]:
         if hasattr(member, "_unlock"):

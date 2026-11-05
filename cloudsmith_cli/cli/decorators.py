@@ -697,8 +697,13 @@ def _warn_on_oidc_detector_controls(order, disabled):
         )
 
 
-def resolve_credentials(f):
-    """Resolve credentials via the provider chain. Depends on initialise_session."""
+def resolve_credentials(f=None, *, defer=False):
+    """Resolve credentials via the provider chain. Depends on initialise_session.
+
+    With ``defer=True``, the command resolves them from ``opts.credential_context``.
+    """
+    if f is None:
+        return functools.partial(resolve_credentials, defer=defer)
 
     @click.option(
         "--oidc-audience",
@@ -784,7 +789,7 @@ def resolve_credentials(f):
         )
 
         chain = CredentialProviderChain()
-        credential = chain.resolve(context)
+        credential = None if defer else chain.resolve(context)
 
         if context.keyring_refresh_failed and not is_auth_command:
             if credential:
@@ -812,6 +817,7 @@ def resolve_credentials(f):
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
+        opts.credential_context = context
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
@@ -819,8 +825,10 @@ def resolve_credentials(f):
     return initialise_session(wrapper)
 
 
-def initialise_api(f):
+def initialise_api(f=None, *, defer_credentials=False):
     """Initialise the Cloudsmith API for use. Depends on resolve_credentials."""
+    if f is None:
+        return functools.partial(initialise_api, defer_credentials=defer_credentials)
 
     @click.option(
         "-R",
@@ -897,7 +905,7 @@ def initialise_api(f):
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
-    return resolve_credentials(wrapper)
+    return resolve_credentials(wrapper, defer=defer_credentials)
 
 
 def initialise_mcp(f):

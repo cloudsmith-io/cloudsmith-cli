@@ -25,6 +25,7 @@ from cloudsmith_cli.credential_helpers.maven_tools import (
     ConfigFileConflict,
     ProjectNotFound,
 )
+from cloudsmith_cli.credential_helpers.nuget.installer import NuGetInstaller
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
@@ -56,6 +57,7 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "nuget": NuGetInstaller,
     "maven": MavenInstaller,
     "gradle": GradleInstaller,
     "sbt": SbtInstaller,

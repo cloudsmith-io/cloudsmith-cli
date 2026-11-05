@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added a NuGet credential provider. Run `cloudsmith credential-helper install nuget --workspace <workspace>` once. Then `dotnet restore`, MSBuild and Visual Studio authenticate to Cloudsmith feeds with your CLI credentials. NuGet finds the provider on PATH. This needs .NET SDK 9.0.200 or later. The provider also covers the NuGet custom domains of the Workspace. To name feed hosts yourself, use `--domain`. To skip the domain lookup, use `--no-discover`. No token is stored in `nuget.config`.
 - Added `cloudsmith credential-helper install maven`, `install gradle`, and `install sbt`. They set up the Cloudsmith Maven tools, which get repository credentials from `cloudsmith credential-helper generic`. Each command installs the newest release from the public `cloudsmith/maven-tools` repository, for every build of the user.
   - `maven` puts the extension in `~/.m2/repository` and adds it to `~/.m2/extensions.xml`, which Maven 3.10 and later read. When `mvn -v` reports an earlier Maven, the command shows a warning. With `--local`, the command adds the extension to `.mvn/extensions.xml` of the Maven project in the current directory instead. With `--mavenrc`, it adds a block to `~/.mavenrc` instead, which the `mvn` and `mvnw` scripts of all Maven versions read.
   - `gradle` writes an init script to `~/.gradle/init.d` (or `$GRADLE_USER_HOME/init.d`), which applies the plugin to every Gradle build.
