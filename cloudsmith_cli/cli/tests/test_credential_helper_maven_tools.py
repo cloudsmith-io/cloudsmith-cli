@@ -145,6 +145,16 @@ def test_latest_version_fails_with_an_os_error_when_the_artifact_is_missing():
 
 
 @httpretty.activate(allow_net_connect=False)
+def test_latest_version_names_the_url_when_the_metadata_is_not_xml():
+    """A proxy page in place of the metadata is an OSError that names the URL."""
+    url = f"{maven_tools.REPOSITORY_URL}{EXTENSION_PATH}/maven-metadata.xml"
+    httpretty.register_uri(httpretty.GET, url, body="<html><body>Blocked")
+
+    with pytest.raises(OSError, match=url):
+        maven_tools.latest_version(EXTENSION_PATH)
+
+
+@httpretty.activate(allow_net_connect=False)
 def test_download_writes_the_file(tmp_path):
     """The file is written to the destination, and missing directories are made."""
     httpretty.register_uri(
