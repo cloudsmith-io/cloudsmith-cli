@@ -189,8 +189,6 @@ def _terraform_proxy_next_steps(opts) -> list[str]:
 # hold credentials.
 _NEVER_KEPT = ("api_key", "api_headers", "keyring_key", "proxy")
 
-_TLS_ENVVARS = ("CLOUDSMITH_SSL_VERIFY", "CLOUDSMITH_WITHOUT_API_SSL_VERIFY")
-
 
 def _main_envvar(option) -> str:
     """Return the main environment variable of *option*."""
@@ -198,13 +196,15 @@ def _main_envvar(option) -> str:
     return names if isinstance(names, str) else names[0]
 
 
-def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
+def _launcher_settings_from_cli(ctx: click.Context) -> dict[str, str]:
     """Return the ``CLOUDSMITH_*`` settings that a launcher keeps.
 
     An option with a ``CLOUDSMITH_*`` environment variable is kept when its
     value came from a flag or from the environment.  A value from a config
     file is not kept, because the helper reads that file itself.  An option
-    of this command replaces the same option of a parent command.
+    of this command replaces the same option of a parent command.  A
+    deprecated spelling is kept under the environment variable of the option
+    that replaces it.
     """
     contexts = []
     while ctx is not None:
@@ -215,7 +215,11 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     settings = {}
     for context in contexts:
         for option in context.command.params:
-            if option.name in _NEVER_KEPT or not option.envvar:
+            if (
+                option.name in _NEVER_KEPT
+                or option.name not in context.params
+                or not option.envvar
+            ):
                 continue
             envvar = _main_envvar(option)
             source = context.get_parameter_source(option.name)
@@ -224,10 +228,6 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
                 settings[envvar] = (
                     str(value).lower() if isinstance(value, bool) else value
                 )
-    # A -S flag overrides CLOUDSMITH_SSL_VERIFY.  Two environment variables do
-    # not keep that precedence, so the launcher keeps only the resolved value.
-    if [settings.pop(name) for name in _TLS_ENVVARS if name in settings]:
-        settings["CLOUDSMITH_SSL_VERIFY"] = str(opts.ssl_verify).lower()
     return settings
 
 
@@ -434,7 +434,7 @@ def install_cmd(
         install_kwargs["helper_args"] = helper_args
 
     if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
-        install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx, opts)
+        install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx)
 
     try:
         actions = installer.install(**install_kwargs)
