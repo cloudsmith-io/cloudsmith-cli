@@ -1097,6 +1097,23 @@ def _push_package_file(
     return result
 
 
+def _ignore_skill_archive_entries(src, names):
+    """``copytree`` ignore hook that drops clutter and rejects symlinks.
+
+    ``copytree`` copies the target of a symlink, so a link such as
+    ``local-config -> ~/.aws`` would upload files from outside the skill.
+    """
+    ignored = shutil.ignore_patterns(*SKILL_ARCHIVE_EXCLUDED_PATTERNS)(src, names)
+    for name in names:
+        path = os.path.join(src, name)
+        if name not in ignored and os.path.islink(path):
+            raise click.BadParameter(
+                f"Symlinks are not supported in skill directories: {path}",
+                param_hint="PACKAGE_FILE",
+            )
+    return ignored
+
+
 def _implied_dsc_file(package_file):
     """Return ``package_file`` if it is itself a Debian ``.dsc``, else None."""
     if isinstance(package_file, str) and package_file.endswith(DSC_SUFFIX):
@@ -1387,9 +1404,7 @@ def create_push_handlers():
                         shutil.copytree(
                             package_file,
                             staged,
-                            ignore=shutil.ignore_patterns(
-                                *SKILL_ARCHIVE_EXCLUDED_PATTERNS
-                            ),
+                            ignore=_ignore_skill_archive_entries,
                         )
                         archive = shutil.make_archive(
                             base_name=staged, format="zip", root_dir=staged

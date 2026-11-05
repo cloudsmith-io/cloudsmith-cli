@@ -196,6 +196,48 @@ def test_directory_compression_excludes_os_and_vcs_clutter(runner, tmp_path):
     ]
 
 
+@pytest.mark.parametrize("link_name", ["local-config", "credentials"])
+def test_directory_with_out_of_tree_symlink_is_rejected(runner, tmp_path, link_name):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "credentials").write_text("aws_secret_access_key=secret\n")
+    target = outside if link_name == "local-config" else outside / "credentials"
+
+    skill_dir = tmp_path / "my-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n")
+    (skill_dir / link_name).symlink_to(target)
+
+    with (
+        patch(_MOCK_TARGETS[0]),
+        patch(_MOCK_TARGETS[1]),
+        patch(_MOCK_TARGETS[2]) as mock_upload_file,
+        patch(_MOCK_TARGETS[3]) as mock_create_package,
+        patch(_MOCK_TARGETS[4]),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "push",
+                "skills",
+                "example/repo",
+                str(skill_dir),
+                "--name",
+                "my-skill",
+                "--version",
+                "1.0.0",
+                "--compress",
+                "--api-key",
+                "fake-api-key",
+            ],
+        )
+
+    assert result.exit_code == 2, result.output
+    assert "Symlinks are not supported in skill directories" in result.output
+    assert not mock_upload_file.called
+    assert not mock_create_package.called
+
+
 def test_directory_without_compress_is_rejected(runner, tmp_path):
     skill_dir = tmp_path / "my-skill"
     skill_dir.mkdir()
