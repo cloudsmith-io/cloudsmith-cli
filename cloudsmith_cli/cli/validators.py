@@ -132,6 +132,20 @@ def is_trusted_api_host(host, extra_suffixes=()):
     return host_matches_suffixes(host, PUBLIC_API_HOST_SUFFIXES + tuple(extra_suffixes))
 
 
+def validate_url(name: str, url: str | None) -> None:
+    """Raise a usage error if the host or port of ``url`` cannot be parsed."""
+    from urllib3.util import parse_url
+
+    if not url:
+        return
+    try:
+        parse_url(url)
+    except ValueError as error:
+        raise click.UsageError(
+            f'{name} "{url}" is not a valid URL. Check the host and the port.'
+        ) from error
+
+
 def validate_untrusted_api_host(host, extra_suffixes=()):
     """Raise if an api_host from an untrusted config is not an allowed host."""
     if is_trusted_api_host(host, extra_suffixes):

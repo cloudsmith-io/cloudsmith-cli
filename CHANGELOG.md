@@ -85,6 +85,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1.
 - The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120.
 - `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 
 ## [1.30.0] - 2026-10-22
 
