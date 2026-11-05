@@ -6,7 +6,9 @@ summarised on stderr, and exits 1 instead of surfacing a raw traceback.
 """
 
 import json
+import os
 import runpy
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -307,6 +309,41 @@ def test_click_errors_are_not_reported(runner, tmp_path, sentry_events, exc):
 
     assert result.exit_code != 0
     assert sentry_events == []
+
+
+def test_interrupt_with_a_closed_stderr_is_not_reported(
+    runner, tmp_path, sentry_events
+):
+    """Click writes a newline on Ctrl+C, which fails when the pipe is gone."""
+    with (
+        whoami_raises(KeyboardInterrupt()),
+        patch("click.core.echo", side_effect=BrokenPipeError),
+    ):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert result.stderr == ""
+    assert sentry_events == []
+
+
+def test_interrupt_with_a_closed_stderr_exits_1(tmp_path):
+    """Python flushes stderr again at exit, which must not change the status."""
+    code = f"""
+import os
+from cloudsmith_cli.cli.commands.main import main
+from cloudsmith_cli.cli.tests.test_unexpected_errors import whoami_args, whoami_raises
+
+read_end, write_end = os.pipe()
+os.close(read_end)
+os.dup2(write_end, 2)
+with whoami_raises(KeyboardInterrupt()):
+    main(whoami_args({str(tmp_path)!r}))
+"""
+    # Unbuffered stderr keeps no bytes for the exit flush, which hides the failure.
+    env = {**os.environ, "PYTHONUNBUFFERED": ""}
+    result = subprocess.run([sys.executable, "-c", code], env=env, check=False)
+
+    assert result.returncode == 1
 
 
 STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"
