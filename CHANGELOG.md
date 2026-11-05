@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
+- `cloudsmith credential-helper install docker` now keeps the `CLOUDSMITH_*` settings of the install, such as the profile, Workspace and API host, in the launcher. Docker then gets the same credentials from Docker Desktop, an IDE or a new shell. The launcher never contains API keys, custom headers or the proxy URL. An install with a profile or a Workspace writes its own helper, for example `docker-credential-cloudsmith-<profile>-<workspace>`. To remove it, run `cloudsmith credential-helper uninstall docker -P <profile> -w <workspace>`. An install without them writes `docker-credential-cloudsmith`, as before.
 - Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
 - The minimum version of `cloudsmith-api` is now 2.0.42.
 
@@ -91,6 +92,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1.
 - The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120.
 - `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
+- A `-P` flag before the command, for example `cloudsmith -P meta whoami`, now overrides `CLOUDSMITH_PROFILE`. Before, the environment variable took precedence.
 
 ## [1.30.0] - 2026-10-22
 

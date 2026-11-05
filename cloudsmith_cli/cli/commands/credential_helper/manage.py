@@ -38,8 +38,11 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
 )
 
 from ....core.session import create_requests_session
-from ....credential_helpers.docker.installer import DockerInstaller
-from ... import utils
+from ....credential_helpers.docker.installer import (
+    DockerInstaller,
+    HelperScopeConflict,
+)
+from ... import deprecation, utils
 from ...decorators import (
     common_api_auth_options,
     common_cli_config_options,
@@ -186,8 +189,15 @@ def _terraform_proxy_next_steps(opts) -> list[str]:
 
 
 # Other users can read a launcher, so it never holds a secret.  A proxy URL can
-# hold credentials.
-_NEVER_KEPT = ("api_key", "api_headers", "keyring_key", "proxy")
+# hold credentials.  The colour settings are for the terminal of the install.
+_NEVER_KEPT = (
+    "api_key",
+    "api_headers",
+    "keyring_key",
+    "proxy",
+    "color",
+    "force_color_env",
+)
 
 _TLS_ENVVARS = ("CLOUDSMITH_SSL_VERIFY", "CLOUDSMITH_WITHOUT_API_SSL_VERIFY")
 
@@ -196,6 +206,24 @@ def _main_envvar(option) -> str:
     """Return the main environment variable of *option*."""
     names = option.envvar
     return names if isinstance(names, str) else names[0]
+
+
+# A deprecated spelling is a separate option that sets the value of the option
+# that replaces it.
+_DEPRECATED_SPELLINGS = {
+    "org": deprecation.WORKSPACE_ALIASES,
+    "ssl_verify": deprecation.SSL_VERIFY_ALIASES,
+    "allowed_proxy_suffixes": deprecation.PROXY_SUFFIXES_ALIASES,
+}
+
+
+def _sources(context, option) -> set:
+    """Return the sources of the value of *option* and its deprecated spellings."""
+    names = [option.name] + [
+        deprecation.alias_param_name(spelling)
+        for spelling in _DEPRECATED_SPELLINGS.get(option.name, ())
+    ]
+    return {context.get_parameter_source(name) for name in names}
 
 
 def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
@@ -215,11 +243,16 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     settings = {}
     for context in contexts:
         for option in context.command.params:
-            if option.name in _NEVER_KEPT or not option.envvar:
+            # The command removes the deprecated spellings from ctx.params.
+            if (
+                option.name in _NEVER_KEPT
+                or not option.envvar
+                or option.name not in context.params
+            ):
                 continue
             envvar = _main_envvar(option)
-            source = context.get_parameter_source(option.name)
-            if envvar.startswith("CLOUDSMITH_") and source in supplied:
+            sources = _sources(context, option)
+            if envvar.startswith("CLOUDSMITH_") and not sources.isdisjoint(supplied):
                 value = context.params[option.name]
                 settings[envvar] = (
                     str(value).lower() if isinstance(value, bool) else value
@@ -228,7 +261,19 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     # not keep that precedence, so the launcher keeps only the resolved value.
     if [settings.pop(name) for name in _TLS_ENVVARS if name in settings]:
         settings["CLOUDSMITH_SSL_VERIFY"] = str(opts.ssl_verify).lower()
+    # Keep the profile that the install used to load the config files.
+    if "CLOUDSMITH_PROFILE" in settings:
+        settings["CLOUDSMITH_PROFILE"] = contexts[-1].meta["profile"]
     return settings
+
+
+def _profile_flag(ctx) -> str | None:
+    """Return the ``-P`` value of this command or of a parent command."""
+    while ctx is not None:
+        if ctx.get_parameter_source("profile") == ParameterSource.COMMANDLINE:
+            return ctx.params["profile"]
+        ctx = ctx.parent
+    return None
 
 
 _REPO_FLAGS = ("-r", "--repo", "--repository")
@@ -447,6 +492,7 @@ def install_cmd(
         ExtensionsFileError,
         ConfigFileConflict,
         UnsafeLauncherValue,
+        HelperScopeConflict,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -520,11 +566,25 @@ def install_cmd(
     help="Maven and sbt only: remove the setup of the project in the current "
     "directory.",
 )
+@click.option(
+    "-w",
+    "--workspace",
+    "workspace",
+    help="Docker only: remove the helper that was installed for this Workspace.",
+)
+@deprecation.alias_options(deprecation.WORKSPACE_ALIASES)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
 def uninstall_cmd(
-    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, local: bool
+    ctx,
+    opts,
+    helper: str,
+    bin_dir: str | None,
+    dry_run: bool,
+    local: bool,
+    workspace: str | None,
+    **workspace_aliases,
 ) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
@@ -541,13 +601,27 @@ def uninstall_cmd(
         $ cloudsmith credential-helper uninstall docker --dry-run
     """
     installer = _get_installer(helper)
+    alias_workspace = deprecation.pop_alias_options(
+        ctx, workspace_aliases, deprecation.WORKSPACE_ALIASES
+    )
+    uninstall_kwargs = {
+        "bin_dir": bin_dir,
+        "dry_run": dry_run,
+        **_helper_options(ctx, helper),
+    }
+    # The scope comes only from flags, so that a shell with CLOUDSMITH_PROFILE
+    # or CLOUDSMITH_WORKSPACE can still remove the unscoped helper.
+    if helper == "docker":
+        uninstall_kwargs["profile"] = _profile_flag(ctx)
+        uninstall_kwargs["workspace"] = workspace or alias_workspace
     try:
-        actions = installer.uninstall(
-            bin_dir=bin_dir,
-            dry_run=dry_run,
-            **_helper_options(ctx, helper),
-        )
-    except (ConfigFileParseError, ProjectNotFound, ConfigFileConflict) as exc:
+        actions = installer.uninstall(**uninstall_kwargs)
+    except (
+        ConfigFileParseError,
+        ProjectNotFound,
+        ConfigFileConflict,
+        HelperScopeConflict,
+    ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
@@ -599,14 +673,17 @@ def list_cmd(ctx, opts) -> None:
     data = []
     for name, cls in sorted(_INSTALLERS.items()):
         installer = cls()
-        st = installer.status()
-        data.append(
+        # Docker can have one helper for each profile and Workspace.
+        statuses = getattr(installer, "statuses", None)
+        data.extend(
             {
                 "helper": name,
                 "summary": installer.summary,
+                "cred_helper": st.get("name"),
                 "launcher": st.get("launcher"),
                 "hosts": st.get("hosts", []),
             }
+            for st in (statuses() if statuses else [installer.status()])
         )
 
     if utils.maybe_print_as_json(opts, data):
@@ -619,6 +696,8 @@ def list_cmd(ctx, opts) -> None:
         summary = entry["summary"]
 
         click.echo(f"{name}  ({summary})", err=use_stderr)
+        if entry["cred_helper"]:
+            click.echo(f"  helper   : {entry['cred_helper']}", err=use_stderr)
         if launcher:
             click.echo(f"  launcher : {launcher}", err=use_stderr)
         else:
