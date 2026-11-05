@@ -501,6 +501,31 @@ def test_docker_launcher_keeps_the_resolved_tls_setting(runner, tmp_path, monkey
     )
 
 
+def test_docker_launcher_keeps_the_settings_of_deprecated_spellings(
+    runner, tmp_path, monkeypatch
+):
+    """--org and CLOUDSMITH_WITHOUT_API_SSL_VERIFY set the same values as -w and -S."""
+    from ....cli.commands.credential_helper.manage import install_cmd
+
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    bin_dir = tmp_path / "bin"
+
+    result = runner.invoke(
+        install_cmd,
+        ["docker", "--bin-dir", str(bin_dir), "--no-discover", "--org", "acme"],
+        env={"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1"},
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (bin_dir / "docker-credential-cloudsmith-acme").read_text() == (
+        "#!/usr/bin/env sh\n"
+        "export CLOUDSMITH_WORKSPACE=acme\n"
+        "export CLOUDSMITH_SSL_VERIFY=false\n"
+        'exec cloudsmith credential-helper docker "$@"\n'
+    )
+
+
 def test_docker_dry_run_shows_the_scoped_launcher_and_its_settings(
     tmp_path, monkeypatch
 ):
@@ -711,6 +736,7 @@ def test_docker_root_profile_flag_overrides_the_environment(
 
 
 def test_docker_uninstall_accepts_the_oidc_org_alias(runner, tmp_path, monkeypatch):
+    """--oidc-org works, but warns that it is deprecated."""
     from ....cli.commands.credential_helper.manage import uninstall_cmd
 
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
@@ -727,6 +753,7 @@ def test_docker_uninstall_accepts_the_oidc_org_alias(runner, tmp_path, monkeypat
 
     assert result.exit_code == 0, result.output
     assert not list(bin_dir.iterdir())
+    assert "`--oidc-org` is deprecated" in result.stderr
 
 
 def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):

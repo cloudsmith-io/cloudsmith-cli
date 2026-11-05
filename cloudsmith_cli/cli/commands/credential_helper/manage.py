@@ -33,7 +33,7 @@ from ....credential_helpers.docker.installer import (
     DockerInstaller,
     HelperScopeConflict,
 )
-from ... import utils
+from ... import deprecation, utils
 from ...decorators import (
     common_api_auth_options,
     common_cli_config_options,
@@ -160,6 +160,24 @@ def _main_envvar(option) -> str:
     return names if isinstance(names, str) else names[0]
 
 
+# A deprecated spelling is a separate option that sets the value of the option
+# that replaces it.
+_DEPRECATED_SPELLINGS = {
+    "org": deprecation.WORKSPACE_ALIASES,
+    "ssl_verify": deprecation.SSL_VERIFY_ALIASES,
+    "allowed_proxy_suffixes": deprecation.PROXY_SUFFIXES_ALIASES,
+}
+
+
+def _sources(context, option) -> set:
+    """Return the sources of the value of *option* and its deprecated spellings."""
+    names = [option.name] + [
+        deprecation.alias_param_name(spelling)
+        for spelling in _DEPRECATED_SPELLINGS.get(option.name, ())
+    ]
+    return {context.get_parameter_source(name) for name in names}
+
+
 def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     """Return the ``CLOUDSMITH_*`` settings that a launcher keeps.
 
@@ -177,11 +195,16 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     settings = {}
     for context in contexts:
         for option in context.command.params:
-            if option.name in _NEVER_KEPT or not option.envvar:
+            # The command removes the deprecated spellings from ctx.params.
+            if (
+                option.name in _NEVER_KEPT
+                or not option.envvar
+                or option.name not in context.params
+            ):
                 continue
             envvar = _main_envvar(option)
-            source = context.get_parameter_source(option.name)
-            if envvar.startswith("CLOUDSMITH_") and source in supplied:
+            sources = _sources(context, option)
+            if envvar.startswith("CLOUDSMITH_") and not sources.isdisjoint(supplied):
                 value = context.params[option.name]
                 settings[envvar] = (
                     str(value).lower() if isinstance(value, bool) else value
@@ -460,19 +483,21 @@ def install_cmd(
 @click.option(
     "-w",
     "--workspace",
-    "--org",
-    "--organization",
-    "--oidc-org",
-    "-o",
-    "--owner",
     "workspace",
     help="Docker only: remove the helper that was installed for this Workspace.",
 )
+@deprecation.alias_options(deprecation.WORKSPACE_ALIASES)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
 def uninstall_cmd(
-    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, workspace: str | None
+    ctx,
+    opts,
+    helper: str,
+    bin_dir: str | None,
+    dry_run: bool,
+    workspace: str | None,
+    **workspace_aliases,
 ) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
@@ -489,12 +514,15 @@ def uninstall_cmd(
         $ cloudsmith credential-helper uninstall docker --dry-run
     """
     installer = _get_installer(helper)
+    alias_workspace = deprecation.pop_alias_options(
+        ctx, workspace_aliases, deprecation.WORKSPACE_ALIASES
+    )
     uninstall_kwargs = {"bin_dir": bin_dir, "dry_run": dry_run}
     # The scope comes only from flags, so that a shell with CLOUDSMITH_PROFILE
     # or CLOUDSMITH_WORKSPACE can still remove the unscoped helper.
     if helper == "docker":
         uninstall_kwargs["profile"] = _profile_flag(ctx)
-        uninstall_kwargs["workspace"] = workspace
+        uninstall_kwargs["workspace"] = workspace or alias_workspace
     try:
         actions = installer.uninstall(**uninstall_kwargs)
     except (ConfigFileParseError, HelperScopeConflict) as exc:
