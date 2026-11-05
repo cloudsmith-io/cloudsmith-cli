@@ -637,7 +637,7 @@ def test_installer_writes_the_launcher(bin_dir):
     actions = NuGetInstaller().install(bin_dir=str(bin_dir))
 
     assert (bin_dir / LAUNCHER).read_text() == (
-        '#!/bin/sh\nexec cloudsmith credential-helper nuget -- "$@"\n'
+        '#!/usr/bin/env sh\nexec cloudsmith credential-helper nuget -- "$@"\n'
     )
     assert actions == [f"wrote launcher {bin_dir / LAUNCHER}"]
 
@@ -724,6 +724,6 @@ def test_install_command_keeps_install_time_settings(runner, bin_dir):
 
     assert result.exit_code == 0, result.output
     assert (bin_dir / LAUNCHER).read_text() == (
-        "#!/bin/sh\nexport CLOUDSMITH_WORKSPACE=acme\n"
+        "#!/usr/bin/env sh\nexport CLOUDSMITH_WORKSPACE=acme\n"
         'exec cloudsmith credential-helper nuget -- "$@"\n'
     )
