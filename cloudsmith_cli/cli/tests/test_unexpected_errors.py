@@ -346,6 +346,18 @@ with whoami_raises(KeyboardInterrupt()):
     assert result.returncode == 1
 
 
+def test_command_module_imports_on_click_before_8_2():
+    """Click before 8.2 names the flush wrapper without the underscore."""
+    code = """
+import click.utils
+click.utils.PacifyFlushWrapper = click.utils.__dict__.pop("_PacifyFlushWrapper")
+import cloudsmith_cli.cli.command
+"""
+    result = subprocess.run([sys.executable, "-c", code], check=False)
+
+    assert result.returncode == 0
+
+
 STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"
 
 
