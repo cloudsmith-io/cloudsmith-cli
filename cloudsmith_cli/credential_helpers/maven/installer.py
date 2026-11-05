@@ -198,7 +198,7 @@ class MavenInstaller:
             )
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
-        if mavenrc and any(char.isspace() for char in str(jar)):
+        if mavenrc and any(char in " \t\n" for char in str(jar)):
             raise MavenrcNotSupported(
                 "The mvn script splits MAVEN_OPTS at spaces, so it cannot load "
                 f"{jar}. {INSTEAD_OF_MAVENRC}"

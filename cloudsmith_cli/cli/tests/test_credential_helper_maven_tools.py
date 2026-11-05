@@ -10,6 +10,7 @@ from __future__ import annotations
 import errno
 import os
 import subprocess
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -93,6 +94,12 @@ def fake_repository(monkeypatch):
 def _maven_3_10(monkeypatch):
     """Run as if `mvn -v` reports Maven 3.10.0."""
     monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.10.0")
+
+
+@pytest.fixture(autouse=True)
+def _posix(monkeypatch):
+    """Run as if the platform is not Windows, so the mvn script reads ~/.mavenrc."""
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: False)
 
 
 @pytest.fixture()
@@ -837,19 +844,24 @@ def test_maven_install_with_mavenrc_adds_a_block(
     assert not _user_extensions(home).exists()
 
 
+@pytest.mark.parametrize(("separator", "refused"), [(" ", True), ("\u00a0", False)])
 def test_maven_install_with_mavenrc_refuses_a_jar_path_with_a_space(
-    tmp_path, monkeypatch, fake_repository, outside_projects
+    separator, refused, tmp_path, monkeypatch, fake_repository, outside_projects
 ):
     """mvn splits MAVEN_OPTS at spaces, so the JAR path would break every build."""
-    home = tmp_path / "John Smith"
+    home = tmp_path / f"John{separator}Smith"
     home.mkdir()
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
-    with pytest.raises(MavenrcNotSupported, match="--local"):
+    with (
+        pytest.raises(MavenrcNotSupported, match="--local")
+        if refused
+        else nullcontext()
+    ):
         MavenInstaller().install(mavenrc=True)
 
-    assert not (home / ".mavenrc").exists()
-    assert not fake_repository
+    assert (home / ".mavenrc").exists() is not refused
+    assert bool(fake_repository) is not refused
 
 
 def test_maven_install_with_mavenrc_turns_off_the_user_extensions_file(
