@@ -13,13 +13,16 @@ the extension in one of these files:
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
+from xml.etree import ElementTree
 
+from ...core.cache_utils import _FIX_CONFIG_FILE_HINT, ConfigFileParseError
 from .. import maven_tools
 from ..maven_tools import ProjectNotFound
 from . import extensions
@@ -33,6 +36,8 @@ if TYPE_CHECKING:
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
+_REPO_LOCAL_OPTION = re.compile(r"(?:^|\s)-Dmaven\.repo\.local=(\S+)")
+_PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 
 
 def _project_dir() -> Path:
@@ -63,8 +68,67 @@ def _mavenrc_file() -> Path:
     return Path.home() / ".mavenrc"
 
 
-def _version_dir(version: str) -> Path:
-    return Path.home() / ".m2" / "repository" / EXTENSION_PATH / version
+def _repo_local_option(local: bool) -> str | None:
+    """Return the last ``-Dmaven.repo.local`` value, which is the one Java uses.
+
+    ``mvn`` puts ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and the arguments in
+    ``.mvn/maven.config`` override both.
+    """
+    sources = [os.environ.get("MAVEN_OPTS", "")]
+    if local:
+        mvn_dir = _project_dir() / ".mvn"
+        sources = [
+            _read(mvn_dir / "jvm.config") or "",
+            *sources,
+            _read(mvn_dir / "maven.config") or "",
+        ]
+    values = _REPO_LOCAL_OPTION.findall(" ".join(sources))
+    return values[-1] if values else None
+
+
+def _resolve_placeholder(match: re.Match[str], settings_file: Path) -> str:
+    name = match.group(1)
+    env_name = name.removeprefix("env.")
+    if name == "user.home":
+        return str(Path.home())
+    if name.startswith("env.") and env_name in os.environ:
+        return os.environ[env_name]
+    raise ConfigFileParseError(
+        f"Cannot resolve {match.group(0)} in <localRepository> of {settings_file}."
+        f" {_FIX_CONFIG_FILE_HINT}"
+    )
+
+
+def _settings_local_repository() -> str | None:
+    """Return ``<localRepository>`` of ``~/.m2/settings.xml``, or ``None`` when it has none."""
+    settings_file = Path.home() / ".m2" / "settings.xml"
+    if not settings_file.exists():
+        return None
+    try:
+        root = ElementTree.parse(settings_file).getroot()
+    except ElementTree.ParseError as exc:
+        raise ConfigFileParseError(
+            f"Cannot parse {settings_file} as XML: {exc}. {_FIX_CONFIG_FILE_HINT}"
+        ) from exc
+    # {*} matches the namespace of the Maven settings, or no namespace.
+    value = root.findtext("{*}localRepository", "").strip()
+    if not value:
+        return None
+    return _PLACEHOLDER.sub(
+        partial(_resolve_placeholder, settings_file=settings_file), value
+    )
+
+
+def _local_repository(local: bool) -> Path:
+    """Return the local repository that Maven uses, in the same order of precedence."""
+    location = _repo_local_option(local) or _settings_local_repository()
+    if location is None:
+        return Path.home() / ".m2" / "repository"
+    return Path(location).absolute()
+
+
+def _version_dir(repository: Path, version: str) -> Path:
+    return repository / EXTENSION_PATH / version
 
 
 def _read(path: Path) -> str | None:
@@ -177,12 +241,14 @@ class MavenInstaller:
         session: requests.Session | None = None,
         **_options,
     ) -> list[str]:
-        """Put the extension in ``~/.m2/repository`` and turn it on."""
+        """Put the extension in the local repository of Maven and turn it on."""
         project_file = _project_extensions_file() if local else None
+        repository = _local_repository(local)
         version = maven_tools.latest_version(EXTENSION_PATH, session)
-        actions = self._download(version, dry_run, session)
+        version_dir = _version_dir(repository, version)
+        actions = self._download(version_dir, version, dry_run, session)
         if mavenrc:
-            jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
+            jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"
             return (
                 actions
                 + _add(_mavenrc_file(), partial(add_block, jar=jar), version, dry_run)
@@ -201,9 +267,12 @@ class MavenInstaller:
         )
 
     def _download(
-        self, version: str, dry_run: bool, session: requests.Session | None
+        self,
+        version_dir: Path,
+        version: str,
+        dry_run: bool,
+        session: requests.Session | None,
     ) -> list[str]:
-        version_dir = _version_dir(version)
         file_names = [
             f"{extensions.ARTIFACT_ID}-{version}.{file_type}"
             for file_type in ("jar", "pom")
