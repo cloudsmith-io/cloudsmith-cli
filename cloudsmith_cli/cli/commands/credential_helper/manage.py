@@ -20,7 +20,10 @@ from cloudsmith_cli.credential_helpers.generic import PartialInstallError
 from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
 from cloudsmith_cli.credential_helpers.launchers import UnsafeLauncherValue
 from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
-from cloudsmith_cli.credential_helpers.maven.installer import MavenInstaller
+from cloudsmith_cli.credential_helpers.maven.installer import (
+    MavenInstaller,
+    MavenrcNotSupported,
+)
 from cloudsmith_cli.credential_helpers.maven_tools import (
     ConfigFileConflict,
     ProjectNotFound,
@@ -447,6 +450,7 @@ def install_cmd(
         ExtensionsFileError,
         ConfigFileConflict,
         UnsafeLauncherValue,
+        MavenrcNotSupported,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
