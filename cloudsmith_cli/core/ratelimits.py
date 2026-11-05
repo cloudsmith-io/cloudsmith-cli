@@ -26,17 +26,17 @@ class RateLimitsInfo:
         """Create RateLimitsInfo from a dictionary."""
         info = RateLimitsInfo()
 
-        if "interval" in data:
+        if data.get("interval") is not None:
             info.interval = float(data["interval"])
-        if "limit" in data:
+        if data.get("limit") is not None:
             info.limit = int(data["limit"])
-        if "remaining" in data:
+        if data.get("remaining") is not None:
             info.remaining = int(data["remaining"])
-        if "reset" in data:
+        if data.get("reset") is not None:
             info.reset = datetime.datetime.fromtimestamp(
                 int(data["reset"]), tz=datetime.UTC
             )
-        if "throttled" in data:
+        if data.get("throttled") is not None:
             info.throttled = bool(data["throttled"])
         else:
             info.throttled = info.remaining == 0

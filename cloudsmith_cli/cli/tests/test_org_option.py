@@ -2,8 +2,8 @@
 """Tests for the Workspace option and its accepted spellings.
 
 ``--workspace`` and ``-w`` use current Cloudsmith terminology. ``--org``,
-``--organization``, ``--oidc-org``, ``--owner``, and ``-o`` remain available
-for compatibility. All seven flags are one option.
+``--organization``, ``--oidc-org``, ``--owner``, and ``-o`` are deprecated but
+still set the same value (see test_deprecation.py for their warnings).
 """
 
 from unittest.mock import patch

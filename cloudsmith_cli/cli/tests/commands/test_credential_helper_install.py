@@ -77,7 +77,7 @@ def test_cleared_install_settings_keep_the_error_report_controls():
             False,
             "docker",
             "docker-credential-cloudsmith",
-            '#!/bin/sh\nexec cloudsmith credential-helper docker "$@"\n',
+            '#!/usr/bin/env sh\nexec cloudsmith credential-helper docker "$@"\n',
         ),
         (
             True,
@@ -89,7 +89,7 @@ def test_cleared_install_settings_keep_the_error_report_controls():
             False,
             "pnpm",
             "pnpm-credential-cloudsmith",
-            '#!/bin/sh\nexec cloudsmith credential-helper pnpm "$@"\n',
+            '#!/usr/bin/env sh\nexec cloudsmith credential-helper pnpm "$@"\n',
         ),
         (
             True,
@@ -245,7 +245,7 @@ def test_write_launcher_writes_executable_script(format, tmp_path):
         f"{format}-credential-cloudsmith",
         f"cloudsmith credential-helper {format}",
     )
-    expected = f'#!/bin/sh\nexec cloudsmith credential-helper {format} "$@"\n'
+    expected = f'#!/usr/bin/env sh\nexec cloudsmith credential-helper {format} "$@"\n'
     assert dest.read_text(encoding="utf-8") == expected
     assert stat.S_IMODE(dest.stat().st_mode) == 0o755
 
@@ -448,7 +448,7 @@ def test_docker_install_scopes_the_helper_to_the_install_time_settings(
 
     name = "cloudsmith-meta-iduffy-demo"
     assert (bin_dir / f"docker-credential-{name}").read_text() == (
-        "#!/bin/sh\n"
+        "#!/usr/bin/env sh\n"
         "export CLOUDSMITH_PROFILE=Meta\n"
         "export CLOUDSMITH_WORKSPACE=iduffy_demo\n"
         "export CLOUDSMITH_API_HOST=https://api.example.com\n"
@@ -495,7 +495,7 @@ def test_docker_launcher_keeps_the_resolved_tls_setting(runner, tmp_path, monkey
 
     assert result.exit_code == 0, result.output
     assert (bin_dir / "docker-credential-cloudsmith").read_text() == (
-        "#!/bin/sh\n"
+        "#!/usr/bin/env sh\n"
         "export CLOUDSMITH_SSL_VERIFY=false\n"
         'exec cloudsmith credential-helper docker "$@"\n'
     )
@@ -750,10 +750,14 @@ def test_pnpm_installer_install(tmp_path: Path, monkeypatch: MonkeyPatch):
         f"//my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith\n"
     )
     assert actions[1:] == [
-        f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
-        f" in {npm_path}",
-        f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
-        f" in {npm_path}",
+        (
+            f"set //npm.cloudsmith.io/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+            f" in {npm_path}"
+        ),
+        (
+            f"set //my.registry.example.com/:tokenHelper={bin_dir}/pnpm-credential-cloudsmith"
+            f" in {npm_path}"
+        ),
     ]
     # Launcher written
     assert (bin_dir / "pnpm-credential-cloudsmith").exists()

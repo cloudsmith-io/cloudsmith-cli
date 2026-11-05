@@ -94,7 +94,7 @@ def _launcher_content(
     """Return the launcher script body for the platform.
 
     Windows uses a ``.cmd`` batch file (``@echo off`` keeps stdout clean for
-    Docker's credential JSON); Unix uses a ``#!/bin/sh`` script that ``exec``s
+    Docker's credential JSON); Unix uses a ``#!/usr/bin/env sh`` script that ``exec``s
     the target so signals and the exit code pass straight through.  The
     ``env`` variables replace the caller's values, so the helper gives the
     same result as the install.
@@ -112,7 +112,7 @@ def _launcher_content(
     settings = "".join(
         f"export {name}={shlex.quote(value)}\n" for name, value in env.items()
     )
-    return f'#!/bin/sh\n{settings}exec {target_cmd} "$@"\n'
+    return f'#!/usr/bin/env sh\n{settings}exec {target_cmd} "$@"\n'
 
 
 def parse_launcher_env(content: str) -> dict[str, str]:
