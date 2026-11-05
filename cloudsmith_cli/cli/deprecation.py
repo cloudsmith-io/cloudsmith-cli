@@ -41,6 +41,7 @@ WORKSPACE_ALIASES = {
 PAGE_ALL_ALIASES = {"--show-all": "--page-all"}
 
 _WARNED_META_KEY = "cloudsmith_cli.deprecation_warnings"
+_USED_META_KEY = "cloudsmith_cli.deprecated_used"
 
 
 def format_warning(subject, replacement=None, *, removal=None, detail=None):
@@ -63,6 +64,23 @@ def _is_credential_helper_runtime(ctx):
     )
 
 
+def record(kind, name, ctx=None):
+    """Note that this run used the deprecated `name`, for usage telemetry.
+
+    `kind` is "command", "option", "env" or "config", and `name` is a name the
+    code declares, never a value from the user. Recorded even when the warning
+    is not printed.
+    """
+    ctx = ctx or click.get_current_context(silent=True)
+    if ctx is not None:
+        ctx.find_root().meta.setdefault(_USED_META_KEY, set()).add(f"{kind}:{name}")
+
+
+def used(meta):
+    """The deprecated names this run used, from its root ``ctx.meta``."""
+    return sorted((meta or {}).get(_USED_META_KEY, ()))
+
+
 def warn(subject, replacement=None, *, removal=None, detail=None, ctx=None):
     """Print the deprecation warning for `subject` to stderr, once per run."""
     message = format_warning(subject, replacement, removal=removal, detail=detail)
@@ -79,20 +97,20 @@ def warn(subject, replacement=None, *, removal=None, detail=None, ctx=None):
 
 def warn_option(spelling, replacement, ctx=None):
     """Warn that the option `spelling` is deprecated."""
+    record("option", spelling, ctx=ctx)
     warn(f"`{spelling}`", f"`{replacement}`", ctx=ctx)
 
 
 def warn_config_key(key, ctx=None):
     """Warn that the config.ini key `key` is deprecated."""
-    warn(
-        f"The `{key}` key in config.ini",
-        f"`{CONFIG_KEY_REPLACEMENTS[key]}`",
-        ctx=ctx,
-    )
+    replacement = CONFIG_KEY_REPLACEMENTS[key]
+    record("config", key, ctx=ctx)
+    warn(f"The `{key}` key in config.ini", f"`{replacement}`", ctx=ctx)
 
 
 def warn_envvar(name, replacement, ctx=None):
     """Warn that the environment variable `name` is deprecated."""
+    record("env", name, ctx=ctx)
     warn(f"`{name}`", f"`{replacement}`", ctx=ctx)
 
 

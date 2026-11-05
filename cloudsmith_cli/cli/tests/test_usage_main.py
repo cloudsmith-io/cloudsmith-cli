@@ -440,3 +440,44 @@ def test_command_that_never_logs_in_reports_no_login_method(
     monkeypatch.setenv("CLOUDSMITH_API_KEY", "not-a-real-key")
     main(args=["credential-helper", "list"], standalone_mode=False)
     assert "auth_source" not in usage_events[-1]["properties"]
+
+
+PROXY = "http://proxy.example:3128"
+
+
+@pytest.mark.parametrize(
+    "extra, env, config, deprecated",
+    [
+        ([], {}, "", []),
+        (["--show-all"], {}, "", ["option:--show-all"]),
+        (["--org", "acme"], {}, "", ["option:--org"]),
+        ([], {"CLOUDSMITH_API_PROXY": PROXY}, "", ["env:CLOUDSMITH_API_PROXY"]),
+        ([], {}, f"api_proxy = {PROXY}", ["config:api_proxy"]),
+    ],
+)
+def test_deprecated_names_used_are_sent(
+    usage_events,
+    notice_seen,
+    no_repos_api,
+    telemetry_config_dir,
+    monkeypatch,
+    extra,
+    env,
+    config,
+    deprecated,
+):
+    (telemetry_config_dir / "config.ini").write_text(f"[default]\n{config}\n")
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    args = ["list", "repos", "acme", "-F", "json", *extra]
+    assert main(args=args, standalone_mode=False) in (0, None)
+    (event,) = usage_events
+    assert event["properties"]["deprecated"] == deprecated
+
+
+@pytest.mark.parametrize("name", ["login", "token"])
+def test_deprecated_command_is_sent(usage_events, notice_seen, name):
+    assert main(args=[name, "--help"], standalone_mode=False) in (0, None)
+    (event,) = usage_events
+    assert event["properties"]["deprecated"] == [f"command:{name}"]
+    assert event["properties"]["outcome"] == "help"

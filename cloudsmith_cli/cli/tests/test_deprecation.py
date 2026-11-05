@@ -426,3 +426,40 @@ def test_help_hides_the_deprecated_spellings():
     ):
         assert spelling not in result.stdout
     assert "--workspace" in result.stdout
+
+
+def test_record_keeps_each_deprecated_name_once_in_the_root_context():
+    root = click.Context(click.Group("root"))
+    leaf = click.Context(click.Command("leaf"), parent=root)
+    deprecation.record("option", "--org", ctx=leaf)
+    deprecation.record("option", "--org", ctx=leaf)
+    deprecation.record("config", "api_proxy", ctx=root)
+    assert deprecation.used(root.meta) == ["config:api_proxy", "option:--org"]
+    assert deprecation.used(None) == []
+
+
+def test_record_without_a_context_does_nothing():
+    deprecation.record("option", "--org")
+
+
+def test_warnings_record_even_when_not_printed():
+    # Credential helper runtimes print no warning, but the name is recorded.
+    @click.group(name="credential-helper")
+    def credential_helper():
+        pass
+
+    seen = {}
+
+    @credential_helper.command(name="docker")
+    @click.pass_context
+    def docker(ctx):
+        deprecation.warn_option("--org", "--workspace", ctx=ctx)
+        seen["used"] = deprecation.used(ctx.find_root().meta)
+
+    result = click.testing.CliRunner().invoke(
+        click.Group(commands={"credential-helper": credential_helper}),
+        ["credential-helper", "docker"],
+        catch_exceptions=False,
+    )
+    assert "is deprecated" not in result.output
+    assert seen["used"] == ["option:--org"]

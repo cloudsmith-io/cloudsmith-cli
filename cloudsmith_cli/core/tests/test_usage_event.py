@@ -109,7 +109,9 @@ def test_wrong_type_is_dropped():
     assert "duration_ms" not in props
 
 
-@pytest.mark.parametrize("name", ["flags", "flags_typed", "envvars", "aliases_used"])
+@pytest.mark.parametrize(
+    "name", ["flags", "flags_typed", "envvars", "aliases_used", "deprecated"]
+)
 @pytest.mark.parametrize("bad", ["--page-size", None, ["ok", 3], {"a": 1}, 7])
 def test_malformed_name_lists_are_dropped_not_split(name, bad):
     # A bare string must not be sent one character at a time, and None or
@@ -127,3 +129,10 @@ def test_name_lists_are_deduplicated_and_sorted_but_aliases_keep_order():
     )["properties"]
     assert props["flags"] == ["output_format", "page_size"]
     assert props["aliases_used"] == ["ls", "repos"]
+
+
+def test_deprecated_names_are_deduplicated_and_sorted():
+    props = _build(
+        _facts(deprecated=["option:--org", "config:api_proxy", "option:--org"])
+    )["properties"]
+    assert props["deprecated"] == ["config:api_proxy", "option:--org"]

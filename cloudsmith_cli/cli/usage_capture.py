@@ -321,6 +321,7 @@ def collect_facts(meta, *, outcome, exit_code, duration_ms, nested):
     """Build the ``RunFacts`` for a run from its recorded context metadata."""
     from ..core.telemetry_common import Send
     from ..core.usage.event import RunFacts
+    from . import deprecation
 
     store = meta.get(META_KEY, {})
     contexts = store.get("contexts", [])
@@ -334,6 +335,7 @@ def collect_facts(meta, *, outcome, exit_code, duration_ms, nested):
         flags_typed=typed,
         envvars=envvars,
         aliases_used=list(store.get("aliases", [])),
+        deprecated=deprecation.used(meta),
         output_format=getattr(opts, "output", None),
         # A typed --help only means help was shown if the run then succeeded:
         # `whoami --no-such-flag --help` is still a usage error.

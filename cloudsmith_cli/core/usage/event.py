@@ -80,6 +80,7 @@ class RunFacts:
     flags_typed: list[str] = field(default_factory=list)
     envvars: list[str] = field(default_factory=list)
     aliases_used: list[str] = field(default_factory=list)
+    deprecated: list[str] = field(default_factory=list)
     output_format: str | None = None
     outcome: str = "success"
     exit_code: int = 0
@@ -120,6 +121,7 @@ PROPERTIES = (
     Property("flags_typed", list, "command and flag use"),
     Property("envvars", list, "configuration habits; login methods"),
     Property("aliases_used", list, "command and flag use"),
+    Property("deprecated", list, "deprecation impact: who still uses removed names"),
     Property("output_format", str, "command and flag use; persona"),
     Property("outcome", str, "reliability and speed"),
     Property("exit_code", int, "reliability and speed"),
@@ -179,6 +181,7 @@ def _values(
         "flags_typed": _names(facts.flags_typed),
         "envvars": _names(facts.envvars),
         "aliases_used": _names(facts.aliases_used, ordered=True),
+        "deprecated": _names(facts.deprecated),
         "output_format": facts.output_format,
         "outcome": facts.outcome,
         "exit_code": facts.exit_code,
