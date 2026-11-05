@@ -56,9 +56,16 @@ def _get(artifact_path: str, session: requests.Session | None) -> bytes:
 
 def latest_version(artifact_path: str, session: requests.Session | None = None) -> str:
     """Return the newest release of the artifact at *artifact_path*."""
-    metadata = ElementTree.fromstring(
-        _get(f"{artifact_path}/maven-metadata.xml", session)
-    )
+    metadata_path = f"{artifact_path}/maven-metadata.xml"
+    content = _get(metadata_path, session)
+    try:
+        metadata = ElementTree.fromstring(content)
+    except ElementTree.ParseError as exc:
+        raise OSError(
+            f"{REPOSITORY_URL}{metadata_path} did not return Maven metadata. "
+            "A proxy or a firewall can answer in place of the repository. "
+            "Check your proxy settings, or use the --proxy option."
+        ) from exc
     release = metadata.findtext("versioning/release")
     if not release:
         raise OSError(f"{REPOSITORY_URL}{artifact_path} has no release")
