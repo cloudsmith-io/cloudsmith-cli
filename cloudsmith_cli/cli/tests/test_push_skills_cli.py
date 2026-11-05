@@ -139,6 +139,63 @@ def test_directory_is_compressed_and_uploaded_with_compress(runner, tmp_path):
     assert "compress" not in mock_create_package.call_args.kwargs
 
 
+def test_directory_compression_excludes_os_and_vcs_clutter(runner, tmp_path):
+    skill_dir = tmp_path / "my-skill"
+    for path, content in {
+        "SKILL.md": "---\nname: my-skill\n---\n",
+        ".claude-plugin/plugin.json": "{}",
+        "scripts/pkg/__init__.py": "",
+        "references/.DS_Store": "",
+        "._SKILL.md": "",
+        "__MACOSX/._SKILL.md": "",
+        ".git/HEAD": "ref: refs/heads/main\n",
+        ".env": "SECRET=1\n",
+    }.items():
+        (skill_dir / path).parent.mkdir(parents=True, exist_ok=True)
+        (skill_dir / path).write_text(content)
+
+    uploaded = {}
+
+    def capture_upload(*args, filepath, **kwargs):
+        with zipfile.ZipFile(filepath) as archive:
+            uploaded["members"] = sorted(
+                name for name in archive.namelist() if not name.endswith("/")
+            )
+        return "uploaded:my-skill.zip"
+
+    with (
+        patch(_MOCK_TARGETS[0]),
+        patch(_MOCK_TARGETS[1], return_value="checksum"),
+        patch(_MOCK_TARGETS[2], side_effect=capture_upload),
+        patch(_MOCK_TARGETS[3], return_value=("slug-perm", "slug")),
+        patch(_MOCK_TARGETS[4]),
+    ):
+        result = runner.invoke(
+            main,
+            [
+                "push",
+                "skills",
+                "example/repo",
+                str(skill_dir),
+                "--name",
+                "my-skill",
+                "--version",
+                "1.0.0",
+                "--compress",
+                "--api-key",
+                "fake-api-key",
+            ],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0, result.output
+    assert uploaded["members"] == [
+        ".claude-plugin/plugin.json",
+        "SKILL.md",
+        "scripts/pkg/__init__.py",
+    ]
+
+
 def test_directory_without_compress_is_rejected(runner, tmp_path):
     skill_dir = tmp_path / "my-skill"
     skill_dir.mkdir()

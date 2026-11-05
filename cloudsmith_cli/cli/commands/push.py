@@ -84,6 +84,17 @@ METADATA_FAILURE_MODE_KWARG = "cli_metadata_failure_mode"
 #: derived without ``--dsc-file`` (GitHub issue #56).
 DSC_SUFFIX = ".dsc"
 
+#: OS and VCS clutter left out when ``push skills --compress`` zips a folder.
+#: Language-specific artifacts (``__pycache__``, ``node_modules`` ...) are kept,
+#: as are dotfiles a skill may need, such as ``.claude-plugin/``.
+SKILL_ARCHIVE_EXCLUDED_PATTERNS = (
+    ".DS_Store",
+    "._*",
+    "__MACOSX",
+    ".git",
+    ".env",
+)
+
 
 def _metadata_failure_is_warn(opts=None):
     """Return True iff metadata failures should be downgraded to a warning.
@@ -1370,10 +1381,18 @@ def create_push_handlers():
                             err=use_stderr,
                         )
 
+                        # Copy directory to filter out patterns we wouldn't want uploaded
+                        # See in `SKILL_ARCHIVE_EXCLUDED_PATTERNS`
+                        staged = os.path.join(tmp, os.path.basename(package_file))
+                        shutil.copytree(
+                            package_file,
+                            staged,
+                            ignore=shutil.ignore_patterns(
+                                *SKILL_ARCHIVE_EXCLUDED_PATTERNS
+                            ),
+                        )
                         archive = shutil.make_archive(
-                            base_name=os.path.join(tmp, os.path.basename(package_file)),
-                            format="zip",
-                            root_dir=package_file,
+                            base_name=staged, format="zip", root_dir=staged
                         )
 
                         click.secho("OK", fg="green", nl=False, err=use_stderr)
