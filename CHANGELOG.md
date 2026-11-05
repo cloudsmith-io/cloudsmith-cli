@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 
-- The old names of renamed options, environment variables, and `config.ini` keys are deprecated, and version 2.0.0 will remove them. Until then, they work as before, but the CLI prints a warning to stderr, once per run, that names the replacement. For example: ``Warning: `--org` is deprecated and will be removed in version 2.0.0. Use `--workspace` instead.`` The old names no longer show in `--help`. (#574)
+- The old names of renamed options, environment variables, and `config.ini` keys are deprecated, and version 2.0.0 will remove them. Until then, they work as before, but the CLI prints a warning to stderr, once per run, that names the replacement. For example: ``Warning: `--org` is deprecated and will be removed in version 2.0.0. Use `--workspace` instead.`` `--help` no longer lists the old names, except `cloudsmith auth --help`, which marks `--token`, `--force`, and `--json` as deprecated. (#574)
 
   | Setting | Deprecated name | Replacement |
   | -- | -- | -- |
