@@ -14,14 +14,13 @@ import os
 import re
 import shutil
 import stat
+from pathlib import Path
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
 
 from ..core.session import create_requests_session
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import requests
 
 REPOSITORY_URL = "https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/"
@@ -30,6 +29,17 @@ TIMEOUT_SECONDS = 30
 
 class ProjectNotFound(Exception):
     """The current directory is not the root directory of a project."""
+
+
+def current_dir() -> Path:
+    """Return the current directory, or raise ProjectNotFound when it does not exist."""
+    try:
+        return Path.cwd()
+    except FileNotFoundError as exc:
+        raise ProjectNotFound(
+            "The current directory does not exist. "
+            "Run the command in the root directory of a project."
+        ) from exc
 
 
 class ConfigFileConflict(Exception):

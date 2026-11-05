@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 - Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
 - The minimum version of `cloudsmith-api` is now 2.0.42.
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
 
 ### Deprecated
 
