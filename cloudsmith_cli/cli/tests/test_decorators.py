@@ -403,3 +403,13 @@ def test_malformed_url_is_a_usage_error(option):
 
     assert result.exit_code == 2, result.output
     assert '"http://[bad" is not a valid URL' in result.output
+
+
+def test_malformed_proxy_in_cwd_config_is_a_usage_error(tmp_path, monkeypatch):
+    (tmp_path / "config.ini").write_text("[default]\nproxy = http://[bad\n")
+    monkeypatch.chdir(tmp_path)
+
+    result = click.testing.CliRunner().invoke(main, ["whoami"])
+
+    assert result.exit_code == 2, result.output
+    assert '"http://[bad" is not a valid URL' in result.output

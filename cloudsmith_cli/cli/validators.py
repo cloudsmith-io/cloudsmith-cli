@@ -121,7 +121,10 @@ def host_matches_suffixes(url, suffixes):
     Parsing the hostname (rather than substring-matching the URL) ensures
     userinfo, port, and path components cannot smuggle a host past the check.
     """
-    hostname = (urlsplit(url).hostname or "").lower()
+    try:
+        hostname = (urlsplit(url).hostname or "").lower()
+    except ValueError:
+        return False
     return bool(hostname) and any(
         hostname == suffix or hostname.endswith(f".{suffix}") for suffix in suffixes
     )
