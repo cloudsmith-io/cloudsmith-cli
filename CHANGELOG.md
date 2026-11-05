@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
 - The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120.
 - `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
-- The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI still shows the error and exits with status 1.
+- The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
 
 ## [1.30.0] - 2026-10-22
 
