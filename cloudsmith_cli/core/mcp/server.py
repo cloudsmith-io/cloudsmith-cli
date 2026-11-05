@@ -883,7 +883,10 @@ class DynamicMCPServer:
         """Initialize and run the server"""
         asyncio.run(self.load_openapi_spec())
         try:
-            self.mcp.run(transport="stdio")
+            try:
+                self.mcp.run(transport="stdio")
+            except* BrokenPipeError:
+                pass  # The MCP client closed the connection.
         except asyncio.CancelledError:
             print("Server shutdown requested")
 
