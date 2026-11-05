@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
+FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE = (3, 9)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
 _REPO_LOCAL_ARGUMENT = "-Dmaven.repo.local="
 _REPO_LOCAL_OPTION = re.compile(r"(?:^|\s)-Dmaven\.repo\.local=(\S+)")
@@ -74,7 +75,8 @@ def _repo_local_option(local: bool) -> str | None:
 
     ``mvn`` puts ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and the arguments in
     ``.mvn/maven.config`` override both. Each line of ``.mvn/maven.config`` is one
-    argument, and Maven skips the lines that start with ``#``.
+    argument, and Maven skips the lines that start with ``#``. Maven before 3.9
+    splits ``.mvn/maven.config`` on whitespace instead.
     """
     sources = [os.environ.get("MAVEN_OPTS", "")]
     maven_config = ""
@@ -85,6 +87,9 @@ def _repo_local_option(local: bool) -> str | None:
             *sources,
         ]
         maven_config = _read(mvn_dir / "maven.config") or ""
+        if maven_config and _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
+            sources.append(maven_config)
+            maven_config = ""
     values = _REPO_LOCAL_OPTION.findall(" ".join(sources))
     values += [
         line.removeprefix(_REPO_LOCAL_ARGUMENT)
@@ -165,12 +170,21 @@ def _maven_version() -> str | None:
     return match.group(1) if match else None
 
 
+def _major_minor(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split(".")[:2])
+
+
+def _maven_older_than(major_minor: tuple[int, int]) -> bool:
+    """Return ``True`` when ``mvn -v`` reports a version older than ``major_minor``."""
+    version = _maven_version()
+    return version is not None and _major_minor(version) < major_minor
+
+
 def _old_maven_warning() -> list[str]:
     version = _maven_version()
     if version is None:
         return []
-    major_minor = tuple(int(part) for part in version.split(".")[:2])
-    if major_minor >= FIRST_MAVEN_WITH_USER_EXTENSIONS:
+    if _major_minor(version) >= FIRST_MAVEN_WITH_USER_EXTENSIONS:
         return []
     warning = (
         f"WARNING: Maven {version} ignores {_user_extensions_file()}. "

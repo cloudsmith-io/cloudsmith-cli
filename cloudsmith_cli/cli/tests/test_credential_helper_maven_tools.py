@@ -833,16 +833,24 @@ def test_maven_install_local_reads_maven_repo_local_of_the_project(
 
 
 @pytest.mark.parametrize(
-    ("maven_config", "repository"),
+    ("maven_version", "maven_config", "repository"),
     [
-        ("# -Dmaven.repo.local=old-repo", "opts"),
-        ("-Dmaven.repo.local=my repo", "my repo"),
+        ("3.9.3", "# -Dmaven.repo.local=old-repo", "opts"),
+        ("3.9.3", "-Dmaven.repo.local=my repo", "my repo"),
+        ("3.8.8", "-Dmaven.repo.local=m2 -B", "m2"),
     ],
 )
-def test_maven_install_local_reads_maven_config_one_argument_per_line(
-    maven_config, repository, home, fake_repository, maven_project, monkeypatch
+def test_maven_install_local_reads_maven_config_like_maven(
+    maven_version,
+    maven_config,
+    repository,
+    home,
+    fake_repository,
+    maven_project,
+    monkeypatch,
 ):
-    """Maven skips # lines in .mvn/maven.config and reads each other line as one argument."""
+    """Maven 3.9 reads each .mvn/maven.config line as one argument; 3.8 splits on whitespace."""
+    monkeypatch.setattr(maven_installer, "_maven_version", lambda: maven_version)
     monkeypatch.setenv("MAVEN_OPTS", f"-Dmaven.repo.local={maven_project / 'opts'}")
     (maven_project / ".mvn").mkdir()
     (maven_project / ".mvn" / "maven.config").write_text(
