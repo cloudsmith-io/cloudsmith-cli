@@ -367,6 +367,34 @@ def test_list_finds_a_launcher_installed_to_the_default_dir(
     )
 
 
+def test_list_shows_each_docker_helper_by_name(runner, tmp_path, monkeypatch):
+    """A scoped launcher stays in `list` after another install takes its hosts."""
+    from ....cli.commands.credential_helper.manage import list_cmd
+
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
+    for workspace in ("acme", "beta"):
+        DockerInstaller().install(
+            discover=False, launcher_env={"CLOUDSMITH_WORKSPACE": workspace}
+        )
+
+    result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
+
+    bin_dir = tmp_path / ".cloudsmith" / "bin"
+    assert [
+        (entry["cred_helper"], entry["launcher"], entry["hosts"])
+        for entry in json.loads(result.stdout)["data"]
+        if entry["helper"] == "docker"
+    ] == [
+        (
+            "cloudsmith-beta",
+            str(bin_dir / "docker-credential-cloudsmith-beta"),
+            ["docker.cloudsmith.io"],
+        ),
+        ("cloudsmith-acme", str(bin_dir / "docker-credential-cloudsmith-acme"), []),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 4. is_on_path
 # ---------------------------------------------------------------------------
@@ -469,10 +497,12 @@ def test_docker_install_scopes_the_helper_to_the_install_time_settings(
     ):
         assert installer.statuses() == [
             {
+                "name": name,
                 "launcher": str(bin_dir / f"docker-credential-{name}"),
                 "hosts": ["docker.cloudsmith.io"],
             },
             {
+                "name": "cloudsmith",
                 "launcher": str(bin_dir / "docker-credential-cloudsmith"),
                 "hosts": ["legacy.example.com"],
             },
@@ -673,29 +703,11 @@ def test_docker_conflict_command_removes_the_conflicting_launcher(
 
 
 def test_docker_conflict_command_uses_windows_quoting(tmp_path, monkeypatch):
-    """cmd.exe does not read single quotes as quotes."""
+    """cmd.exe reads only double quotes, and splits a command at an unquoted &."""
     monkeypatch.setattr(
         "cloudsmith_cli.credential_helpers.docker.installer.is_windows", lambda: True
     )
-    bin_dir = tmp_path / "my bin"
-    bin_dir.mkdir()
-    launcher = bin_dir / "docker-credential-cloudsmith-acme.cmd"
-    launcher.write_text(
-        _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": "acme"})
-    )
-
-    with pytest.raises(HelperScopeConflict) as conflict:
-        _check_scope(launcher, (None, "acme"))
-
-    assert str(conflict.value).endswith(f' -P "acme" --bin-dir "{bin_dir}"')
-
-
-def test_docker_conflict_command_quotes_cmd_metacharacters(tmp_path, monkeypatch):
-    """cmd.exe splits a command at an & that is not in double quotes."""
-    monkeypatch.setattr(
-        "cloudsmith_cli.credential_helpers.docker.installer.is_windows", lambda: True
-    )
-    bin_dir = tmp_path / "bin&tools"
+    bin_dir = tmp_path / "my bin&tools"
     bin_dir.mkdir()
     launcher = bin_dir / "docker-credential-cloudsmith-work-team.cmd"
     launcher.write_text(
@@ -706,6 +718,17 @@ def test_docker_conflict_command_quotes_cmd_metacharacters(tmp_path, monkeypatch
         _check_scope(launcher, (None, "acme"))
 
     assert str(conflict.value).endswith(f' -P "work&team" --bin-dir "{bin_dir}"')
+
+
+def test_docker_names_a_launcher_that_it_cannot_read(tmp_path):
+    """A launcher with an unclosed quote stops the install with its path."""
+    launcher = tmp_path / "docker-credential-cloudsmith-acme"
+    launcher.write_text("#!/bin/sh\nexport CLOUDSMITH_WORKSPACE='acme\n")
+
+    with pytest.raises(HelperScopeConflict) as conflict:
+        _check_scope(launcher, (None, "acme"))
+
+    assert str(launcher) in str(conflict.value)
 
 
 def test_docker_root_profile_flag_overrides_the_environment(

@@ -89,7 +89,13 @@ def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
     """
     if not launcher_path.exists():
         return
-    env = parse_launcher_env(launcher_path.read_text(encoding="utf-8"))
+    try:
+        env = parse_launcher_env(launcher_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise HelperScopeConflict(
+            f"Cannot read the settings in {launcher_path} ({exc}). Delete the"
+            " file, then run the command again."
+        ) from exc
     # An empty value gives the same helper name as no value.
     installed = tuple(env.get(name) or None for name in _SCOPE_ENVVARS)
     if installed != tuple(value or None for value in scope):
@@ -104,6 +110,19 @@ def _check_scope(launcher_path: Path, scope: tuple[str | None, ...]) -> None:
             f" credential-helper uninstall docker{flags}"
             f" --bin-dir {_shell_quote(str(launcher_path.parent))}"
         )
+
+
+def _cred_helpers() -> dict:
+    """Return the ``credHelpers`` block of ``config.json``, or ``{}``."""
+    config_path = _docker_config_path()
+    if not config_path.exists():
+        return {}
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+    cred_helpers = data.get("credHelpers") if isinstance(data, dict) else None
+    return cred_helpers if isinstance(cred_helpers, dict) else {}
 
 
 def _is_cloudsmith_helper(value) -> bool:
@@ -424,14 +443,17 @@ class DockerInstaller:
         return actions
 
     def statuses(self) -> list[dict]:
-        """Return the status of each Cloudsmith helper in ``config.json``.
+        """Return the status of each Cloudsmith helper.
 
         Returns
         -------
         list[dict]
             One dict for each ``cloudsmith`` or ``cloudsmith-*`` helper, in the
-            order of the ``credHelpers`` block, with keys:
+            order of the ``credHelpers`` block, then one for each other scoped
+            launcher in the default bin directory, with keys:
 
+            ``"name"``
+                The ``credHelpers`` value of the helper.
             ``"launcher"``
                 The path of the launcher of the helper, or ``None`` if it does
                 not exist.
@@ -440,26 +462,24 @@ class DockerInstaller:
 
             Without such a helper, the list has only the unscoped helper.
         """
-        config_path = _docker_config_path()
         hosts_by_helper: dict[str, list[str]] = {}
-        if config_path.exists():
-            try:
-                data = json.loads(config_path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    cred_helpers = data.get("credHelpers", {})
-                    if isinstance(cred_helpers, dict):
-                        for host, helper in cred_helpers.items():
-                            if _is_cloudsmith_helper(helper):
-                                hosts_by_helper.setdefault(helper, []).append(host)
-            except (ValueError, OSError):
-                pass
+        for host, helper in _cred_helpers().items():
+            if _is_cloudsmith_helper(helper):
+                hosts_by_helper.setdefault(helper, []).append(host)
 
         target_dir = resolve_bin_dir()
+        # A scoped launcher stays when a later install moves all of its hosts.
+        pattern = _launcher_path(target_dir, "cloudsmith-*")
+        for launcher_path in sorted(target_dir.glob(pattern.name)):
+            name = launcher_path.name.removesuffix(pattern.suffix)
+            hosts_by_helper.setdefault(name.removeprefix(_launcher_name("")), [])
+
         statuses = []
         for helper, hosts in (hosts_by_helper or {"cloudsmith": []}).items():
             launcher_path = _launcher_path(target_dir, helper)
             statuses.append(
                 {
+                    "name": helper,
                     "launcher": str(launcher_path) if launcher_path.exists() else None,
                     "hosts": hosts,
                 }

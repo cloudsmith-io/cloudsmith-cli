@@ -583,6 +583,7 @@ def list_cmd(ctx, opts) -> None:
             {
                 "helper": name,
                 "summary": installer.summary,
+                "cred_helper": st.get("name"),
                 "launcher": st.get("launcher"),
                 "hosts": st.get("hosts", []),
             }
@@ -599,6 +600,8 @@ def list_cmd(ctx, opts) -> None:
         summary = entry["summary"]
 
         click.echo(f"{name}  ({summary})", err=use_stderr)
+        if entry["cred_helper"]:
+            click.echo(f"  helper   : {entry['cred_helper']}", err=use_stderr)
         if launcher:
             click.echo(f"  launcher : {launcher}", err=use_stderr)
         else:
