@@ -13,6 +13,7 @@ the extension in one of these files:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
@@ -44,7 +45,7 @@ _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 
 def _project_dir() -> Path:
     """Return the directory where Maven reads ``.mvn``: the nearest one that has it."""
-    cwd = Path.cwd()
+    cwd = maven_tools.current_dir()
     for directory in (cwd, *cwd.parents):
         if (directory / ".mvn").is_dir():
             return directory
@@ -331,11 +332,14 @@ class MavenInstaller:
         ) + _remove(_mavenrc_file(), remove_block, dry_run)
 
     def status(self) -> dict:
-        candidates = (
+        candidates = [
             (_user_extensions_file(), extensions.has_extension),
             (_mavenrc_file(), has_block),
-            (_project_dir() / ".mvn" / "extensions.xml", extensions.has_extension),
-        )
+        ]
+        with contextlib.suppress(ProjectNotFound):
+            candidates.append(
+                (_project_dir() / ".mvn" / "extensions.xml", extensions.has_extension)
+            )
         for path, loads_extension in candidates:
             try:
                 current = _read(path)

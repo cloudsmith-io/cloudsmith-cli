@@ -190,6 +190,18 @@ def alias_envvar(ctx, aliases):
     return None
 
 
+def keep_alias_source(ctx: click.Context, name: str, aliases: dict[str, str]) -> None:
+    """Give option `name` the source of the deprecated spelling that set its value.
+
+    Code that reads the parameter sources, such as the launcher settings, then
+    sees the value as one that the user supplied.
+    """
+    if used_on_command_line(ctx, aliases):
+        ctx.set_parameter_source(name, ParameterSource.COMMANDLINE)
+    elif alias_envvar(ctx, aliases):
+        ctx.set_parameter_source(name, ParameterSource.ENVIRONMENT)
+
+
 def used_on_command_line(ctx, aliases):
     """Return True if any of the deprecated spellings was given on the command line."""
     return any(

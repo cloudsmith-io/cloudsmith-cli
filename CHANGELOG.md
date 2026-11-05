@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 - Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
 - The minimum version of `cloudsmith-api` is now 2.0.42.
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
 
 ### Deprecated
 
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `cloudsmith auth --token`, `--force`, and `--json`, and the `cloudsmith login` and `cloudsmith token` commands, now use the same warning format. The warning prefix is now `Warning:` instead of `DEPRECATION WARNING:`. `cloudsmith login` still stops working on November 20, 2026.
   - When you give an old and a new option on the same command line, such as `--org a --workspace b`, the new option now wins. Previously, the last option won.
 
+- A `[profile:NAME]` section in `config.ini` now keeps the `[default]` values of `telemetry`, `check_for_update`, `ssl_verify`, `api_ssl_verify`, and `ssl_verify_strict` when it does not set them. Previously, a profile that left out one of these keys reset it to `true`, so `--profile`/`-P` turned telemetry and the update check back on, and turned certificate verification back on. A key that no section sets is still `true`.
 - `cloudsmith credential-helper install pnpm` now ends `.npmrc` with a newline. Previously, a line that a shell appended to the file, such as `echo '//host/:_authToken=...' >> ~/.npmrc`, joined the last `tokenHelper` line. This made the `tokenHelper` path incorrect, and npm did not read the appended token. The install now also shows each `tokenHelper` line that it sets and the file that it writes to. To add the newline to an existing `.npmrc`, run the install again. If a line is already joined, split it into two lines before you run the install. If you do not, the install removes the appended token.
 - OIDC authentication now works when the CLI cannot create its config directory, for example in a CI container with a read-only home directory. Previously, the CLI did not exchange the OIDC token and ran the command without credentials. Now the CLI exchanges the token. If the CLI cannot write the token to the disk cache, it continues without the cache. A malformed entry in the disk cache no longer stops the token exchange.
 - `cloudsmith vulnerabilities` no longer stops with `IndexError` when a package has no vulnerability scan results. The command now shows the error "The package has no vulnerability scan results." and exits with the status of a 404 error. With `-F json`, it prints this error in the usual JSON error format.

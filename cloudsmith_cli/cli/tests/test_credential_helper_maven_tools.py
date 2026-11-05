@@ -108,6 +108,16 @@ def outside_projects(tmp_path, monkeypatch):
 
 
 @pytest.fixture()
+def deleted_cwd(monkeypatch):
+    """Run the test as if another process deleted the current directory."""
+
+    def cwd():
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT))
+
+    monkeypatch.setattr(Path, "cwd", staticmethod(cwd))
+
+
+@pytest.fixture()
 def maven_project(tmp_path, monkeypatch):
     """Make a Maven project and run the test from its root directory."""
     project = tmp_path / "project"
@@ -144,6 +154,16 @@ def test_latest_version_fails_with_an_os_error_when_the_artifact_is_missing():
     )
 
     with pytest.raises(OSError):
+        maven_tools.latest_version(EXTENSION_PATH)
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_latest_version_names_the_url_when_the_metadata_is_not_xml():
+    """A proxy page in place of the metadata is an OSError that names the URL."""
+    url = f"{maven_tools.REPOSITORY_URL}{EXTENSION_PATH}/maven-metadata.xml"
+    httpretty.register_uri(httpretty.GET, url, body="<html><body>Blocked")
+
+    with pytest.raises(OSError, match=url):
         maven_tools.latest_version(EXTENSION_PATH)
 
 
@@ -1291,7 +1311,11 @@ def test_sbt_status_names_the_plugin_file_of_the_project(
 def _invoke(command_name, args):
     from ...cli.commands.credential_helper import manage
 
-    command = {"install": manage.install_cmd, "uninstall": manage.uninstall_cmd}
+    command = {
+        "install": manage.install_cmd,
+        "uninstall": manage.uninstall_cmd,
+        "list": manage.list_cmd,
+    }
     return click.testing.CliRunner().invoke(
         command[command_name], args, catch_exceptions=False
     )
@@ -1332,6 +1356,26 @@ def test_cli_install_maven_local_outside_a_project_fails_cleanly(
 
     assert result.exit_code != 0
     assert "pom.xml" in result.output
+
+
+@pytest.mark.parametrize("helper", ["maven", "sbt"])
+def test_cli_install_local_in_a_deleted_directory_fails_cleanly(
+    helper, home, fake_repository, deleted_cwd
+):
+    """The error tells the user that the current directory does not exist."""
+    result = _invoke("install", [helper, "--local", "--no-discover"])
+
+    assert result.exit_code == 1
+    assert "current directory does not exist" in result.output
+
+
+def test_cli_list_in_a_deleted_directory_shows_every_helper(home, deleted_cwd):
+    """A deleted current directory has no project, so list still runs."""
+    result = _invoke("list", [])
+
+    assert result.exit_code == 0, result.output
+    assert "maven  (" in result.output
+    assert "sbt  (" in result.output
 
 
 @pytest.mark.parametrize("command_name", ["install", "uninstall"])
