@@ -24,7 +24,11 @@ from ...credential_helpers import maven_tools
 from ...credential_helpers.gradle.installer import GradleInstaller
 from ...credential_helpers.maven import extensions, mavenrc
 from ...credential_helpers.maven import installer as maven_installer
-from ...credential_helpers.maven.installer import MavenInstaller, MavenrcNotSupported
+from ...credential_helpers.maven.installer import (
+    MavenInstaller,
+    MavenrcNotSupported,
+    RelativeLocalRepository,
+)
 from ...credential_helpers.maven_tools import ConfigFileConflict, ProjectNotFound
 from ...credential_helpers.sbt.installer import SbtInstaller
 
@@ -834,6 +838,26 @@ def test_maven_install_uses_the_local_repository_that_maven_reports(
     assert _jar(home / "repo").exists()
     text = (home / ".mavenrc").read_text(encoding="utf-8")
     assert f"-Dmaven.ext.class.path={_jar(home / 'repo')}" in text
+
+
+def test_maven_install_with_a_relative_local_repository_fails(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """Without local, a relative repository depends on the directory of each build, so the install stops."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_installer,
+        "_maven_output",
+        lambda command, cwd=None: (
+            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f" with priority 10.0 for {cwd / 'repo'}\n"
+        ),
+    )
+
+    with pytest.raises(RelativeLocalRepository, match="repo"):
+        MavenInstaller().install()
+
+    assert not fake_repository
 
 
 @pytest.mark.parametrize(

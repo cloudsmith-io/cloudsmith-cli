@@ -53,6 +53,10 @@ class MavenrcNotSupported(Exception):
     """Raised when the ``mvn`` script cannot load the extension from ``~/.mavenrc``."""
 
 
+class RelativeLocalRepository(Exception):
+    """Raised when the local repository of Maven changes with the directory of the build."""
+
+
 def _project_dir() -> Path:
     """Return the directory where Maven reads ``.mvn``: the nearest one that has it."""
     cwd = maven_tools.current_dir()
@@ -136,15 +140,25 @@ def _local_repository(local: bool) -> Path:
     Without ``local``, Maven runs in an empty directory to skip the project ``.mvn``.
     """
     mvn = _maven_executable(local)
-    output = ""
-    if mvn:
-        with tempfile.TemporaryDirectory() as empty_dir:
-            cwd = maven_tools.current_dir() if local else Path(empty_dir)
-            output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
-    match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
-    if match is None:
+    if not mvn:
         return Path.home() / ".m2" / "repository"
-    return Path(match.group(1))
+    with tempfile.TemporaryDirectory() as empty_dir:
+        probe_dir = Path(empty_dir)
+        cwd = maven_tools.current_dir() if local else probe_dir
+        output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
+        match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
+        if match is None:
+            return Path.home() / ".m2" / "repository"
+        repository = Path(match.group(1))
+        if not local and probe_dir.resolve() in repository.resolve().parents:
+            relative = repository.resolve().relative_to(probe_dir.resolve())
+            raise RelativeLocalRepository(
+                f"Maven uses the relative local repository {relative}, so each build "
+                "looks for the extension in its own directory. Set an absolute path "
+                "for the local repository, or run "
+                "`cloudsmith credential-helper install maven --local` in each project."
+            )
+    return repository
 
 
 def _old_maven_warning() -> list[str]:

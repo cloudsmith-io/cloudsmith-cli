@@ -23,6 +23,7 @@ from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileErr
 from cloudsmith_cli.credential_helpers.maven.installer import (
     MavenInstaller,
     MavenrcNotSupported,
+    RelativeLocalRepository,
 )
 from cloudsmith_cli.credential_helpers.maven_tools import (
     ConfigFileConflict,
@@ -451,6 +452,7 @@ def install_cmd(
         ConfigFileConflict,
         UnsafeLauncherValue,
         MavenrcNotSupported,
+        RelativeLocalRepository,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
