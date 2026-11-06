@@ -837,24 +837,27 @@ def test_maven_install_uses_the_local_repository_that_maven_reports(
 
 
 @pytest.mark.parametrize(
-    ("local", "wrapper", "runs_in_project"),
-    [(False, True, False), (True, False, True), (True, True, True)],
+    ("local", "wrapper"),
+    [(False, True), (True, False), (True, True)],
 )
 def test_maven_install_asks_the_maven_that_the_build_uses(
     local,
     wrapper,
-    runs_in_project,
     home,
     fake_repository,
     maven_project,
     maven_debug_output,
     monkeypatch,
 ):
-    """With local, the Maven wrapper runs in the project; else mvn runs outside it. No goal of the build runs."""
+    """With local, the Maven wrapper runs in the current module; else mvn runs outside the project. No goal runs."""
     monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    (maven_project / ".mvn").mkdir()
     mvnw = maven_project / "mvnw"
     if wrapper:
         mvnw.write_text("", encoding="utf-8")
+    module = maven_project / "module"
+    module.mkdir()
+    monkeypatch.chdir(module)
 
     MavenInstaller().install(local=local)
 
@@ -867,7 +870,7 @@ def test_maven_install_asks_the_maven_that_the_build_uses(
         "-B",
         "cloudsmith-local-repository-probe",
     ]
-    assert (cwd == maven_project) is runs_in_project
+    assert (cwd == module) is local
 
 
 @pytest.mark.windows

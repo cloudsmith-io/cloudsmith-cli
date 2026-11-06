@@ -132,13 +132,14 @@ def _local_repository(local: bool) -> Path:
 
     Maven logs the repository, then stops on a phase that does not exist before it
     runs a plugin, also for a default goal or goals in ``MAVEN_ARGS``.
+    With ``local``, Maven runs in the current directory, as a build from there does.
     Without ``local``, Maven runs in an empty directory to skip the project ``.mvn``.
     """
     mvn = _maven_executable(local)
     output = ""
     if mvn:
         with tempfile.TemporaryDirectory() as empty_dir:
-            cwd = _project_dir() if local else Path(empty_dir)
+            cwd = maven_tools.current_dir() if local else Path(empty_dir)
             output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
     match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
     if match is None:
