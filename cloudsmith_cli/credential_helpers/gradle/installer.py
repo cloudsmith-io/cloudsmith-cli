@@ -57,7 +57,7 @@ class GradleInstaller(ConfigFileInstaller):
             cwd,
         )
         match = _USER_HOME_LINE.search(output)
-        return Path(match.group(1)) / "init.d" / INIT_SCRIPT_NAME if match else None
+        return cwd / match.group(1) / "init.d" / INIT_SCRIPT_NAME if match else None
 
     def render(self, version: str) -> str:
         return INIT_SCRIPT.format(repository_url=REPOSITORY_URL, version=version)

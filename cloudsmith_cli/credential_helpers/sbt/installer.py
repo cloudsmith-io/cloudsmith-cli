@@ -60,7 +60,8 @@ class SbtInstaller(ConfigFileInstaller):
         if match is None and _SBT_1_LINE.search(output):
             # sbt names the directory before it fails to load a plugin in it.
             match = _LOADING_GLOBAL_PLUGINS_LINE.search(output)
-        return Path(match.group(1)) / "cloudsmith.sbt" if match else None
+        # A relative path is relative to cwd, so the second probe gets another one.
+        return cwd / match.group(1) / "cloudsmith.sbt" if match else None
 
     def local_path(self) -> Path:
         # sbt loads every .sbt file in project/, so the build's own files stay as they are.

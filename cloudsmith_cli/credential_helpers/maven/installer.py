@@ -116,7 +116,7 @@ def _reported_repository(mvn: str, cwd: Path) -> Path | None:
     """
     output = maven_tools.tool_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
     match = _LOCAL_REPOSITORY_LOG.search(output)
-    return Path(match.group(1)) if match else None
+    return cwd / match.group(1) if match else None
 
 
 def _local_repository(local: bool) -> tuple[Path, list[str]]:

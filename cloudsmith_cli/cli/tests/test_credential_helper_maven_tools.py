@@ -885,8 +885,12 @@ def test_tool_output_stops_the_tool_and_its_children(
 ):
     """A launcher script starts a JVM, so a timeout or Ctrl+C stops the child too."""
     communicate = subprocess.Popen.communicate
+    tools = []
 
-    def interrupted_communicate(self, timeout=None):
+    def interrupted_communicate(self, data=None, timeout=None):
+        if tools:  # A later process, such as taskkill, stops the tool.
+            return communicate(self, data, timeout)
+        tools.append(self)
         time.sleep(1)
         raise interrupt
 
@@ -1424,6 +1428,24 @@ def test_sbt_install_and_uninstall_use_the_global_plugins_that_sbt_reports(
 
     SbtInstaller().uninstall()
     assert not plugin_file.exists()
+
+
+def test_sbt_install_with_a_relative_global_base_and_a_broken_plugin_fails(
+    home, fake_repository, monkeypatch
+):
+    """sbt can name a relative global plugins directory, which changes with the directory of each build."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            "[info] welcome to sbt 1.13.0 (Java)\n"
+            "[info] loading global plugins from relative/plugins\n"
+        ),
+    )
+
+    with pytest.raises(BuildToolError):
+        SbtInstaller().install()
 
 
 @pytest.mark.parametrize(
