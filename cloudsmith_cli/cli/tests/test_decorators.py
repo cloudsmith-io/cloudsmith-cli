@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import click
 import click.testing
+import cloudsmith_api
 import pytest
 import truststore
 
@@ -10,10 +11,12 @@ from ...core.api.exceptions import ApiException
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
 from ...core.tests.test_certificate_errors import certificate_error
+from ...credential_helpers.domains import get_workspace_domains
 from ...core.utils import get_data_path, read_file
 from ..commands.main import main
 from ..config import ConfigParam, ConfigSchema, Options
 from ..decorators import (
+    common_api_auth_options,
     common_cli_output_options,
     common_package_action_options,
     initialise_api,
@@ -338,6 +341,45 @@ def test_ssl_system_trust_store_env_var_reaches_all_transports():
             command, env={"CLOUDSMITH_SSL_SYSTEM_TRUST_STORE": "1"}
         )
     assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    "env,attribute,expected",
+    [
+        ({"CLOUDSMITH_SSL_SYSTEM_TRUST_STORE": "1"}, "ssl_system_trust_store", True),
+        ({"CLOUDSMITH_SSL_VERIFY_STRICT": "0"}, "ssl_verify_strict", False),
+        ({"CLOUDSMITH_SSL_VERIFY": "0"}, "verify_ssl", False),
+    ],
+)
+def test_tls_settings_reach_an_uncached_credential_helper_domain_lookup(
+    env, attribute, expected, tmp_path, monkeypatch
+):
+    seen = {}
+
+    def list_domains(workspace, credential=None):
+        seen[attribute] = getattr(cloudsmith_api.Configuration(), attribute)
+        return []
+
+    monkeypatch.setattr("cloudsmith_cli.core.api.workspaces.list_domains", list_domains)
+    monkeypatch.setattr(
+        "cloudsmith_cli.credential_helpers.domains.get_default_config_path",
+        lambda: str(tmp_path),
+    )
+
+    @click.command()
+    @common_api_auth_options
+    @resolve_credentials
+    def command(opts):
+        get_workspace_domains("acme", credential=opts.credential, refresh=True)
+
+    with patch(
+        "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
+        return_value=None,
+    ):
+        result = click.testing.CliRunner().invoke(command, env=env)
+
+    assert result.exit_code == 0, result.output
+    assert seen == {attribute: expected}
 
 
 PROXY = "http://proxy.example.com:3128"

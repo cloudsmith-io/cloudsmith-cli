@@ -40,6 +40,34 @@ def get_default_proxy():
     return _default_proxy["url"]
 
 
+_default_tls = {}
+
+
+def set_default_tls(
+    ssl_verify=None, ssl_verify_strict=None, ssl_system_trust_store=None
+):
+    """Set the TLS settings for every SDK configuration that is not given them."""
+    settings = {
+        "ssl_verify": ssl_verify,
+        "ssl_verify_strict": ssl_verify_strict,
+        "ssl_system_trust_store": ssl_system_trust_store,
+    }
+    _default_tls.clear()
+    _default_tls.update(
+        {name: value for name, value in settings.items() if value is not None}
+    )
+
+
+def get_default_tls():
+    """Get the TLS settings that set_default_tls() set, else the CLI defaults."""
+    return {
+        "ssl_verify": True,
+        "ssl_verify_strict": True,
+        "ssl_system_trust_store": False,
+        **_default_tls,
+    }
+
+
 class ApiKeySafeSession(requests.Session):
     """A session that drops the API key on a redirect to another host."""
 

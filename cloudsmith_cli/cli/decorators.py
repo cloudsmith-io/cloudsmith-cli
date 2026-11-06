@@ -597,7 +597,7 @@ def initialise_session(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         from ..core.session import create_requests_session as _create_session
-        from ..core.session import set_default_proxy
+        from ..core.session import set_default_proxy, set_default_tls
 
         opts = config.get_or_create_options(ctx)
         _warn_deprecated_config_keys(ctx, opts)
@@ -651,6 +651,11 @@ def initialise_session(f):
         )
 
         set_default_proxy(opts.proxy)
+        set_default_tls(
+            ssl_verify=opts.ssl_verify,
+            ssl_verify_strict=opts.ssl_verify_strict,
+            ssl_system_trust_store=opts.ssl_system_trust_store,
+        )
         opts.session = _create_session(
             proxy=opts.proxy,
             ssl_verify=opts.ssl_verify,
