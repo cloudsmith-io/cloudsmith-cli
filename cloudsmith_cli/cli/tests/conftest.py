@@ -54,6 +54,12 @@ def api_key():
 
 
 @pytest.fixture()
+def github_token():
+    """Return the PYTEST_GITHUB_TOKEN value."""
+    return _get_env_var_or_skip("PYTEST_GITHUB_TOKEN")
+
+
+@pytest.fixture()
 def organization():
     """Return the PYTEST_CLOUDSMITH_ORGANIZATION value.
     This is the name of the organization to use for pytest runs.

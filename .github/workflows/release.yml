@@ -242,7 +242,7 @@ jobs:
     env:
       CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
-      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
@@ -443,7 +443,7 @@ jobs:
       CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
-      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
       VERSION: ${{ needs.validate.outputs.version }}

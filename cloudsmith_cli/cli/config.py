@@ -11,7 +11,7 @@ import click
 from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
 
 from ..core.utils import get_data_path, read_file
-from . import utils, validators
+from . import deprecation, utils, validators
 
 OPTIONS = threading.local()
 
@@ -87,7 +87,16 @@ class ConfigSchema:
 
     @matches_section("profile:*")
     class Profile(Default):
-        """Profile-specific configuration schema."""
+        """Profile-specific configuration schema.
+
+        Has no defaults, so a key that a profile leaves out keeps its
+        [default] value instead of being reset to the schema default.
+        """
+
+        api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool)
+        ssl_verify_strict = ConfigParam(name="ssl_verify_strict", type=bool)
+        check_for_update = ConfigParam(name="check_for_update", type=bool)
+        telemetry = ConfigParam(name="telemetry", type=bool)
 
 
 class ConfigReader(ConfigFileReader):
@@ -289,6 +298,14 @@ class ConfigReader(ConfigFileReader):
             else:
                 if v is None:
                     continue
+            setting = deprecation.CONFIG_KEY_REPLACEMENTS.get(k, k)
+            if setting in deprecation.CONFIG_KEY_REPLACEMENTS.values():
+                # Record which key set the value last, so a profile that sets
+                # the new key clears a deprecated key from [default]. The
+                # schema defaults api_ssl_verify to true, so only false shows
+                # that the key is set, and only false changes the result.
+                is_alias = k != setting and v is not True
+                opts.config_keys_in_effect[setting] = k if is_alias else None
             setattr(opts, k, v)
 
 
@@ -412,8 +429,14 @@ class Options:  # pylint: disable=too-many-public-methods
         """Initialise a new Options object."""
         super().__init__(*args, **kwargs)
         self.opts = {}
+        self.config_keys_in_effect = {}
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    @property
+    def deprecated_config_keys(self):
+        """The deprecated config.ini keys whose values are in effect."""
+        return [key for key in self.config_keys_in_effect.values() if key]
 
     @staticmethod
     def get_config_reader():
