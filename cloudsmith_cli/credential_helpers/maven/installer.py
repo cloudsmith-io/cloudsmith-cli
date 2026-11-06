@@ -119,7 +119,9 @@ def _reported_repository(mvn: str, cwd: Path) -> Path | None:
     return cwd / match.group(1) if match else None
 
 
-def _local_repository(local: bool) -> tuple[Path, list[str]]:
+def _local_repository(
+    local: bool, progress: Callable[[str], None] | None
+) -> tuple[Path, list[str]]:
     """Return the local repository that Maven reports, or ``~/.m2/repository``, and any warning.
 
     With ``local``, Maven runs in the current directory, as a build from there does.
@@ -129,6 +131,9 @@ def _local_repository(local: bool) -> tuple[Path, list[str]]:
     mvn = _maven_executable(local)
     if mvn is None:
         return default, []
+    tool = Path(mvn).name
+    if progress:
+        progress(maven_tools.waiting_message(tool, "local repository"))
     if local:
         repository = _reported_repository(mvn, maven_tools.current_dir())
     else:
@@ -140,7 +145,6 @@ def _local_repository(local: bool) -> tuple[Path, list[str]]:
             "`cloudsmith credential-helper install maven --local` in each project.",
         )
     if repository is None:
-        tool = Path(mvn).name
         return default, [
             maven_tools.no_answer_warning(tool, "local repository", default)
         ]
@@ -224,6 +228,8 @@ class MavenInstaller:
     summary = "Maven extension that gets credentials from the Cloudsmith CLI"
     # The install command passes a session with its proxy and TLS settings.
     downloads_files = True
+    # The install command passes a callback that shows the waiting message.
+    ASKS_BUILD_TOOL = True
 
     def install(
         self,
@@ -232,6 +238,7 @@ class MavenInstaller:
         local: bool = False,
         mavenrc: bool = False,
         session: requests.Session | None = None,
+        progress: Callable[[str], None] | None = None,
         **_options,
     ) -> list[str]:
         """Put the extension in the local repository of Maven and turn it on."""
@@ -240,7 +247,7 @@ class MavenInstaller:
             raise MavenrcNotSupported(
                 f"mvn.cmd on Windows does not read ~/.mavenrc. {INSTEAD_OF_MAVENRC}"
             )
-        repository, actions = _local_repository(local)
+        repository, actions = _local_repository(local, progress)
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         version_dir = _version_dir(repository, version)
         jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"

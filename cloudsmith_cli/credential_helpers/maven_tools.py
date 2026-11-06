@@ -128,6 +128,11 @@ def ask_outside_projects(
     return nested_answer
 
 
+def waiting_message(tool: str, reported: str) -> str:
+    """Return the message to show while the build tool starts, which can take some seconds."""
+    return f"Asking {tool} for its {reported}. This can take a few seconds."
+
+
 def no_answer_warning(tool: str, reported: str, default: Path) -> str:
     """Return the warning for a build tool that ran but did not report a location."""
     return (
@@ -197,6 +202,8 @@ class ConfigFileInstaller:
     artifact_path = ""
     # The install command passes a session with its proxy and TLS settings.
     downloads_files = True
+    # The install and uninstall commands pass a callback that shows the waiting message.
+    ASKS_BUILD_TOOL = True
     # The build tool that reports where it reads the config file for every build.
     tool = ""
     reported = ""
@@ -214,11 +221,15 @@ class ConfigFileInstaller:
         """Return the config file in the location that the build tool reports in *cwd*."""
         raise NotImplementedError
 
-    def _path_for_every_build(self) -> tuple[Path, list[str]]:
+    def _path_for_every_build(
+        self, progress: Callable[[str], None] | None
+    ) -> tuple[Path, list[str]]:
         """Return the config file that the build tool reports, and any warning."""
         executable = shutil.which(self.tool) if self.tool else None
         if executable is None:
             return self.path(), []
+        if progress:
+            progress(waiting_message(self.tool, self.reported))
         path = ask_outside_projects(
             partial(self.reported_path, executable), self.relative_message
         )
@@ -256,10 +267,11 @@ class ConfigFileInstaller:
         dry_run: bool = False,
         local: bool = False,
         session: requests.Session | None = None,
+        progress: Callable[[str], None] | None = None,
         **_options,
     ) -> list[str]:
         path, warnings = (
-            (self.local_path(), []) if local else self._path_for_every_build()
+            (self.local_path(), []) if local else self._path_for_every_build(progress)
         )
         version = latest_version(self.artifact_path, session)
         text = self.render(version)
@@ -272,10 +284,15 @@ class ConfigFileInstaller:
         return [*warnings, f"wrote {path} for version {version}"]
 
     def uninstall(
-        self, *, dry_run: bool = False, local: bool = False, **_options
+        self,
+        *,
+        dry_run: bool = False,
+        local: bool = False,
+        progress: Callable[[str], None] | None = None,
+        **_options,
     ) -> list[str]:
         path, warnings = (
-            (self.local_path(), []) if local else self._path_for_every_build()
+            (self.local_path(), []) if local else self._path_for_every_build(progress)
         )
         if self._read_own_file(path) is None:
             return [*warnings, f"{path} not found (nothing to remove)"]

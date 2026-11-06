@@ -9,6 +9,7 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 from __future__ import annotations
 
 import sys
+from functools import partial
 from urllib.parse import urlsplit
 
 import click
@@ -439,6 +440,7 @@ def install_cmd(
 
     if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
         install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx)
+    install_kwargs.update(_progress_option(installer))
 
     try:
         actions = installer.install(**install_kwargs)
@@ -552,6 +554,7 @@ def uninstall_cmd(
             bin_dir=bin_dir,
             dry_run=dry_run,
             **_helper_options(ctx, helper),
+            **_progress_option(installer),
         )
     except (
         ConfigFileParseError,
@@ -585,6 +588,13 @@ def uninstall_cmd(
         click.secho(f"  {warning}" if dry_run else warning, err=True, fg="yellow")
 
 
+def _progress_option(installer) -> dict:
+    """Return the callback that says why the command waits, for an installer that asks a build tool."""
+    if getattr(installer, "ASKS_BUILD_TOOL", False):
+        return {"progress": partial(click.echo, err=True)}
+    return {}
+
+
 # ---------------------------------------------------------------------------
 # list
 # ---------------------------------------------------------------------------
@@ -599,6 +609,11 @@ def list_cmd(ctx, opts) -> None:
 
     Shows which helpers are available, whether their launcher binary is
     present on PATH, and which registry hosts they are configured for.
+
+    For gradle and sbt, list checks only the default locations: init.d in
+    $GRADLE_USER_HOME or ~/.gradle, and ~/.sbt/1.0/plugins. Install and
+    uninstall ask Gradle and sbt where they read plugins. If gradle.user.home
+    or sbt.global.base moves that location, list shows "not installed".
 
     Example:
 

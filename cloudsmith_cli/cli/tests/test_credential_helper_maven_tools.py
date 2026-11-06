@@ -1698,6 +1698,26 @@ def test_cli_with_a_config_file_that_install_did_not_write_fails_cleanly(
     assert str(plugin_file) in result.output
 
 
+@pytest.mark.parametrize(
+    ("command_name", "helper", "message"),
+    [
+        ("install", "maven", "Asking mvn for its local repository."),
+        ("install", "gradle", "Asking gradle for its Gradle user home."),
+        ("uninstall", "sbt", "Asking sbt for its global plugins directory."),
+    ],
+)
+def test_cli_says_why_it_waits_for_the_build_tool(
+    command_name, helper, message, home, fake_repository, outside_projects, monkeypatch
+):
+    """A build tool can take some seconds to start, so the command says what it waits for."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+
+    result = _invoke(command_name, [helper])
+
+    assert result.exit_code == 0
+    assert f"{message} This can take a few seconds." in result.output
+
+
 @pytest.mark.parametrize("command_name", ["install", "uninstall"])
 def test_cli_with_a_relative_tool_path_fails_cleanly(
     command_name, home, fake_repository, outside_projects, monkeypatch
