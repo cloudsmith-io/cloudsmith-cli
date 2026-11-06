@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `cloudsmith credential-helper install maven`, `install gradle`, and `install sbt`. They set up the Cloudsmith Maven tools, which get repository credentials from `cloudsmith credential-helper generic`. Each command installs the newest release from the public `cloudsmith/maven-tools` repository, for every build of the user.
+  - `maven` puts the extension in `~/.m2/repository` and adds it to `~/.m2/extensions.xml`, which Maven 3.10 and later read. When `mvn -v` reports an earlier Maven, the command shows a warning. With `--local`, the command adds the extension to `.mvn/extensions.xml` of the Maven project in the current directory instead. With `--mavenrc`, it adds a block to `~/.mavenrc` instead, which the `mvn` and `mvnw` scripts of all Maven versions read.
+  - `gradle` writes an init script to `~/.gradle/init.d` (or `$GRADLE_USER_HOME/init.d`), which applies the plugin to every Gradle build.
+  - `sbt` writes a global plugin to `~/.sbt/1.0/plugins`, which adds the plugin to every sbt 1 build. With `--local`, it writes `project/cloudsmith.sbt` of the sbt project in the current directory instead.
+  - The commands add to existing files and keep their other content. `uninstall` removes only what `install` added.
+
 - Added `skills` to `cloudsmith upstream`. Use `cloudsmith upstream skills list`, `create`, `update`, and `delete` to manage AI Skills upstreams. An AI Skills upstream caches skills and plugins from a GitHub repository.
 - Added `--changelog` to `cloudsmith push skills`. Use it to add release notes to an AI Skills package. The option is available only for the `skills` format.
 - Added `--compress` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress`, the command fails with a usage error. The option is available only for the `skills` format.
@@ -18,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 - Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
 - The minimum version of `cloudsmith-api` is now 2.0.42.
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
 
 ### Deprecated
 
@@ -45,6 +52,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `cloudsmith auth --token`, `--force`, and `--json`, and the `cloudsmith login` and `cloudsmith token` commands, now use the same warning format. The warning prefix is now `Warning:` instead of `DEPRECATION WARNING:`. `cloudsmith login` still stops working on November 20, 2026.
   - When you give an old and a new option on the same command line, such as `--org a --workspace b`, the new option now wins. Previously, the last option won.
 
+- A `[profile:NAME]` section in `config.ini` now keeps the `[default]` values of `telemetry`, `check_for_update`, `ssl_verify`, `api_ssl_verify`, and `ssl_verify_strict` when it does not set them. Previously, a profile that left out one of these keys reset it to `true`, so `--profile`/`-P` turned telemetry and the update check back on, and turned certificate verification back on. A key that no section sets is still `true`.
 - `cloudsmith credential-helper install pnpm` now ends `.npmrc` with a newline. Previously, a line that a shell appended to the file, such as `echo '//host/:_authToken=...' >> ~/.npmrc`, joined the last `tokenHelper` line. This made the `tokenHelper` path incorrect, and npm did not read the appended token. The install now also shows each `tokenHelper` line that it sets and the file that it writes to. To add the newline to an existing `.npmrc`, run the install again. If a line is already joined, split it into two lines before you run the install. If you do not, the install removes the appended token.
 - OIDC authentication now works when the CLI cannot create its config directory, for example in a CI container with a read-only home directory. Previously, the CLI did not exchange the OIDC token and ran the command without credentials. Now the CLI exchanges the token. If the CLI cannot write the token to the disk cache, it continues without the cache. A malformed entry in the disk cache no longer stops the token exchange.
 - `cloudsmith vulnerabilities` no longer stops with `IndexError` when a package has no vulnerability scan results. The command now shows the error "The package has no vulnerability scan results." and exits with the status of a 404 error. With `-F json`, it prints this error in the usual JSON error format.

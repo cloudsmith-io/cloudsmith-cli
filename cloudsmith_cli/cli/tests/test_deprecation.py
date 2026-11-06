@@ -329,7 +329,11 @@ def test_config_keys_that_change_nothing_do_not_warn(isolated, body):
     "body,key,expected",
     [
         ("[default]\norg = old\n[profile:ci]\nworkspace = new\n", "org", "new"),
-        ("[default]\napi_ssl_verify = false\n[profile:ci]\n", "ssl_verify", True),
+        (
+            "[default]\napi_ssl_verify = false\n[profile:ci]\nssl_verify = true\n",
+            "ssl_verify",
+            True,
+        ),
     ],
 )
 def test_profile_override_clears_default_alias_warning(isolated, body, key, expected):
