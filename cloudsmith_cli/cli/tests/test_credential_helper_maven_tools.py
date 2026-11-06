@@ -977,6 +977,20 @@ def test_maven_install_with_unusable_settings_fails(
     assert not fake_repository
 
 
+def test_maven_install_with_an_unknown_settings_encoding_fails(
+    home, fake_repository, outside_projects
+):
+    """A settings file with an encoding that Python does not know stops the install."""
+    settings = home / ".m2" / "settings.xml"
+    settings.parent.mkdir()
+    settings.write_text('<?xml version="1.0" encoding="unknown"?>\n<settings/>\n')
+
+    with pytest.raises(ConfigFileParseError, match=re.escape(str(settings))):
+        MavenInstaller().install()
+
+    assert not fake_repository
+
+
 def test_maven_install_local_turns_on_the_extension_in_the_project(
     home, fake_repository, maven_project
 ):

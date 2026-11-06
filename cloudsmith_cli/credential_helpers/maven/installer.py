@@ -241,7 +241,7 @@ def _settings_local_repository() -> str | None:
         return None
     try:
         root = ElementTree.parse(settings_file).getroot()
-    except ElementTree.ParseError as exc:
+    except (ElementTree.ParseError, LookupError) as exc:
         raise ConfigFileParseError(
             f"Cannot parse {settings_file} as XML: {exc}. {_FIX_CONFIG_FILE_HINT}"
         ) from exc
