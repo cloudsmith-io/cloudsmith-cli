@@ -72,7 +72,6 @@ def home(tmp_path, monkeypatch):
     home_dir.mkdir()
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home_dir))
     monkeypatch.delenv("GRADLE_USER_HOME", raising=False)
-    monkeypatch.delenv("MAVEN_OPTS", raising=False)
     return home_dir
 
 
@@ -91,6 +90,12 @@ def fake_repository(monkeypatch):
     )
     monkeypatch.setattr(maven_tools, "download", fake_download)
     return downloads
+
+
+@pytest.fixture(autouse=True)
+def _no_maven_opts(monkeypatch):
+    """Ignore the MAVEN_OPTS of the user who runs the tests."""
+    monkeypatch.delenv("MAVEN_OPTS", raising=False)
 
 
 @pytest.fixture(autouse=True)
