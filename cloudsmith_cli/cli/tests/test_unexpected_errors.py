@@ -188,16 +188,20 @@ def test_opted_out_sends_nothing_and_prints_the_same_line(
     assert sentry_events == []
 
 
-@pytest.mark.parametrize("profile", [None, "work"])
+@pytest.mark.parametrize(
+    "profile,content",
+    [
+        (None, "[default]\ntelemetry = false\n"),
+        ("work", "[default]\n[profile:work]\ntelemetry = false\n"),
+        ("work", "[default]\ntelemetry = false\n[profile:work]\nworkspace = acme\n"),
+    ],
+)
 def test_config_key_off_sends_nothing_and_prints_the_same_line(
-    runner, tmp_path, sentry_events, profile
+    runner, tmp_path, sentry_events, profile, content
 ):
     """telemetry = false in the file passed with --config-file (and --profile)."""
     config = tmp_path / "config.ini"
-    if profile:
-        config.write_text(f"[default]\n[profile:{profile}]\ntelemetry = false\n")
-    else:
-        config.write_text("[default]\ntelemetry = false\n")
+    config.write_text(content)
     args = ["whoami", "--config-file", str(config), "--api-key", API_KEY]
     if profile:
         args += ["--profile", profile]
@@ -344,6 +348,18 @@ with whoami_raises(KeyboardInterrupt()):
     result = subprocess.run([sys.executable, "-c", code], env=env, check=False)
 
     assert result.returncode == 1
+
+
+def test_command_module_imports_on_click_before_8_2():
+    """Click before 8.2 names the flush wrapper without the underscore."""
+    code = """
+import click.utils
+click.utils.PacifyFlushWrapper = click.utils.__dict__.pop("_PacifyFlushWrapper")
+import cloudsmith_cli.cli.command
+"""
+    result = subprocess.run([sys.executable, "-c", code], check=False)
+
+    assert result.returncode == 0
 
 
 STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"

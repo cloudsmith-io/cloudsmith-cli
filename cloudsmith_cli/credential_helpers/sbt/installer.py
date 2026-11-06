@@ -5,7 +5,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..maven_tools import REPOSITORY_URL, ConfigFileInstaller, ProjectNotFound
+from ..maven_tools import (
+    REPOSITORY_URL,
+    ConfigFileInstaller,
+    ProjectNotFound,
+    current_dir,
+)
 
 GLOBAL_PLUGIN = """\
 // Written by `cloudsmith credential-helper install sbt`.
@@ -24,7 +29,7 @@ class SbtInstaller(ConfigFileInstaller):
 
     def local_path(self) -> Path:
         # sbt loads every .sbt file in project/, so the build's own files stay as they are.
-        project_dir = Path.cwd()
+        project_dir = current_dir()
         meta_dir = project_dir / "project"
         plugin_file = meta_dir / "cloudsmith.sbt"
         # sbt reads any .sbt file in the root, and a build can have only project/.
