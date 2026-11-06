@@ -864,34 +864,27 @@ def test_tool_output_has_stdout_and_stderr_without_colors(tool_runs):
     assert sorted(output.split()) == ["DEBUG", "err", "out"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Checks a process ID with os.kill")
+@pytest.mark.windows
 # The parameter replaces the autouse fake, so the real tool_output runs.
 @pytest.mark.parametrize("tool_runs", [None])
 def test_tool_output_stops_the_tool_and_its_children_at_the_timeout(
     tool_runs, tmp_path, monkeypatch
 ):
     """A launcher script starts a JVM, so a timeout stops the child too, and the command fails."""
-    monkeypatch.setattr(maven_tools, "TOOL_TIMEOUT_SECONDS", 2)
-    pid_file = tmp_path / "child.pid"
+    monkeypatch.setattr(maven_tools, "TOOL_TIMEOUT_SECONDS", 1)
+    alive_file = tmp_path / "alive"
+    child = f"import pathlib, time; time.sleep(2); pathlib.Path({str(alive_file)!r}).touch()"
     script = (
-        "import pathlib, subprocess, sys, time\n"
-        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
-        f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))\n"
+        "import subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, '-c', {child!r}])\n"
         "time.sleep(60)\n"
     )
 
     with pytest.raises(BuildToolError, match="did not finish"):
         maven_tools.tool_output([sys.executable, "-c", script])
+    time.sleep(2.5)
 
-    child_pid = int(pid_file.read_text())
-    for _ in range(50):
-        try:
-            os.kill(child_pid, 0)
-        except ProcessLookupError:
-            break
-        time.sleep(0.1)
-    else:
-        pytest.fail(f"process {child_pid} still runs")
+    assert not alive_file.exists()
 
 
 @pytest.mark.parametrize("relative_path", ["repo", ".", "../repo"])
