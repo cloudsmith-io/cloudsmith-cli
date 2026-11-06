@@ -25,6 +25,7 @@ from xml.etree import ElementTree
 
 from ...core.cache_utils import _FIX_CONFIG_FILE_HINT, ConfigFileParseError
 from .. import maven_tools
+from ..launchers import is_windows
 from ..maven_tools import ProjectNotFound
 from . import extensions
 from .mavenrc import add_block, has_block, remove_block
@@ -41,6 +42,15 @@ MAVEN_VERSION_TIMEOUT_SECONDS = 60
 _REPO_LOCAL_ARGUMENT = "-Dmaven.repo.local="
 _REPO_LOCAL_OPTION = re.compile(r"(?:^|\s)-Dmaven\.repo\.local=(\S+)")
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
+INSTEAD_OF_MAVENRC = (
+    "Run `cloudsmith credential-helper install maven --local` in each project "
+    "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
+    "`cloudsmith credential-helper install maven`."
+)
+
+
+class MavenrcNotSupported(Exception):
+    """Raised when the ``mvn`` script cannot load the extension from ``~/.mavenrc``."""
 
 
 def _project_dir() -> Path:
@@ -190,10 +200,13 @@ def _old_maven_warning() -> list[str]:
     warning = (
         f"WARNING: Maven {version} ignores {_user_extensions_file()}. "
         "Maven 3.10 and later read it. For this Maven, run "
-        "`cloudsmith credential-helper install maven --local` in each project, "
-        "or run `cloudsmith credential-helper install maven --mavenrc` once."
+        "`cloudsmith credential-helper install maven --local` in each project"
     )
-    return [warning]
+    if not is_windows():
+        warning += (
+            ", or run `cloudsmith credential-helper install maven --mavenrc` once"
+        )
+    return [f"{warning}."]
 
 
 def _mark_installed(version_dir: Path, file_names: list[str]) -> None:
@@ -266,12 +279,21 @@ class MavenInstaller:
     ) -> list[str]:
         """Put the extension in the local repository of Maven and turn it on."""
         project_file = _project_extensions_file() if local else None
+        if mavenrc and is_windows():
+            raise MavenrcNotSupported(
+                f"mvn.cmd on Windows does not read ~/.mavenrc. {INSTEAD_OF_MAVENRC}"
+            )
         repository = _local_repository(local)
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         version_dir = _version_dir(repository, version)
+        jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"
+        if mavenrc and any(char in " \t\n" for char in str(jar)):
+            raise MavenrcNotSupported(
+                "The mvn script splits MAVEN_OPTS at spaces, so it cannot load "
+                f"{jar}. {INSTEAD_OF_MAVENRC}"
+            )
         actions = self._download(version_dir, version, dry_run, session)
         if mavenrc:
-            jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"
             return (
                 actions
                 + _add(_mavenrc_file(), partial(add_block, jar=jar), version, dry_run)

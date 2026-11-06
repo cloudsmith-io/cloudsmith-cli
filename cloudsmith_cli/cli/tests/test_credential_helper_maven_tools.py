@@ -11,6 +11,7 @@ import errno
 import os
 import re
 import subprocess
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -24,7 +25,7 @@ from ...credential_helpers import maven_tools
 from ...credential_helpers.gradle.installer import GradleInstaller
 from ...credential_helpers.maven import extensions, mavenrc
 from ...credential_helpers.maven import installer as maven_installer
-from ...credential_helpers.maven.installer import MavenInstaller
+from ...credential_helpers.maven.installer import MavenInstaller, MavenrcNotSupported
 from ...credential_helpers.maven_tools import ConfigFileConflict, ProjectNotFound
 from ...credential_helpers.sbt.installer import SbtInstaller
 
@@ -96,6 +97,12 @@ def fake_repository(monkeypatch):
 def _maven_3_10(monkeypatch):
     """Run as if `mvn -v` reports Maven 3.10.0."""
     monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.10.0")
+
+
+@pytest.fixture(autouse=True)
+def _posix(monkeypatch):
+    """Run as if the platform is not Windows, so the mvn script reads ~/.mavenrc."""
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: False)
 
 
 @pytest.fixture()
@@ -763,11 +770,13 @@ def test_maven_install_turns_on_the_extension_for_every_build(
     assert not [action for action in actions if action.startswith("WARNING")]
 
 
+@pytest.mark.parametrize("windows", [False, True])
 def test_maven_install_warns_when_maven_ignores_user_extensions(
-    home, fake_repository, outside_projects, monkeypatch
+    windows, home, fake_repository, outside_projects, monkeypatch
 ):
     """Maven 3.9 and earlier ignore ~/.m2/extensions.xml, so install names the options."""
     monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.9.11")
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: windows)
 
     actions = MavenInstaller().install()
 
@@ -775,7 +784,8 @@ def test_maven_install_warns_when_maven_ignores_user_extensions(
     assert len(warnings) == 1
     assert "3.9.11" in warnings[0]
     assert "--local" in warnings[0]
-    assert "--mavenrc" in warnings[0]
+    # mvn.cmd does not read ~/.mavenrc.
+    assert ("--mavenrc" in warnings[0]) is not windows
     assert _user_extensions(home).exists()
 
 
@@ -964,6 +974,26 @@ def test_maven_install_with_mavenrc_adds_a_block(
     assert f"-Dmaven.ext.class.path={jar}" in text
     # Maven 3.10 would load the extension twice from both files.
     assert not _user_extensions(home).exists()
+
+
+@pytest.mark.parametrize(("separator", "refused"), [(" ", True), ("\u00a0", False)])
+def test_maven_install_with_mavenrc_refuses_a_jar_path_with_a_space(
+    separator, refused, tmp_path, monkeypatch, fake_repository, outside_projects
+):
+    """mvn splits MAVEN_OPTS at spaces, so the JAR path would break every build."""
+    home = tmp_path / f"John{separator}Smith"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    with (
+        pytest.raises(MavenrcNotSupported, match="--local")
+        if refused
+        else nullcontext()
+    ):
+        MavenInstaller().install(mavenrc=True)
+
+    assert (home / ".mavenrc").exists() is not refused
+    assert bool(fake_repository) is not refused
 
 
 def test_maven_install_with_mavenrc_turns_off_the_user_extensions_file(
@@ -1346,6 +1376,20 @@ def test_cli_install_maven_with_mavenrc(home, fake_repository, outside_projects)
 
     assert result.exit_code == 0, result.output
     assert (home / ".mavenrc").exists()
+
+
+def test_cli_install_maven_with_mavenrc_fails_cleanly_on_windows(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """mvn.cmd does not read ~/.mavenrc, so the command names the other options."""
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: True)
+
+    result = _invoke("install", ["maven", "--mavenrc", "--no-discover"])
+
+    assert result.exit_code == 1
+    assert "--local" in result.output
+    assert not (home / ".mavenrc").exists()
+    assert not fake_repository
 
 
 def test_cli_install_maven_local_outside_a_project_fails_cleanly(
