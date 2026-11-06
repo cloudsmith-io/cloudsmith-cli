@@ -45,6 +45,9 @@ _POSIX_JVM_ARGUMENT = re.compile(r"[^ \t\r\n]+")
 _WINDOWS_JVM_ARGUMENT = re.compile(r'(?:[^ \t\r\n"]|"[^"]*"?)+')
 _JAVA_SPLIT_ARGUMENT = re.compile(r"\S+", re.ASCII)
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
+_WRAPPER_MAVEN_VERSION = re.compile(
+    r"^distributionUrl\s*[=:].*/apache-maven/([\w.-]+)/", re.MULTILINE
+)
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -117,18 +120,29 @@ def _properties(definitions: list[str]) -> dict[str, str]:
     return properties
 
 
-def _maven_config_repo_local(mvn_dir: Path) -> str | None:
+def _wrapper_maven_version(mvn_dir: Path) -> str | None:
+    """Return the Maven version that ``mvnw`` downloads, or ``None`` without a wrapper."""
+    properties = _read(mvn_dir / "wrapper" / "maven-wrapper.properties")
+    match = _WRAPPER_MAVEN_VERSION.search(properties) if properties else None
+    return match.group(1) if match else None
+
+
+def _maven_config_repo_local(
+    mvn_dir: Path, jvm_properties: dict[str, str]
+) -> str | None:
     """Return ``maven.repo.local`` of ``.mvn/maven.config`` with its placeholders resolved.
 
     Each line of ``.mvn/maven.config`` is one argument, and Maven skips the lines
     that start with ``#``. Maven before 3.9 splits the file on whitespace instead.
+    The Maven of ``mvnw`` decides, else the ``mvn`` on ``PATH``.
     """
     maven_config_file = mvn_dir / "maven.config"
     maven_config = _read(maven_config_file)
     if not maven_config:
         return None
     arguments = maven_config.splitlines()
-    if _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
+    version = _wrapper_maven_version(mvn_dir) or _maven_version()
+    if version and _major_minor(version) < FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE:
         arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
     defined = _properties(_maven_definitions(arguments))
     if _REPO_LOCAL_PROPERTY not in defined:
@@ -137,17 +151,15 @@ def _maven_config_repo_local(mvn_dir: Path) -> str | None:
     properties = {
         "user.home": str(Path.home()),
         "maven.multiModuleProjectDirectory": root,
+        **jvm_properties,
+        **defined,
         "session.rootDirectory": root,
         "session.topDirectory": str(maven_tools.current_dir()),
-        **defined,
     }
-    return _PLACEHOLDER.sub(
-        partial(
-            _resolve_placeholder,
-            where=f"{_REPO_LOCAL_PROPERTY} of {maven_config_file}",
-            properties=properties,
-        ),
+    return _interpolate(
         defined[_REPO_LOCAL_PROPERTY],
+        f"{_REPO_LOCAL_PROPERTY} of {maven_config_file}",
+        properties,
     )
 
 
@@ -158,11 +170,8 @@ def _repo_local_option(local: bool) -> str | None:
     ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and Java uses the last value.
     """
     jvm_options = os.environ.get("MAVEN_OPTS", "")
-    if local:
-        mvn_dir = _project_dir() / ".mvn"
-        maven_config_value = _maven_config_repo_local(mvn_dir)
-        if maven_config_value is not None:
-            return maven_config_value
+    mvn_dir = _project_dir() / ".mvn" if local else None
+    if mvn_dir:
         jvm_options = f"{_read(mvn_dir / 'jvm.config') or ''} {jvm_options}"
     jvm_properties = _properties(
         [
@@ -171,6 +180,10 @@ def _repo_local_option(local: bool) -> str | None:
             if argument.startswith("-D")
         ]
     )
+    if mvn_dir:
+        maven_config_value = _maven_config_repo_local(mvn_dir, jvm_properties)
+        if maven_config_value is not None:
+            return maven_config_value
     return jvm_properties.get(_REPO_LOCAL_PROPERTY)
 
 
@@ -188,6 +201,29 @@ def _resolve_placeholder(
     )
 
 
+def _interpolate(
+    value: str,
+    where: str,
+    properties: dict[str, str],
+    resolving: frozenset[str] = frozenset(),
+) -> str:
+    """Replace each ``${name}`` in ``value``, and then the placeholders in its value, as Maven does."""
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group(1) in resolving:
+            raise ConfigFileParseError(
+                f"{match.group(0)} refers to itself in {where}. {_FIX_CONFIG_FILE_HINT}"
+            )
+        return _interpolate(
+            _resolve_placeholder(match, where, properties),
+            where,
+            properties,
+            resolving | {match.group(1)},
+        )
+
+    return _PLACEHOLDER.sub(replace, value)
+
+
 def _settings_local_repository() -> str | None:
     """Return ``<localRepository>`` of ``~/.m2/settings.xml``, or ``None`` when it has none."""
     settings_file = Path.home() / ".m2" / "settings.xml"
@@ -203,13 +239,10 @@ def _settings_local_repository() -> str | None:
     value = root.findtext("{*}localRepository", "").strip()
     if not value:
         return None
-    return _PLACEHOLDER.sub(
-        partial(
-            _resolve_placeholder,
-            where=f"<localRepository> of {settings_file}",
-            properties={"user.home": str(Path.home())},
-        ),
+    return _interpolate(
         value,
+        f"<localRepository> of {settings_file}",
+        {"user.home": str(Path.home())},
     )
 
 
@@ -253,12 +286,6 @@ def _maven_version() -> str | None:
 
 def _major_minor(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split(".")[:2])
-
-
-def _maven_older_than(major_minor: tuple[int, int]) -> bool:
-    """Return ``True`` when ``mvn -v`` reports a version older than ``major_minor``."""
-    version = _maven_version()
-    return version is not None and _major_minor(version) < major_minor
 
 
 def _old_maven_warning() -> list[str]:

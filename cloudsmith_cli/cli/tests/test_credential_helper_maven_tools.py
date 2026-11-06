@@ -891,6 +891,12 @@ def test_maven_install_local_reads_maven_repo_local_of_the_project(
         ("3.9.3", "-D maven.repo.local=trimmed", "trimmed"),
         ("3.9.3", "-Dmaven.repo.local=${session.rootDirectory}/root", "root"),
         ("3.9.3", "-Dbase=based\n-Dmaven.repo.local=${base}/repo", "based/repo"),
+        (
+            "3.9.3",
+            "-Dbase=${session.rootDirectory}/cache\n-Dmaven.repo.local=${base}/repo",
+            "cache/repo",
+        ),
+        ("3.9.3", "-Dmaven.repo.local=${repo.base}/m2", "based/m2"),
         ("3.8.8", "-Dmaven.repo.local=m2 -B", "m2"),
     ],
 )
@@ -905,7 +911,10 @@ def test_maven_install_local_reads_maven_config_like_maven(
 ):
     """Maven 3.9 reads each .mvn/maven.config line as one argument; 3.8 splits on whitespace."""
     monkeypatch.setattr(maven_installer, "_maven_version", lambda: maven_version)
-    monkeypatch.setenv("MAVEN_OPTS", f"-Dmaven.repo.local={maven_project / 'opts'}")
+    monkeypatch.setenv(
+        "MAVEN_OPTS",
+        f"-Drepo.base=based -Dmaven.repo.local={maven_project / 'opts'}",
+    )
     (maven_project / ".mvn").mkdir()
     (maven_project / ".mvn" / "maven.config").write_text(
         f"{maven_config}\n", encoding="utf-8"
@@ -916,12 +925,35 @@ def test_maven_install_local_reads_maven_config_like_maven(
     assert _jar(maven_project / repository).exists()
 
 
-@pytest.mark.parametrize("local_repository", ["${env.NOT_SET}", "</settings>"])
+def test_maven_install_local_splits_maven_config_for_the_maven_wrapper(
+    home, fake_repository, maven_project
+):
+    """The Maven of .mvn/wrapper, not the mvn on PATH, decides how maven.config is split."""
+    wrapper_dir = maven_project / ".mvn" / "wrapper"
+    wrapper_dir.mkdir(parents=True)
+    (wrapper_dir / "maven-wrapper.properties").write_text(
+        "distributionUrl=https\\://repo.maven.apache.org/maven2/org/apache/maven"
+        "/apache-maven/3.8.8/apache-maven-3.8.8-bin.zip\n",
+        encoding="utf-8",
+    )
+    (maven_project / ".mvn" / "maven.config").write_text(
+        "-Dmaven.repo.local=m2 -B\n", encoding="utf-8"
+    )
+
+    MavenInstaller().install(local=True)
+
+    assert _jar(maven_project / "m2").exists()
+
+
+@pytest.mark.parametrize(
+    "local_repository", ["${env.NOT_SET}", "${env.CYCLE}", "</settings>"]
+)
 def test_maven_install_with_unusable_settings_fails(
     local_repository, home, fake_repository, outside_projects, monkeypatch
 ):
     """A settings file that does not parse or does not resolve stops the install."""
     monkeypatch.delenv("NOT_SET", raising=False)
+    monkeypatch.setenv("CYCLE", "${env.CYCLE}")
     settings = _write_settings(home, local_repository)
 
     with pytest.raises(ConfigFileParseError, match=re.escape(str(settings))):
