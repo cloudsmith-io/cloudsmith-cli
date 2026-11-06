@@ -365,6 +365,7 @@ def tls_server(tmp_path):
     """Serve HTTPS on 127.0.0.1 with a certificate from a test CA."""
     ca_bundle, chain = _write_tls_files(tmp_path)
     server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.minimum_version = ssl.TLSVersion.TLSv1_2
     server_context.load_cert_chain(chain)
     server = _QuietHTTPServer(("127.0.0.1", 0), _OkHandler)
     server.socket = server_context.wrap_socket(server.socket, server_side=True)
