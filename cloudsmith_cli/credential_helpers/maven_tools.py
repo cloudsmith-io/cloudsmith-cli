@@ -28,7 +28,7 @@ TIMEOUT_SECONDS = 30
 
 
 class ProjectNotFound(Exception):
-    """The current directory is not the root directory of a project."""
+    """The current directory does not exist or is not the root directory of a project."""
 
 
 def current_dir() -> Path:
@@ -38,7 +38,7 @@ def current_dir() -> Path:
     except FileNotFoundError as exc:
         raise ProjectNotFound(
             "The current directory does not exist. "
-            "Run the command in the root directory of a project."
+            "Change to the root directory of a project and run the command again."
         ) from exc
 
 
