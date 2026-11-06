@@ -40,6 +40,7 @@ MAVEN_VERSION_TIMEOUT_SECONDS = 60
 _LOCAL_REPOSITORY_LOG = re.compile(
     r"^\[DEBUG\] Using manager \S+ with priority \S+ for (.+)$", re.MULTILINE
 )
+_UNKNOWN_PHASE = "cloudsmith-local-repository-probe"
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -96,7 +97,8 @@ def _maven_output(command: list[str], cwd: Path | None = None) -> str:
         result = subprocess.run(
             command,
             cwd=cwd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
             timeout=MAVEN_VERSION_TIMEOUT_SECONDS,
             check=False,
@@ -127,7 +129,8 @@ def _maven_executable(local: bool) -> str | None:
 def _local_repository(local: bool) -> Path:
     """Return the local repository that Maven reports, or ``~/.m2/repository``.
 
-    Maven logs the repository before it stops on the missing goal, so no plugin runs.
+    Maven logs the repository, then stops on a phase that does not exist before it
+    runs a plugin, also for a default goal or goals in ``MAVEN_ARGS``.
     Without ``local``, Maven runs in an empty directory to skip the project ``.mvn``.
     """
     mvn = _maven_executable(local)
@@ -135,7 +138,7 @@ def _local_repository(local: bool) -> Path:
     if mvn:
         with tempfile.TemporaryDirectory() as empty_dir:
             cwd = _project_dir() if local else Path(empty_dir)
-            output = _maven_output([mvn, "-X", "-o", "-B"], cwd)
+            output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
     match = _LOCAL_REPOSITORY_LOG.search(output)
     if match is None:
         return Path.home() / ".m2" / "repository"

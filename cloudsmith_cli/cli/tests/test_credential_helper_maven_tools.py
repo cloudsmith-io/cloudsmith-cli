@@ -849,7 +849,7 @@ def test_maven_install_asks_the_maven_that_the_build_uses(
     maven_debug_output,
     monkeypatch,
 ):
-    """With local, the Maven wrapper of the project runs in the project; else mvn runs outside it."""
+    """With local, the Maven wrapper runs in the project; else mvn runs outside it. No goal of the build runs."""
     monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
     mvnw = maven_project / "mvnw"
     if wrapper:
@@ -859,18 +859,29 @@ def test_maven_install_asks_the_maven_that_the_build_uses(
 
     [(command, cwd)] = maven_debug_output
     executable = str(mvnw) if local and wrapper else "/bin/mvn"
-    assert command == [executable, "-X", "-o", "-B"]
+    assert command == [
+        executable,
+        "-X",
+        "-o",
+        "-B",
+        "cloudsmith-local-repository-probe",
+    ]
     assert (cwd == maven_project) is runs_in_project
 
 
+@pytest.mark.windows
 @pytest.mark.skipif(shutil.which("mvn") is None, reason="Maven is not installed")
 # The parameter replaces the autouse fake, so the real mvn runs.
 @pytest.mark.parametrize("maven_debug_output", [None])
 def test_maven_install_uses_the_local_repository_of_the_real_maven(
     maven_debug_output, home, fake_repository, outside_projects, tmp_path, monkeypatch
 ):
-    """The real mvn reports the repository in a line that the installer finds."""
-    monkeypatch.setenv("MAVEN_OPTS", f"-Dmaven.repo.local={tmp_path / 'repo'}")
+    """The real mvn reports the repository in a line that the installer finds, on stderr too."""
+    monkeypatch.setenv(
+        "MAVEN_OPTS",
+        f"-Dmaven.repo.local={tmp_path / 'repo'}"
+        " -Dorg.slf4j.simpleLogger.logFile=System.err",
+    )
 
     MavenInstaller().install()
 
