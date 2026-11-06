@@ -871,13 +871,26 @@ def test_tool_output_has_stdout_and_stderr_without_colors(tool_runs):
 
 
 @pytest.mark.windows
+@pytest.mark.parametrize(
+    ("interrupt", "error"),
+    [
+        (subprocess.TimeoutExpired("tool", 1), BuildToolError),
+        (KeyboardInterrupt(), KeyboardInterrupt),
+    ],
+)
 # The parameter replaces the autouse fake, so the real tool_output runs.
 @pytest.mark.parametrize("tool_runs", [None])
-def test_tool_output_stops_the_tool_and_its_children_at_the_timeout(
-    tool_runs, tmp_path, monkeypatch
+def test_tool_output_stops_the_tool_and_its_children(
+    tool_runs, interrupt, error, tmp_path, monkeypatch
 ):
-    """A launcher script starts a JVM, so a timeout stops the child too, and the command fails."""
-    monkeypatch.setattr(maven_tools, "TOOL_TIMEOUT_SECONDS", 1)
+    """A launcher script starts a JVM, so a timeout or Ctrl+C stops the child too."""
+    communicate = subprocess.Popen.communicate
+
+    def interrupted_communicate(self, timeout=None):
+        time.sleep(1)
+        raise interrupt
+
+    monkeypatch.setattr(subprocess.Popen, "communicate", interrupted_communicate)
     alive_file = tmp_path / "alive"
     child = f"import pathlib, time; time.sleep(2); pathlib.Path({str(alive_file)!r}).touch()"
     script = (
@@ -886,8 +899,9 @@ def test_tool_output_stops_the_tool_and_its_children_at_the_timeout(
         "time.sleep(60)\n"
     )
 
-    with pytest.raises(BuildToolError, match="did not finish"):
+    with pytest.raises(error):
         maven_tools.tool_output([sys.executable, "-c", script])
+    monkeypatch.setattr(subprocess.Popen, "communicate", communicate)
     time.sleep(2.5)
 
     assert not alive_file.exists()
@@ -1410,6 +1424,31 @@ def test_sbt_install_and_uninstall_use_the_global_plugins_that_sbt_reports(
 
     SbtInstaller().uninstall()
     assert not plugin_file.exists()
+
+
+@pytest.mark.parametrize(
+    ("sbt_version", "uses_reported"), [("1.13.0", True), ("2.0.0", False)]
+)
+def test_sbt_install_finds_the_global_plugins_when_a_plugin_fails_to_load(
+    sbt_version, uses_reported, home, fake_repository, monkeypatch
+):
+    """sbt names the global plugins directory before it fails to load a plugin there; sbt 2 uses its own."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            f"[info] welcome to sbt {sbt_version} (Java)\n"
+            f"[info] loading global plugins from {home / 'reported'}\n"
+            "[error] Not found\n"
+        ),
+    )
+
+    SbtInstaller().install()
+
+    reported_file = home / "reported" / "cloudsmith.sbt"
+    assert reported_file.exists() is uses_reported
+    assert SbtInstaller().path().exists() is not uses_reported
 
 
 @pytest.mark.windows

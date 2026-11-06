@@ -68,7 +68,9 @@ def _stop(process: subprocess.Popen[str]) -> None:
             check=False,
         )
     else:
-        os.killpg(process.pid, signal.SIGKILL)
+        # The tool can finish between the timeout and the kill.
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
     process.wait()
 
 
@@ -96,6 +98,10 @@ def tool_output(command: list[str], cwd: Path | None = None) -> str:
                 f"{Path(command[0]).name} did not finish in {TOOL_TIMEOUT_SECONDS} "
                 "seconds. Make sure that it runs, and then run the command again."
             ) from exc
+        except KeyboardInterrupt:
+            # The tool runs in its own session, so Ctrl+C does not reach it.
+            _stop(process)
+            raise
     return _ANSI_ESCAPE.sub("", output)
 
 

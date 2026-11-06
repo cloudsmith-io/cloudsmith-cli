@@ -29,6 +29,10 @@ cloudsmithGlobalPlugins := {
 }
 """
 _GLOBAL_PLUGINS_LINE = re.compile(r"^CLOUDSMITH_SBT_GLOBAL_PLUGINS=(.+)$", re.MULTILINE)
+_SBT_1_LINE = re.compile(r"^\[info\] welcome to sbt 1\.", re.MULTILINE)
+_LOADING_GLOBAL_PLUGINS_LINE = re.compile(
+    r"^\[info\] loading global plugins from (.+)$", re.MULTILINE
+)
 
 
 class SbtInstaller(ConfigFileInstaller):
@@ -53,6 +57,9 @@ class SbtInstaller(ConfigFileInstaller):
             [executable, "-batch", "-no-colors", "cloudsmithGlobalPlugins"], cwd
         )
         match = _GLOBAL_PLUGINS_LINE.search(output)
+        if match is None and _SBT_1_LINE.search(output):
+            # sbt names the directory before it fails to load a plugin in it.
+            match = _LOADING_GLOBAL_PLUGINS_LINE.search(output)
         return Path(match.group(1)) / "cloudsmith.sbt" if match else None
 
     def local_path(self) -> Path:
