@@ -553,7 +553,12 @@ def uninstall_cmd(
             dry_run=dry_run,
             **_helper_options(ctx, helper),
         )
-    except (ConfigFileParseError, ProjectNotFound, ConfigFileConflict) as exc:
+    except (
+        ConfigFileParseError,
+        ProjectNotFound,
+        ConfigFileConflict,
+        RelativeConfigPath,
+    ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(

@@ -1563,6 +1563,24 @@ def test_cli_with_a_config_file_that_install_did_not_write_fails_cleanly(
     assert str(plugin_file) in result.output
 
 
+@pytest.mark.parametrize("command_name", ["install", "uninstall"])
+def test_cli_with_a_relative_tool_path_fails_cleanly(
+    command_name, home, fake_repository, outside_projects, monkeypatch
+):
+    """A relative Gradle user home stops the command with the reason, without a traceback."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: f"CLOUDSMITH_GRADLE_USER_HOME={cwd / 'rel'}\n",
+    )
+
+    result = _invoke(command_name, ["gradle"])
+
+    assert result.exit_code == 1
+    assert "relative path" in result.output
+
+
 @pytest.mark.parametrize(
     ("command_name", "helper", "option"),
     [
