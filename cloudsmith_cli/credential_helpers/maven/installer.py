@@ -39,7 +39,8 @@ EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE = (3, 9)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
-_REPO_LOCAL_ARGUMENT = "-Dmaven.repo.local="
+_REPO_LOCAL_PROPERTY = "maven.repo.local="
+_MAVEN_DEFINE_OPTIONS = ("-D", "--define")
 _POSIX_JVM_ARGUMENT = re.compile(r"[^ \t\r\n]+")
 _WINDOWS_JVM_ARGUMENT = re.compile(r'(?:[^ \t\r\n"]|"[^"]*"?)+')
 _JAVA_SPLIT_ARGUMENT = re.compile(r"\S+", re.ASCII)
@@ -93,6 +94,19 @@ def _jvm_arguments(options: str) -> list[str]:
     return _POSIX_JVM_ARGUMENT.findall(options)
 
 
+def _maven_definitions(arguments: list[str]) -> list[str]:
+    """Return the ``name=value`` of each ``-D`` or ``--define`` option in Maven arguments."""
+    definitions = []
+    for previous, argument in zip(["", *arguments], arguments):
+        if previous in _MAVEN_DEFINE_OPTIONS:
+            definitions.append(argument)
+        elif argument.startswith("--define="):
+            definitions.append(argument.removeprefix("--define="))
+        elif argument.startswith("-D") and argument != "-D":
+            definitions.append(argument.removeprefix("-D"))
+    return definitions
+
+
 def _repo_local_option(local: bool) -> str | None:
     """Return the last ``-Dmaven.repo.local`` value, which is the one Java uses.
 
@@ -106,14 +120,20 @@ def _repo_local_option(local: bool) -> str | None:
     if local:
         mvn_dir = _project_dir() / ".mvn"
         jvm_options = f"{_read(mvn_dir / 'jvm.config') or ''} {jvm_options}"
-        maven_config = _read(mvn_dir / "maven.config") or ""
-        maven_arguments = maven_config.splitlines()
-        if maven_config and _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
-            maven_arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
+        maven_config = _read(mvn_dir / "maven.config")
+        if maven_config:
+            maven_arguments = maven_config.splitlines()
+            if _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
+                maven_arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
+    definitions = [
+        argument.removeprefix("-D")
+        for argument in _jvm_arguments(jvm_options)
+        if argument.startswith("-D")
+    ] + _maven_definitions(maven_arguments)
     values = [
-        argument.removeprefix(_REPO_LOCAL_ARGUMENT)
-        for argument in [*_jvm_arguments(jvm_options), *maven_arguments]
-        if argument.startswith(_REPO_LOCAL_ARGUMENT)
+        definition.removeprefix(_REPO_LOCAL_PROPERTY)
+        for definition in definitions
+        if definition.startswith(_REPO_LOCAL_PROPERTY)
     ]
     return values[-1] if values else None
 
