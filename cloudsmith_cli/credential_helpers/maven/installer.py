@@ -391,10 +391,11 @@ class MavenInstaller:
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         version_dir = _version_dir(repository, version)
         jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"
-        if mavenrc and any(char in " \t\n" for char in str(jar)):
+        if mavenrc and any(char in f" \t\n{os.pathsep}" for char in str(jar)):
             raise MavenrcNotSupported(
-                "The mvn script splits MAVEN_OPTS at spaces, so it cannot load "
-                f"{jar}. {INSTEAD_OF_MAVENRC}"
+                "The mvn script splits MAVEN_OPTS at spaces and Java splits the "
+                f"class path at {os.pathsep}, so they cannot load {jar}. "
+                f"{INSTEAD_OF_MAVENRC}"
             )
         actions = self._download(version_dir, version, dry_run, session)
         if mavenrc:
