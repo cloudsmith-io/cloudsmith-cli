@@ -840,8 +840,9 @@ def test_maven_install_uses_the_local_repository_that_maven_reports(
     assert f"-Dmaven.ext.class.path={_jar(home / 'repo')}" in text
 
 
+@pytest.mark.parametrize("relative_path", ["repo", ".", "../repo"])
 def test_maven_install_with_a_relative_local_repository_fails(
-    home, fake_repository, outside_projects, monkeypatch
+    relative_path, home, fake_repository, outside_projects, monkeypatch
 ):
     """Without local, a relative repository depends on the directory of each build, so the install stops."""
     monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
@@ -850,11 +851,11 @@ def test_maven_install_with_a_relative_local_repository_fails(
         "_maven_output",
         lambda command, cwd=None: (
             "[DEBUG] Using manager EnhancedLocalRepositoryManager"
-            f" with priority 10.0 for {cwd / 'repo'}\n"
+            f" with priority 10.0 for {cwd / relative_path}\n"
         ),
     )
 
-    with pytest.raises(RelativeLocalRepository, match="repo"):
+    with pytest.raises(RelativeLocalRepository):
         MavenInstaller().install()
 
     assert not fake_repository

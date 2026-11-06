@@ -131,34 +131,42 @@ def _maven_executable(local: bool) -> str | None:
     return shutil.which("mvn")
 
 
-def _local_repository(local: bool) -> Path:
-    """Return the local repository that Maven reports, or ``~/.m2/repository``.
+def _reported_repository(mvn: str, cwd: Path) -> Path | None:
+    """Return the local repository that Maven logs when it runs in ``cwd``.
 
     Maven logs the repository, then stops on a phase that does not exist before it
     runs a plugin, also for a default goal or goals in ``MAVEN_ARGS``.
+    """
+    output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
+    match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
+    return Path(match.group(1)) if match else None
+
+
+def _local_repository(local: bool) -> Path:
+    """Return the local repository that Maven reports, or ``~/.m2/repository``.
+
     With ``local``, Maven runs in the current directory, as a build from there does.
-    Without ``local``, Maven runs in an empty directory to skip the project ``.mvn``.
+    Without ``local``, Maven runs in two empty directories to skip the project ``.mvn``.
+    Two different answers mean that the path is relative.
     """
     mvn = _maven_executable(local)
-    if not mvn:
-        return Path.home() / ".m2" / "repository"
-    with tempfile.TemporaryDirectory() as empty_dir:
-        probe_dir = Path(empty_dir)
-        cwd = maven_tools.current_dir() if local else probe_dir
-        output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
-        match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
-        if match is None:
-            return Path.home() / ".m2" / "repository"
-        repository = Path(match.group(1))
-        if not local and probe_dir.resolve() in repository.resolve().parents:
-            relative = repository.resolve().relative_to(probe_dir.resolve())
-            raise RelativeLocalRepository(
-                f"Maven uses the relative local repository {relative}, so each build "
-                "looks for the extension in its own directory. Set an absolute path "
-                "for the local repository, or run "
-                "`cloudsmith credential-helper install maven --local` in each project."
-            )
-    return repository
+    repository = None
+    if mvn and local:
+        repository = _reported_repository(mvn, maven_tools.current_dir())
+    elif mvn:
+        with tempfile.TemporaryDirectory() as empty_dir:
+            nested_dir = Path(empty_dir) / "nested"
+            nested_dir.mkdir()
+            repository = _reported_repository(mvn, Path(empty_dir))
+            if repository and repository != _reported_repository(mvn, nested_dir):
+                raise RelativeLocalRepository(
+                    "The local repository of Maven is a relative path, so each build "
+                    "looks for the extension in its own directory. Set an absolute "
+                    "path for the local repository, or run "
+                    "`cloudsmith credential-helper install maven --local` in each "
+                    "project."
+                )
+    return repository or Path.home() / ".m2" / "repository"
 
 
 def _old_maven_warning() -> list[str]:
