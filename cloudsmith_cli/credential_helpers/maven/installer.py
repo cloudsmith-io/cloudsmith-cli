@@ -18,12 +18,11 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
-from xml.etree import ElementTree
 
-from ...core.cache_utils import _FIX_CONFIG_FILE_HINT, ConfigFileParseError
 from .. import maven_tools
 from ..launchers import is_windows
 from ..maven_tools import ProjectNotFound
@@ -37,19 +36,10 @@ if TYPE_CHECKING:
 
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
-FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE = (3, 9)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
-_REPO_LOCAL_PROPERTY = "maven.repo.local"
-_MAVEN_DEFINE_OPTIONS = ("-D", "--define")
-_POSIX_JVM_ARGUMENT = re.compile(r"[^ \t\r\n]+")
-_WINDOWS_JVM_ARGUMENT = re.compile(r'(?:[^ \t\r\n"]|"[^"]*"?)+')
-_JAVA_SPLIT_ARGUMENT = re.compile(r"\S+", re.ASCII)
-_PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
-_JAVA_LINE_BREAK = re.compile(r"\r\n|\r|\n")
-_WRAPPER_DISTRIBUTION_URL = re.compile(
-    r"^[ \t\f]*distributionUrl(?:[ \t\f]*[=:][ \t\f]*|[ \t\f]+)(.*)$", re.MULTILINE
+_LOCAL_REPOSITORY_LOG = re.compile(
+    r"^\[DEBUG\] Using manager \S+ with priority \S+ for (.+)$", re.MULTILINE
 )
-_MAVEN_DISTRIBUTION_VERSION = re.compile(r"apache-maven-(\d+(?:\.\d+)+)[\w.-]*?-bin\.")
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -89,183 +79,6 @@ def _mavenrc_file() -> Path:
     return Path.home() / ".mavenrc"
 
 
-def _jvm_arguments(options: str) -> list[str]:
-    """Split JVM options at spaces, tabs and new lines; ``mvn.cmd`` keeps quoted text together."""
-    if is_windows():
-        return [
-            argument.replace('"', "")
-            for argument in _WINDOWS_JVM_ARGUMENT.findall(options)
-        ]
-    return _POSIX_JVM_ARGUMENT.findall(options)
-
-
-def _maven_definitions(arguments: list[str]) -> list[str]:
-    """Return the ``name=value`` of each ``-D`` or ``--define`` option in Maven arguments."""
-    definitions = []
-    for previous, argument in zip(["", *arguments], arguments):
-        if previous in _MAVEN_DEFINE_OPTIONS:
-            definitions.append(argument)
-        elif argument.startswith("--define="):
-            definitions.append(argument.removeprefix("--define="))
-        elif argument.startswith("-D") and argument != "-D":
-            definitions.append(argument.removeprefix("-D"))
-    return definitions
-
-
-def _properties(definitions: list[str], bare_value: str) -> dict[str, str]:
-    """Return the properties of ``name=value`` definitions; Maven trims each name.
-
-    A definition without ``=`` gets ``bare_value``: ``true`` from Maven, empty from Java.
-    """
-    properties = {}
-    for definition in definitions:
-        name, separator, value = definition.partition("=")
-        properties[name.strip()] = value if separator else bare_value
-    return properties
-
-
-def _wrapper_maven_version(mvn_dir: Path) -> str | None:
-    """Return the Maven version that ``mvnw`` downloads, or ``None`` without a wrapper."""
-    properties = _read(mvn_dir / "wrapper" / "maven-wrapper.properties")
-    urls = _WRAPPER_DISTRIBUTION_URL.findall(properties) if properties else []
-    match = _MAVEN_DISTRIBUTION_VERSION.search(urls[-1]) if urls else None
-    return match.group(1) if match else None
-
-
-def _maven_config_repo_local(
-    mvn_dir: Path, jvm_properties: dict[str, str]
-) -> str | None:
-    """Return ``maven.repo.local`` of ``.mvn/maven.config`` with its placeholders resolved.
-
-    Each line of ``.mvn/maven.config`` is one argument, and Maven skips the lines
-    that start with ``#``. Maven before 3.9 splits the file on whitespace instead.
-    The Maven of ``mvnw`` decides, else the ``mvn`` on ``PATH``.
-    """
-    maven_config_file = mvn_dir / "maven.config"
-    maven_config = _read(maven_config_file)
-    if not maven_config:
-        return None
-    arguments = [
-        line
-        for line in _JAVA_LINE_BREAK.split(maven_config)
-        if line and not line.startswith("#")
-    ]
-    version = _wrapper_maven_version(mvn_dir) or _maven_version()
-    if version and _major_minor(version) < FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE:
-        arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
-    defined = _properties(_maven_definitions(arguments), bare_value="true")
-    if _REPO_LOCAL_PROPERTY not in defined:
-        return None
-    root = str(mvn_dir.parent)
-    properties = {
-        "user.home": str(Path.home()),
-        "maven.multiModuleProjectDirectory": root,
-        **jvm_properties,
-        **defined,
-        "session.rootDirectory": root,
-        "session.topDirectory": str(maven_tools.current_dir()),
-    }
-    return _interpolate(
-        defined[_REPO_LOCAL_PROPERTY],
-        f"{_REPO_LOCAL_PROPERTY} of {maven_config_file}",
-        properties,
-    )
-
-
-def _repo_local_option(local: bool) -> str | None:
-    """Return the ``maven.repo.local`` value that Maven uses.
-
-    ``.mvn/maven.config`` overrides the JVM options. ``mvn`` puts
-    ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and Java uses the last value.
-    """
-    jvm_options = os.environ.get("MAVEN_OPTS", "")
-    mvn_dir = _project_dir() / ".mvn" if local else None
-    if mvn_dir:
-        jvm_options = f"{_read(mvn_dir / 'jvm.config') or ''} {jvm_options}"
-    jvm_properties = _properties(
-        [
-            argument.removeprefix("-D")
-            for argument in _jvm_arguments(jvm_options)
-            if argument.startswith("-D")
-        ],
-        bare_value="",
-    )
-    if mvn_dir:
-        maven_config_value = _maven_config_repo_local(mvn_dir, jvm_properties)
-        if maven_config_value is not None:
-            return maven_config_value
-    return jvm_properties.get(_REPO_LOCAL_PROPERTY)
-
-
-def _resolve_placeholder(
-    match: re.Match[str], where: str, properties: dict[str, str]
-) -> str:
-    name = match.group(1)
-    env_name = name.removeprefix("env.")
-    if name in properties:
-        return properties[name]
-    if name.startswith("env.") and env_name in os.environ:
-        return os.environ[env_name]
-    raise ConfigFileParseError(
-        f"Cannot resolve {match.group(0)} in {where}. {_FIX_CONFIG_FILE_HINT}"
-    )
-
-
-def _interpolate(
-    value: str,
-    where: str,
-    properties: dict[str, str],
-    resolving: frozenset[str] = frozenset(),
-) -> str:
-    """Replace each ``${name}`` in ``value``, and then the placeholders in its value, as Maven does."""
-
-    def replace(match: re.Match[str]) -> str:
-        if match.group(1) in resolving:
-            raise ConfigFileParseError(
-                f"{match.group(0)} refers to itself in {where}. {_FIX_CONFIG_FILE_HINT}"
-            )
-        return _interpolate(
-            _resolve_placeholder(match, where, properties),
-            where,
-            properties,
-            resolving | {match.group(1)},
-        )
-
-    return _PLACEHOLDER.sub(replace, value)
-
-
-def _settings_local_repository() -> str | None:
-    """Return ``<localRepository>`` of ``~/.m2/settings.xml``, or ``None`` when it has none."""
-    settings_file = Path.home() / ".m2" / "settings.xml"
-    if not settings_file.exists():
-        return None
-    try:
-        root = ElementTree.parse(settings_file).getroot()
-    except (ElementTree.ParseError, LookupError, ValueError) as exc:
-        raise ConfigFileParseError(
-            f"Cannot parse {settings_file} as XML: {exc}. {_FIX_CONFIG_FILE_HINT}"
-        ) from exc
-    # {*} matches the namespace of the Maven settings, or no namespace.
-    value = root.findtext("{*}localRepository", "").strip()
-    if not value:
-        return None
-    return _interpolate(
-        value,
-        f"<localRepository> of {settings_file}",
-        {"user.home": str(Path.home())},
-    )
-
-
-def _local_repository(local: bool) -> Path:
-    """Return the local repository that Maven uses, in the same order of precedence."""
-    location = _repo_local_option(local)
-    if location is None:
-        location = _settings_local_repository()
-    if location is None:
-        return Path.home() / ".m2" / "repository"
-    return Path(location).absolute()
-
-
 def _version_dir(repository: Path, version: str) -> Path:
     return repository / EXTENSION_PATH / version
 
@@ -277,34 +90,64 @@ def _read(path: Path) -> str | None:
     return path.read_text(encoding="utf-8", errors="surrogateescape")
 
 
-def _maven_version() -> str | None:
-    """Return the version that ``mvn -v`` reports, or ``None`` when there is none."""
-    mvn = shutil.which("mvn")
-    if not mvn:
-        return None
+def _maven_output(command: list[str], cwd: Path | None = None) -> str:
+    """Return what the Maven command prints, or an empty string when it does not run."""
     try:
         result = subprocess.run(
-            [mvn, "-v"],
+            command,
+            cwd=cwd,
             capture_output=True,
             text=True,
             timeout=MAVEN_VERSION_TIMEOUT_SECONDS,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout
+
+
+def _maven_version() -> str | None:
+    """Return the version that ``mvn -v`` reports, or ``None`` when there is none."""
+    mvn = shutil.which("mvn")
+    if not mvn:
         return None
-    match = re.search(r"Apache Maven (\d+(?:\.\d+)+)", result.stdout)
+    match = re.search(r"Apache Maven (\d+(?:\.\d+)+)", _maven_output([mvn, "-v"]))
     return match.group(1) if match else None
 
 
-def _major_minor(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split(".")[:2])
+def _maven_executable(local: bool) -> str | None:
+    """Return the Maven wrapper of the project with ``local``, else ``mvn`` on ``PATH``."""
+    if local:
+        wrapper = _project_dir() / ("mvnw.cmd" if is_windows() else "mvnw")
+        if wrapper.is_file():
+            return str(wrapper)
+    return shutil.which("mvn")
+
+
+def _local_repository(local: bool) -> Path:
+    """Return the local repository that Maven reports, or ``~/.m2/repository``.
+
+    Maven logs the repository before it stops on the missing goal, so no plugin runs.
+    Without ``local``, Maven runs in an empty directory to skip the project ``.mvn``.
+    """
+    mvn = _maven_executable(local)
+    output = ""
+    if mvn:
+        with tempfile.TemporaryDirectory() as empty_dir:
+            cwd = _project_dir() if local else Path(empty_dir)
+            output = _maven_output([mvn, "-X", "-o", "-B"], cwd)
+    match = _LOCAL_REPOSITORY_LOG.search(output)
+    if match is None:
+        return Path.home() / ".m2" / "repository"
+    return Path(match.group(1))
 
 
 def _old_maven_warning() -> list[str]:
     version = _maven_version()
     if version is None:
         return []
-    if _major_minor(version) >= FIRST_MAVEN_WITH_USER_EXTENSIONS:
+    major_minor = tuple(int(part) for part in version.split(".")[:2])
+    if major_minor >= FIRST_MAVEN_WITH_USER_EXTENSIONS:
         return []
     warning = (
         f"WARNING: Maven {version} ignores {_user_extensions_file()}. "

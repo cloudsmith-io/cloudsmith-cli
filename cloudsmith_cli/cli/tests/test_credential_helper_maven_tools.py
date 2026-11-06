@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import errno
 import os
-import re
+import shutil
 import subprocess
 from contextlib import nullcontext
 from pathlib import Path
@@ -20,7 +20,6 @@ import httpretty
 import httpretty.core
 import pytest
 
-from ...core.cache_utils import ConfigFileParseError
 from ...credential_helpers import maven_tools
 from ...credential_helpers.gradle.installer import GradleInstaller
 from ...credential_helpers.maven import extensions, mavenrc
@@ -93,9 +92,16 @@ def fake_repository(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _no_maven_opts(monkeypatch):
-    """Ignore the MAVEN_OPTS of the user who runs the tests."""
-    monkeypatch.delenv("MAVEN_OPTS", raising=False)
+def maven_debug_output(monkeypatch):
+    """Run as if Maven reports no local repository, and record each Maven command."""
+    commands = []
+
+    def fake_output(command, cwd=None):
+        commands.append((command, cwd))
+        return ""
+
+    monkeypatch.setattr(maven_installer, "_maven_output", fake_output)
+    return commands
 
 
 @pytest.fixture(autouse=True)
@@ -733,18 +739,6 @@ def _user_extensions(home: Path) -> Path:
     return home / ".m2" / "extensions.xml"
 
 
-def _write_settings(home: Path, local_repository: str) -> Path:
-    settings = home / ".m2" / "settings.xml"
-    settings.parent.mkdir()
-    settings.write_text(
-        '<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">\n'
-        f"  <localRepository>{local_repository}</localRepository>\n"
-        "</settings>\n",
-        encoding="utf-8",
-    )
-    return settings
-
-
 def _jar(repository: Path) -> Path:
     return (
         repository / EXTENSION_PATH / "0.2.0" / "cloudsmith-maven-extension-0.2.0.jar"
@@ -820,177 +814,67 @@ def test_maven_install_marks_the_files_as_installed(
     )
 
 
-@pytest.mark.parametrize("local_repository", ["${user.home}/repo", "${env.M2_REPO}"])
-def test_maven_install_uses_the_local_repository_of_the_user_settings(
-    local_repository, home, fake_repository, outside_projects, monkeypatch
-):
-    """Maven reads <localRepository> from ~/.m2/settings.xml, after interpolation."""
-    monkeypatch.setenv("M2_REPO", str(home / "repo"))
-    _write_settings(home, local_repository)
-
-    actions = MavenInstaller().install()
-
-    assert _jar(home / "repo").exists()
-    assert f"downloaded {_jar(home).name} to {_jar(home / 'repo').parent}" in actions
-
-
-def test_maven_install_prefers_maven_repo_local_in_maven_opts(
+def test_maven_install_uses_the_local_repository_that_maven_reports(
     home, fake_repository, outside_projects, monkeypatch
 ):
-    """-Dmaven.repo.local overrides the settings, and --mavenrc loads the JAR there."""
-    _write_settings(home, "${user.home}/repo")
-    monkeypatch.setenv("MAVEN_OPTS", f"-Xmx1g -Dmaven.repo.local={home / 'opts'}")
+    """The JAR goes in the repository from the debug output of Maven, and --mavenrc loads it there."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_installer,
+        "_maven_output",
+        lambda command, cwd=None: (
+            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f" with priority 10.0 for {home / 'repo'}\n"
+        ),
+    )
 
     MavenInstaller().install(mavenrc=True)
 
-    assert _jar(home / "opts").exists()
+    assert _jar(home / "repo").exists()
     text = (home / ".mavenrc").read_text(encoding="utf-8")
-    assert f"-Dmaven.ext.class.path={_jar(home / 'opts')}" in text
+    assert f"-Dmaven.ext.class.path={_jar(home / 'repo')}" in text
 
 
 @pytest.mark.parametrize(
-    ("windows", "quote", "directory"),
-    [(False, "", "no break"), (True, '"', "my repo")],
+    ("local", "wrapper", "runs_in_project"),
+    [(False, True, False), (True, False, True), (True, True, True)],
 )
-def test_maven_install_splits_maven_opts_like_the_mvn_script(
-    windows, quote, directory, home, fake_repository, outside_projects, monkeypatch
-):
-    """mvn splits MAVEN_OPTS only at spaces, tabs and new lines; mvn.cmd keeps quoted text together."""
-    monkeypatch.setattr(maven_installer, "is_windows", lambda: windows)
-    repository = home / directory
-    monkeypatch.setenv(
-        "MAVEN_OPTS", f"{quote}-Dmaven.repo.local={repository}{quote} -B"
-    )
-
-    MavenInstaller().install()
-
-    assert _jar(repository).exists()
-
-
-@pytest.mark.parametrize(
-    ("config_file", "maven_opts"),
-    [("jvm.config", ""), ("maven.config", "-Dmaven.repo.local=/elsewhere")],
-)
-def test_maven_install_local_reads_maven_repo_local_of_the_project(
-    config_file, maven_opts, home, fake_repository, maven_project, monkeypatch
-):
-    """With local, the .mvn config files of the project can set the local repository."""
-    monkeypatch.setenv("MAVEN_OPTS", maven_opts)
-    (maven_project / ".mvn").mkdir()
-    (maven_project / ".mvn" / config_file).write_text(
-        f"-Dmaven.repo.local={maven_project / 'repo'}\n", encoding="utf-8"
-    )
-
-    MavenInstaller().install(local=True)
-
-    assert _jar(maven_project / "repo").exists()
-
-
-@pytest.mark.parametrize(
-    ("maven_version", "maven_config", "repository"),
-    [
-        ("3.9.3", "# -Dmaven.repo.local=old-repo", "opts"),
-        ("3.9.3", "-Dmaven.repo.local=my repo", "my repo"),
-        ("3.9.3", "--define=maven.repo.local=defined", "defined"),
-        ("3.9.3", "-D\nmaven.repo.local=next line", "next line"),
-        ("3.9.3", "-D\n\n# comment\nmaven.repo.local=after blank", "after blank"),
-        ("3.9.3", "-D maven.repo.local=trimmed", "trimmed"),
-        ("3.9.3", "-Dmaven.repo.local=first\n-Dmaven.repo.local", "true"),
-        ("3.9.3", "-Dmaven.repo.local=", "."),
-        ("3.9.3", "-Dmaven.repo.local=${session.rootDirectory}/root", "root"),
-        ("3.9.3", "-Dbase=based\n-Dmaven.repo.local=${base}/repo", "based/repo"),
-        (
-            "3.9.3",
-            "-Dbase=${session.rootDirectory}/cache\n-Dmaven.repo.local=${base}/repo",
-            "cache/repo",
-        ),
-        ("3.9.3", "-Dmaven.repo.local=${repo.base}/m2", "based/m2"),
-        ("3.8.8", "-Dmaven.repo.local=m2 -B", "m2"),
-    ],
-)
-def test_maven_install_local_reads_maven_config_like_maven(
-    maven_version,
-    maven_config,
-    repository,
+def test_maven_install_asks_the_maven_that_the_build_uses(
+    local,
+    wrapper,
+    runs_in_project,
     home,
     fake_repository,
     maven_project,
+    maven_debug_output,
     monkeypatch,
 ):
-    """Maven 3.9 reads each .mvn/maven.config line as one argument; 3.8 splits on whitespace."""
-    monkeypatch.setattr(maven_installer, "_maven_version", lambda: maven_version)
-    monkeypatch.setenv(
-        "MAVEN_OPTS",
-        f"-Drepo.base=based -Dmaven.repo.local={maven_project / 'opts'}",
-    )
-    (maven_project / ".mvn").mkdir()
-    (maven_project / ".mvn" / "maven.config").write_text(
-        f"{maven_config}\n", encoding="utf-8"
-    )
+    """With local, the Maven wrapper of the project runs in the project; else mvn runs outside it."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    mvnw = maven_project / "mvnw"
+    if wrapper:
+        mvnw.write_text("", encoding="utf-8")
 
-    MavenInstaller().install(local=True)
+    MavenInstaller().install(local=local)
 
-    assert _jar(maven_project / repository).exists()
+    [(command, cwd)] = maven_debug_output
+    executable = str(mvnw) if local and wrapper else "/bin/mvn"
+    assert command == [executable, "-X", "-o", "-B"]
+    assert (cwd == maven_project) is runs_in_project
 
 
-@pytest.mark.parametrize(
-    "wrapper_properties",
-    [
-        "distributionUrl=https\\://repo.maven.apache.org/maven2/org/apache/maven"
-        "/apache-maven/3.8.8/apache-maven-3.8.8-bin.zip\n",
-        "distributionUrl=https://mirror.example/apache-maven-3.10.0-bin.zip\n"
-        "  distributionUrl : https://mirror.example/apache-maven-3.8.8-bin.zip\n",
-        "distributionUrl=https://mirror.example/apache-maven-3.0-beta-3-bin.zip\n",
-    ],
-)
-def test_maven_install_local_splits_maven_config_for_the_maven_wrapper(
-    wrapper_properties, home, fake_repository, maven_project
+@pytest.mark.skipif(shutil.which("mvn") is None, reason="Maven is not installed")
+# The parameter replaces the autouse fake, so the real mvn runs.
+@pytest.mark.parametrize("maven_debug_output", [None])
+def test_maven_install_uses_the_local_repository_of_the_real_maven(
+    maven_debug_output, home, fake_repository, outside_projects, tmp_path, monkeypatch
 ):
-    """The Maven of .mvn/wrapper, not the mvn on PATH, decides how maven.config is split."""
-    wrapper_dir = maven_project / ".mvn" / "wrapper"
-    wrapper_dir.mkdir(parents=True)
-    (wrapper_dir / "maven-wrapper.properties").write_text(
-        wrapper_properties, encoding="utf-8"
-    )
-    (maven_project / ".mvn" / "maven.config").write_text(
-        "-Dmaven.repo.local=m2 -B\n", encoding="utf-8"
-    )
+    """The real mvn reports the repository in a line that the installer finds."""
+    monkeypatch.setenv("MAVEN_OPTS", f"-Dmaven.repo.local={tmp_path / 'repo'}")
 
-    MavenInstaller().install(local=True)
+    MavenInstaller().install()
 
-    assert _jar(maven_project / "m2").exists()
-
-
-@pytest.mark.parametrize(
-    "local_repository", ["${env.NOT_SET}", "${env.CYCLE}", "</settings>"]
-)
-def test_maven_install_with_unusable_settings_fails(
-    local_repository, home, fake_repository, outside_projects, monkeypatch
-):
-    """A settings file that does not parse or does not resolve stops the install."""
-    monkeypatch.delenv("NOT_SET", raising=False)
-    monkeypatch.setenv("CYCLE", "${env.CYCLE}")
-    settings = _write_settings(home, local_repository)
-
-    with pytest.raises(ConfigFileParseError, match=re.escape(str(settings))):
-        MavenInstaller().install()
-
-    assert not fake_repository
-
-
-@pytest.mark.parametrize("encoding", ["unknown", "Shift_JIS"])
-def test_maven_install_with_an_unsupported_settings_encoding_fails(
-    encoding, home, fake_repository, outside_projects
-):
-    """A settings file with an encoding that ElementTree cannot read stops the install."""
-    settings = home / ".m2" / "settings.xml"
-    settings.parent.mkdir()
-    settings.write_text(f'<?xml version="1.0" encoding="{encoding}"?>\n<settings/>\n')
-
-    with pytest.raises(ConfigFileParseError, match=re.escape(str(settings))):
-        MavenInstaller().install()
-
-    assert not fake_repository
+    assert _jar(tmp_path / "repo").exists()
 
 
 def test_maven_install_local_turns_on_the_extension_in_the_project(
