@@ -888,6 +888,9 @@ def test_maven_install_local_reads_maven_repo_local_of_the_project(
         ("3.9.3", "-Dmaven.repo.local=my repo", "my repo"),
         ("3.9.3", "--define=maven.repo.local=defined", "defined"),
         ("3.9.3", "-D\nmaven.repo.local=next line", "next line"),
+        ("3.9.3", "-D maven.repo.local=trimmed", "trimmed"),
+        ("3.9.3", "-Dmaven.repo.local=${session.rootDirectory}/root", "root"),
+        ("3.9.3", "-Dbase=based\n-Dmaven.repo.local=${base}/repo", "based/repo"),
         ("3.8.8", "-Dmaven.repo.local=m2 -B", "m2"),
     ],
 )

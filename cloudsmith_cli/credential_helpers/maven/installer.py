@@ -39,7 +39,7 @@ EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE = (3, 9)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
-_REPO_LOCAL_PROPERTY = "maven.repo.local="
+_REPO_LOCAL_PROPERTY = "maven.repo.local"
 _MAVEN_DEFINE_OPTIONS = ("-D", "--define")
 _POSIX_JVM_ARGUMENT = re.compile(r"[^ \t\r\n]+")
 _WINDOWS_JVM_ARGUMENT = re.compile(r'(?:[^ \t\r\n"]|"[^"]*"?)+')
@@ -107,47 +107,84 @@ def _maven_definitions(arguments: list[str]) -> list[str]:
     return definitions
 
 
-def _repo_local_option(local: bool) -> str | None:
-    """Return the last ``-Dmaven.repo.local`` value, which is the one Java uses.
+def _properties(definitions: list[str]) -> dict[str, str]:
+    """Return the properties of ``name=value`` definitions; Maven trims each name."""
+    properties = {}
+    for definition in definitions:
+        name, separator, value = definition.partition("=")
+        if separator:
+            properties[name.strip()] = value
+    return properties
 
-    ``mvn`` puts ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and the arguments in
-    ``.mvn/maven.config`` override both. Each line of ``.mvn/maven.config`` is one
-    argument, and Maven skips the lines that start with ``#``. Maven before 3.9
-    splits ``.mvn/maven.config`` on whitespace instead.
+
+def _maven_config_repo_local(mvn_dir: Path) -> str | None:
+    """Return ``maven.repo.local`` of ``.mvn/maven.config`` with its placeholders resolved.
+
+    Each line of ``.mvn/maven.config`` is one argument, and Maven skips the lines
+    that start with ``#``. Maven before 3.9 splits the file on whitespace instead.
+    """
+    maven_config_file = mvn_dir / "maven.config"
+    maven_config = _read(maven_config_file)
+    if not maven_config:
+        return None
+    arguments = maven_config.splitlines()
+    if _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
+        arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
+    defined = _properties(_maven_definitions(arguments))
+    if _REPO_LOCAL_PROPERTY not in defined:
+        return None
+    root = str(mvn_dir.parent)
+    properties = {
+        "user.home": str(Path.home()),
+        "maven.multiModuleProjectDirectory": root,
+        "session.rootDirectory": root,
+        "session.topDirectory": str(maven_tools.current_dir()),
+        **defined,
+    }
+    return _PLACEHOLDER.sub(
+        partial(
+            _resolve_placeholder,
+            where=f"{_REPO_LOCAL_PROPERTY} of {maven_config_file}",
+            properties=properties,
+        ),
+        defined[_REPO_LOCAL_PROPERTY],
+    )
+
+
+def _repo_local_option(local: bool) -> str | None:
+    """Return the ``maven.repo.local`` value that Maven uses.
+
+    ``.mvn/maven.config`` overrides the JVM options. ``mvn`` puts
+    ``.mvn/jvm.config`` before ``MAVEN_OPTS``, and Java uses the last value.
     """
     jvm_options = os.environ.get("MAVEN_OPTS", "")
-    maven_arguments: list[str] = []
     if local:
         mvn_dir = _project_dir() / ".mvn"
+        maven_config_value = _maven_config_repo_local(mvn_dir)
+        if maven_config_value is not None:
+            return maven_config_value
         jvm_options = f"{_read(mvn_dir / 'jvm.config') or ''} {jvm_options}"
-        maven_config = _read(mvn_dir / "maven.config")
-        if maven_config:
-            maven_arguments = maven_config.splitlines()
-            if _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
-                maven_arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
-    definitions = [
-        argument.removeprefix("-D")
-        for argument in _jvm_arguments(jvm_options)
-        if argument.startswith("-D")
-    ] + _maven_definitions(maven_arguments)
-    values = [
-        definition.removeprefix(_REPO_LOCAL_PROPERTY)
-        for definition in definitions
-        if definition.startswith(_REPO_LOCAL_PROPERTY)
-    ]
-    return values[-1] if values else None
+    jvm_properties = _properties(
+        [
+            argument.removeprefix("-D")
+            for argument in _jvm_arguments(jvm_options)
+            if argument.startswith("-D")
+        ]
+    )
+    return jvm_properties.get(_REPO_LOCAL_PROPERTY)
 
 
-def _resolve_placeholder(match: re.Match[str], settings_file: Path) -> str:
+def _resolve_placeholder(
+    match: re.Match[str], where: str, properties: dict[str, str]
+) -> str:
     name = match.group(1)
     env_name = name.removeprefix("env.")
-    if name == "user.home":
-        return str(Path.home())
+    if name in properties:
+        return properties[name]
     if name.startswith("env.") and env_name in os.environ:
         return os.environ[env_name]
     raise ConfigFileParseError(
-        f"Cannot resolve {match.group(0)} in <localRepository> of {settings_file}."
-        f" {_FIX_CONFIG_FILE_HINT}"
+        f"Cannot resolve {match.group(0)} in {where}. {_FIX_CONFIG_FILE_HINT}"
     )
 
 
@@ -167,7 +204,12 @@ def _settings_local_repository() -> str | None:
     if not value:
         return None
     return _PLACEHOLDER.sub(
-        partial(_resolve_placeholder, settings_file=settings_file), value
+        partial(
+            _resolve_placeholder,
+            where=f"<localRepository> of {settings_file}",
+            properties={"user.home": str(Path.home())},
+        ),
+        value,
     )
 
 
