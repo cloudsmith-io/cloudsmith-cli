@@ -844,6 +844,25 @@ def test_maven_install_prefers_maven_repo_local_in_maven_opts(
 
 
 @pytest.mark.parametrize(
+    ("windows", "quote", "directory"),
+    [(False, "", "no break"), (True, '"', "my repo")],
+)
+def test_maven_install_splits_maven_opts_like_the_mvn_script(
+    windows, quote, directory, home, fake_repository, outside_projects, monkeypatch
+):
+    """mvn splits MAVEN_OPTS only at spaces, tabs and new lines; mvn.cmd keeps quoted text together."""
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: windows)
+    repository = home / directory
+    monkeypatch.setenv(
+        "MAVEN_OPTS", f"{quote}-Dmaven.repo.local={repository}{quote} -B"
+    )
+
+    MavenInstaller().install()
+
+    assert _jar(repository).exists()
+
+
+@pytest.mark.parametrize(
     ("config_file", "maven_opts"),
     [("jvm.config", ""), ("maven.config", "-Dmaven.repo.local=/elsewhere")],
 )

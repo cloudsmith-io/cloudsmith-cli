@@ -40,7 +40,9 @@ FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE = (3, 9)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
 _REPO_LOCAL_ARGUMENT = "-Dmaven.repo.local="
-_REPO_LOCAL_OPTION = re.compile(r"(?:^|\s)-Dmaven\.repo\.local=(\S+)")
+_POSIX_JVM_ARGUMENT = re.compile(r"[^ \t\r\n]+")
+_WINDOWS_JVM_ARGUMENT = re.compile(r'(?:[^ \t\r\n"]|"[^"]*"?)+')
+_JAVA_SPLIT_ARGUMENT = re.compile(r"\S+", re.ASCII)
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
@@ -81,6 +83,16 @@ def _mavenrc_file() -> Path:
     return Path.home() / ".mavenrc"
 
 
+def _jvm_arguments(options: str) -> list[str]:
+    """Split JVM options at spaces, tabs and new lines; ``mvn.cmd`` keeps quoted text together."""
+    if is_windows():
+        return [
+            argument.replace('"', "")
+            for argument in _WINDOWS_JVM_ARGUMENT.findall(options)
+        ]
+    return _POSIX_JVM_ARGUMENT.findall(options)
+
+
 def _repo_local_option(local: bool) -> str | None:
     """Return the last ``-Dmaven.repo.local`` value, which is the one Java uses.
 
@@ -89,23 +101,19 @@ def _repo_local_option(local: bool) -> str | None:
     argument, and Maven skips the lines that start with ``#``. Maven before 3.9
     splits ``.mvn/maven.config`` on whitespace instead.
     """
-    sources = [os.environ.get("MAVEN_OPTS", "")]
-    maven_config = ""
+    jvm_options = os.environ.get("MAVEN_OPTS", "")
+    maven_arguments: list[str] = []
     if local:
         mvn_dir = _project_dir() / ".mvn"
-        sources = [
-            _read(mvn_dir / "jvm.config") or "",
-            *sources,
-        ]
+        jvm_options = f"{_read(mvn_dir / 'jvm.config') or ''} {jvm_options}"
         maven_config = _read(mvn_dir / "maven.config") or ""
+        maven_arguments = maven_config.splitlines()
         if maven_config and _maven_older_than(FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE):
-            sources.append(maven_config)
-            maven_config = ""
-    values = _REPO_LOCAL_OPTION.findall(" ".join(sources))
-    values += [
-        line.removeprefix(_REPO_LOCAL_ARGUMENT)
-        for line in maven_config.splitlines()
-        if line.startswith(_REPO_LOCAL_ARGUMENT)
+            maven_arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
+    values = [
+        argument.removeprefix(_REPO_LOCAL_ARGUMENT)
+        for argument in [*_jvm_arguments(jvm_options), *maven_arguments]
+        if argument.startswith(_REPO_LOCAL_ARGUMENT)
     ]
     return values[-1] if values else None
 
