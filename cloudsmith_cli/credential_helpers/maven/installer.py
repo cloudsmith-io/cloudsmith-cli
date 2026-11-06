@@ -112,13 +112,15 @@ def _maven_definitions(arguments: list[str]) -> list[str]:
     return definitions
 
 
-def _properties(definitions: list[str]) -> dict[str, str]:
-    """Return the properties of ``name=value`` definitions; Maven trims each name."""
+def _properties(definitions: list[str], bare_value: str) -> dict[str, str]:
+    """Return the properties of ``name=value`` definitions; Maven trims each name.
+
+    A definition without ``=`` gets ``bare_value``: ``true`` from Maven, empty from Java.
+    """
     properties = {}
     for definition in definitions:
         name, separator, value = definition.partition("=")
-        if separator:
-            properties[name.strip()] = value
+        properties[name.strip()] = value if separator else bare_value
     return properties
 
 
@@ -151,7 +153,7 @@ def _maven_config_repo_local(
     version = _wrapper_maven_version(mvn_dir) or _maven_version()
     if version and _major_minor(version) < FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE:
         arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
-    defined = _properties(_maven_definitions(arguments))
+    defined = _properties(_maven_definitions(arguments), bare_value="true")
     if _REPO_LOCAL_PROPERTY not in defined:
         return None
     root = str(mvn_dir.parent)
@@ -185,7 +187,8 @@ def _repo_local_option(local: bool) -> str | None:
             argument.removeprefix("-D")
             for argument in _jvm_arguments(jvm_options)
             if argument.startswith("-D")
-        ]
+        ],
+        bare_value="",
     )
     if mvn_dir:
         maven_config_value = _maven_config_repo_local(mvn_dir, jvm_properties)
@@ -255,7 +258,9 @@ def _settings_local_repository() -> str | None:
 
 def _local_repository(local: bool) -> Path:
     """Return the local repository that Maven uses, in the same order of precedence."""
-    location = _repo_local_option(local) or _settings_local_repository()
+    location = _repo_local_option(local)
+    if location is None:
+        location = _settings_local_repository()
     if location is None:
         return Path.home() / ".m2" / "repository"
     return Path(location).absolute()
