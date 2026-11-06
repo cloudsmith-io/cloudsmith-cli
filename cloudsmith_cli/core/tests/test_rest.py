@@ -1,11 +1,21 @@
+import datetime
+import http.server
+import ipaddress
 import socket
 import ssl
+import threading
 
 import httpretty
 import pytest
 import requests
+import truststore
 from cloudsmith_api.rest import ApiException
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from urllib3.exceptions import MaxRetryError, NameResolutionError, ProxyError, SSLError
+from urllib3.util.ssl_ import create_urllib3_context
 
 from ..api.init import initialise_api
 from ..rest import READ_TIMEOUT_SECONDS, REQUEST_TIMEOUT_SECONDS, RestClient
@@ -208,6 +218,161 @@ class TestSSLVerifyStrict:
         session = create_requests_session()
 
         assert "ssl_context" in self._pool_kwargs(session)
+
+
+class TestSSLSystemTrustStore:
+    _pool_kwargs = staticmethod(TestSSLVerifyStrict._pool_kwargs)
+
+    def test_uses_the_system_trust_store(self):
+        session = create_requests_session(ssl_system_trust_store=True)
+
+        ctx = self._pool_kwargs(session)["ssl_context"]
+        assert isinstance(ctx, truststore.SSLContext)
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname
+        assert ctx.verify_flags == create_urllib3_context().verify_flags
+
+    def test_without_strict_clears_the_strict_flag(self):
+        session = create_requests_session(
+            ssl_system_trust_store=True, ssl_verify_strict=False
+        )
+
+        ctx = self._pool_kwargs(session)["ssl_context"]
+        assert isinstance(ctx, truststore.SSLContext)
+        assert not ctx.verify_flags & ssl.VERIFY_X509_STRICT
+
+    def test_context_not_used_when_verification_disabled(self):
+        session = create_requests_session(ssl_system_trust_store=True)
+
+        assert "ssl_context" not in self._pool_kwargs(session, verify=False)
+
+    def test_falls_back_to_the_sdk_configuration(self):
+        initialise_api(ssl_system_trust_store=True)
+
+        session = create_requests_session()
+
+        assert isinstance(
+            self._pool_kwargs(session)["ssl_context"], truststore.SSLContext
+        )
+
+    def test_trusts_the_ca_bundle_in_addition(self, tls_server):
+        url, ca_bundle = tls_server
+        session = create_requests_session(ssl_system_trust_store=True, retries=0)
+
+        assert session.get(url, verify=ca_bundle, timeout=10).status_code == 200
+
+    def test_rejects_a_ca_that_no_store_trusts(self, tls_server):
+        url, _ = tls_server
+        session = create_requests_session(ssl_system_trust_store=True, retries=0)
+
+        with pytest.raises(requests.exceptions.SSLError):
+            session.get(url, timeout=10)
+
+
+def _certificate(subject, issuer, public_key, signing_key, extensions):
+    now = datetime.datetime.now(datetime.UTC)
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=5))
+        .not_valid_after(now + datetime.timedelta(days=1))
+    )
+    for extension, critical in extensions:
+        builder = builder.add_extension(extension, critical=critical)
+    return builder.sign(signing_key, hashes.SHA256())
+
+
+def _write_tls_files(directory):
+    """Write a test CA bundle and a server certificate chain for 127.0.0.1."""
+    ca_key = ec.generate_private_key(ec.SECP256R1())
+    ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CLI Test CA")])
+    ca_cert = _certificate(
+        ca_name,
+        ca_name,
+        ca_key.public_key(),
+        ca_key,
+        [
+            (x509.BasicConstraints(ca=True, path_length=None), True),
+            (
+                x509.KeyUsage(
+                    digital_signature=False,
+                    content_commitment=False,
+                    key_encipherment=False,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    key_cert_sign=True,
+                    crl_sign=True,
+                    encipher_only=False,
+                    decipher_only=False,
+                ),
+                True,
+            ),
+            (x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), False),
+        ],
+    )
+    server_key = ec.generate_private_key(ec.SECP256R1())
+    server_cert = _certificate(
+        x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")]),
+        ca_name,
+        server_key.public_key(),
+        ca_key,
+        [
+            (x509.BasicConstraints(ca=False, path_length=None), True),
+            (
+                x509.SubjectAlternativeName(
+                    [x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+                ),
+                False,
+            ),
+            (x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), False),
+            (
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                False,
+            ),
+        ],
+    )
+    ca_bundle = directory / "ca.pem"
+    ca_bundle.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
+    chain = directory / "server.pem"
+    chain.write_bytes(
+        server_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        + server_cert.public_bytes(serialization.Encoding.PEM)
+    )
+    return ca_bundle, chain
+
+
+class _OkHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+class _QuietHTTPServer(http.server.HTTPServer):
+    def handle_error(self, request, client_address):
+        pass
+
+
+@pytest.fixture
+def tls_server(tmp_path):
+    """Serve HTTPS on 127.0.0.1 with a certificate from a test CA."""
+    ca_bundle, chain = _write_tls_files(tmp_path)
+    server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.load_cert_chain(chain)
+    server = _QuietHTTPServer(("127.0.0.1", 0), _OkHandler)
+    server.socket = server_context.wrap_socket(server.socket, server_side=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"https://127.0.0.1:{server.server_port}/", str(ca_bundle)
+    server.shutdown()
+    server.server_close()
 
 
 @pytest.fixture

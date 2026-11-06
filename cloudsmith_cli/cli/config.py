@@ -70,6 +70,7 @@ class ConfigSchema:
         ssl_verify_strict = ConfigParam(
             name="ssl_verify_strict", type=bool, default=True
         )
+        ssl_system_trust_store = ConfigParam(name="ssl_system_trust_store", type=bool)
         api_user_agent = ConfigParam(name="api_user_agent", type=str)
         mcp_allowed_tools = ConfigParam(name="mcp_allowed_tools", type=str)
         mcp_allowed_tool_groups = ConfigParam(name="mcp_allowed_tool_groups", type=str)
@@ -575,6 +576,16 @@ class Options:  # pylint: disable=too-many-public-methods
     def ssl_verify_strict(self, value):
         """Set value for strict X.509 SSL verification."""
         self._set_option("ssl_verify_strict", value, allow_clear=False)
+
+    @property
+    def ssl_system_trust_store(self):
+        """Get value for SSL verification against the system trust store."""
+        return self._get_option("ssl_system_trust_store", default=False)
+
+    @ssl_system_trust_store.setter
+    def ssl_system_trust_store(self, value):
+        """Set value for SSL verification against the system trust store."""
+        self._set_option("ssl_system_trust_store", value, allow_clear=False)
 
     @property
     def api_user_agent(self):

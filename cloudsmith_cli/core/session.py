@@ -1,5 +1,6 @@
 """HTTP session creation with retry support."""
 
+import functools
 import socket
 import ssl
 import sys
@@ -156,6 +157,32 @@ def _create_non_strict_ssl_context():
     return disable_x509_strict(create_urllib3_context())
 
 
+def create_system_trust_store_context(verify_strict=True):
+    """Return an SSL context that verifies against the operating system trust store.
+
+    The context also trusts the CA certificates that are loaded into it, for
+    example the certifi bundle or REQUESTS_CA_BUNDLE.
+    """
+    import truststore
+
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.verify_flags = create_urllib3_context().verify_flags
+    if not verify_strict:
+        disable_x509_strict(context)
+    return context
+
+
+def _ssl_context_factory(ssl_verify_strict, ssl_system_trust_store):
+    """Return the factory for custom SSL contexts, or None for the default context."""
+    if ssl_system_trust_store:
+        return functools.partial(
+            create_system_trust_store_context, verify_strict=ssl_verify_strict
+        )
+    if not ssl_verify_strict:
+        return _create_non_strict_ssl_context
+    return None
+
+
 def _sdk_configuration():
     """Return the SDK configuration defaults, or None when the SDK is not loaded.
 
@@ -180,6 +207,7 @@ def create_requests_session(
     maxsize=4,
     ssl_verify=None,
     ssl_verify_strict=None,
+    ssl_system_trust_store=None,
     ssl_cert=None,
     proxy=None,
     session=None,
@@ -212,6 +240,9 @@ def create_requests_session(
     if ssl_verify_strict is None:
         verify_strict = getattr(config, "ssl_verify_strict", None)
         ssl_verify_strict = verify_strict if verify_strict is not None else True
+
+    if ssl_system_trust_store is None:
+        ssl_system_trust_store = bool(getattr(config, "ssl_system_trust_store", False))
 
     if ssl_cert is None and config is not None:
         if config.cert_file and config.key_file:
@@ -249,8 +280,8 @@ def create_requests_session(
         pool_connections=pools_size,
         pool_maxsize=maxsize,
         pool_block=True,
-        ssl_context_factory=(
-            None if ssl_verify_strict else _create_non_strict_ssl_context
+        ssl_context_factory=_ssl_context_factory(
+            ssl_verify_strict, ssl_system_trust_store
         ),
     )
 

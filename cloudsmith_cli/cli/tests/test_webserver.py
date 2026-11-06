@@ -63,6 +63,18 @@ class TestAuthenticationWebServer:
 
         assert mock_init_api.call_args.kwargs["ssl_verify"] is False
 
+    def test_refresh_api_config_keeps_ssl_system_trust_store(self):
+        with patch.object(AuthenticationWebServer, "__init__", lambda *a, **kw: None):
+            server = AuthenticationWebServer.__new__(AuthenticationWebServer)
+            server.sso_access_token = None
+            server.api_opts = cloudsmith_api.Configuration()
+            server.api_opts.ssl_system_trust_store = True
+
+            with patch("cloudsmith_cli.cli.webserver.initialise_api") as mock_init_api:
+                server.refresh_api_config_after_auth()
+
+        assert mock_init_api.call_args.kwargs["ssl_system_trust_store"] is True
+
 
 class TestAuthenticationWebRequestHandlerKeyring:
     """Tests for AuthenticationWebRequestHandler keyring behavior."""

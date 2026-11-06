@@ -80,6 +80,26 @@ def _check_mcp_tls_trust(failed: list) -> None:
         failed.append("mcp TLS trust: CA bundle loaded no certificates")
 
 
+def _check_system_trust_store(failed: list) -> None:
+    """Verify that truststore is bundled and gives a verifying context.
+
+    The CLI imports truststore only when --ssl-system-trust-store is on, so the
+    import sweep does not load it.
+    """
+    import ssl
+
+    from cloudsmith_cli.core.session import create_system_trust_store_context
+
+    try:
+        ctx = create_system_trust_store_context()
+    except ImportError as exc:
+        failed.append(f"system trust store: {exc!r}")
+        return
+
+    if ctx.verify_mode != ssl.CERT_REQUIRED:
+        failed.append(f"system trust store: unexpected verify mode {ctx.verify_mode!r}")
+
+
 def _selftest() -> int:
     """Import every bundled ``cloudsmith_cli`` module; fail on any ImportError.
 
@@ -115,6 +135,7 @@ def _selftest() -> int:
 
     _check_extra_keyring_backends(failed)
     _check_mcp_tls_trust(failed)
+    _check_system_trust_store(failed)
 
     for line in failed:
         print(f"SELFTEST missing: {line}")

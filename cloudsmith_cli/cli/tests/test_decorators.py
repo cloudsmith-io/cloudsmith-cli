@@ -3,6 +3,7 @@ from unittest.mock import patch
 import click
 import click.testing
 import pytest
+import truststore
 
 from ...core import keyring as core_keyring
 from ...core.api.exceptions import ApiException
@@ -158,6 +159,37 @@ def test_without_ssl_verify_strict(
 
 
 @pytest.mark.parametrize(
+    "args,env,config_value,expected",
+    [
+        ([], {}, None, False),
+        (["--ssl-system-trust-store"], {}, None, True),
+        ([], {"CLOUDSMITH_SSL_SYSTEM_TRUST_STORE": "1"}, None, True),
+        ([], {}, "true", True),
+        (["--without-ssl-system-trust-store"], {}, "true", False),
+    ],
+)
+def test_ssl_system_trust_store(
+    args, env, config_value, expected, telemetry_config_dir
+):
+    @click.command()
+    @initialise_session
+    def command(opts):
+        pass
+
+    opts = Options()
+    if config_value is not None:
+        config_file = telemetry_config_dir / "config.ini"
+        config_file.write_text(f"[default]\nssl_system_trust_store={config_value}\n")
+        opts.load_config_file(str(config_file))
+
+    with patch("cloudsmith_cli.core.session.create_requests_session") as create_session:
+        result = click.testing.CliRunner().invoke(command, args, env=env, obj=opts)
+
+    assert result.exit_code == 0, result.output
+    assert create_session.call_args.kwargs["ssl_system_trust_store"] is expected
+
+
+@pytest.mark.parametrize(
     "args,env,configured,expected",
     [
         ([], {}, False, False),
@@ -285,6 +317,26 @@ def test_ssl_verify_reaches_all_transports():
         return_value=None,
     ):
         result = click.testing.CliRunner().invoke(command, ["--without-ssl-verify"])
+    assert result.exit_code == 0, result.output
+
+
+def test_ssl_system_trust_store_env_var_reaches_all_transports():
+    @click.command()
+    @initialise_api
+    def command(opts):
+        assert opts.api_config.ssl_system_trust_store is True
+        with create_requests_session() as session:
+            adapter = session.get_adapter("https://api.example.com/")
+            assert isinstance(adapter.ssl_context_factory(), truststore.SSLContext)
+        assert isinstance(create_ssl_context(opts.api_config), truststore.SSLContext)
+
+    with patch(
+        "cloudsmith_cli.cli.decorators.CredentialProviderChain.resolve",
+        return_value=None,
+    ):
+        result = click.testing.CliRunner().invoke(
+            command, env={"CLOUDSMITH_SSL_SYSTEM_TRUST_STORE": "1"}
+        )
     assert result.exit_code == 0, result.output
 
 

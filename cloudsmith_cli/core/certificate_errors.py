@@ -64,7 +64,9 @@ def classify_certificate_error(exc):
         return CertificateFailure(
             "E_TLS_UNTRUSTED_CA",
             f"The TLS certificate is not from a trusted CA: {reason}.",
-            "If your network uses a TLS-intercepting proxy, set REQUESTS_CA_BUNDLE "
+            "If your network uses a TLS-intercepting proxy, use "
+            "--ssl-system-trust-store or set CLOUDSMITH_SSL_SYSTEM_TRUST_STORE=1 to "
+            "trust the CAs of the operating system. Or set REQUESTS_CA_BUNDLE "
             "to a CA bundle that contains the proxy CA.",
         )
     return CertificateFailure(
