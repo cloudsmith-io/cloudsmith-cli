@@ -888,6 +888,7 @@ def test_maven_install_local_reads_maven_repo_local_of_the_project(
         ("3.9.3", "-Dmaven.repo.local=my repo", "my repo"),
         ("3.9.3", "--define=maven.repo.local=defined", "defined"),
         ("3.9.3", "-D\nmaven.repo.local=next line", "next line"),
+        ("3.9.3", "-D\n\n# comment\nmaven.repo.local=after blank", "after blank"),
         ("3.9.3", "-D maven.repo.local=trimmed", "trimmed"),
         ("3.9.3", "-Dmaven.repo.local=${session.rootDirectory}/root", "root"),
         ("3.9.3", "-Dbase=based\n-Dmaven.repo.local=${base}/repo", "based/repo"),
@@ -925,16 +926,23 @@ def test_maven_install_local_reads_maven_config_like_maven(
     assert _jar(maven_project / repository).exists()
 
 
+@pytest.mark.parametrize(
+    "wrapper_properties",
+    [
+        "distributionUrl=https\\://repo.maven.apache.org/maven2/org/apache/maven"
+        "/apache-maven/3.8.8/apache-maven-3.8.8-bin.zip\n",
+        "distributionUrl=https://mirror.example/apache-maven-3.10.0-bin.zip\n"
+        "  distributionUrl : https://mirror.example/apache-maven-3.8.8-bin.zip\n",
+    ],
+)
 def test_maven_install_local_splits_maven_config_for_the_maven_wrapper(
-    home, fake_repository, maven_project
+    wrapper_properties, home, fake_repository, maven_project
 ):
     """The Maven of .mvn/wrapper, not the mvn on PATH, decides how maven.config is split."""
     wrapper_dir = maven_project / ".mvn" / "wrapper"
     wrapper_dir.mkdir(parents=True)
     (wrapper_dir / "maven-wrapper.properties").write_text(
-        "distributionUrl=https\\://repo.maven.apache.org/maven2/org/apache/maven"
-        "/apache-maven/3.8.8/apache-maven-3.8.8-bin.zip\n",
-        encoding="utf-8",
+        wrapper_properties, encoding="utf-8"
     )
     (maven_project / ".mvn" / "maven.config").write_text(
         "-Dmaven.repo.local=m2 -B\n", encoding="utf-8"

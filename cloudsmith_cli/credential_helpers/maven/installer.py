@@ -45,9 +45,11 @@ _POSIX_JVM_ARGUMENT = re.compile(r"[^ \t\r\n]+")
 _WINDOWS_JVM_ARGUMENT = re.compile(r'(?:[^ \t\r\n"]|"[^"]*"?)+')
 _JAVA_SPLIT_ARGUMENT = re.compile(r"\S+", re.ASCII)
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
-_WRAPPER_MAVEN_VERSION = re.compile(
-    r"^distributionUrl\s*[=:].*/apache-maven/([\w.-]+)/", re.MULTILINE
+_JAVA_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+_WRAPPER_DISTRIBUTION_URL = re.compile(
+    r"^[ \t\f]*distributionUrl(?:[ \t\f]*[=:][ \t\f]*|[ \t\f]+)(.*)$", re.MULTILINE
 )
+_MAVEN_DISTRIBUTION_VERSION = re.compile(r"apache-maven-(\d+\.\d+[\w.-]*?)-bin\.")
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -123,7 +125,8 @@ def _properties(definitions: list[str]) -> dict[str, str]:
 def _wrapper_maven_version(mvn_dir: Path) -> str | None:
     """Return the Maven version that ``mvnw`` downloads, or ``None`` without a wrapper."""
     properties = _read(mvn_dir / "wrapper" / "maven-wrapper.properties")
-    match = _WRAPPER_MAVEN_VERSION.search(properties) if properties else None
+    urls = _WRAPPER_DISTRIBUTION_URL.findall(properties) if properties else []
+    match = _MAVEN_DISTRIBUTION_VERSION.search(urls[-1]) if urls else None
     return match.group(1) if match else None
 
 
@@ -140,7 +143,11 @@ def _maven_config_repo_local(
     maven_config = _read(maven_config_file)
     if not maven_config:
         return None
-    arguments = maven_config.splitlines()
+    arguments = [
+        line
+        for line in _JAVA_LINE_BREAK.split(maven_config)
+        if line and not line.startswith("#")
+    ]
     version = _wrapper_maven_version(mvn_dir) or _maven_version()
     if version and _major_minor(version) < FIRST_MAVEN_WITH_ONE_ARGUMENT_PER_LINE:
         arguments = _JAVA_SPLIT_ARGUMENT.findall(maven_config)
