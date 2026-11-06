@@ -635,6 +635,8 @@ def initialise_session(f):
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
 
+        validators.validate_url("api_host", opts.api_host)
+        validators.validate_url("proxy", opts.proxy)
         _guard_untrusted_endpoints(
             ctx, opts, host_suffixes, proxy_suffixes, proxy_trusted=proxy_from_alias
         )
