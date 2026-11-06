@@ -119,6 +119,13 @@ def _reported_repository(mvn: str, cwd: Path) -> Path | None:
     return Path(match.group(1)) if match else None
 
 
+def _repository_outside_projects(mvn: str, cwd: Path) -> Path | None:
+    """Return the local repository that Maven reports in ``cwd``, with no project config."""
+    # The mvn script looks for .mvn in the parent directories when there is none here.
+    (cwd / ".mvn").mkdir()
+    return _reported_repository(mvn, cwd)
+
+
 def _local_repository(local: bool) -> Path:
     """Return the local repository that Maven reports, or ``~/.m2/repository``.
 
@@ -131,7 +138,7 @@ def _local_repository(local: bool) -> Path:
         repository = _reported_repository(mvn, maven_tools.current_dir())
     elif mvn:
         repository = maven_tools.ask_outside_projects(
-            partial(_reported_repository, mvn),
+            partial(_repository_outside_projects, mvn),
             "The local repository of Maven is a relative path, so each build looks "
             "for the extension in its own directory. Set an absolute path for the "
             "local repository, or run "

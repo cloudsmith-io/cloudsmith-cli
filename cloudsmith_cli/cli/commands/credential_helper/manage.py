@@ -25,9 +25,9 @@ from cloudsmith_cli.credential_helpers.maven.installer import (
     MavenrcNotSupported,
 )
 from cloudsmith_cli.credential_helpers.maven_tools import (
+    BuildToolError,
     ConfigFileConflict,
     ProjectNotFound,
-    RelativeConfigPath,
 )
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
@@ -452,7 +452,7 @@ def install_cmd(
         ConfigFileConflict,
         UnsafeLauncherValue,
         MavenrcNotSupported,
-        RelativeConfigPath,
+        BuildToolError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -557,7 +557,7 @@ def uninstall_cmd(
         ConfigFileParseError,
         ProjectNotFound,
         ConfigFileConflict,
-        RelativeConfigPath,
+        BuildToolError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:

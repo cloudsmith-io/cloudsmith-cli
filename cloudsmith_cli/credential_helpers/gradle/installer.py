@@ -36,6 +36,8 @@ _USER_HOME_LINE = re.compile(r"^CLOUDSMITH_GRADLE_USER_HOME=(.+)$", re.MULTILINE
 
 def _reported_user_home(gradle: str, cwd: Path) -> Path | None:
     """Return the Gradle user home that an init script prints when Gradle runs in ``cwd``."""
+    # Gradle looks for a settings file in the parent directories when there is none here.
+    (cwd / "settings.gradle").write_text("", encoding="utf-8")
     probe = cwd / "probe.init.gradle"
     probe.write_text(_PROBE_INIT_SCRIPT, encoding="utf-8")
     output = maven_tools.tool_output(

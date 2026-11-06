@@ -12,6 +12,8 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -29,7 +31,7 @@ from ...credential_helpers.maven.installer import MavenInstaller, MavenrcNotSupp
 from ...credential_helpers.maven_tools import (
     ConfigFileConflict,
     ProjectNotFound,
-    RelativeConfigPath,
+    BuildToolError,
 )
 from ...credential_helpers.sbt.installer import SbtInstaller
 
@@ -862,6 +864,36 @@ def test_tool_output_has_stdout_and_stderr_without_colors(tool_runs):
     assert sorted(output.split()) == ["DEBUG", "err", "out"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Checks a process ID with os.kill")
+# The parameter replaces the autouse fake, so the real tool_output runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_tool_output_stops_the_tool_and_its_children_at_the_timeout(
+    tool_runs, tmp_path, monkeypatch
+):
+    """A launcher script starts a JVM, so a timeout stops the child too, and the command fails."""
+    monkeypatch.setattr(maven_tools, "TOOL_TIMEOUT_SECONDS", 2)
+    pid_file = tmp_path / "child.pid"
+    script = (
+        "import pathlib, subprocess, sys, time\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))\n"
+        "time.sleep(60)\n"
+    )
+
+    with pytest.raises(BuildToolError, match="did not finish"):
+        maven_tools.tool_output([sys.executable, "-c", script])
+
+    child_pid = int(pid_file.read_text())
+    for _ in range(50):
+        try:
+            os.kill(child_pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail(f"process {child_pid} still runs")
+
+
 @pytest.mark.parametrize("relative_path", ["repo", ".", "../repo"])
 def test_maven_install_with_a_relative_local_repository_fails(
     relative_path, home, fake_repository, outside_projects, monkeypatch
@@ -877,7 +909,7 @@ def test_maven_install_with_a_relative_local_repository_fails(
         ),
     )
 
-    with pytest.raises(RelativeConfigPath):
+    with pytest.raises(BuildToolError):
         MavenInstaller().install()
 
     assert not fake_repository
@@ -947,8 +979,14 @@ def test_maven_install_asks_the_maven_that_the_build_uses(
 def test_maven_install_uses_the_local_repository_of_the_real_maven(
     tool_runs, home, fake_repository, outside_projects, tmp_path, monkeypatch
 ):
-    """The real mvn reports the repository in a line that the installer finds, on stderr too."""
+    """The real mvn reports the repository on stderr too, and a project around the temporary directory does not count."""
     _skip_unless_it_runs("mvn")
+    project = tmp_path / "project"
+    (project / ".mvn").mkdir(parents=True)
+    (project / ".mvn" / "maven.config").write_text(
+        f"-Dmaven.repo.local={tmp_path / 'project-repo'}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(tempfile, "tempdir", str(project))
     monkeypatch.setenv(
         "MAVEN_OPTS",
         f"-Dmaven.repo.local={tmp_path / 'repo'}"
@@ -1572,7 +1610,7 @@ def test_cli_with_a_relative_tool_path_fails_cleanly(
     monkeypatch.setattr(
         maven_tools,
         "tool_output",
-        lambda command, cwd=None: f"CLOUDSMITH_GRADLE_USER_HOME={cwd / 'rel'}\n",
+        lambda command, cwd: f"CLOUDSMITH_GRADLE_USER_HOME={cwd / 'rel'}\n",
     )
 
     result = _invoke(command_name, ["gradle"])

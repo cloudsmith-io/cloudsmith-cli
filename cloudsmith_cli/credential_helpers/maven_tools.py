@@ -13,6 +13,7 @@ import contextlib
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import tempfile
@@ -21,6 +22,7 @@ from typing import TYPE_CHECKING
 from xml.etree import ElementTree
 
 from ..core.session import create_requests_session
+from .launchers import is_windows
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -52,25 +54,47 @@ class ConfigFileConflict(Exception):
     """The config file has content that the installer did not write."""
 
 
-class RelativeConfigPath(Exception):
-    """The build tool reports a path that changes with the directory of the build."""
+class BuildToolError(Exception):
+    """The build tool did not report a path that every build uses."""
+
+
+def _stop(process: subprocess.Popen[str]) -> None:
+    """Stop the tool and the processes that it started, such as the JVM of a launcher script."""
+    if is_windows():
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        os.killpg(process.pid, signal.SIGKILL)
+    process.wait()
 
 
 def tool_output(command: list[str], cwd: Path | None = None) -> str:
     """Return what the build tool prints, without colors, or an empty string when it does not run."""
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            timeout=TOOL_TIMEOUT_SECONDS,
-            check=False,
+            errors="replace",
+            start_new_session=True,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError:
         return ""
-    return _ANSI_ESCAPE.sub("", result.stdout)
+    with process:
+        try:
+            output, _ = process.communicate(timeout=TOOL_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired as exc:
+            _stop(process)
+            raise BuildToolError(
+                f"{Path(command[0]).name} did not finish in {TOOL_TIMEOUT_SECONDS} "
+                "seconds. Make sure that it runs, and then run the command again."
+            ) from exc
+    return _ANSI_ESCAPE.sub("", output)
 
 
 def ask_outside_projects(
@@ -88,7 +112,7 @@ def ask_outside_projects(
         answer = ask(Path(empty_dir))
         nested_answer = ask(nested_dir) if answer else None
     if nested_answer and nested_answer != answer:
-        raise RelativeConfigPath(relative_message)
+        raise BuildToolError(relative_message)
     return nested_answer
 
 
