@@ -864,11 +864,13 @@ def test_maven_install_with_mavenrc_adds_a_block(
     assert not _user_extensions(home).exists()
 
 
-@pytest.mark.parametrize(("separator", "refused"), [(" ", True), ("\u00a0", False)])
-def test_maven_install_with_mavenrc_refuses_a_jar_path_with_a_space(
+@pytest.mark.parametrize(
+    ("separator", "refused"), [(" ", True), (os.pathsep, True), ("\u00a0", False)]
+)
+def test_maven_install_with_mavenrc_refuses_a_jar_path_that_mvn_would_split(
     separator, refused, tmp_path, monkeypatch, fake_repository, outside_projects
 ):
-    """mvn splits MAVEN_OPTS at spaces, so the JAR path would break every build."""
+    """mvn splits MAVEN_OPTS at spaces and Java splits the class path, so the JAR path would break every build."""
     home = tmp_path / f"John{separator}Smith"
     home.mkdir()
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))

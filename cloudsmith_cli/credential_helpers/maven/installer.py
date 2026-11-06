@@ -14,6 +14,7 @@ the extension in one of these files:
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 import shutil
 import subprocess
@@ -199,10 +200,11 @@ class MavenInstaller:
             )
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
-        if mavenrc and any(char in " \t\n" for char in str(jar)):
+        if mavenrc and any(char in f" \t\n{os.pathsep}" for char in str(jar)):
             raise MavenrcNotSupported(
-                "The mvn script splits MAVEN_OPTS at spaces, so it cannot load "
-                f"{jar}. {INSTEAD_OF_MAVENRC}"
+                "The mvn script splits MAVEN_OPTS at spaces and Java splits the "
+                f"class path at {os.pathsep}, so they cannot load {jar}. "
+                f"{INSTEAD_OF_MAVENRC}"
             )
         actions = self._download(version, dry_run, session)
         if mavenrc:
