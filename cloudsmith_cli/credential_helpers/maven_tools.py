@@ -14,6 +14,8 @@ import os
 import re
 import shutil
 import stat
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
@@ -21,10 +23,14 @@ from xml.etree import ElementTree
 from ..core.session import create_requests_session
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import requests
 
 REPOSITORY_URL = "https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/"
 TIMEOUT_SECONDS = 30
+TOOL_TIMEOUT_SECONDS = 60
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 class ProjectNotFound(Exception):
@@ -44,6 +50,46 @@ def current_dir() -> Path:
 
 class ConfigFileConflict(Exception):
     """The config file has content that the installer did not write."""
+
+
+class RelativeConfigPath(Exception):
+    """The build tool reports a path that changes with the directory of the build."""
+
+
+def tool_output(command: list[str], cwd: Path | None = None) -> str:
+    """Return what the build tool prints, without colors, or an empty string when it does not run."""
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=TOOL_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return _ANSI_ESCAPE.sub("", result.stdout)
+
+
+def ask_outside_projects(
+    ask: Callable[[Path], Path | None], relative_message: str
+) -> Path | None:
+    """Return the path that *ask* gets from the build tool in an empty directory.
+
+    The tool runs again in a subdirectory. A different answer means a relative
+    path, which changes with the directory of each build. No second answer means
+    that the tool failed.
+    """
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as empty_dir:
+        nested_dir = Path(empty_dir) / "nested"
+        nested_dir.mkdir()
+        answer = ask(Path(empty_dir))
+        nested_answer = ask(nested_dir) if answer else None
+    if nested_answer and nested_answer != answer:
+        raise RelativeConfigPath(relative_message)
+    return nested_answer
 
 
 def _get(artifact_path: str, session: requests.Session | None) -> bytes:
@@ -117,6 +163,10 @@ class ConfigFileInstaller:
         """Return the config file that loads the plugin for the current project."""
         raise NotImplementedError
 
+    def tool_path(self) -> Path:
+        """Return the config file for every build where the build tool reports it."""
+        return self.path()
+
     def render(self, version: str) -> str:
         """Return the content of the config file for *version*."""
         raise NotImplementedError
@@ -148,7 +198,7 @@ class ConfigFileInstaller:
         session: requests.Session | None = None,
         **_options,
     ) -> list[str]:
-        path = self.local_path() if local else self.path()
+        path = self.local_path() if local else self.tool_path()
         version = latest_version(self.artifact_path, session)
         text = self.render(version)
         if self._read_own_file(path) == text:
@@ -162,7 +212,7 @@ class ConfigFileInstaller:
     def uninstall(
         self, *, dry_run: bool = False, local: bool = False, **_options
     ) -> list[str]:
-        path = self.local_path() if local else self.path()
+        path = self.local_path() if local else self.tool_path()
         if self._read_own_file(path) is None:
             return [f"{path} not found (nothing to remove)"]
         if dry_run:

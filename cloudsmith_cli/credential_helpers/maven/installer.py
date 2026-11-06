@@ -17,8 +17,6 @@ import contextlib
 import os
 import re
 import shutil
-import subprocess
-import tempfile
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -36,12 +34,10 @@ if TYPE_CHECKING:
 
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
-MAVEN_VERSION_TIMEOUT_SECONDS = 60
 _LOCAL_REPOSITORY_LOG = re.compile(
     r"^\[DEBUG\] Using manager \S+ with priority \S+ for (.+)$", re.MULTILINE
 )
 _UNKNOWN_PHASE = "cloudsmith-local-repository-probe"
-_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -51,10 +47,6 @@ INSTEAD_OF_MAVENRC = (
 
 class MavenrcNotSupported(Exception):
     """Raised when the ``mvn`` script cannot load the extension from ``~/.mavenrc``."""
-
-
-class RelativeLocalRepository(Exception):
-    """Raised when the local repository of Maven changes with the directory of the build."""
 
 
 def _project_dir() -> Path:
@@ -96,29 +88,14 @@ def _read(path: Path) -> str | None:
     return path.read_text(encoding="utf-8", errors="surrogateescape")
 
 
-def _maven_output(command: list[str], cwd: Path | None = None) -> str:
-    """Return what the Maven command prints, or an empty string when it does not run."""
-    try:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=MAVEN_VERSION_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return ""
-    return result.stdout
-
-
 def _maven_version() -> str | None:
     """Return the version that ``mvn -v`` reports, or ``None`` when there is none."""
     mvn = shutil.which("mvn")
     if not mvn:
         return None
-    match = re.search(r"Apache Maven (\d+(?:\.\d+)+)", _maven_output([mvn, "-v"]))
+    match = re.search(
+        r"Apache Maven (\d+(?:\.\d+)+)", maven_tools.tool_output([mvn, "-v"])
+    )
     return match.group(1) if match else None
 
 
@@ -137,8 +114,8 @@ def _reported_repository(mvn: str, cwd: Path) -> Path | None:
     Maven logs the repository, then stops on a phase that does not exist before it
     runs a plugin, also for a default goal or goals in ``MAVEN_ARGS``.
     """
-    output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
-    match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
+    output = maven_tools.tool_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
+    match = _LOCAL_REPOSITORY_LOG.search(output)
     return Path(match.group(1)) if match else None
 
 
@@ -146,28 +123,20 @@ def _local_repository(local: bool) -> Path:
     """Return the local repository that Maven reports, or ``~/.m2/repository``.
 
     With ``local``, Maven runs in the current directory, as a build from there does.
-    Without ``local``, Maven runs in two empty directories to skip the project ``.mvn``.
-    Two different answers mean that the path is relative.
+    Without ``local``, Maven runs outside projects to skip the project ``.mvn``.
     """
     mvn = _maven_executable(local)
     repository = None
     if mvn and local:
         repository = _reported_repository(mvn, maven_tools.current_dir())
     elif mvn:
-        with tempfile.TemporaryDirectory() as empty_dir:
-            nested_dir = Path(empty_dir) / "nested"
-            nested_dir.mkdir()
-            repository = _reported_repository(mvn, Path(empty_dir))
-            nested_repository = repository and _reported_repository(mvn, nested_dir)
-            if nested_repository and nested_repository != repository:
-                raise RelativeLocalRepository(
-                    "The local repository of Maven is a relative path, so each build "
-                    "looks for the extension in its own directory. Set an absolute "
-                    "path for the local repository, or run "
-                    "`cloudsmith credential-helper install maven --local` in each "
-                    "project."
-                )
-            repository = nested_repository
+        repository = maven_tools.ask_outside_projects(
+            partial(_reported_repository, mvn),
+            "The local repository of Maven is a relative path, so each build looks "
+            "for the extension in its own directory. Set an absolute path for the "
+            "local repository, or run "
+            "`cloudsmith credential-helper install maven --local` in each project.",
+        )
     return repository or Path.home() / ".m2" / "repository"
 
 
