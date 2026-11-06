@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import re
-import shutil
-from functools import partial
 from pathlib import Path
 
 from .. import maven_tools
@@ -33,36 +31,29 @@ cloudsmithGlobalPlugins := {
 _GLOBAL_PLUGINS_LINE = re.compile(r"^CLOUDSMITH_SBT_GLOBAL_PLUGINS=(.+)$", re.MULTILINE)
 
 
-def _reported_global_plugins(sbt: str, cwd: Path) -> Path | None:
-    """Return the global plugins directory that sbt 1 prints when it runs in ``cwd``."""
-    (cwd / "build.sbt").write_text(_PROBE_BUILD, encoding="utf-8")
-    output = maven_tools.tool_output(
-        [sbt, "-batch", "-no-colors", "cloudsmithGlobalPlugins"], cwd
-    )
-    match = _GLOBAL_PLUGINS_LINE.search(output)
-    return Path(match.group(1)) if match else None
-
-
 class SbtInstaller(ConfigFileInstaller):
     name = "sbt"
     summary = "sbt plugin that gets credentials from the Cloudsmith CLI"
     artifact_path = "io/cloudsmith/sbt-cloudsmith_2.12_1.0"
+    tool = "sbt"
+    reported = "global plugins directory"
+    relative_message = (
+        "The global base of sbt is a relative path, so each build looks for the "
+        "plugin in its own directory. Set an absolute path for sbt.global.base, or "
+        "run `cloudsmith credential-helper install sbt --local` in each project."
+    )
 
     def path(self) -> Path:
         return Path.home() / ".sbt" / "1.0" / "plugins" / "cloudsmith.sbt"
 
-    def tool_path(self) -> Path:
-        """Return the plugin file in the global plugins directory that ``sbt`` reports."""
-        sbt = shutil.which("sbt")
-        if sbt is None:
-            return self.path()
-        global_plugins = maven_tools.ask_outside_projects(
-            partial(_reported_global_plugins, sbt),
-            "The global base of sbt is a relative path, so each build looks for the "
-            "plugin in its own directory. Set an absolute path for sbt.global.base, "
-            "or run `cloudsmith credential-helper install sbt --local` in each project.",
+    def reported_path(self, executable: str, cwd: Path) -> Path | None:
+        """Return the plugin file in the global plugins directory that sbt 1 prints."""
+        (cwd / "build.sbt").write_text(_PROBE_BUILD, encoding="utf-8")
+        output = maven_tools.tool_output(
+            [executable, "-batch", "-no-colors", "cloudsmithGlobalPlugins"], cwd
         )
-        return global_plugins / "cloudsmith.sbt" if global_plugins else self.path()
+        match = _GLOBAL_PLUGINS_LINE.search(output)
+        return Path(match.group(1)) / "cloudsmith.sbt" if match else None
 
     def local_path(self) -> Path:
         # sbt loads every .sbt file in project/, so the build's own files stay as they are.

@@ -119,32 +119,32 @@ def _reported_repository(mvn: str, cwd: Path) -> Path | None:
     return Path(match.group(1)) if match else None
 
 
-def _repository_outside_projects(mvn: str, cwd: Path) -> Path | None:
-    """Return the local repository that Maven reports in ``cwd``, with no project config."""
-    # The mvn script looks for .mvn in the parent directories when there is none here.
-    (cwd / ".mvn").mkdir()
-    return _reported_repository(mvn, cwd)
-
-
-def _local_repository(local: bool) -> Path:
-    """Return the local repository that Maven reports, or ``~/.m2/repository``.
+def _local_repository(local: bool) -> tuple[Path, list[str]]:
+    """Return the local repository that Maven reports, or ``~/.m2/repository``, and any warning.
 
     With ``local``, Maven runs in the current directory, as a build from there does.
     Without ``local``, Maven runs outside projects to skip the project ``.mvn``.
     """
+    default = Path.home() / ".m2" / "repository"
     mvn = _maven_executable(local)
-    repository = None
-    if mvn and local:
+    if mvn is None:
+        return default, []
+    if local:
         repository = _reported_repository(mvn, maven_tools.current_dir())
-    elif mvn:
+    else:
         repository = maven_tools.ask_outside_projects(
-            partial(_repository_outside_projects, mvn),
+            partial(_reported_repository, mvn),
             "The local repository of Maven is a relative path, so each build looks "
             "for the extension in its own directory. Set an absolute path for the "
             "local repository, or run "
             "`cloudsmith credential-helper install maven --local` in each project.",
         )
-    return repository or Path.home() / ".m2" / "repository"
+    if repository is None:
+        tool = Path(mvn).name
+        return default, [
+            maven_tools.no_answer_warning(tool, "local repository", default)
+        ]
+    return repository, []
 
 
 def _old_maven_warning() -> list[str]:
@@ -240,7 +240,7 @@ class MavenInstaller:
             raise MavenrcNotSupported(
                 f"mvn.cmd on Windows does not read ~/.mavenrc. {INSTEAD_OF_MAVENRC}"
             )
-        repository = _local_repository(local)
+        repository, actions = _local_repository(local)
         version = maven_tools.latest_version(EXTENSION_PATH, session)
         version_dir = _version_dir(repository, version)
         jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"
@@ -250,7 +250,7 @@ class MavenInstaller:
                 f"class path at {os.pathsep}, so they cannot load {jar}. "
                 f"{INSTEAD_OF_MAVENRC}"
             )
-        actions = self._download(version_dir, version, dry_run, session)
+        actions += self._download(version_dir, version, dry_run, session)
         if mavenrc:
             return (
                 actions

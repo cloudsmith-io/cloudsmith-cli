@@ -100,14 +100,20 @@ def fake_repository(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def tool_runs(monkeypatch):
-    """Run as if each build tool reports nothing, and record each command."""
+    """Run as if no build tool is on PATH, and as if each one reports nothing."""
     commands = []
+    which = shutil.which
 
     def fake_output(command, cwd=None):
         commands.append((command, cwd))
         return ""
 
     monkeypatch.setattr(maven_tools, "tool_output", fake_output)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: None if name in ("mvn", "gradle", "sbt") else which(name),
+    )
     return commands
 
 
@@ -924,9 +930,46 @@ def test_maven_install_without_a_second_answer_from_maven_uses_the_default(
         maven_tools, "tool_output", lambda command, cwd=None: next(outputs)
     )
 
-    MavenInstaller().install()
+    actions = MavenInstaller().install()
 
     assert _jar(home / ".m2" / "repository").exists()
+    assert actions[0].startswith("WARNING: mvn did not report its local repository")
+
+
+@pytest.mark.parametrize(
+    ("installer", "tool"), [(GradleInstaller, "gradle"), (SbtInstaller, "sbt")]
+)
+def test_install_warns_when_the_build_tool_reports_nothing(
+    installer, tool, home, fake_repository, monkeypatch
+):
+    """A build tool on PATH that reports nothing gets the default location and a warning."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+
+    actions = installer().install()
+
+    assert actions[0] == (
+        f"WARNING: {tool} did not report its {installer.reported}, "
+        f"so the command uses {installer().path()}."
+    )
+    assert installer().path().exists()
+
+
+# The parameter replaces the autouse fake, so the real tool_output runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_tool_output_runs_a_tool_on_a_relative_path_in_another_directory(
+    tool_runs, tmp_path, monkeypatch
+):
+    """PATH can have a relative directory, so the tool path does not depend on cwd."""
+    monkeypatch.chdir(Path(sys.executable).parent)
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+
+    output = maven_tools.tool_output(
+        [os.path.join(".", Path(sys.executable).name), "-c", "print('ran')"],
+        other_dir,
+    )
+
+    assert output.strip() == "ran"
 
 
 @pytest.mark.parametrize(
