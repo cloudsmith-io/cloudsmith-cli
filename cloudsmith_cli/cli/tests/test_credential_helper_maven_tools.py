@@ -814,16 +814,17 @@ def test_maven_install_marks_the_files_as_installed(
     )
 
 
+@pytest.mark.parametrize("level", ["[DEBUG]", "[\x1b[1;36mDEBUG\x1b[m]"])
 def test_maven_install_uses_the_local_repository_that_maven_reports(
-    home, fake_repository, outside_projects, monkeypatch
+    level, home, fake_repository, outside_projects, monkeypatch
 ):
-    """The JAR goes in the repository from the debug output of Maven, and --mavenrc loads it there."""
+    """The JAR goes in the repository from the debug output of Maven, in color too, and --mavenrc loads it there."""
     monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
     monkeypatch.setattr(
         maven_installer,
         "_maven_output",
         lambda command, cwd=None: (
-            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f"{level} Using manager EnhancedLocalRepositoryManager"
             f" with priority 10.0 for {home / 'repo'}\n"
         ),
     )

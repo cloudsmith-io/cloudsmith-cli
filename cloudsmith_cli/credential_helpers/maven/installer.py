@@ -41,6 +41,7 @@ _LOCAL_REPOSITORY_LOG = re.compile(
     r"^\[DEBUG\] Using manager \S+ with priority \S+ for (.+)$", re.MULTILINE
 )
 _UNKNOWN_PHASE = "cloudsmith-local-repository-probe"
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -139,7 +140,7 @@ def _local_repository(local: bool) -> Path:
         with tempfile.TemporaryDirectory() as empty_dir:
             cwd = _project_dir() if local else Path(empty_dir)
             output = _maven_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
-    match = _LOCAL_REPOSITORY_LOG.search(output)
+    match = _LOCAL_REPOSITORY_LOG.search(_ANSI_ESCAPE.sub("", output))
     if match is None:
         return Path.home() / ".m2" / "repository"
     return Path(match.group(1))
