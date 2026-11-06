@@ -14,6 +14,7 @@ the extension in one of these files:
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 import shutil
 import subprocess
@@ -22,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .. import maven_tools
+from ..launchers import is_windows
 from ..maven_tools import ProjectNotFound
 from . import extensions
 from .mavenrc import add_block, has_block, remove_block
@@ -34,6 +36,15 @@ if TYPE_CHECKING:
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
 MAVEN_VERSION_TIMEOUT_SECONDS = 60
+INSTEAD_OF_MAVENRC = (
+    "Run `cloudsmith credential-helper install maven --local` in each project "
+    "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
+    "`cloudsmith credential-helper install maven`."
+)
+
+
+class MavenrcNotSupported(Exception):
+    """Raised when the ``mvn`` script cannot load the extension from ``~/.mavenrc``."""
 
 
 def _project_dir() -> Path:
@@ -104,10 +115,13 @@ def _old_maven_warning() -> list[str]:
     warning = (
         f"WARNING: Maven {version} ignores {_user_extensions_file()}. "
         "Maven 3.10 and later read it. For this Maven, run "
-        "`cloudsmith credential-helper install maven --local` in each project, "
-        "or run `cloudsmith credential-helper install maven --mavenrc` once."
+        "`cloudsmith credential-helper install maven --local` in each project"
     )
-    return [warning]
+    if not is_windows():
+        warning += (
+            ", or run `cloudsmith credential-helper install maven --mavenrc` once"
+        )
+    return [f"{warning}."]
 
 
 def _mark_installed(version_dir: Path, file_names: list[str]) -> None:
@@ -180,10 +194,20 @@ class MavenInstaller:
     ) -> list[str]:
         """Put the extension in ``~/.m2/repository`` and turn it on."""
         project_file = _project_extensions_file() if local else None
+        if mavenrc and is_windows():
+            raise MavenrcNotSupported(
+                f"mvn.cmd on Windows does not read ~/.mavenrc. {INSTEAD_OF_MAVENRC}"
+            )
         version = maven_tools.latest_version(EXTENSION_PATH, session)
+        jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
+        if mavenrc and any(char in f" \t\n{os.pathsep}" for char in str(jar)):
+            raise MavenrcNotSupported(
+                "The mvn script splits MAVEN_OPTS at spaces and Java splits the "
+                f"class path at {os.pathsep}, so they cannot load {jar}. "
+                f"{INSTEAD_OF_MAVENRC}"
+            )
         actions = self._download(version, dry_run, session)
         if mavenrc:
-            jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
             return (
                 actions
                 + _add(_mavenrc_file(), partial(add_block, jar=jar), version, dry_run)
