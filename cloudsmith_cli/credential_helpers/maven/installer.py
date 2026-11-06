@@ -158,7 +158,8 @@ def _local_repository(local: bool) -> Path:
             nested_dir = Path(empty_dir) / "nested"
             nested_dir.mkdir()
             repository = _reported_repository(mvn, Path(empty_dir))
-            if repository and repository != _reported_repository(mvn, nested_dir):
+            nested_repository = repository and _reported_repository(mvn, nested_dir)
+            if nested_repository and nested_repository != repository:
                 raise RelativeLocalRepository(
                     "The local repository of Maven is a relative path, so each build "
                     "looks for the extension in its own directory. Set an absolute "
@@ -166,6 +167,7 @@ def _local_repository(local: bool) -> Path:
                     "`cloudsmith credential-helper install maven --local` in each "
                     "project."
                 )
+            repository = nested_repository
     return repository or Path.home() / ".m2" / "repository"
 
 

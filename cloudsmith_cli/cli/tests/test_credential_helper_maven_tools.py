@@ -861,6 +861,27 @@ def test_maven_install_with_a_relative_local_repository_fails(
     assert not fake_repository
 
 
+def test_maven_install_without_a_second_answer_from_maven_uses_the_default(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """When the second Maven run reports nothing, the install uses ~/.m2/repository."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    outputs = iter(
+        [
+            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f" with priority 10.0 for {home / 'repo'}\n",
+            "",
+        ]
+    )
+    monkeypatch.setattr(
+        maven_installer, "_maven_output", lambda command, cwd=None: next(outputs)
+    )
+
+    MavenInstaller().install()
+
+    assert _jar(home / ".m2" / "repository").exists()
+
+
 @pytest.mark.parametrize(
     ("local", "wrapper"),
     [(False, True), (True, False), (True, True)],
