@@ -49,7 +49,7 @@ _JAVA_LINE_BREAK = re.compile(r"\r\n|\r|\n")
 _WRAPPER_DISTRIBUTION_URL = re.compile(
     r"^[ \t\f]*distributionUrl(?:[ \t\f]*[=:][ \t\f]*|[ \t\f]+)(.*)$", re.MULTILINE
 )
-_MAVEN_DISTRIBUTION_VERSION = re.compile(r"apache-maven-(\d+\.\d+[\w.-]*?)-bin\.")
+_MAVEN_DISTRIBUTION_VERSION = re.compile(r"apache-maven-(\d+(?:\.\d+)+)[\w.-]*?-bin\.")
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -241,7 +241,7 @@ def _settings_local_repository() -> str | None:
         return None
     try:
         root = ElementTree.parse(settings_file).getroot()
-    except (ElementTree.ParseError, LookupError) as exc:
+    except (ElementTree.ParseError, LookupError, ValueError) as exc:
         raise ConfigFileParseError(
             f"Cannot parse {settings_file} as XML: {exc}. {_FIX_CONFIG_FILE_HINT}"
         ) from exc

@@ -940,6 +940,7 @@ def test_maven_install_local_reads_maven_config_like_maven(
         "/apache-maven/3.8.8/apache-maven-3.8.8-bin.zip\n",
         "distributionUrl=https://mirror.example/apache-maven-3.10.0-bin.zip\n"
         "  distributionUrl : https://mirror.example/apache-maven-3.8.8-bin.zip\n",
+        "distributionUrl=https://mirror.example/apache-maven-3.0-beta-3-bin.zip\n",
     ],
 )
 def test_maven_install_local_splits_maven_config_for_the_maven_wrapper(
@@ -977,13 +978,14 @@ def test_maven_install_with_unusable_settings_fails(
     assert not fake_repository
 
 
-def test_maven_install_with_an_unknown_settings_encoding_fails(
-    home, fake_repository, outside_projects
+@pytest.mark.parametrize("encoding", ["unknown", "Shift_JIS"])
+def test_maven_install_with_an_unsupported_settings_encoding_fails(
+    encoding, home, fake_repository, outside_projects
 ):
-    """A settings file with an encoding that Python does not know stops the install."""
+    """A settings file with an encoding that ElementTree cannot read stops the install."""
     settings = home / ".m2" / "settings.xml"
     settings.parent.mkdir()
-    settings.write_text('<?xml version="1.0" encoding="unknown"?>\n<settings/>\n')
+    settings.write_text(f'<?xml version="1.0" encoding="{encoding}"?>\n<settings/>\n')
 
     with pytest.raises(ConfigFileParseError, match=re.escape(str(settings))):
         MavenInstaller().install()
