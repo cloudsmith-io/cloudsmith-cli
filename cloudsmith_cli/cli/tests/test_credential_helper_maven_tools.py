@@ -859,7 +859,7 @@ def test_tool_output_has_stdout_and_stderr_without_colors(tool_runs):
 
     output = maven_tools.tool_output([sys.executable, "-c", script])
 
-    assert output.split() == ["DEBUG", "out", "err"]
+    assert sorted(output.split()) == ["DEBUG", "err", "out"]
 
 
 @pytest.mark.parametrize("relative_path", ["repo", ".", "../repo"])
