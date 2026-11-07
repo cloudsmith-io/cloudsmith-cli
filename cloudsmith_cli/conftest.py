@@ -155,16 +155,24 @@ def usage_events(monkeypatch, telemetry_config_dir, blocked_usage_posts):  # pyl
     ci_names = [name for _, names in environment._CI_PROVIDERS for name in names] + [
         "KUBERNETES_SERVICE_HOST"
     ]
-    for name in ci_names + [
-        "CLOUDSMITH_TELEMETRY",
-        "CLOUDSMITH_TELEMETRY_CI_SAMPLE_RATE",
-        "CLOUDSMITH_TELEMETRY_INSTALL_ID",
-        "CLOUDSMITH_TELEMETRY_POSTHOG_HOST",
-        "CLOUDSMITH_TELEMETRY_INTERNAL",
-        "CLOUDSMITH_API_HOST",
-        "CLOUDSMITH_SSL_VERIFY",
-        "CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
-    ]:
+    # Tests may themselves run under an AI agent, which sets these.
+    agent_names = [
+        name for _, names in environment._AGENT_MARKERS for name in names
+    ] + [environment.AI_AGENT_ENV]
+    for name in (
+        ci_names
+        + agent_names
+        + [
+            "CLOUDSMITH_TELEMETRY",
+            "CLOUDSMITH_TELEMETRY_CI_SAMPLE_RATE",
+            "CLOUDSMITH_TELEMETRY_INSTALL_ID",
+            "CLOUDSMITH_TELEMETRY_POSTHOG_HOST",
+            "CLOUDSMITH_TELEMETRY_INTERNAL",
+            "CLOUDSMITH_API_HOST",
+            "CLOUDSMITH_SSL_VERIFY",
+            "CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
+        ]
+    ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CLOUDSMITH_TELEMETRY_POSTHOG_KEY", "phc_test")
     # Later tests that call the real main() must never run the update check's
