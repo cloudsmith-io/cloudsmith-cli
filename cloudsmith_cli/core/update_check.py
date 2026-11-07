@@ -434,7 +434,12 @@ def _finish_and_notify(
     interactive run can still speak.
     """
     if thread is not None:
-        thread.join(BACKGROUND_JOIN_TIMEOUT_SECONDS)
+        from .telemetry_common import WaitBudget
+
+        budget = WaitBudget.shared()
+        started = time.monotonic()
+        thread.join(min(BACKGROUND_JOIN_TIMEOUT_SECONDS, budget.remaining()))
+        budget.spend(time.monotonic() - started)
     if notice_suppressed(getattr(opts, "output", None), invoked):
         return
     state = read_cached_state()
