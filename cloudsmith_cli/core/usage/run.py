@@ -32,12 +32,29 @@ def _excluded(command):
 
 
 def _load_deferred_sources(facts):
-    """Merge config-file setting sources in; Click flag/env sources win."""
+    """Merge config-file setting sources in; Click flag/env sources win.
+
+    Also loads the config key names set. Each part fails on its own.
+    """
+    _merge_config_sources(facts)
+    _load_config_keys(facts)
+
+
+def _merge_config_sources(facts):
     if facts.deferred_sources is None:
         return
     try:
         loaded = facts.deferred_sources()
         facts.setting_sources = {**loaded, **facts.setting_sources}
+    except Exception:  # pylint: disable=broad-exception-caught
+        return
+
+
+def _load_config_keys(facts):
+    if facts.deferred_config_keys is None:
+        return
+    try:
+        facts.config_keys = facts.deferred_config_keys()
     except Exception:  # pylint: disable=broad-exception-caught
         return
 

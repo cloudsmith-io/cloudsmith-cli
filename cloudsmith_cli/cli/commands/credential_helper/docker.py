@@ -13,9 +13,10 @@ import click
 
 from ....credential_helpers.docker import execute
 from ...decorators import common_api_auth_options, resolve_credentials
+from ...usage_capture import TrackedCommand
 
 
-@click.command()
+@click.command(cls=TrackedCommand)
 @click.argument("operation", required=False, default="get")
 @common_api_auth_options
 @resolve_credentials
