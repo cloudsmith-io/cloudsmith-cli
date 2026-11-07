@@ -1381,11 +1381,18 @@ def test_cli_install_downloads_with_the_tls_settings_of_the_command(
         ) as create_session,
     ):
         result = _invoke(
-            "install", [helper, "--without-ssl-verify-strict", "--no-discover"]
+            "install",
+            [
+                helper,
+                "--without-ssl-verify-strict",
+                "--ssl-system-trust-store",
+                "--no-discover",
+            ],
         )
 
     assert result.exit_code == 0, result.output
     assert create_session.call_args.kwargs["ssl_verify_strict"] is False
+    assert create_session.call_args.kwargs["ssl_system_trust_store"] is True
     # The session for the public repository gets no --api-headers.
     assert "headers" not in create_session.call_args.kwargs
     assert sessions

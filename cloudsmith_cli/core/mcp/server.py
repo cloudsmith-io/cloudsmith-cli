@@ -16,7 +16,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.shared._httpx_utils import MCP_DEFAULT_SSE_READ_TIMEOUT, MCP_DEFAULT_TIMEOUT
 
 from ..api.exceptions import ApiException
-from ..session import disable_x509_strict
+from ..session import create_system_trust_store_context, disable_x509_strict
 from ..version import get_version as get_cli_version
 from .data import OpenAPITool
 
@@ -111,6 +111,16 @@ def _resolve_ca_location(api_config: cloudsmith_api.Configuration) -> str:
     return certifi.where()
 
 
+def _create_system_trust_store_context(ca_location: str) -> ssl.SSLContext:
+    """Return a context that trusts the operating system trust store and ``ca_location``."""
+    ctx = create_system_trust_store_context()
+    if os.path.isdir(ca_location):
+        ctx.load_verify_locations(capath=ca_location)
+    else:
+        ctx.load_verify_locations(cafile=ca_location)
+    return ctx
+
+
 def create_ssl_context(
     api_config: cloudsmith_api.Configuration,
 ) -> ssl.SSLContext | bool:
@@ -124,7 +134,9 @@ def create_ssl_context(
         return False
 
     ca_location = _resolve_ca_location(api_config)
-    if os.path.isdir(ca_location):
+    if getattr(api_config, "ssl_system_trust_store", False):
+        ctx = _create_system_trust_store_context(ca_location)
+    elif os.path.isdir(ca_location):
         ctx = ssl.create_default_context(capath=ca_location)
     else:
         ctx = ssl.create_default_context(cafile=ca_location)

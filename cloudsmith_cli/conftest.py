@@ -85,6 +85,7 @@ def restore_api_configuration_default():
 
 @pytest.fixture(autouse=True)
 def restore_default_proxy():
-    """Clear the process-wide proxy that ``initialise_session`` sets."""
+    """Clear the process-wide proxy and TLS settings that ``initialise_session`` sets."""
     yield
     session.set_default_proxy(None)
+    session.set_default_tls()

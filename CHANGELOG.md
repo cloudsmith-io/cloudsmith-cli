@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `skills` to `cloudsmith upstream`. Use `cloudsmith upstream skills list`, `create`, `update`, and `delete` to manage AI Skills upstreams. An AI Skills upstream caches skills and plugins from a GitHub repository.
 - Added `--changelog` to `cloudsmith push skills`. Use it to add release notes to an AI Skills package. The option is available only for the `skills` format.
 - Added `--compress` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress`, the command fails with a usage error. The option is available only for the `skills` format.
+- Added `--ssl-system-trust-store`, the `CLOUDSMITH_SSL_SYSTEM_TRUST_STORE` environment variable, and the `ssl_system_trust_store` key in `config.ini`. With this setting, the CLI also trusts the trust store of the operating system, for example the macOS Keychain or the Windows certificate store. It still trusts the CA bundle that it trusts without the setting: `REQUESTS_CA_BUNDLE` when it is set, else the CA bundle that the CLI includes. Use it behind a TLS-intercepting proxy whose CA is in the trust store of the operating system. The setting is off by default. (#603)
 
 ### Changed
 
@@ -93,6 +94,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1.
 - The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120.
 - `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
+- The credential helpers now use `--ssl-verify`, `--ssl-verify-strict`, and their environment variables and `config.ini` keys when they look up the custom domains of a Workspace. Previously, the lookup always verified certificates with the strict X.509 checks, so it failed behind a TLS-intercepting proxy even with `--without-ssl-verify-strict`. (#603)
 
 ## [1.30.0] - 2026-10-22
 

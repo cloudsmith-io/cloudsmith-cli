@@ -13,6 +13,7 @@ import certifi
 import cloudsmith_api
 import httpx2
 import pytest
+import truststore
 
 from cloudsmith_cli.core.mcp import server
 from cloudsmith_cli.core.mcp.server import (
@@ -102,6 +103,51 @@ class TestCreateSSLContext:
         assert ctx.verify_mode == ssl.CERT_REQUIRED
 
     def test_verification_disabled(self, api_config):
+        api_config.verify_ssl = False
+
+        assert create_ssl_context(api_config) is False
+
+    def test_system_trust_store_also_trusts_the_ca_bundle(self, api_config):
+        api_config.ssl_system_trust_store = True
+
+        with patch.object(
+            truststore.SSLContext,
+            "load_verify_locations",
+            autospec=True,
+            side_effect=truststore.SSLContext.load_verify_locations,
+        ) as load_verify_locations:
+            ctx = create_ssl_context(api_config)
+
+        assert isinstance(ctx, truststore.SSLContext)
+        load_verify_locations.assert_called_once_with(ctx, cafile=certifi.where())
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname
+        assert ctx.verify_flags == ssl.create_default_context().verify_flags
+
+    def test_system_trust_store_with_a_ca_directory(
+        self, api_config, monkeypatch, tmp_path
+    ):
+        api_config.ssl_system_trust_store = True
+        monkeypatch.setenv("SSL_CERT_DIR", str(tmp_path))
+
+        with patch.object(
+            truststore.SSLContext, "load_verify_locations", autospec=True
+        ) as load_verify_locations:
+            ctx = create_ssl_context(api_config)
+
+        load_verify_locations.assert_called_once_with(ctx, capath=str(tmp_path))
+
+    def test_system_trust_store_without_strict_verification(self, api_config):
+        api_config.ssl_system_trust_store = True
+        api_config.ssl_verify_strict = False
+
+        ctx = create_ssl_context(api_config)
+
+        assert isinstance(ctx, truststore.SSLContext)
+        assert not ctx.verify_flags & ssl.VERIFY_X509_STRICT
+
+    def test_system_trust_store_with_verification_disabled(self, api_config):
+        api_config.ssl_system_trust_store = True
         api_config.verify_ssl = False
 
         assert create_ssl_context(api_config) is False

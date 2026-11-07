@@ -571,12 +571,14 @@ def test_fetch_waits_for_the_command_connection_settings(monkeypatch):
     opts.proxy = "http://proxy.example.com:3128"
     opts.ssl_verify = False
     opts.ssl_verify_strict = False
+    opts.ssl_system_trust_store = True
     with patch("cloudsmith_cli.core.session.create_requests_session") as create_session:
         update_check.start(ctx, opts)
 
     start_check.assert_called_once_with(create_session.return_value)
     assert create_session.call_args.kwargs["ssl_verify"] is False
     assert create_session.call_args.kwargs["ssl_verify_strict"] is False
+    assert create_session.call_args.kwargs["ssl_system_trust_store"] is True
     assert create_session.call_args.kwargs["proxy"] == opts.proxy
 
 
