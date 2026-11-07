@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `cloudsmith telemetry id` shows the install ID that the CLI stores in `telemetry.json` in its config directory, or `none`.
   - `cloudsmith telemetry reset` deletes the stored install ID. The CLI creates a new, unrelated ID on the next command.
   - All three commands support `-F json` and `-F pretty_json`.
+- Added `CLOUDSMITH_TELEMETRY=log` to see what the CLI would send. When a command fails with an unexpected error, the CLI writes the error report to stderr after it removes the private data, and it does not send the report. The CLI also writes the usage event that it would send. The opt-outs still apply: with `DO_NOT_TRACK`, `CLOUDSMITH_NO_TELEMETRY`, or `telemetry = false`, the CLI writes nothing.
 
 ### Changed
 

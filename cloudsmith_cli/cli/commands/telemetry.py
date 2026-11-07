@@ -8,6 +8,9 @@ import click
 from ...core import telemetry_common
 from ...core.usage import identity, settings, state
 from .. import command, decorators, usage_capture, utils
+
+# Not `from .. import telemetry`: this module defines the `telemetry` group.
+from ..telemetry import ERRORS, send
 from .main import main
 
 
@@ -41,6 +44,8 @@ def _reason(opts, typed=()):
 
 
 @main.group(cls=command.AliasGroup)
+# Manages telemetry itself: report crashes, never usage.
+@send(ERRORS)
 def telemetry():
     """See and control pseudonymous usage telemetry."""
 
