@@ -10,7 +10,7 @@ from ...core.sso import (
     get_access_token_expiry,
     renew_sso_session,
 )
-from .. import decorators, utils, validators
+from .. import decorators, deprecation, utils, validators
 from ..exceptions import handle_api_exceptions
 from ..saml import get_idp_url
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
@@ -248,28 +248,13 @@ def authenticate(
     use_stderr = request_api_key_flag or json or utils.should_use_stderr(opts)
 
     if token:
-        click.secho(
-            "DEPRECATION WARNING: The `--token` flag is deprecated and will be removed in a future release. "
-            "Please use `--request-api-key` instead.",
-            fg="yellow",
-            err=True,
-        )
+        deprecation.warn_option("--token", "--request-api-key", ctx=ctx)
 
     if force:
-        click.secho(
-            "DEPRECATION WARNING: The `--force` flag is deprecated and will be removed in a future release. "
-            "Please use `--request-api-key` instead (force is implied).",
-            fg="yellow",
-            err=True,
-        )
+        deprecation.warn_option("--force", "--request-api-key", ctx=ctx)
 
     if json and not utils.should_use_stderr(opts):
-        click.secho(
-            "DEPRECATION WARNING: The `--json` flag is deprecated and will be removed in a future release. "
-            "Please use `--output-format json` instead.",
-            fg="yellow",
-            err=True,
-        )
+        deprecation.warn_option("--json", "--output-format json", ctx=ctx)
 
     if not force and not token and not request_api_key_flag:
         session_result = _renew_existing_sso_session(

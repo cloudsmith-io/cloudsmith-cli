@@ -6,7 +6,10 @@ summarised on stderr, and exits 1 instead of surfacing a raw traceback.
 """
 
 import json
+import locale
+import os
 import runpy
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -186,16 +189,20 @@ def test_opted_out_sends_nothing_and_prints_the_same_line(
     assert sentry_events == []
 
 
-@pytest.mark.parametrize("profile", [None, "work"])
+@pytest.mark.parametrize(
+    "profile,content",
+    [
+        (None, "[default]\ntelemetry = false\n"),
+        ("work", "[default]\n[profile:work]\ntelemetry = false\n"),
+        ("work", "[default]\ntelemetry = false\n[profile:work]\nworkspace = acme\n"),
+    ],
+)
 def test_config_key_off_sends_nothing_and_prints_the_same_line(
-    runner, tmp_path, sentry_events, profile
+    runner, tmp_path, sentry_events, profile, content
 ):
     """telemetry = false in the file passed with --config-file (and --profile)."""
     config = tmp_path / "config.ini"
-    if profile:
-        config.write_text(f"[default]\n[profile:{profile}]\ntelemetry = false\n")
-    else:
-        config.write_text("[default]\ntelemetry = false\n")
+    config.write_text(content)
     args = ["whoami", "--config-file", str(config), "--api-key", API_KEY]
     if profile:
         args += ["--profile", profile]
@@ -309,6 +316,53 @@ def test_click_errors_are_not_reported(runner, tmp_path, sentry_events, exc):
     assert sentry_events == []
 
 
+def test_interrupt_with_a_closed_stderr_is_not_reported(
+    runner, tmp_path, sentry_events
+):
+    """Click writes a newline on Ctrl+C, which fails when the pipe is gone."""
+    with (
+        whoami_raises(KeyboardInterrupt()),
+        patch("click.core.echo", side_effect=BrokenPipeError),
+    ):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert result.stderr == ""
+    assert sentry_events == []
+
+
+def test_interrupt_with_a_closed_stderr_exits_1(tmp_path):
+    """Python flushes stderr again at exit, which must not change the status."""
+    code = f"""
+import os
+from cloudsmith_cli.cli.commands.main import main
+from cloudsmith_cli.cli.tests.test_unexpected_errors import whoami_args, whoami_raises
+
+read_end, write_end = os.pipe()
+os.close(read_end)
+os.dup2(write_end, 2)
+with whoami_raises(KeyboardInterrupt()):
+    main(whoami_args({str(tmp_path)!r}))
+"""
+    # Unbuffered stderr keeps no bytes for the exit flush, which hides the failure.
+    env = {**os.environ, "PYTHONUNBUFFERED": ""}
+    result = subprocess.run([sys.executable, "-c", code], env=env, check=False)
+
+    assert result.returncode == 1
+
+
+def test_command_module_imports_on_click_before_8_2():
+    """Click before 8.2 names the flush wrapper without the underscore."""
+    code = """
+import click.utils
+click.utils.PacifyFlushWrapper = click.utils.__dict__.pop("_PacifyFlushWrapper")
+import cloudsmith_cli.cli.command
+"""
+    result = subprocess.run([sys.executable, "-c", code], check=False)
+
+    assert result.returncode == 0
+
+
 STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"
 
 
@@ -361,7 +415,6 @@ MALFORMED_INI = {
     ),
     "duplicate-section": (b"[default]\n[default]\n", "DuplicateSectionError"),
     "unparsable-line": (b"[default]\n=ap\n", "ParsingError"),
-    "not-utf8": (b"\xff\xfe\x00garbage", "UnicodeDecodeError"),
 }
 
 
@@ -415,6 +468,21 @@ def test_parsing_error_message_is_unchanged(runner, tmp_path, sentry_events):
         f"Error: ParsingError: Source contains parsing errors: '{bad}'\n"
         "\t[line  2]: '=ap\\n'"
     ) in result.stderr
+    assert sentry_events == []
+
+
+@pytest.mark.usefixtures("isolated_config_readers")
+def test_undecodable_ini_names_the_file(runner, tmp_path, sentry_events, monkeypatch):
+    # Byte 0x81 is valid in some locale encodings, such as cp1251.
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda *_: "utf-8")
+    bad = tmp_path / "config.ini"
+    bad.write_bytes(b"[default]\napi_host = \x81\n")
+
+    result = runner.invoke(main, ["whoami", "--config-file", str(bad)])
+
+    assert result.exit_code == 1
+    assert f"Error: Cannot read {bad} as " in result.stderr
+    assert "Save the file as UTF-8." in result.stderr
     assert sentry_events == []
 
 
