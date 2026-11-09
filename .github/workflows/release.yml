@@ -63,7 +63,7 @@ jobs:
         with:
           python-version: "3.14.10"
 
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.1.0 # zizmor: ignore[cache-poisoning]
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.1.0 # zizmor: ignore[cache-poisoning]
         with:
           enable-cache: true
 
@@ -242,7 +242,7 @@ jobs:
     env:
       CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
-      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
@@ -443,7 +443,7 @@ jobs:
       CLOUDSMITH_NAMESPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
-      CLOUDSMITH_ORG: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
       VERSION: ${{ needs.validate.outputs.version }}

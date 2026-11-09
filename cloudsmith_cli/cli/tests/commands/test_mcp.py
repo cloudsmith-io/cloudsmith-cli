@@ -1,6 +1,7 @@
 import json
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -740,3 +741,40 @@ class TestMCPConfigureOutput:
         assert result.exit_code == 0, result.output
         assert "Configured Cursor" in result.stdout
         assert config_path.exists()
+
+
+def test_server_stops_quietly_when_the_client_closes_stdout():
+    """The stdio transport raises the closed pipe inside an ExceptionGroup."""
+    code = """
+import os
+from unittest.mock import patch
+
+import cloudsmith_api
+
+from cloudsmith_cli.core.mcp.server import DynamicMCPServer
+
+read_end, write_end = os.pipe()
+os.close(read_end)
+os.dup2(write_end, 1)
+with patch.object(DynamicMCPServer, "load_openapi_spec"):
+    DynamicMCPServer(api_config=cloudsmith_api.Configuration()).run()
+"""
+    initialize = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"},
+        },
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        input=json.dumps(initialize) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

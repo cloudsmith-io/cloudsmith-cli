@@ -205,6 +205,20 @@ def test_config_key_in_env_selected_profile(
     assert telemetry.config_disabled() is True
 
 
+@pytest.mark.parametrize("profile_body", ["", "workspace = acme\n", "telemetry =\n"])
+def test_default_opt_out_applies_to_env_selected_profile(
+    sentry_events, telemetry_config_dir, monkeypatch, profile_body
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\ntelemetry = false\n[profile:work]\n{profile_body}"
+    )
+    monkeypatch.setenv(telemetry.PROFILE_ENV, "work")
+
+    assert telemetry.config_disabled() is True
+    assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is False
+    assert sentry_events == []
+
+
 def test_loaded_options_opt_out_wins(sentry_events, telemetry_config_dir, monkeypatch):
     """Covers --config-file / --profile, which only the loaded options know about."""
     opts = config.Options()
