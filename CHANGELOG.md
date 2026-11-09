@@ -7,14 +7,58 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `cloudsmith credential-helper install maven`, `install gradle`, and `install sbt`. They set up the Cloudsmith Maven tools, which get repository credentials from `cloudsmith credential-helper generic`. Each command installs the newest release from the public `cloudsmith/maven-tools` repository, for every build of the user.
+  - `maven` puts the extension in the local repository that Maven reports (`~/.m2/repository` when the command cannot run `mvn`) and adds it to `~/.m2/extensions.xml`, which Maven 3.10 and later read. When `mvn -v` reports an earlier Maven, the command shows a warning. With `--local`, the command adds the extension to `.mvn/extensions.xml` of the Maven project in the current directory instead. With `--mavenrc`, it adds a block to `~/.mavenrc` instead, which the `mvn` and `mvnw` scripts of all Maven versions read. `--mavenrc` does not work on Windows or when the path of the local Maven repository contains a space or a `:`. In these cases the command stops and tells you to use `--local` or Maven 3.10.
+  - `gradle` writes an init script to `init.d` of the Gradle user home that `gradle` reports (`$GRADLE_USER_HOME` or `~/.gradle` when the command cannot run `gradle`), which applies the plugin to every Gradle build.
+  - `sbt` writes a global plugin to the global plugins directory that `sbt` reports (`~/.sbt/1.0/plugins` when the command cannot run `sbt`), which adds the plugin to every sbt 1 build. With `--local`, it writes `project/cloudsmith.sbt` of the sbt project in the current directory instead.
+  - To find these locations, the commands run Maven, Gradle or sbt, which can take a few seconds. The commands show a message while they wait. When Maven, Gradle or sbt reports a relative path for these locations, the command stops, because each build would look in its own directory.
+  - `credential-helper list` checks only the default locations of Gradle and sbt, so a location that `gradle.user.home` or `sbt.global.base` moves shows as not installed.
+  - The commands add to existing files and keep their other content. `uninstall` removes only what `install` added.
+
+- Added `skills` to `cloudsmith upstream`. Use `cloudsmith upstream skills list`, `create`, `update`, and `delete` to manage AI Skills upstreams. An AI Skills upstream caches skills and plugins from a GitHub repository.
+- Added `--changelog` to `cloudsmith push skills`. Use it to add release notes to an AI Skills package. The option is available only for the `skills` format.
+- Added `--compress` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress`, the command fails with a usage error. The option is available only for the `skills` format.
+
 ### Changed
 
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
+- Using `#!/usr/bin/env sh` as shebang path for unix credential helpers.
+- The minimum version of `cloudsmith-api` is now 2.0.42.
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
+
+### Deprecated
+
+- The old names of renamed options, environment variables, and `config.ini` keys are deprecated, and version 2.0.0 will remove them. Until then, they work as before, but the CLI prints a warning to stderr, once per run, that names the replacement. For example: ``Warning: `--org` is deprecated and will be removed in version 2.0.0. Use `--workspace` instead.`` The old names no longer show in `--help`.
+
+  | Setting | Deprecated name | Replacement |
+  | -- | -- | -- |
+  | Proxy | `--api-proxy` | `--proxy` |
+  | | `CLOUDSMITH_API_PROXY` | `CLOUDSMITH_PROXY` |
+  | | `api_proxy` config key | `proxy` |
+  | | `--allowed-api-proxy-suffixes`, `CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES` (hidden) | `--allowed-proxy-suffixes`, `CLOUDSMITH_ALLOWED_PROXY_SUFFIXES` |
+  | SSL verification | `--without-api-ssl-verify`, `-S` | `--without-ssl-verify` |
+  | | `CLOUDSMITH_WITHOUT_API_SSL_VERIFY` | `CLOUDSMITH_SSL_VERIFY=0` |
+  | | `api_ssl_verify` config key | `ssl_verify` |
+  | Workspace | `--org`, `--organization`, `--oidc-org`, `--owner` | `--workspace` |
+  | | `-o` | `-w` |
+  | | `CLOUDSMITH_ORG` | `CLOUDSMITH_WORKSPACE` |
+  | | `org`, `organization`, `oidc_org` config keys | `workspace` |
+  | Pagination | `--show-all` | `--page-all` |
+  | `cloudsmith auth` | `--token`, `--force` | `--request-api-key` |
+  | | `--json` | `--output-format json` |
+
+  - The CLI warns only when an old name changes the result. It does not warn for a config key that the new key in the same section overrides, for an environment variable that the new variable overrides, for an empty value, or for `api_ssl_verify = true`, which is the default.
+  - The credential helpers that Docker, Cargo, pnpm, Terraform, and other tools run (`cloudsmith credential-helper docker`, `cargo`, `pnpm`, `terraform`, and `generic`) do not print the warning. This includes a `~/.terraformrc` block with `--org` that an earlier version of `cloudsmith credential-helper install terraform` wrote. To update the block, run the install again.
+  - `cloudsmith auth --token`, `--force`, and `--json`, and the `cloudsmith login` and `cloudsmith token` commands, now use the same warning format. The warning prefix is now `Warning:` instead of `DEPRECATION WARNING:`. `cloudsmith login` still stops working on November 20, 2026.
+  - When you give an old and a new option on the same command line, such as `--org a --workspace b`, the new option now wins. Previously, the last option won.
 
 ### Fixed
 
 - The CLI now reads `config.ini` and `credentials.ini` as UTF-8. On Windows, a UTF-8 file with characters such as Cyrillic letters caused a `UnicodeDecodeError` in every command. A file in the Windows code page (for example cp1252) still loads. When the CLI changes a file, it keeps the encoding of that file and its UTF-8 byte order mark. The CLI creates new files as UTF-8.
 - When the CLI cannot decode a `config.ini` or `credentials.ini`, for example a UTF-16 file, the error now gives the file path and tells you to save the file as UTF-8.
+- A `[profile:NAME]` section in `config.ini` now keeps the `[default]` values of `telemetry`, `check_for_update`, `ssl_verify`, `api_ssl_verify`, and `ssl_verify_strict` when it does not set them. Previously, a profile that left out one of these keys reset it to `true`, so `--profile`/`-P` turned telemetry and the update check back on, and turned certificate verification back on. A key that no section sets is still `true`.
 - `cloudsmith credential-helper install pnpm` now ends `.npmrc` with a newline. Previously, a line that a shell appended to the file, such as `echo '//host/:_authToken=...' >> ~/.npmrc`, joined the last `tokenHelper` line. This made the `tokenHelper` path incorrect, and npm did not read the appended token. The install now also shows each `tokenHelper` line that it sets and the file that it writes to. To add the newline to an existing `.npmrc`, run the install again. If a line is already joined, split it into two lines before you run the install. If you do not, the install removes the appended token.
 - OIDC authentication now works when the CLI cannot create its config directory, for example in a CI container with a read-only home directory. Previously, the CLI did not exchange the OIDC token and ran the command without credentials. Now the CLI exchanges the token. If the CLI cannot write the token to the disk cache, it continues without the cache. A malformed entry in the disk cache no longer stops the token exchange.
 - `cloudsmith vulnerabilities` no longer stops with `IndexError` when a package has no vulnerability scan results. The command now shows the error "The package has no vulnerability scan results." and exits with the status of a 404 error. With `-F json`, it prints this error in the usual JSON error format.
@@ -52,6 +96,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make.
 - When the API host name or the proxy host name does not exist, for example because of a typo in `--api-host`, commands now fail immediately. Previously, they retried for approximately 62 seconds without output. The CLI still retries a DNS failure that the operating system reports as temporary.
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output.
+- `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1.
+- The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120.
+- `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value.
 
 ## [1.30.0] - 2026-10-22
 
