@@ -17,7 +17,6 @@ import contextlib
 import os
 import re
 import shutil
-import subprocess
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -35,7 +34,10 @@ if TYPE_CHECKING:
 
 EXTENSION_PATH = f"io/cloudsmith/{extensions.ARTIFACT_ID}"
 FIRST_MAVEN_WITH_USER_EXTENSIONS = (3, 10)
-MAVEN_VERSION_TIMEOUT_SECONDS = 60
+_LOCAL_REPOSITORY_LOG = re.compile(
+    r"^\[DEBUG\] Using manager \S+ with priority \S+ for (.+)$", re.MULTILINE
+)
+_UNKNOWN_PHASE = "cloudsmith-local-repository-probe"
 INSTEAD_OF_MAVENRC = (
     "Run `cloudsmith credential-helper install maven --local` in each project "
     "(Maven 3.8 and later), or upgrade to Maven 3.10 or later and run "
@@ -75,8 +77,8 @@ def _mavenrc_file() -> Path:
     return Path.home() / ".mavenrc"
 
 
-def _version_dir(version: str) -> Path:
-    return Path.home() / ".m2" / "repository" / EXTENSION_PATH / version
+def _version_dir(repository: Path, version: str) -> Path:
+    return repository / EXTENSION_PATH / version
 
 
 def _read(path: Path) -> str | None:
@@ -91,18 +93,62 @@ def _maven_version() -> str | None:
     mvn = shutil.which("mvn")
     if not mvn:
         return None
-    try:
-        result = subprocess.run(
-            [mvn, "-v"],
-            capture_output=True,
-            text=True,
-            timeout=MAVEN_VERSION_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    match = re.search(r"Apache Maven (\d+(?:\.\d+)+)", result.stdout)
+    match = re.search(
+        r"Apache Maven (\d+(?:\.\d+)+)", maven_tools.tool_output([mvn, "-v"])
+    )
     return match.group(1) if match else None
+
+
+def _maven_executable(local: bool) -> str | None:
+    """Return the Maven wrapper of the project with ``local``, else ``mvn`` on ``PATH``."""
+    if local:
+        wrapper = _project_dir() / ("mvnw.cmd" if is_windows() else "mvnw")
+        if wrapper.is_file():
+            return str(wrapper)
+    return shutil.which("mvn")
+
+
+def _reported_repository(mvn: str, cwd: Path) -> Path | None:
+    """Return the local repository that Maven logs when it runs in ``cwd``.
+
+    Maven logs the repository, then stops on a phase that does not exist before it
+    runs a plugin, also for a default goal or goals in ``MAVEN_ARGS``.
+    """
+    output = maven_tools.tool_output([mvn, "-X", "-o", "-B", _UNKNOWN_PHASE], cwd)
+    match = _LOCAL_REPOSITORY_LOG.search(output)
+    return cwd / match.group(1) if match else None
+
+
+def _local_repository(
+    local: bool, progress: Callable[[str], None] | None
+) -> tuple[Path, list[str]]:
+    """Return the local repository that Maven reports, or ``~/.m2/repository``, and any warning.
+
+    With ``local``, Maven runs in the current directory, as a build from there does.
+    Without ``local``, Maven runs outside projects to skip the project ``.mvn``.
+    """
+    default = Path.home() / ".m2" / "repository"
+    mvn = _maven_executable(local)
+    if mvn is None:
+        return default, []
+    tool = Path(mvn).name
+    if progress:
+        progress(maven_tools.waiting_message(tool, "local repository"))
+    if local:
+        repository = _reported_repository(mvn, maven_tools.current_dir())
+    else:
+        repository = maven_tools.ask_outside_projects(
+            partial(_reported_repository, mvn),
+            "The local repository of Maven is a relative path, so each build looks "
+            "for the extension in its own directory. Set an absolute path for the "
+            "local repository, or run "
+            "`cloudsmith credential-helper install maven --local` in each project.",
+        )
+    if repository is None:
+        return default, [
+            maven_tools.no_answer_warning(tool, "local repository", default)
+        ]
+    return repository, []
 
 
 def _old_maven_warning() -> list[str]:
@@ -182,6 +228,8 @@ class MavenInstaller:
     summary = "Maven extension that gets credentials from the Cloudsmith CLI"
     # The install command passes a session with its proxy and TLS settings.
     downloads_files = True
+    # The install command passes a callback that shows the waiting message.
+    ASKS_BUILD_TOOL = True
 
     def install(
         self,
@@ -190,23 +238,26 @@ class MavenInstaller:
         local: bool = False,
         mavenrc: bool = False,
         session: requests.Session | None = None,
+        progress: Callable[[str], None] | None = None,
         **_options,
     ) -> list[str]:
-        """Put the extension in ``~/.m2/repository`` and turn it on."""
+        """Put the extension in the local repository of Maven and turn it on."""
         project_file = _project_extensions_file() if local else None
         if mavenrc and is_windows():
             raise MavenrcNotSupported(
                 f"mvn.cmd on Windows does not read ~/.mavenrc. {INSTEAD_OF_MAVENRC}"
             )
+        repository, actions = _local_repository(local, progress)
         version = maven_tools.latest_version(EXTENSION_PATH, session)
-        jar = _version_dir(version) / f"{extensions.ARTIFACT_ID}-{version}.jar"
+        version_dir = _version_dir(repository, version)
+        jar = version_dir / f"{extensions.ARTIFACT_ID}-{version}.jar"
         if mavenrc and any(char in f" \t\n{os.pathsep}" for char in str(jar)):
             raise MavenrcNotSupported(
                 "The mvn script splits MAVEN_OPTS at spaces and Java splits the "
                 f"class path at {os.pathsep}, so they cannot load {jar}. "
                 f"{INSTEAD_OF_MAVENRC}"
             )
-        actions = self._download(version, dry_run, session)
+        actions += self._download(version_dir, version, dry_run, session)
         if mavenrc:
             return (
                 actions
@@ -226,9 +277,12 @@ class MavenInstaller:
         )
 
     def _download(
-        self, version: str, dry_run: bool, session: requests.Session | None
+        self,
+        version_dir: Path,
+        version: str,
+        dry_run: bool,
+        session: requests.Session | None,
     ) -> list[str]:
-        version_dir = _version_dir(version)
         file_names = [
             f"{extensions.ARTIFACT_ID}-{version}.{file_type}"
             for file_type in ("jar", "pom")
