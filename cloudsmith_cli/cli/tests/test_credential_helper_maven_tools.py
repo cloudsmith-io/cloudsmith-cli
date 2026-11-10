@@ -9,7 +9,12 @@ from __future__ import annotations
 
 import errno
 import os
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -22,8 +27,12 @@ from ...credential_helpers import maven_tools
 from ...credential_helpers.gradle.installer import GradleInstaller
 from ...credential_helpers.maven import extensions, mavenrc
 from ...credential_helpers.maven import installer as maven_installer
-from ...credential_helpers.maven.installer import MavenInstaller
-from ...credential_helpers.maven_tools import ConfigFileConflict, ProjectNotFound
+from ...credential_helpers.maven.installer import MavenInstaller, MavenrcNotSupported
+from ...credential_helpers.maven_tools import (
+    ConfigFileConflict,
+    ProjectNotFound,
+    BuildToolError,
+)
 from ...credential_helpers.sbt.installer import SbtInstaller
 
 EXTENSION_PATH = "io/cloudsmith/cloudsmith-maven-extension"
@@ -90,9 +99,34 @@ def fake_repository(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def tool_runs(monkeypatch):
+    """Run as if no build tool is on PATH, and as if each one reports nothing."""
+    commands = []
+    which = shutil.which
+
+    def fake_output(command, cwd=None):
+        commands.append((command, cwd))
+        return ""
+
+    monkeypatch.setattr(maven_tools, "tool_output", fake_output)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: None if name in ("mvn", "gradle", "sbt") else which(name),
+    )
+    return commands
+
+
+@pytest.fixture(autouse=True)
 def _maven_3_10(monkeypatch):
     """Run as if `mvn -v` reports Maven 3.10.0."""
     monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.10.0")
+
+
+@pytest.fixture(autouse=True)
+def _posix(monkeypatch):
+    """Run as if the platform is not Windows, so the mvn script reads ~/.mavenrc."""
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: False)
 
 
 @pytest.fixture()
@@ -718,6 +752,23 @@ def _user_extensions(home: Path) -> Path:
     return home / ".m2" / "extensions.xml"
 
 
+def _skip_unless_it_runs(tool: str) -> None:
+    executable = shutil.which(tool)
+    if (
+        executable is None
+        or subprocess.run(
+            [executable, "--version"], capture_output=True, timeout=120, check=False
+        ).returncode
+    ):
+        pytest.skip(f"{tool} is not installed or does not run")
+
+
+def _jar(repository: Path) -> Path:
+    return (
+        repository / EXTENSION_PATH / "0.2.0" / "cloudsmith-maven-extension-0.2.0.jar"
+    )
+
+
 def test_maven_install_puts_the_extension_in_the_local_repository(
     home, fake_repository, outside_projects
 ):
@@ -742,11 +793,13 @@ def test_maven_install_turns_on_the_extension_for_every_build(
     assert not [action for action in actions if action.startswith("WARNING")]
 
 
+@pytest.mark.parametrize("windows", [False, True])
 def test_maven_install_warns_when_maven_ignores_user_extensions(
-    home, fake_repository, outside_projects, monkeypatch
+    windows, home, fake_repository, outside_projects, monkeypatch
 ):
     """Maven 3.9 and earlier ignore ~/.m2/extensions.xml, so install names the options."""
     monkeypatch.setattr(maven_installer, "_maven_version", lambda: "3.9.11")
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: windows)
 
     actions = MavenInstaller().install()
 
@@ -754,7 +807,8 @@ def test_maven_install_warns_when_maven_ignores_user_extensions(
     assert len(warnings) == 1
     assert "3.9.11" in warnings[0]
     assert "--local" in warnings[0]
-    assert "--mavenrc" in warnings[0]
+    # mvn.cmd does not read ~/.mavenrc.
+    assert ("--mavenrc" in warnings[0]) is not windows
     assert _user_extensions(home).exists()
 
 
@@ -782,6 +836,220 @@ def test_maven_install_marks_the_files_as_installed(
         "cloudsmith-maven-extension-0.2.0-sources.jar>cloudsmith=\n"
         "cloudsmith-maven-extension-0.2.0.pom>=\n"
     )
+
+
+def test_maven_install_uses_the_local_repository_that_maven_reports(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """The JAR goes in the repository from the debug output of Maven, and --mavenrc loads it there."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f" with priority 10.0 for {home / 'repo'}\n"
+        ),
+    )
+
+    MavenInstaller().install(mavenrc=True)
+
+    assert _jar(home / "repo").exists()
+    text = (home / ".mavenrc").read_text(encoding="utf-8")
+    assert f"-Dmaven.ext.class.path={_jar(home / 'repo')}" in text
+
+
+# The parameter replaces the autouse fake, so the real tool_output runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_tool_output_has_stdout_and_stderr_without_colors(tool_runs):
+    """A build tool can log to stderr and in color, so the output has both streams without colors."""
+    script = "import sys; print('\\x1b[1;36mDEBUG\\x1b[m out'); print('err', file=sys.stderr)"
+
+    output = maven_tools.tool_output([sys.executable, "-c", script])
+
+    assert sorted(output.split()) == ["DEBUG", "err", "out"]
+
+
+@pytest.mark.windows
+@pytest.mark.parametrize(
+    ("interrupt", "error"),
+    [
+        (subprocess.TimeoutExpired("tool", 1), BuildToolError),
+        (KeyboardInterrupt(), KeyboardInterrupt),
+    ],
+)
+# The parameter replaces the autouse fake, so the real tool_output runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_tool_output_stops_the_tool_and_its_children(
+    tool_runs, interrupt, error, tmp_path, monkeypatch
+):
+    """A launcher script starts a JVM, so a timeout or Ctrl+C stops the child too."""
+    communicate = subprocess.Popen.communicate
+    tools = []
+
+    def interrupted_communicate(self, data=None, timeout=None):
+        if tools:  # A later process, such as taskkill, stops the tool.
+            return communicate(self, data, timeout)
+        tools.append(self)
+        time.sleep(1)
+        raise interrupt
+
+    monkeypatch.setattr(subprocess.Popen, "communicate", interrupted_communicate)
+    alive_file = tmp_path / "alive"
+    child = f"import pathlib, time; time.sleep(2); pathlib.Path({str(alive_file)!r}).touch()"
+    script = (
+        "import subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, '-c', {child!r}])\n"
+        "time.sleep(60)\n"
+    )
+
+    with pytest.raises(error):
+        maven_tools.tool_output([sys.executable, "-c", script])
+    monkeypatch.setattr(subprocess.Popen, "communicate", communicate)
+    time.sleep(2.5)
+
+    assert not alive_file.exists()
+
+
+@pytest.mark.parametrize("relative_path", ["repo", ".", "../repo"])
+def test_maven_install_with_a_relative_local_repository_fails(
+    relative_path, home, fake_repository, outside_projects, monkeypatch
+):
+    """Without local, a relative repository depends on the directory of each build, so the install stops."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f" with priority 10.0 for {cwd / relative_path}\n"
+        ),
+    )
+
+    with pytest.raises(BuildToolError):
+        MavenInstaller().install()
+
+    assert not fake_repository
+
+
+def test_maven_install_without_a_second_answer_from_maven_uses_the_default(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """When the second Maven run reports nothing, the install uses ~/.m2/repository."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    outputs = iter(
+        [
+            "[DEBUG] Using manager EnhancedLocalRepositoryManager"
+            f" with priority 10.0 for {home / 'repo'}\n",
+            "",
+        ]
+    )
+    monkeypatch.setattr(
+        maven_tools, "tool_output", lambda command, cwd=None: next(outputs)
+    )
+
+    actions = MavenInstaller().install()
+
+    assert _jar(home / ".m2" / "repository").exists()
+    assert actions[0].startswith("WARNING: mvn did not report its local repository")
+
+
+@pytest.mark.parametrize(
+    ("installer", "tool"), [(GradleInstaller, "gradle"), (SbtInstaller, "sbt")]
+)
+def test_install_warns_when_the_build_tool_reports_nothing(
+    installer, tool, home, fake_repository, monkeypatch
+):
+    """A build tool on PATH that reports nothing gets the default location and a warning."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+
+    actions = installer().install()
+
+    assert actions[0] == (
+        f"WARNING: {tool} did not report its {installer.reported}, "
+        f"so the command uses {installer().path()}."
+    )
+    assert installer().path().exists()
+
+
+# The parameter replaces the autouse fake, so the real tool_output runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_tool_output_runs_a_tool_on_a_relative_path_in_another_directory(
+    tool_runs, tmp_path, monkeypatch
+):
+    """PATH can have a relative directory, so the tool path does not depend on cwd."""
+    monkeypatch.chdir(Path(sys.executable).parent)
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+
+    output = maven_tools.tool_output(
+        [os.path.join(".", Path(sys.executable).name), "-c", "print('ran')"],
+        other_dir,
+    )
+
+    assert output.strip() == "ran"
+
+
+@pytest.mark.parametrize(
+    ("local", "wrapper"),
+    [(False, True), (True, False), (True, True)],
+)
+def test_maven_install_asks_the_maven_that_the_build_uses(
+    local,
+    wrapper,
+    home,
+    fake_repository,
+    maven_project,
+    tool_runs,
+    monkeypatch,
+):
+    """With local, the Maven wrapper runs in the current module; else mvn runs outside the project. No goal runs."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    (maven_project / ".mvn").mkdir()
+    mvnw = maven_project / "mvnw"
+    if wrapper:
+        mvnw.write_text("", encoding="utf-8")
+    module = maven_project / "module"
+    module.mkdir()
+    monkeypatch.chdir(module)
+
+    MavenInstaller().install(local=local)
+
+    [(command, cwd)] = tool_runs
+    executable = str(mvnw) if local and wrapper else "/bin/mvn"
+    assert command == [
+        executable,
+        "-X",
+        "-o",
+        "-B",
+        "cloudsmith-local-repository-probe",
+    ]
+    assert (cwd == module) is local
+
+
+@pytest.mark.windows
+# The parameter replaces the autouse fake, so the real mvn runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_maven_install_uses_the_local_repository_of_the_real_maven(
+    tool_runs, home, fake_repository, outside_projects, tmp_path, monkeypatch
+):
+    """The real mvn reports the repository on stderr too, and a project around the temporary directory does not count."""
+    _skip_unless_it_runs("mvn")
+    project = tmp_path / "project"
+    (project / ".mvn").mkdir(parents=True)
+    (project / ".mvn" / "maven.config").write_text(
+        f"-Dmaven.repo.local={tmp_path / 'project-repo'}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(tempfile, "tempdir", str(project))
+    monkeypatch.setenv(
+        "MAVEN_OPTS",
+        f"-Dmaven.repo.local={tmp_path / 'repo'}"
+        " -Dorg.slf4j.simpleLogger.logFile=System.err",
+    )
+
+    MavenInstaller().install()
+
+    assert _jar(tmp_path / "repo").exists()
 
 
 def test_maven_install_local_turns_on_the_extension_in_the_project(
@@ -852,6 +1120,28 @@ def test_maven_install_with_mavenrc_adds_a_block(
     assert f"-Dmaven.ext.class.path={jar}" in text
     # Maven 3.10 would load the extension twice from both files.
     assert not _user_extensions(home).exists()
+
+
+@pytest.mark.parametrize(
+    ("separator", "refused"), [(" ", True), (os.pathsep, True), ("\u00a0", False)]
+)
+def test_maven_install_with_mavenrc_refuses_a_jar_path_that_mvn_would_split(
+    separator, refused, tmp_path, monkeypatch, fake_repository, outside_projects
+):
+    """mvn splits MAVEN_OPTS at spaces and Java splits the class path, so the JAR path would break every build."""
+    home = tmp_path / f"John{separator}Smith"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    with (
+        pytest.raises(MavenrcNotSupported, match="--local")
+        if refused
+        else nullcontext()
+    ):
+        MavenInstaller().install(mavenrc=True)
+
+    assert (home / ".mavenrc").exists() is not refused
+    assert bool(fake_repository) is not refused
 
 
 def test_maven_install_with_mavenrc_turns_off_the_user_extensions_file(
@@ -1008,6 +1298,40 @@ def test_gradle_install_uses_gradle_user_home(
     assert (tmp_path / "gradle-home" / "init.d" / "cloudsmith.init.gradle.kts").exists()
 
 
+def test_gradle_install_and_uninstall_use_the_user_home_that_gradle_reports(
+    home, fake_repository, monkeypatch
+):
+    """The init script goes in init.d of the Gradle user home that Gradle reports."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: f"CLOUDSMITH_GRADLE_USER_HOME={home / 'reported'}\n",
+    )
+    init_script = home / "reported" / "init.d" / "cloudsmith.init.gradle.kts"
+
+    GradleInstaller().install()
+    assert init_script.exists()
+
+    GradleInstaller().uninstall()
+    assert not init_script.exists()
+
+
+@pytest.mark.windows
+# The parameter replaces the autouse fake, so the real gradle runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_gradle_install_uses_the_user_home_of_the_real_gradle(
+    tool_runs, home, fake_repository, tmp_path, monkeypatch
+):
+    """The real gradle reports gradle.user.home from GRADLE_OPTS."""
+    _skip_unless_it_runs("gradle")
+    monkeypatch.setenv("GRADLE_OPTS", f"-Dgradle.user.home={tmp_path / 'gradle-home'}")
+
+    GradleInstaller().install()
+
+    assert (tmp_path / "gradle-home" / "init.d" / "cloudsmith.init.gradle.kts").exists()
+
+
 def test_gradle_uninstall_and_status(home, fake_repository):
     """Uninstall removes the init script, and status follows it."""
     script = home / ".gradle" / "init.d" / "cloudsmith.init.gradle.kts"
@@ -1083,6 +1407,85 @@ def test_sbt_install_writes_a_global_plugin(home, fake_repository):
     )
     assert 'addSbtPlugin("io.cloudsmith" % "sbt-cloudsmith" % "0.2.0")' in text
     assert any(str(plugin_file) in action for action in actions)
+
+
+def test_sbt_install_and_uninstall_use_the_global_plugins_that_sbt_reports(
+    home, fake_repository, monkeypatch
+):
+    """The plugin file goes in the global plugins directory that sbt 1 reports."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            f"CLOUDSMITH_SBT_GLOBAL_PLUGINS={home / 'reported'}\n"
+        ),
+    )
+    plugin_file = home / "reported" / "cloudsmith.sbt"
+
+    SbtInstaller().install()
+    assert plugin_file.exists()
+
+    SbtInstaller().uninstall()
+    assert not plugin_file.exists()
+
+
+def test_sbt_install_with_a_relative_global_base_and_a_broken_plugin_fails(
+    home, fake_repository, monkeypatch
+):
+    """sbt can name a relative global plugins directory, which changes with the directory of each build."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            "[info] welcome to sbt 1.13.0 (Java)\n"
+            "[info] loading global plugins from relative/plugins\n"
+        ),
+    )
+
+    with pytest.raises(BuildToolError):
+        SbtInstaller().install()
+
+
+@pytest.mark.parametrize(
+    ("sbt_version", "uses_reported"), [("1.13.0", True), ("2.0.0", False)]
+)
+def test_sbt_install_finds_the_global_plugins_when_a_plugin_fails_to_load(
+    sbt_version, uses_reported, home, fake_repository, monkeypatch
+):
+    """sbt names the global plugins directory before it fails to load a plugin there; sbt 2 uses its own."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd=None: (
+            f"[info] welcome to sbt {sbt_version} (Java)\n"
+            f"[info] loading global plugins from {home / 'reported'}\n"
+            "[error] Not found\n"
+        ),
+    )
+
+    SbtInstaller().install()
+
+    reported_file = home / "reported" / "cloudsmith.sbt"
+    assert reported_file.exists() is uses_reported
+    assert SbtInstaller().path().exists() is not uses_reported
+
+
+@pytest.mark.windows
+# The parameter replaces the autouse fake, so the real sbt runs.
+@pytest.mark.parametrize("tool_runs", [None])
+def test_sbt_install_uses_the_global_base_of_the_real_sbt(
+    tool_runs, home, fake_repository, tmp_path, monkeypatch
+):
+    """The real sbt reports sbt.global.base from SBT_OPTS."""
+    _skip_unless_it_runs("sbt")
+    monkeypatch.setenv("SBT_OPTS", f"-Dsbt.global.base={tmp_path / 'sbt-base'}")
+
+    SbtInstaller().install()
+
+    assert (tmp_path / "sbt-base" / "plugins" / "cloudsmith.sbt").exists()
 
 
 def test_sbt_install_local_writes_a_project_plugin(
@@ -1236,6 +1639,20 @@ def test_cli_install_maven_with_mavenrc(home, fake_repository, outside_projects)
     assert (home / ".mavenrc").exists()
 
 
+def test_cli_install_maven_with_mavenrc_fails_cleanly_on_windows(
+    home, fake_repository, outside_projects, monkeypatch
+):
+    """mvn.cmd does not read ~/.mavenrc, so the command names the other options."""
+    monkeypatch.setattr(maven_installer, "is_windows", lambda: True)
+
+    result = _invoke("install", ["maven", "--mavenrc", "--no-discover"])
+
+    assert result.exit_code == 1
+    assert "--local" in result.output
+    assert not (home / ".mavenrc").exists()
+    assert not fake_repository
+
+
 def test_cli_install_maven_local_outside_a_project_fails_cleanly(
     home, fake_repository, outside_projects
 ):
@@ -1279,6 +1696,44 @@ def test_cli_with_a_config_file_that_install_did_not_write_fails_cleanly(
 
     assert result.exit_code == 1
     assert str(plugin_file) in result.output
+
+
+@pytest.mark.parametrize(
+    ("command_name", "helper", "message"),
+    [
+        ("install", "maven", "Asking mvn for its local repository."),
+        ("install", "gradle", "Asking gradle for its Gradle user home."),
+        ("uninstall", "sbt", "Asking sbt for its global plugins directory."),
+    ],
+)
+def test_cli_says_why_it_waits_for_the_build_tool(
+    command_name, helper, message, home, fake_repository, outside_projects, monkeypatch
+):
+    """A build tool can take some seconds to start, so the command says what it waits for."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+
+    result = _invoke(command_name, [helper])
+
+    assert result.exit_code == 0
+    assert f"{message} This can take a few seconds." in result.output
+
+
+@pytest.mark.parametrize("command_name", ["install", "uninstall"])
+def test_cli_with_a_relative_tool_path_fails_cleanly(
+    command_name, home, fake_repository, outside_projects, monkeypatch
+):
+    """A relative Gradle user home stops the command with the reason, without a traceback."""
+    monkeypatch.setattr(maven_installer.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(
+        maven_tools,
+        "tool_output",
+        lambda command, cwd: f"CLOUDSMITH_GRADLE_USER_HOME={cwd / 'rel'}\n",
+    )
+
+    result = _invoke(command_name, ["gradle"])
+
+    assert result.exit_code == 1
+    assert "relative path" in result.output
 
 
 @pytest.mark.parametrize(
