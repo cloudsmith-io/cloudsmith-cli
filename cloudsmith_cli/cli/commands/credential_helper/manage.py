@@ -128,6 +128,7 @@ def _download_session(opts):
         proxy=opts.proxy,
         ssl_verify=opts.ssl_verify,
         ssl_verify_strict=opts.ssl_verify_strict,
+        ssl_system_trust_store=opts.ssl_system_trust_store,
         user_agent=opts.api_user_agent,
     )
 

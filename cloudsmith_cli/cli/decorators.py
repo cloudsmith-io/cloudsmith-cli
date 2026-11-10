@@ -559,6 +559,16 @@ def initialise_session(f):
         "corporate proxies. Certificates are still verified when disabled.",
     )
     @click.option(
+        "--ssl-system-trust-store/--without-ssl-system-trust-store",
+        default=None,
+        is_flag=True,
+        envvar="CLOUDSMITH_SSL_SYSTEM_TRUST_STORE",
+        help="Also trust the CA certificates in the operating system trust store "
+        "for HTTPS connections (disabled by default). Use this if a "
+        "TLS-intercepting proxy uses a CA that the operating system trusts. "
+        "The certifi bundle and REQUESTS_CA_BUNDLE stay trusted.",
+    )
+    @click.option(
         "--api-user-agent",
         envvar="CLOUDSMITH_API_USER_AGENT",
         help="The user agent to use for requests.",
@@ -587,7 +597,7 @@ def initialise_session(f):
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         from ..core.session import create_requests_session as _create_session
-        from ..core.session import set_default_proxy
+        from ..core.session import set_default_proxy, set_default_tls
 
         opts = config.get_or_create_options(ctx)
         _warn_deprecated_config_keys(ctx, opts)
@@ -632,6 +642,7 @@ def initialise_session(f):
         ctx.params["ssl_verify"] = ssl_verify
         opts.ssl_verify = ssl_verify
         opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
+        opts.ssl_system_trust_store = kwargs.pop("ssl_system_trust_store")
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
 
@@ -640,10 +651,16 @@ def initialise_session(f):
         )
 
         set_default_proxy(opts.proxy)
+        set_default_tls(
+            ssl_verify=opts.ssl_verify,
+            ssl_verify_strict=opts.ssl_verify_strict,
+            ssl_system_trust_store=opts.ssl_system_trust_store,
+        )
         opts.session = _create_session(
             proxy=opts.proxy,
             ssl_verify=opts.ssl_verify,
             ssl_verify_strict=opts.ssl_verify_strict,
+            ssl_system_trust_store=opts.ssl_system_trust_store,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
         )
@@ -888,6 +905,7 @@ def initialise_api(f):
             proxy=opts.proxy,
             ssl_verify=opts.ssl_verify,
             ssl_verify_strict=opts.ssl_verify_strict,
+            ssl_system_trust_store=opts.ssl_system_trust_store,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
             rate_limit=opts.rate_limit,

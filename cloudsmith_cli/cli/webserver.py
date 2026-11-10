@@ -61,6 +61,9 @@ class AuthenticationWebServer(HTTPServer):
             proxy=getattr(self.api_opts, "proxy", None),
             ssl_verify=getattr(self.api_opts, "verify_ssl", True),
             ssl_verify_strict=getattr(self.api_opts, "ssl_verify_strict", True),
+            ssl_system_trust_store=getattr(
+                self.api_opts, "ssl_system_trust_store", False
+            ),
             user_agent=getattr(self.api_opts, "user_agent", None),
             headers=getattr(self.api_opts, "headers", None),
             rate_limit=getattr(self.api_opts, "rate_limit", True),
