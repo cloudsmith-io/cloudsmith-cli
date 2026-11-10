@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [1.31.0] - 2026-11-05
+## [1.31.0] - 2026-11-11
 
 ### Added
 
-- Added `cloudsmith credential-helper install maven`, `install gradle`, and `install sbt`. They set up the Cloudsmith Maven tools, which get repository credentials from `cloudsmith credential-helper generic`. Each command installs the newest release from the public `cloudsmith/maven-tools` repository, for every build of the user. (#520)
+- Added `cloudsmith credential-helper install maven`, `install gradle`, and `install sbt`. They set up the Cloudsmith Maven tools, which get repository credentials from `cloudsmith credential-helper generic`. Each command installs the newest release from the public `cloudsmith/maven-tools` repository, for every build of the user. (#520, #594, #595)
   - `maven` puts the extension in the local repository that Maven reports (`~/.m2/repository` when the command cannot run `mvn`) and adds it to `~/.m2/extensions.xml`, which Maven 3.10 and later read. When `mvn -v` reports an earlier Maven, the command shows a warning. With `--local`, the command adds the extension to `.mvn/extensions.xml` of the Maven project in the current directory instead. With `--mavenrc`, it adds a block to `~/.mavenrc` instead, which the `mvn` and `mvnw` scripts of all Maven versions read. `--mavenrc` does not work on Windows or when the path of the local Maven repository contains a space or a `:`. In these cases the command stops and tells you to use `--local` or Maven 3.10.
   - `gradle` writes an init script to `init.d` of the Gradle user home that `gradle` reports (`$GRADLE_USER_HOME` or `~/.gradle` when the command cannot run `gradle`), which applies the plugin to every Gradle build.
   - `sbt` writes a global plugin to the global plugins directory that `sbt` reports (`~/.sbt/1.0/plugins` when the command cannot run `sbt`), which adds the plugin to every sbt 1 build. With `--local`, it writes `project/cloudsmith.sbt` of the sbt project in the current directory instead.
@@ -20,13 +20,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The commands add to existing files and keep their other content. `uninstall` removes only what `install` added.
 - Added `skills` to `cloudsmith upstream`. Use `cloudsmith upstream skills list`, `create`, `update`, and `delete` to manage AI Skills upstreams. An AI Skills upstream caches skills and plugins from a GitHub repository. (#575)
 - Added `--changelog` to `cloudsmith push skills`. Use it to add release notes to an AI Skills package. The option is available only for the `skills` format. (#564)
-- Added `--compress` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress`, the command fails with a usage error. The option is available only for the `skills` format. (#564)
+- Added `--compress` to `cloudsmith push skills`. With this option, you can pass a skill folder instead of a `.zip` archive. The CLI compresses the contents of the folder into a `.zip` archive, then uploads it. If you pass a folder without `--compress`, the command fails with a usage error. The archive leaves out files and folders named `.git`, `.env`, `.DS_Store`, or `__MACOSX`, and names that start with `._`. If the folder contains a symbolic link, the command fails with a usage error. The option is available only for the `skills` format. (#564, #599)
 
 ### Changed
 
 - The credential-helper launchers on Linux and macOS now start with `#!/usr/bin/env sh` instead of `#!/bin/sh`, so they also work on systems that have no `/bin/sh`. (#586)
-- The minimum version of `cloudsmith-api` is now 2.0.42. (#575)
-- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
+- The minimum version of `cloudsmith-api` is now 2.0.43. (#575, #608)
 
 ### Deprecated
 
@@ -61,10 +60,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith logout` no longer damages `credentials.ini` when a line follows an empty `api_key`. Previously, the CLI removed the next line that is not blank, for example on the second `logout`. When that line was a section header, such as `[profile:NAME]`, and that section also had a key, each later command failed with `DuplicateOptionError`. `cloudsmith logout` now also clears an `api_key` that uses `:` instead of `=`. The same fix applies when `cloudsmith login`, `cloudsmith tokens create --save-config`, `cloudsmith tokens refresh --save-config`, or `cloudsmith auth --request-api-key --save-config` write the API key. (#533)
 - When `credentials.ini` has no `api_key` in the `[default]` section, `cloudsmith login` and the `--save-config` options now add the API key to that section. If the section does not exist, the CLI creates it. Previously, the CLI showed `UPDATED` but did not save the key. (#533)
 - `cloudsmith credential-helper list` now shows the pnpm hosts in `.npmrc` when the pnpm launcher is missing. Previously, the command showed no hosts, and pnpm still tried to run the missing launcher for those hosts. (#554)
-- The CLI now reads `config.ini` and `credentials.ini` as UTF-8. On Windows, a UTF-8 file with characters such as Cyrillic letters caused a `UnicodeDecodeError` in every command. A file in the Windows code page (for example cp1252) still loads. When the CLI changes a file, it keeps the encoding of that file and its UTF-8 byte order mark. The CLI creates new files as UTF-8.
-- When the CLI cannot decode a `config.ini` or `credentials.ini`, for example a UTF-16 file, the error now gives the file path and tells you to save the file as UTF-8.
   - `list` also shows the pnpm hosts that you installed with `--bin-dir`. `cloudsmith credential-helper uninstall pnpm` now removes these `.npmrc` entries, as the Docker and Cargo uninstall commands do.
-- A `[profile:NAME]` section in `config.ini` now keeps the `[default]` values of `telemetry`, `check_for_update`, `ssl_verify`, `api_ssl_verify`, and `ssl_verify_strict` when it does not set them. Previously, a profile that left out one of these keys reset it to `true`, so `--profile`/`-P` turned telemetry and the update check back on, and turned certificate verification back on. A key that no section sets is still `true`.
+- A `[profile:NAME]` section in `config.ini` now keeps the `[default]` values of `telemetry`, `check_for_update`, `ssl_verify`, `api_ssl_verify`, and `ssl_verify_strict` when it does not set them. Previously, a profile that left out one of these keys reset it to `true`, so `--profile`/`-P` turned telemetry and the update check back on, and turned certificate verification back on. A key that no section sets is still `true`. (#597)
+- The CLI now reads `config.ini` and `credentials.ini` as UTF-8. On Windows, a UTF-8 file with characters such as Cyrillic letters caused a `UnicodeDecodeError` in every command. A file in the Windows code page (for example cp1252) still loads. When the CLI changes a file, it keeps the encoding of that file and its UTF-8 byte order mark. The CLI creates new files as UTF-8. (#562)
+- When the CLI cannot decode a `config.ini` or `credentials.ini`, for example a UTF-16 file, the error now gives the file path and tells you to save the file as UTF-8. (#562)
 - `cloudsmith credential-helper list` now shows a helper as not configured when its config file is not valid, and it still lists the other helpers. This applies to a Docker `config.json` with a `credHelpers` value that is not an object, and to a Docker or Terraform config file that is not UTF-8. It also applies to a pnpm `.npmrc` that the CLI cannot read or decode. Previously, the command stopped with an error such as `AttributeError`. (#549)
 - **Breaking:** `cloudsmith login`, `cloudsmith logout`, and `--save-config` on `cloudsmith auth` and `cloudsmith tokens` now set `credentials.ini` to mode `0600`. Only your user can read or change the file and its API key. Previously, the CLI created the file with mode `0660`, so all members of your group could read and change the API key. When the CLI writes an existing `credentials.ini` that you own, it also sets the mode to `0600`. The CLI does not change the mode when it only reads the file. Other users in your group can no longer read a `credentials.ini` that the CLI writes. On Windows, the CLI does not change the access to the file. (#553)
 - `cloudsmith copy`, `move`, and `resync` with `--skip-errors` now ignore an API error, the same as `cloudsmith push`. The CLI prints the error one time, then `Skipping error and moving on.`, and exits with code 0. Previously, the CLI also printed the error a second time as an unexpected error (`Error: ApiException: ...`), sent an error report, and exited with code 1. (#552)
@@ -86,6 +85,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1. (#583)
 - The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120. (#567)
 - `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value. (#581)
+- `cloudsmith whoami --verbose` now shows a credential from OIDC auto-discovery as `Authentication Method: OIDC Auto-Discovery`, with its source, for example `OIDC via GitHub Actions (org: acme, service: ci-service)`. Since 1.26.0, it showed these credentials as `SAML Token (primary)` with no source. In the JSON output, `auth.active_method` is now `oidc` instead of `sso_token`, and the new `auth.oidc.source` field gives the source. (#521)
+- The source of a cached OIDC token now names the CI vendor, for example `OIDC via GitHub Actions [cached] (org: acme, service: ci-service)`. The OIDC token cache now stores the name of the vendor. A token that an earlier version cached still shows `OIDC [cached]` until it expires. (#521)
 
 ## [1.30.1] - 2026-10-28
 
@@ -110,9 +111,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--api-headers "Authorization=username:password"` accepts a password that contains a colon. Before, all commands stopped with a `ValueError`. (#527)
 - `--api-headers "Authorization=username"` without a password shows a usage error for `--api-headers`. Before, the CLI showed a traceback. (#527)
 - `--api-headers` with a blocked header, such as `user-agent=x`, or with a value that has no `=`, shows a usage error. Before, the CLI showed a traceback. (#527)
-- `cloudsmith credential-helper install` and `uninstall` no longer replace a Docker `config.json` or a Cargo `config.toml` that does not parse. Previously, the CLI read such a file as empty and wrote over it, so your settings were lost. Now the command stops with an error that names the file, and it does not write to the file. Correct or remove the file. Then run the command again.
-- `cloudsmith whoami --verbose` now shows a credential from OIDC auto-discovery as `Authentication Method: OIDC Auto-Discovery`, with its source, for example `OIDC via GitHub Actions (org: acme, service: ci-service)`. Since 1.26.0, it showed these credentials as `SAML Token (primary)` with no source. In the JSON output, `auth.active_method` is now `oidc` instead of `sso_token`, and the new `auth.oidc.source` field gives the source.
-- The source of a cached OIDC token now names the CI vendor, for example `OIDC via GitHub Actions [cached] (org: acme, service: ci-service)`. The OIDC token cache now stores the name of the vendor. A token that an earlier version cached still shows `OIDC [cached]` until it expires.
 
 ## [1.30.0] - 2026-10-22
 
