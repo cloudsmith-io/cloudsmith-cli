@@ -454,7 +454,7 @@ wheels = [
 
 [[package]]
 name = "cloudsmith-api"
-version = "2.0.42"
+version = "2.0.43"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -462,9 +462,9 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/17/2d373bb70ab5ea5eed04aa43fbb12088128f985c2805530f644ec122d7db/cloudsmith_api-2.0.42.tar.gz", hash = "sha256:657a18d296d1f123135c8db06b4ca53791e8cb7f12f7346c1915c1369fb02b5d", size = 769545, upload-time = "2026-10-26T13:08:02.567Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/45/86c7b40679154f3108ad459172c1029ff259160b94e7860498b50a98fc56/cloudsmith_api-2.0.43.tar.gz", hash = "sha256:d91398235615f70b12fd695f5267bac7e7b6610e2a72361322029fbfe8ed6897", size = 781900, upload-time = "2026-11-10T14:44:33.296Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/92/1d9d4601faec4673f6157566959edc387458edabc3666c28a2763100a398/cloudsmith_api-2.0.42-py3-none-any.whl", hash = "sha256:e49dfea7d0da42c82b3ff5f2fa7bd96693449b1982cd3d4aa92e3ad9890801f9", size = 1207400, upload-time = "2026-10-26T13:08:01.287Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/e3/b4496c73fdcb346aa14811fd1129959775fcd4fe7c1f96702b36d24153fe/cloudsmith_api-2.0.43-py3-none-any.whl", hash = "sha256:0c6309de67d5bed304cec380af4d3fc83029dee312564b02d5ef7a4485413ad0", size = 1222881, upload-time = "2026-11-10T14:44:31.635Z" },
 ]
 
 [[package]]
@@ -543,7 +543,7 @@ requires-dist = [
     { name = "click-configfile", specifier = ">=0.2.3" },
     { name = "click-didyoumean", specifier = ">=0.0.3" },
     { name = "click-spinner", specifier = ">=0.1.7" },
-    { name = "cloudsmith-api", specifier = ">=2.0.42,<3.0" },
+    { name = "cloudsmith-api", specifier = ">=2.0.43,<3.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "google-auth", marker = "extra == 'all'", specifier = ">=2.40.0" },
     { name = "google-auth", marker = "extra == 'gcp'", specifier = ">=2.40.0" },
