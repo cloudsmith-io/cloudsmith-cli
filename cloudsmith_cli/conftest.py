@@ -17,6 +17,11 @@ def no_real_error_reports(monkeypatch):
 
     Tests that exercise reporting opt back in with ``sentry_events``.
     """
+    from cloudsmith_cli.core import telemetry_common
+
+    # These win over CLOUDSMITH_NO_TELEMETRY, so a developer's own must go.
+    for name in telemetry_common.MODE_ENVS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
     monkeypatch.setenv(telemetry.DSN_ENV, "")
     monkeypatch.setattr(telemetry, "_transport", None)

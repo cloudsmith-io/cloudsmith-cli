@@ -64,23 +64,6 @@ def _config_file_blocks(facts, read_config):
     return probe.ssl_verify is False
 
 
-def _config_opted_out(read_config):
-    """Tell whether config.ini really says ``telemetry = false``.
-
-    Unlike ``config_disabled``, an unreadable file is not an opt-out, so it
-    must not delete the install ID.
-    """
-    from ...cli import config
-
-    try:
-        opts = getattr(config.OPTIONS, "value", None)
-        if opts is not None and opts.telemetry is False:
-            return True
-        return read_config().telemetry is False
-    except Exception:  # pylint: disable=broad-exception-caught
-        return False
-
-
 def finish(facts):
     try:
         _finish(facts)
@@ -97,15 +80,18 @@ def _finish(facts):  # pylint: disable=too-many-return-statements,too-many-local
     from .. import installation, telemetry_common, version
     from . import environment, event, identity, notice, sender, settings, state
 
-    if telemetry_common.telemetry_disabled():
-        identity.forget()
-        return
     # The opt-out check and the config.ini gate share one read of the file.
     read_config = functools.cache(telemetry_common.read_config_file)
-    if telemetry_common.config_disabled(read_config):
-        if _config_opted_out(read_config):
+    mode, source = telemetry_common.resolve_mode(
+        telemetry_common.Kind.USAGE, read_config
+    )
+    if mode is telemetry_common.Mode.DISABLED:
+        # An unreadable file sends nothing but is not an opt-out, so it must
+        # not delete the install ID.
+        if source != telemetry_common.CONFIG_UNREADABLE:
             identity.forget()
         return
+    log = mode is telemetry_common.Mode.LOG
     if not telemetry_common.is_cloudsmith_host(facts.api_host) or not facts.ssl_verify:
         return
     if _config_file_blocks(facts, read_config):
@@ -113,7 +99,7 @@ def _finish(facts):  # pylint: disable=too-many-return-statements,too-many-local
     env_name = telemetry_common.get_environment()
     if env_name == "development" and not settings.override_set():
         return
-    if not settings.project_key() and not settings.log_mode():
+    if not settings.project_key() and not log:
         return
 
     channel = installation.detect_channel()
@@ -164,7 +150,7 @@ def _finish(facts):  # pylint: disable=too-many-return-statements,too-many-local
         timestamp=datetime.now(UTC).isoformat(),
     )
 
-    if settings.log_mode():
+    if log:
         sender.log(payload)
         return
     # send() returns None when too little of the shared wait budget is left
