@@ -140,16 +140,10 @@ class TestUpgradeInstruction:
 
 class TestChangelogUrl:
     @pytest.mark.parametrize("version", ["2.0.0", "v2.0.0"])
-    def test_points_at_changelog_entry(self, version):
+    def test_points_at_release_tag(self, version):
         assert (
             installation.changelog_url(version)
-            == "https://cloudsmith.com/changelog/cli-v2-0-0"
-        )
-
-    def test_multi_digit_parts(self):
-        assert (
-            installation.changelog_url("1.12.3")
-            == "https://cloudsmith.com/changelog/cli-v1-12-3"
+            == "https://github.com/cloudsmith-io/cloudsmith-cli/releases/tag/v2.0.0"
         )
 
     @pytest.mark.parametrize("version", [None, ""])
