@@ -3,16 +3,21 @@
 
 Only exceptions that escape every other handler reach here: click's own
 errors and handled API errors never do. Reporting is on by default (including
-in CI) and is turned off by any of:
+in CI). The first of these that is set decides:
 
+* ``CLOUDSMITH_TELEMETRY_ERROR_REPORTING`` - error reports only: ``enable``,
+  ``disable`` or ``log``, which prints the scrubbed report instead of
+  sending it.
+* ``CLOUDSMITH_TELEMETRY`` - the same, for error reports and usage events.
+* ``CLOUDSMITH_NO_TELEMETRY`` - the older tool-specific opt-out.
 * ``DO_NOT_TRACK`` - the cross-tool convention (https://consoledonottrack.com).
-* ``CLOUDSMITH_NO_TELEMETRY`` - the tool-specific variable.
-* ``telemetry = false`` in config.ini - so the choice survives a new shell.
+* ``telemetry_error_reporting``, then ``telemetry``, in config.ini - so the
+  choice survives a new shell.
 
-Any one opt-out wins; ``telemetry = true`` does not override the env vars.
+So ``CLOUDSMITH_TELEMETRY_ERROR_REPORTING=enable`` keeps error reports on
+under a global ``DO_NOT_TRACK``, but config.ini never overrides the env vars.
 A command whose ``@telemetry.send`` policy leaves out ERRORS never reports
-(checked by the caller, ``AliasGroup.main``). ``CLOUDSMITH_TELEMETRY=log``
-prints the scrubbed report instead of sending it.
+(checked by the caller, ``AliasGroup.main``).
 
 Anonymisation is enforced by :func:`scrub_event`, which *rebuilds* the event
 from an allowlist rather than deleting known-bad fields, so anything new the
@@ -36,13 +41,15 @@ from .certificate_errors import find_certificate_error
 from .telemetry_common import CLOUDSMITH_HOST_SUFFIXES as _ALLOWED_HOST_SUFFIXES
 from .telemetry_common import (  # noqa: F401  (re-exported for callers and tests)
     DO_NOT_TRACK_ENV,
+    ERROR_REPORTING_ENV,
+    MODE_ENV,
     NO_TELEMETRY_ENV,
     OPT_OUT_ENVS,
     PROFILE_ENV,
-    config_disabled,
+    Kind,
+    Mode,
     get_environment,
-    log_mode,
-    telemetry_disabled,
+    resolve_mode,
 )
 
 #: Production ingest DSN for the dedicated ``cloudsmith-cli`` Sentry project.
@@ -137,9 +144,10 @@ def report_exception(exc: BaseException) -> bool:
     try:
         if not is_reportable(exc):
             return False
-        if telemetry_disabled() or config_disabled():
+        mode, _ = resolve_mode(Kind.ERRORS)
+        if mode is Mode.DISABLED:
             return False
-        if log_mode():
+        if mode is Mode.LOG:
             # The DSN is only parsed here: the log transport never sends.
             _send(exc, get_dsn() or DSN, log=True)
             return False

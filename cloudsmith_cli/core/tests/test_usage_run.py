@@ -141,6 +141,92 @@ def test_log_mode_prints_and_sends_nothing(
     assert "would send" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("name", ["DO_NOT_TRACK", "CLOUDSMITH_NO_TELEMETRY"])
+def test_log_mode_wins_over_the_opt_outs(
+    usage_events, interactive, monkeypatch, capsys, name
+):
+    monkeypatch.setenv(name, "1")
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    run.finish(facts())
+    assert usage_events == []
+    assert "would send" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["DO_NOT_TRACK", "CLOUDSMITH_NO_TELEMETRY"])
+def test_enable_wins_over_the_opt_outs(usage_events, interactive, monkeypatch, name):
+    monkeypatch.setenv(name, "1")
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "enable")
+    run.finish(facts())
+    assert len(usage_events) == 1
+
+
+def test_enable_wins_over_config_opt_out(
+    usage_events, interactive, telemetry_config_dir, monkeypatch
+):
+    (telemetry_config_dir / "config.ini").write_text("[default]\ntelemetry = false\n")
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "enable")
+    run.finish(facts())
+    assert len(usage_events) == 1
+
+
+def test_usage_reporting_enable_wins_over_disable_and_the_opt_outs(
+    usage_events, interactive, monkeypatch
+):
+    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "disable")
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY_USAGE_REPORTING", "enable")
+    run.finish(facts())
+    assert len(usage_events) == 1
+
+
+def test_error_reporting_variable_does_not_change_usage(
+    usage_events, interactive, monkeypatch
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY_ERROR_REPORTING", "disable")
+    run.finish(facts())
+    assert len(usage_events) == 1
+
+
+def test_usage_reporting_log(usage_events, interactive, monkeypatch, capsys):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY_USAGE_REPORTING", "log")
+    run.finish(facts())
+    assert usage_events == []
+    assert "would send" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "content,sent",
+    [
+        ("telemetry_usage_reporting = disable\n", 0),
+        ("telemetry = disable\ntelemetry_usage_reporting = enable\n", 1),
+        ("telemetry_error_reporting = disable\n", 1),
+    ],
+)
+def test_usage_reporting_config_key(
+    usage_events, interactive, telemetry_config_dir, content, sent
+):
+    (telemetry_config_dir / "config.ini").write_text(f"[default]\n{content}")
+    run.finish(facts())
+    assert len(usage_events) == sent
+
+
+def test_enable_does_not_override_the_host_gate(usage_events, interactive, monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "enable")
+    run.finish(facts(api_host="https://artifacts.example.com"))
+    assert usage_events == []
+
+
+def test_unrecognised_value_falls_through_to_the_opt_outs(
+    usage_events, interactive, monkeypatch
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "nope")
+    run.finish(facts())
+    assert len(usage_events) == 1
+    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    run.finish(facts())
+    assert len(usage_events) == 1
+
+
 def test_nested_run_sends_nothing(usage_events, interactive):
     run.finish(facts(nested=True))
     assert usage_events == []
@@ -392,9 +478,19 @@ def stored_id(usage_events, interactive):
     return sent["distinct_id"]
 
 
-@pytest.mark.parametrize("name", ["DO_NOT_TRACK", "CLOUDSMITH_NO_TELEMETRY"])
-def test_env_opt_out_deletes_the_install_id(stored_id, usage_events, monkeypatch, name):
-    monkeypatch.setenv(name, "1")
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("DO_NOT_TRACK", "1"),
+        ("CLOUDSMITH_NO_TELEMETRY", "1"),
+        ("CLOUDSMITH_TELEMETRY", "disable"),
+        ("CLOUDSMITH_TELEMETRY_USAGE_REPORTING", "disable"),
+    ],
+)
+def test_env_opt_out_deletes_the_install_id(
+    stored_id, usage_events, monkeypatch, name, value
+):
+    monkeypatch.setenv(name, value)
     run.finish(facts())
     assert usage_events == []
     assert "install_id" not in state.read() and "created_at" not in state.read()
@@ -402,12 +498,22 @@ def test_env_opt_out_deletes_the_install_id(stored_id, usage_events, monkeypatch
     assert state.read()["notice_version"] == notice.NOTICE_VERSION
 
 
+@pytest.mark.parametrize("key", ["telemetry", "telemetry_usage_reporting"])
 def test_config_opt_out_deletes_the_install_id(
-    stored_id, usage_events, telemetry_config_dir
+    stored_id, usage_events, telemetry_config_dir, key
 ):
-    (telemetry_config_dir / "config.ini").write_text("[default]\ntelemetry = false\n")
+    (telemetry_config_dir / "config.ini").write_text(f"[default]\n{key} = false\n")
     run.finish(facts())
     assert usage_events == [] and "install_id" not in state.read()
+
+
+def test_error_reporting_opt_out_keeps_the_install_id(
+    stored_id, usage_events, monkeypatch
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY_ERROR_REPORTING", "disable")
+    run.finish(facts())
+    assert len(usage_events) == 1
+    assert state.read()["install_id"] == stored_id
 
 
 def test_unreadable_config_keeps_the_install_id(

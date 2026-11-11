@@ -33,6 +33,8 @@ ALLOWED_SETTINGS = frozenset(
         "metadata_failure_mode",
         "check_for_update",
         "telemetry",
+        "telemetry_usage_reporting",
+        "telemetry_error_reporting",
         "api_key",
         "profile",
         "config_file_path",
