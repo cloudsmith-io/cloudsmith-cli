@@ -11,7 +11,7 @@ from ...core.session import create_requests_session
 from ...core.tests.test_certificate_errors import certificate_error
 from ...core.utils import get_data_path, read_file
 from ..commands.main import main
-from ..config import Options
+from ..config import ConfigParam, ConfigSchema, Options
 from ..decorators import (
     common_cli_output_options,
     common_package_action_options,
@@ -203,15 +203,61 @@ def test_ssl_verify_config_alias(body, expected, telemetry_config_dir):
     assert opts.ssl_verify is expected
 
 
-def test_profile_resets_ssl_settings(telemetry_config_dir):
+PROFILE_BOOLEAN_KEYS = [
+    ("ssl_verify", "ssl_verify"),
+    ("api_ssl_verify", "ssl_verify"),
+    ("ssl_verify_strict", "ssl_verify_strict"),
+    ("check_for_update", "check_for_update"),
+    ("telemetry", "telemetry"),
+]
+
+
+@pytest.mark.parametrize("key,option", PROFILE_BOOLEAN_KEYS)
+@pytest.mark.parametrize("profile_body", ["", "api_user_agent=test\n"])
+def test_profile_keeps_default_setting_it_leaves_out(
+    key, option, profile_body, telemetry_config_dir
+):
     (telemetry_config_dir / "config.ini").write_text(
-        "[default]\nssl_verify=false\nssl_verify_strict=false\n"
-        "[profile:test]\napi_user_agent=test\n"
+        f"[default]\n{key}=false\n[profile:test]\n{profile_body}"
     )
     opts = Options()
     opts.load_config_file(None, profile="test")
-    assert opts.ssl_verify is True
-    assert opts.ssl_verify_strict is True
+    assert getattr(opts, option) is False
+
+
+@pytest.mark.parametrize("key,option", PROFILE_BOOLEAN_KEYS)
+def test_profile_overrides_default_setting(key, option, telemetry_config_dir):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\n{key}=false\n[profile:test]\n{key}=true\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert getattr(opts, option) is True
+
+
+@pytest.mark.parametrize("key,option", PROFILE_BOOLEAN_KEYS)
+@pytest.mark.parametrize("default_body", ["", "[default]\n", "[default]\n{key}=\n"])
+def test_profile_setting_unset_everywhere_is_true(
+    key, option, default_body, telemetry_config_dir
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        default_body.format(key=key) + "[profile:test]\napi_user_agent=test\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert getattr(opts, option) is True
+
+
+def test_profile_schema_has_no_defaults():
+    """A schema default would replace the [default] value in every profile."""
+    params = [getattr(ConfigSchema.Profile, name) for name in dir(ConfigSchema.Profile)]
+    defaulted = [
+        param.name
+        for param in params
+        if isinstance(param, ConfigParam) and param.default is not None
+    ]
+
+    assert defaulted == []
 
 
 def test_default_config_keeps_api_ssl_verify_alias(telemetry_config_dir):

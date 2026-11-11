@@ -441,6 +441,7 @@ def _resolve_alias(ctx, kwargs, name, envvars, aliases):
         and ctx.get_parameter_source(name) != ParameterSource.COMMANDLINE
     ):
         value = alias_value
+        deprecation.keep_alias_source(ctx, name, aliases)
     else:
         deprecation.warn_deprecated_envvar(ctx, name, envvars)
     ctx.params[name] = value
@@ -619,6 +620,9 @@ def initialise_session(f):
             and deprecation.used_on_command_line(ctx, deprecation.SSL_VERIFY_ALIASES)
         ) or ssl_verify is None:
             ssl_verify = legacy_ssl_verify
+            deprecation.keep_alias_source(
+                ctx, "ssl_verify", deprecation.SSL_VERIFY_ALIASES
+            )
             # Warn about the variable only when its value is the one used.
             legacy_envvar = deprecation.alias_envvar(
                 ctx, deprecation.SSL_VERIFY_ALIASES

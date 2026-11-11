@@ -4,8 +4,12 @@ import importlib
 from collections import OrderedDict
 
 import click.exceptions
-from click.utils import _PacifyFlushWrapper
 from click_didyoumean import DYMGroup
+
+try:
+    from click.utils import _PacifyFlushWrapper
+except ImportError:  # click before 8.2
+    from click.utils import PacifyFlushWrapper as _PacifyFlushWrapper
 
 from ..core.certificate_errors import describe_certificate_error
 

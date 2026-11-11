@@ -84,6 +84,17 @@ METADATA_FAILURE_MODE_KWARG = "cli_metadata_failure_mode"
 #: derived without ``--dsc-file`` (GitHub issue #56).
 DSC_SUFFIX = ".dsc"
 
+#: OS and VCS clutter left out when ``push skills --compress`` zips a folder.
+#: Language-specific artifacts (``__pycache__``, ``node_modules`` ...) are kept,
+#: as are dotfiles a skill may need, such as ``.claude-plugin/``.
+SKILL_ARCHIVE_EXCLUDED_PATTERNS = (
+    ".DS_Store",
+    "._*",
+    "__MACOSX",
+    ".git",
+    ".env",
+)
+
 
 def _metadata_failure_is_warn(opts=None):
     """Return True iff metadata failures should be downgraded to a warning.
@@ -1086,6 +1097,23 @@ def _push_package_file(
     return result
 
 
+def _ignore_skill_archive_entries(src, names):
+    """``copytree`` ignore hook that drops clutter and rejects symlinks.
+
+    ``copytree`` copies the target of a symlink, so a link such as
+    ``local-config -> ~/.aws`` would upload files from outside the skill.
+    """
+    ignored = shutil.ignore_patterns(*SKILL_ARCHIVE_EXCLUDED_PATTERNS)(src, names)
+    for name in names:
+        path = os.path.join(src, name)
+        if name not in ignored and os.path.islink(path):
+            raise click.BadParameter(
+                f"Symlinks are not supported in skill directories: {path}",
+                param_hint="PACKAGE_FILE",
+            )
+    return ignored
+
+
 def _implied_dsc_file(package_file):
     """Return ``package_file`` if it is itself a Debian ``.dsc``, else None."""
     if isinstance(package_file, str) and package_file.endswith(DSC_SUFFIX):
@@ -1370,10 +1398,16 @@ def create_push_handlers():
                             err=use_stderr,
                         )
 
+                        # Copy directory to filter out patterns we wouldn't want uploaded
+                        # See in `SKILL_ARCHIVE_EXCLUDED_PATTERNS`
+                        staged = os.path.join(tmp, os.path.basename(package_file))
+                        shutil.copytree(
+                            package_file,
+                            staged,
+                            ignore=_ignore_skill_archive_entries,
+                        )
                         archive = shutil.make_archive(
-                            base_name=os.path.join(tmp, os.path.basename(package_file)),
-                            format="zip",
-                            root_dir=package_file,
+                            base_name=staged, format="zip", root_dir=staged
                         )
 
                         click.secho("OK", fg="green", nl=False, err=use_stderr)

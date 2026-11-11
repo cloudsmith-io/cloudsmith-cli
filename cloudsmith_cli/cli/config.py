@@ -1,6 +1,8 @@
 """CLI - Configuration."""
 
+import codecs
 import configparser
+import locale
 import os
 import re
 import stat
@@ -8,7 +10,14 @@ import threading
 from typing import ClassVar
 
 import click
-from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
+from click_configfile import (
+    ConfigFileReader,
+    Param,
+    SectionSchema,
+    generate_configfile_names,
+    matches_section,
+    select_config_sections,
+)
 
 from ..core.utils import get_data_path, read_file
 from . import deprecation, utils, validators
@@ -87,7 +96,16 @@ class ConfigSchema:
 
     @matches_section("profile:*")
     class Profile(Default):
-        """Profile-specific configuration schema."""
+        """Profile-specific configuration schema.
+
+        Has no defaults, so a key that a profile leaves out keeps its
+        [default] value instead of being reset to the schema default.
+        """
+
+        api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool)
+        ssl_verify_strict = ConfigParam(name="ssl_verify_strict", type=bool)
+        check_for_update = ConfigParam(name="check_for_update", type=bool)
+        telemetry = ConfigParam(name="telemetry", type=bool)
 
 
 class ConfigReader(ConfigFileReader):
@@ -105,6 +123,30 @@ class ConfigReader(ConfigFileReader):
             if isinstance(v, ConfigParam):
                 v.ctx = cls
         return section_schema
+
+    @classmethod
+    def read_config(cls) -> dict[str, dict[str, object]]:
+        """Read the config files, each with its own text encoding."""
+        # click_configfile reads all files with the locale encoding only.
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        for path in generate_configfile_names(cls.config_files, cls.config_searchpath):
+            encoding = _get_file_encoding(path)
+            try:
+                parser.read(path, encoding=encoding)
+            except UnicodeDecodeError as exc:
+                raise click.ClickException(
+                    f"Cannot read {path} as {encoding} text. Save the file as UTF-8."
+                ) from exc
+
+        if not cls.config_sections:
+            cls.config_sections = cls.collect_config_sections_from_schemas()
+        storage: dict[str, dict[str, object]] = {}
+        for section_name in select_config_sections(
+            parser.sections(), cls.config_sections
+        ):
+            cls.process_config_section(parser[section_name], storage)
+        return storage
 
     @classmethod
     def get_storage_name_for(cls, section_name):
@@ -173,13 +215,15 @@ class ConfigReader(ConfigFileReader):
         return (existing_paths or user_paths)[0]
 
     @classmethod
-    def save_workspace(cls, workspace, profile=None, path=None):
+    def save_workspace(
+        cls, workspace: str, profile: str | None = None, path: str | None = None
+    ) -> str | None:
         """Write the Workspace to the profile section; return the path if it changed."""
         if path and os.path.isdir(path):
             path = os.path.join(path, "config.ini")
         path = path or cls.get_user_filepath()
         if os.path.exists(path):
-            with open(path) as config_file:
+            with open(path, encoding=_get_file_encoding(path)) as config_file:
                 content = config_file.read()
         else:
             content = read_file(get_data_path(), "config.ini")
@@ -194,7 +238,7 @@ class ConfigReader(ConfigFileReader):
             raise ValueError(f"the CLI cannot change the [{section}] section of {path}")
 
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as config_file:
+        with open(path, "w", encoding=_get_file_encoding(path)) as config_file:
             config_file.write(updated)
         return path
 
@@ -300,6 +344,21 @@ class ConfigReader(ConfigFileReader):
             setattr(opts, k, v)
 
 
+def _get_file_encoding(path: str | os.PathLike[str]) -> str:
+    """Get the text encoding of a config file; a new file is UTF-8."""
+    try:
+        with open(path, "rb") as config_file:
+            data = config_file.read()
+    except OSError:
+        return "utf-8"
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        # A file in the locale encoding (for example cp1252 on Windows) must still load.
+        return locale.getpreferredencoding(False)
+    return "utf-8-sig" if data.startswith(codecs.BOM_UTF8) else "utf-8"
+
+
 def _get_section_value(content, section, key):
     """Get `key` from the INI `section` of `content`, or None if it does not parse."""
     parser = configparser.ConfigParser(interpolation=None)
@@ -372,7 +431,7 @@ class CredentialsReader(ConfigReader):
     def _set_api_key(cls, path: str | os.PathLike[str], api_key: str = "") -> None:
         """Write api_key value in a credentials file, preserving structure."""
         # Text mode reads CRLF as LF, so no "\r" reaches the pattern.
-        with open(path) as f:
+        with open(path, encoding=_get_file_encoding(path)) as f:
             content = f.read()
         line = f"api_key = {api_key}" if api_key else "api_key ="
         # "[ \t]" and not "\s": "\s" also matches a newline, so an empty
@@ -389,7 +448,7 @@ class CredentialsReader(ConfigReader):
             content = _set_section_value(content, "default", "api_key", api_key)
         # "r+" keeps a read-only file unchanged. The mode changes through the open
         # file, so it applies to the file that gets the key.
-        with open(path, "r+") as f:
+        with open(path, "r+", encoding=_get_file_encoding(path)) as f:
             # Restrict the mode before the write, so the new key is never readable
             # under the old mode.
             if hasattr(os, "fchmod"):
