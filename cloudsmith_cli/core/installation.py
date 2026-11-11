@@ -21,23 +21,24 @@ _DISTRIBUTION_NAME = "cloudsmith-cli"
 #: Where a user downloads a fresh standalone build when self-update cannot run.
 RELEASES_LATEST_URL = "https://github.com/cloudsmith-io/cloudsmith-cli/releases/latest"
 
-#: Base for a version's changelog entry on cloudsmith.com. Each entry's slug is
-#: ``cli-v<major>-<minor>-<patch>``, so it answers "what do I gain by
-#: upgrading?" for the exact version being offered.
-_CHANGELOG_URL_TEMPLATE = "https://cloudsmith.com/changelog/cli-v{version}"
+#: Base for a version's GitHub release page. Each release is tagged ``v<version>``
+#: and its page renders that version's changelog, so it answers "what do I gain
+#: by upgrading?" for the exact version being offered.
+_RELEASE_TAG_URL_TEMPLATE = (
+    "https://github.com/cloudsmith-io/cloudsmith-cli/releases/tag/v{version}"
+)
 
 
 def changelog_url(version=None):
-    """Return the changelog URL for ``version``, or the releases listing.
+    """Return the changelog URL for ``version`` (its release page), or the list.
 
-    With a version, points at that version's changelog entry
-    (``cli-v<major>-<minor>-<patch>``), which shows exactly what changed.
-    Without one, points at the releases listing.
+    With a version, points at that version's release page (tagged
+    ``v<version>``), which shows exactly what changed. Without one, points at
+    the releases listing.
     """
     if not version:
         return RELEASES_LATEST_URL
-    slug = str(version).lstrip("v").replace(".", "-")
-    return _CHANGELOG_URL_TEMPLATE.format(version=slug)
+    return _RELEASE_TAG_URL_TEMPLATE.format(version=str(version).lstrip("v"))
 
 
 _UPGRADE_INSTRUCTIONS = {
