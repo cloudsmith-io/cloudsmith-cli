@@ -382,7 +382,9 @@ def test_each_warning_prints_once_per_run(isolated):
 
 
 def test_credential_helper_runtimes_do_not_warn(isolated):
-    (isolated / "config.ini").write_text("[default]\norg = acme\n")
+    (isolated / "config.ini").write_text(
+        "[default]\norg = acme\ntelemetry_usage_reporting = nope\n"
+    )
 
     @click.group(name="credential-helper")
     def credential_helper():
@@ -393,7 +395,11 @@ def test_credential_helper_runtimes_do_not_warn(isolated):
 
     result = invoke(
         ["credential-helper", "terraform", "--org", "acme"],
-        env={"CLOUDSMITH_API_PROXY": "http://proxy:3128"},
+        env={
+            "CLOUDSMITH_API_PROXY": "http://proxy:3128",
+            "CLOUDSMITH_TELEMETRY": "nope",
+            "CLOUDSMITH_TELEMETRY_ERROR_REPORTING": "nope",
+        },
         command=command,
     )
 

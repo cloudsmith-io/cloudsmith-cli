@@ -575,14 +575,25 @@ The CLI sends two kinds of data to Cloudsmith, to help us fix errors and improve
 - **Error reports** (Sentry): when a command fails with an unexpected error, the CLI sends the error and stack trace. It first removes credentials, email and IP addresses, user and machine names, and file paths.
 - **Usage telemetry** (PostHog, EU): after each command, the CLI sends one pseudonymous event. It contains the command name, the names of the options and environment variables that you set, how the command ended and how long it took, and your CLI, Python, and operating system versions. It never contains option or argument values, file names, credentials, or workspace, repository, or package names. The first interactive command shows a notice and sends nothing. PostHog deletes the events after 12 to 13 months.
 
-The CLI stores a random install ID for usage telemetry. Use `cloudsmith telemetry id` to see it, `cloudsmith telemetry reset` to replace it, and `cloudsmith telemetry status` to see whether usage telemetry is on.
+The CLI stores a random install ID for usage telemetry. Use `cloudsmith telemetry id` to see it, `cloudsmith telemetry reset` to replace it, and `cloudsmith telemetry status` to see whether usage reporting and error reporting are enabled, disabled, or in log mode, and why. To not store an ID, set `CLOUDSMITH_TELEMETRY_INSTALL_ID=disable`.
 
-To see what the CLI would send, without sending it, set `CLOUDSMITH_TELEMETRY=log`.
+You can control usage reporting and error reporting together, or each one separately. For each kind, the first of these settings that is set decides:
 
-To turn off both kinds, do one of these:
+| Order | Usage reporting | Error reporting |
+| -- | -- | -- |
+| 1 | `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` | `CLOUDSMITH_TELEMETRY_ERROR_REPORTING` |
+| 2 | `CLOUDSMITH_TELEMETRY` | `CLOUDSMITH_TELEMETRY` |
+| 3 | `CLOUDSMITH_NO_TELEMETRY=1` (off) | `CLOUDSMITH_NO_TELEMETRY=1` (off) |
+| 4 | `DO_NOT_TRACK=1` (off) | `DO_NOT_TRACK=1` (off) |
+| 5 | `telemetry_usage_reporting` in `config.ini` | `telemetry_error_reporting` in `config.ini` |
+| 6 | `telemetry` in `config.ini` | `telemetry` in `config.ini` |
 
-- Set `DO_NOT_TRACK=1` or `CLOUDSMITH_NO_TELEMETRY=1`.
-- Add `telemetry = false` to the `[default]` section or a `[profile:NAME]` section of `config.ini`.
+The `CLOUDSMITH_TELEMETRY*` variables and the `telemetry*` keys take `enable`, `disable`, or `log`. With `log`, the CLI writes what it would send to stderr, and sends nothing. They also accept `enabled`, `on`, `true`, `yes`, and `1`, or `disabled`, `off`, `false`, `no`, and `0`. If one has any other value, the CLI prints a warning and ignores it. Set the keys in the `[default]` section or a `[profile:NAME]` section of `config.ini`. `CLOUDSMITH_NO_TELEMETRY` and `DO_NOT_TRACK` turn telemetry off only with `1`, `true`, or `yes`; any other value is ignored.
+
+For example:
+
+- To turn off usage reporting but keep error reporting: `CLOUDSMITH_TELEMETRY_USAGE_REPORTING=disable`, or `telemetry_usage_reporting = disable` in `config.ini`.
+- If you set `DO_NOT_TRACK=1` for every tool, you can still set `CLOUDSMITH_TELEMETRY=enable` (or `CLOUDSMITH_TELEMETRY_ERROR_REPORTING=enable`) to send telemetry (or only error reports) from this CLI.
 
 For more information, see [CLI telemetry](https://docs.cloudsmith.com/developer-tools/cli-telemetry).
 

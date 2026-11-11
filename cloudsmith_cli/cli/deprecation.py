@@ -65,7 +65,16 @@ def _is_credential_helper_runtime(ctx):
 
 def warn(subject, replacement=None, *, removal=None, detail=None, ctx=None):
     """Print the deprecation warning for `subject` to stderr, once per run."""
-    message = format_warning(subject, replacement, removal=removal, detail=detail)
+    warn_once(
+        format_warning(subject, replacement, removal=removal, detail=detail), ctx=ctx
+    )
+
+
+def warn_once(message, ctx=None):
+    """Print the warning `message` to stderr, once per run.
+
+    Silent for shell completion and for the credential helpers.
+    """
     ctx = ctx or click.get_current_context(silent=True)
     if ctx is not None:
         if ctx.resilient_parsing or _is_credential_helper_runtime(ctx):
