@@ -381,7 +381,8 @@ def install_cmd(
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``, ``pnpm``).
+    HELPER is the name of the credential helper to install: one of ``cargo``,
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Important for pnpm: The tokenHelper directive is only honored in the
     user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
@@ -410,6 +411,10 @@ def install_cmd(
         # Terraform: bake the repository into the terraformrc args so
         # `terraform init` needs no CLOUDSMITH_REPO env var
         $ cloudsmith credential-helper install terraform -w acme --repo my-repo
+
+    \b
+        # Maven: set up only the Maven project in the current directory
+        $ cloudsmith credential-helper install maven --local
     """
     installer = _get_installer(helper)
     helper_options = _helper_options(ctx, helper)
@@ -536,7 +541,8 @@ def uninstall_cmd(
 ) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
-    HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
+    HELPER is the name of the credential helper to uninstall: one of ``cargo``,
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Examples:
 
@@ -547,6 +553,10 @@ def uninstall_cmd(
     \b
         # Preview without making changes
         $ cloudsmith credential-helper uninstall docker --dry-run
+
+    \b
+        # Uninstall the Maven extension
+        $ cloudsmith credential-helper uninstall maven
     """
     installer = _get_installer(helper)
     try:
