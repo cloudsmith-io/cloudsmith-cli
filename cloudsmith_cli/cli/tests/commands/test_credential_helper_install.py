@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -1120,9 +1121,16 @@ def test_manage_cli_unknown_helper_exits_nonzero(runner):
         assert result.exit_code != 0
 
 
-@pytest.mark.parametrize("args", [[], ["install"], ["uninstall"]])
-def test_help_names_every_helper(runner, args):
-    """The help of the group, install and uninstall names every registered helper."""
+@pytest.mark.parametrize(
+    "args,listing",
+    [
+        ([], "Helpers:"),
+        (["install"], "HELPER is the name"),
+        (["uninstall"], "HELPER is the name"),
+    ],
+)
+def test_help_lists_every_helper(runner, args, listing):
+    """The helper list in the help of the group, install and uninstall names every helper."""
     from ....cli.commands.credential_helper.manage import _INSTALLERS
 
     result = runner.invoke(
@@ -1130,8 +1138,11 @@ def test_help_names_every_helper(runner, args):
     )
 
     assert result.exit_code == 0
-    missing = [name for name in _INSTALLERS if name not in result.output]
-    assert not missing, f"--help does not mention: {missing}"
+    paragraphs = [p for p in result.output.split("\n\n") if listing in p]
+    assert len(paragraphs) == 1, f"--help has no single {listing!r} paragraph"
+    listed = set(re.findall(r"[a-z]+", paragraphs[0]))
+    missing = sorted(set(_INSTALLERS) - listed)
+    assert not missing, f"the {listing!r} list in --help does not name: {missing}"
 
 
 # ---------------------------------------------------------------------------

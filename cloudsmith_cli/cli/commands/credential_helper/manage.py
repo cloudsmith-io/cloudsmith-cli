@@ -413,8 +413,8 @@ def install_cmd(
         $ cloudsmith credential-helper install terraform -w acme --repo my-repo
 
     \b
-        # Maven: set up only the Maven project in the current directory
-        $ cloudsmith credential-helper install maven --local
+        # Install the Maven extension
+        $ cloudsmith credential-helper install maven
     """
     installer = _get_installer(helper)
     helper_options = _helper_options(ctx, helper)
