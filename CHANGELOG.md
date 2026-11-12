@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it. This also applies to the POST request that uploads a file.
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed
