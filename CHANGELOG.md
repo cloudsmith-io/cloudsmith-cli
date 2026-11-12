@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.31.1] - 2026-11-12
+
 ### Fixed
 
-- The help of `cloudsmith credential-helper`, `credential-helper install` and `credential-helper uninstall` now lists every helper, including `maven`, `gradle` and `sbt`, and has examples for Maven. The help also explains that Maven, Gradle and sbt have no runtime command of their own. (ENG-15733)
+- The help of `cloudsmith credential-helper`, `credential-helper install` and `credential-helper uninstall` now lists every helper, including `maven`, `gradle` and `sbt`, and has examples for Maven. The help also explains that Maven, Gradle and sbt have no runtime command of their own. (#610)
 
 ## [1.31.0] - 2026-11-11
 
