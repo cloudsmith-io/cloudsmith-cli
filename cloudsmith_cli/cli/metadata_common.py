@@ -1,5 +1,6 @@
 """Shared CLI helpers for package metadata content."""
 
+import codecs
 import json
 import os
 from dataclasses import dataclass, replace
@@ -58,6 +59,27 @@ def _json_type_name(value):
     return type(value).__name__
 
 
+def _decode_content_file(data, source_label):
+    """Decode metadata file bytes, honouring a UTF-8 or UTF-16 byte order mark.
+
+    Windows PowerShell 5 writes UTF-16 LE with a BOM when redirecting (``>``),
+    and editors commonly add a UTF-8 BOM, so neither can be assumed away.
+    """
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        encoding = "utf-16"  # consumes the BOM
+    else:
+        encoding = "utf-8-sig"  # strips an optional BOM
+    try:
+        return data.decode(encoding)
+    except UnicodeDecodeError as exc:
+        raise MetadataContentError(
+            f"Unable to read {source_label}: the file is not valid UTF-8 "
+            "(UTF-16 with a byte order mark is also accepted). "
+            "Re-save the file as UTF-8 and try again.",
+            source_label=source_label,
+        ) from exc
+
+
 def _parse_json_object(raw, source_label):
     try:
         content = json.loads(raw)
@@ -96,8 +118,8 @@ def resolve_metadata_content(
         if content_file == "-":
             raw = click.get_text_stream("stdin").read()
         else:
-            with open(content_file, encoding="utf-8") as fh:
-                raw = fh.read()
+            with open(content_file, "rb") as fh:
+                raw = _decode_content_file(fh.read(), source_label)
     elif inline_content is not None:
         source_label = source_label_for(None)
         raw = inline_content

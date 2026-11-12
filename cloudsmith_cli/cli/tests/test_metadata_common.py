@@ -6,6 +6,7 @@ import click
 import pytest
 
 from ..metadata_common import (
+    MetadataContentError,
     attach_metadata_options,
     default_metadata_source_identity,
     require_metadata_content_type,
@@ -121,3 +122,35 @@ def test_attach_metadata_options_defaults_source_identity():
 
     assert resolved.content_type == "application/json"
     assert resolved.source_identity == default_metadata_source_identity()
+
+
+@pytest.mark.parametrize(
+    "encoding", ["utf-8", "utf-8-sig", "utf-16"]  # utf-16 writes a LE BOM
+)
+def test_resolve_metadata_content_file_encodings(tmp_path, encoding):
+    path = tmp_path / "payload.json"
+    path.write_bytes('{"name": "caf\u00e9"}'.encode(encoding))
+
+    metadata = resolve_metadata_content(
+        content_file=str(path),
+        inline_content=None,
+        required=True,
+        file_option_name="--content-file",
+        content_option_name="--content",
+    )
+
+    assert metadata.content == {"name": "caf\u00e9"}
+
+
+def test_resolve_metadata_content_file_invalid_encoding_is_click_error(tmp_path):
+    path = tmp_path / "payload.json"
+    path.write_bytes(b"\x80\x81 not utf-8")
+
+    with pytest.raises(MetadataContentError, match="payload.json"):
+        resolve_metadata_content(
+            content_file=str(path),
+            inline_content=None,
+            required=True,
+            file_option_name="--content-file",
+            content_option_name="--content",
+        )
