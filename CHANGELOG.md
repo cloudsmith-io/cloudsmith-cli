@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cloudsmith metadata add` and `update`, and the `--metadata-*` file options of `push`, no longer crash with a `UnicodeDecodeError` when the metadata file starts with a UTF-16 byte order mark, as Windows PowerShell 5 writes when you redirect output with `>`. The CLI now reads UTF-8 (with or without a BOM) and UTF-16 files. Other unreadable files fail with a clear error that asks you to re-save the file as UTF-8.
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed
