@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
 
+## [1.31.1] - 2026-11-12
+
+### Fixed
+
+- The help of `cloudsmith credential-helper`, `credential-helper install` and `credential-helper uninstall` now lists every helper, including `maven`, `gradle` and `sbt`, and has examples for Maven. The help also explains that Maven, Gradle and sbt have no runtime command of their own. (#610)
+
 ## [1.31.0] - 2026-11-11
 
 ### Added
