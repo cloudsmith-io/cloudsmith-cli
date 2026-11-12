@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The credential-helper launchers on Linux and macOS now start with `#!/usr/bin/env sh` instead of `#!/bin/sh`, so they also work on systems that have no `/bin/sh`. (#586)
 - The minimum version of `cloudsmith-api` is now 2.0.43. (#575, #608)
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
 
 ### Deprecated
 
@@ -88,6 +89,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith credential-helper install` and `uninstall` no longer rewrite a config file when they make no change to its data. Previously, the CLI always rewrote a file in a different formatting, such as the tab-indented `config.json` that Docker writes. The command also made a `.bak` copy and reported changes that it did not make. (#540)
 - When the API host name or the proxy host name does not exist, for example because of a typo in `--api-host`, commands now fail immediately. Previously, they retried for approximately 62 seconds without output. The CLI still retries a DNS failure that the operating system reports as temporary. (#542)
 - When the CLI waits before it retries a failed connection or a 5xx response, it now writes `Request failed: retrying in N second(s) ...` to stderr. Previously, it waited without output. (#542)
+- `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
+- `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
 - `cloudsmith mcp start` now stops without an error when the MCP client closes the connection while the server writes a reply. Previously, the command stopped with `BrokenPipeError` and exit status 1. (#583)
 - The CLI now exits with status 1 when you interrupt it with Ctrl+C after the reader of its stderr has closed the pipe. Before, the CLI sent an error report and exited with status 120. (#567)
 - `cloudsmith check rates` no longer stops with `TypeError` when the API does not give a value for an interval, limit, remaining count, reset time or throttled status. The command now shows `None` for that value. (#581)
