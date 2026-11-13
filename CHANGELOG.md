@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - When the API host returns an HTML page instead of an API response, the CLI now shows an error and exits with code 1. Examples are a proxy login page, a captive portal, or an `--api-host` that points to a website. Before, commands such as `entitlements list`, `check service`, and `metadata list` stopped with an unexpected error and sent an error report.
 
+## [1.31.1] - 2026-11-12
+
+### Fixed
+
+- The help of `cloudsmith credential-helper`, `credential-helper install` and `credential-helper uninstall` now lists every helper, including `maven`, `gradle` and `sbt`, and has examples for Maven. The help also explains that Maven, Gradle and sbt have no runtime command of their own. (#610)
+
 ## [1.31.0] - 2026-11-11
 
 ### Added
