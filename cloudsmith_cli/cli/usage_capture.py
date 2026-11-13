@@ -13,6 +13,8 @@ from typing import Any
 import click
 from click.core import ParameterSource
 
+from . import deprecation, option_names
+
 META_KEY = "cloudsmith_usage"
 _HELP_SPELLINGS = frozenset({"-h", "--help"})
 _SOURCE_BY_CLICK = {
@@ -22,20 +24,18 @@ _SOURCE_BY_CLICK = {
 #: Click env vars that carry no information (set on almost every run).
 _IGNORED_ENVVARS = frozenset({"TERM"})
 
-# The env vars and spellings of the host and SSL options declared in
-# ``decorators.initialise_session``. Their values reach ``opts`` only when
-# that decorator runs, which ``--version``, ``--help`` and usage errors never
-# reach, so the host and SSL gates also read them here.
-API_HOST_ENV = "CLOUDSMITH_API_HOST"
-SSL_VERIFY_ENV = "CLOUDSMITH_SSL_VERIFY"
-WITHOUT_SSL_VERIFY_ENV = "CLOUDSMITH_WITHOUT_API_SSL_VERIFY"
-API_HOST_SPELLINGS = frozenset({"--api-host"})
+# The host and SSL options of ``decorators.initialise_session`` (names in
+# ``option_names``). Their values reach ``opts`` only when that decorator runs,
+# which ``--version``, ``--help`` and usage errors never reach, so the host and
+# SSL gates also read them here.
+API_HOST_SPELLINGS = frozenset({option_names.API_HOST})
+#: Every spelling that turns verification off, deprecated ones included.
 SSL_OFF_SPELLINGS = frozenset(
-    {"--without-ssl-verify", "--without-api-ssl-verify", "-S"}
+    {option_names.WITHOUT_SSL_VERIFY, *deprecation.SSL_VERIFY_ALIASES}
 )
 #: The config file and profile options of ``decorators.common_cli_config_options``.
 #: A typed one names a file or profile only that decorator loads.
-CONFIG_SPELLINGS = frozenset({"-C", "--config-file", "-P", "--profile"})
+CONFIG_SPELLINGS = frozenset({*option_names.CONFIG_FILE, *option_names.PROFILE})
 #: Not a host: a typed ``--api-host`` that never reached opts fails the gate.
 UNRESOLVED_HOST = "unresolved"
 #: Click's boolean spellings (``BoolParamType``); an empty env var is unset.
@@ -287,15 +287,17 @@ def resolve_api_host(opts, *, resolved, typed=()):
     if API_HOST_SPELLINGS & set(typed):
         return UNRESOLVED_HOST
     # The env var beats config.ini, as it does in initialise_session.
-    return os.environ.get(API_HOST_ENV) or getattr(opts, "api_host", None)
+    return os.environ.get(option_names.API_HOST_ENV) or getattr(opts, "api_host", None)
 
 
 def resolve_ssl_verify(opts, typed=()):
     """Tell whether SSL verification is on; any sign of it being off wins."""
     if getattr(opts, "ssl_verify", True) is False or SSL_OFF_SPELLINGS & set(typed):
         return False
-    verify = os.environ.get(SSL_VERIFY_ENV, "").strip().lower()
-    without = os.environ.get(WITHOUT_SSL_VERIFY_ENV, "").strip().lower()
+    verify = os.environ.get(option_names.SSL_VERIFY_ENV, "").strip().lower()
+    without = (
+        os.environ.get(option_names.WITHOUT_SSL_VERIFY_LEGACY_ENV, "").strip().lower()
+    )
     return verify not in _FALSE and without not in _TRUE
 
 

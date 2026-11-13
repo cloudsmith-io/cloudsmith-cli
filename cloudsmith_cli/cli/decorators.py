@@ -19,7 +19,7 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from . import config, deprecation, usage_capture, utils
+from . import config, deprecation, option_names, usage_capture, utils
 
 
 def _expired_saml_renewal_message(error):
@@ -211,9 +211,8 @@ def common_cli_config_options(f):
     """Add common CLI config options to commands."""
 
     @click.option(
-        "-C",
-        "--config-file",
-        envvar="CLOUDSMITH_CONFIG_FILE",
+        *option_names.CONFIG_FILE,
+        envvar=option_names.CONFIG_FILE_ENV,
         type=click.Path(dir_okay=True, exists=True, writable=False, resolve_path=True),
         help="The path to your config.ini file.",
     )
@@ -224,10 +223,9 @@ def common_cli_config_options(f):
         help="The path to your credentials.ini file.",
     )
     @click.option(
-        "-P",
-        "--profile",
+        *option_names.PROFILE,
         default=None,
-        envvar="CLOUDSMITH_PROFILE",
+        envvar=option_names.PROFILE_ENV,
         help="The name of the profile to use for configuration.",
     )
     @click.pass_context
@@ -454,7 +452,6 @@ PROXY_SUFFIX_ENVVARS = (
     "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
     "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
 )
-SSL_VERIFY_LEGACY_ENVVAR = "CLOUDSMITH_WITHOUT_API_SSL_VERIFY"
 WORKSPACE_ENVVARS = ("CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG")
 
 
@@ -555,8 +552,8 @@ def initialise_session(f):
     """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
     @click.option(
-        "--api-host",
-        envvar="CLOUDSMITH_API_HOST",
+        option_names.API_HOST,
+        envvar=option_names.API_HOST_ENV,
         help="The API host to connect to",
     )
     @click.option(
@@ -567,16 +564,18 @@ def initialise_session(f):
     )
     @deprecation.alias_options(deprecation.PROXY_ALIASES)
     @click.option(
-        "--ssl-verify/--without-ssl-verify",
+        f"{option_names.SSL_VERIFY}/{option_names.WITHOUT_SSL_VERIFY}",
         default=None,
-        envvar="CLOUDSMITH_SSL_VERIFY",
+        envvar=option_names.SSL_VERIFY_ENV,
         help="Verify SSL certificates for HTTPS connections (enabled by default). "
         "Disabling verification is dangerous; prefer --without-ssl-verify-strict "
         "if a TLS-intercepting proxy issues certificates that fail strict checks.",
     )
     @deprecation.alias_options(
         deprecation.SSL_VERIFY_ALIASES,
-        envvars={"--without-api-ssl-verify": SSL_VERIFY_LEGACY_ENVVAR},
+        envvars={
+            "--without-api-ssl-verify": option_names.WITHOUT_SSL_VERIFY_LEGACY_ENV
+        },
         is_flag=True,
     )
     @click.option(
