@@ -4,7 +4,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from cloudsmith_cli.cli import usage_capture
+from cloudsmith_cli.cli import option_names, usage_capture
 from cloudsmith_cli.cli.command import AliasGroup
 
 CAPTURED = {}
@@ -187,11 +187,11 @@ def test_session_env_names_match_the_option_declarations():
     from cloudsmith_cli.cli.commands import list_
 
     envvars = {p.name: p.envvar for p in list_.repos.params}
-    assert envvars["api_host"] == usage_capture.API_HOST_ENV
-    assert envvars["ssl_verify"] == usage_capture.SSL_VERIFY_ENV
+    assert envvars["api_host"] == option_names.API_HOST_ENV
+    assert envvars["ssl_verify"] == option_names.SSL_VERIFY_ENV
     assert (
         envvars["deprecated_without_api_ssl_verify"]
-        == usage_capture.WITHOUT_SSL_VERIFY_ENV
+        == option_names.WITHOUT_SSL_VERIFY_LEGACY_ENV
     )
     spellings = {s for p in list_.repos.params for s in p.opts + p.secondary_opts}
     assert usage_capture.API_HOST_SPELLINGS <= spellings
