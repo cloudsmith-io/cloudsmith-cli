@@ -1,3 +1,7 @@
+[default]
+# PostHog project keys (usage telemetry) are random text, not words.
+extend-ignore-re = ["phc_[A-Za-z0-9]+"]
+
 [default.extend-identifiers]
 # Proper names - do not correct
 Mno-hime = "Mno-hime"

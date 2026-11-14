@@ -17,6 +17,11 @@ def no_real_error_reports(monkeypatch):
 
     Tests that exercise reporting opt back in with ``sentry_events``.
     """
+    from cloudsmith_cli.core import telemetry_common
+
+    # These win over CLOUDSMITH_NO_TELEMETRY, so a developer's own must go.
+    for name in telemetry_common.MODE_ENVS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
     monkeypatch.setenv(telemetry.DSN_ENV, "")
     monkeypatch.setattr(telemetry, "_transport", None)
@@ -137,6 +142,8 @@ def blocked_usage_posts(monkeypatch):
         settings.SAMPLE_RATE_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
+    # Tests run as if no key were built in; usage_events supplies a test key.
+    monkeypatch.setattr(settings, "POSTHOG_PROJECT_KEY", "")
     monkeypatch.setattr(sender, "_post", refuse)
     yield calls
     if calls:

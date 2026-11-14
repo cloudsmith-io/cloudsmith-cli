@@ -11,7 +11,7 @@ from click.core import ParameterSource
 from cloudsmith_cli.cli import validators
 from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
-from ..core import keyring, update_check
+from ..core import keyring, telemetry_common, update_check
 from ..core.certificate_errors import describe_certificate_error
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -203,6 +203,39 @@ def _warn_deprecated_config_keys(ctx, opts):
             deprecation.warn_config_key(key, ctx=ctx)
 
 
+_TELEMETRY_MODES = "`enable`, `disable`, or `log`"
+
+
+def _warn_unrecognised_telemetry_values(ctx, opts):
+    """Warn about a telemetry variable or config.ini key whose value is ignored.
+
+    Only the command that runs warns, as for deprecated config keys. The
+    value itself is not repeated.
+    """
+    if ctx.invoked_subcommand:
+        return
+    ignored = [
+        (f"`{name}`", _TELEMETRY_MODES)
+        for name in telemetry_common.MODE_ENVS
+        if telemetry_common.unrecognised(name)
+    ]
+    if telemetry_common.unrecognised(telemetry_common.INSTALL_ID_ENV):
+        ignored.append(
+            (f"`{telemetry_common.INSTALL_ID_ENV}`", "`enable` or `disable`")
+        )
+    ignored += [
+        (f"the `{key}` key in config.ini", _TELEMETRY_MODES)
+        for key in telemetry_common.CONFIG_KEYS
+        if telemetry_common.is_unrecognised(getattr(opts, key, None))
+    ]
+    for subject, values in ignored:
+        deprecation.warn_once(
+            f"Warning: The value of {subject} is not recognised, so the CLI "
+            f"ignores it. Use {values}.",
+            ctx=ctx,
+        )
+
+
 def common_cli_config_options(f):
     """Add common CLI config options to commands."""
 
@@ -245,6 +278,7 @@ def common_cli_config_options(f):
         usage_capture.record_config(ctx)
         opts.api_key_from_file = opts.api_key
         _warn_deprecated_config_keys(ctx, opts)
+        _warn_unrecognised_telemetry_values(ctx, opts)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -592,6 +626,7 @@ def initialise_session(f):
 
         opts = config.get_or_create_options(ctx)
         _warn_deprecated_config_keys(ctx, opts)
+        _warn_unrecognised_telemetry_values(ctx, opts)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
         proxy_suffixes = _parse_suffixes(
             _resolve_alias(

@@ -8,6 +8,7 @@ from ...core import keyring as core_keyring
 from ...core.api.exceptions import ApiException
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
+from ...core.telemetry_common import Mode, parse_mode
 from ...core.tests.test_certificate_errors import certificate_error
 from ...core.utils import get_data_path, read_file
 from ..commands.main import main
@@ -208,7 +209,6 @@ PROFILE_BOOLEAN_KEYS = [
     ("api_ssl_verify", "ssl_verify"),
     ("ssl_verify_strict", "ssl_verify_strict"),
     ("check_for_update", "check_for_update"),
-    ("telemetry", "telemetry"),
 ]
 
 
@@ -246,6 +246,51 @@ def test_profile_setting_unset_everywhere_is_true(
     opts = Options()
     opts.load_config_file(None, profile="test")
     assert getattr(opts, option) is True
+
+
+#: Telemetry keys hold a mode as written (they also take `log`), not a bool.
+PROFILE_TELEMETRY_KEYS = [
+    "telemetry",
+    "telemetry_usage_reporting",
+    "telemetry_error_reporting",
+]
+
+
+@pytest.mark.parametrize("key", PROFILE_TELEMETRY_KEYS)
+@pytest.mark.parametrize("profile_body", ["", "api_user_agent=test\n"])
+def test_profile_keeps_default_telemetry_mode_it_leaves_out(
+    key, profile_body, telemetry_config_dir
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\n{key}=false\n[profile:test]\n{profile_body}"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert parse_mode(getattr(opts, key)) is Mode.DISABLED
+
+
+@pytest.mark.parametrize("key", PROFILE_TELEMETRY_KEYS)
+def test_profile_overrides_default_telemetry_mode(key, telemetry_config_dir):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\n{key}=false\n[profile:test]\n{key}=log\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert parse_mode(getattr(opts, key)) is Mode.LOG
+
+
+@pytest.mark.parametrize("key", PROFILE_TELEMETRY_KEYS)
+@pytest.mark.parametrize("default_body", ["", "[default]\n", "[default]\n{key}=\n"])
+def test_profile_telemetry_mode_unset_everywhere_is_unset(
+    key, default_body, telemetry_config_dir
+):
+    # Unset means config.ini does not decide, so telemetry is enabled.
+    (telemetry_config_dir / "config.ini").write_text(
+        default_body.format(key=key) + "[profile:test]\napi_user_agent=test\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert getattr(opts, key) is None
 
 
 def test_profile_schema_has_no_defaults():
