@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added the `cloudsmith telemetry` command group for usage telemetry. The CLI does not send usage telemetry yet.
+  - `cloudsmith telemetry status` shows whether usage telemetry is on, and the reason. The reason can be an opt-out, such as `DO_NOT_TRACK`, `CLOUDSMITH_NO_TELEMETRY`, or `telemetry = false` in `config.ini`. It can also be an API host that is not a Cloudsmith host, or certificate verification that is off.
+  - `cloudsmith telemetry id` shows the install ID that the CLI stores in `telemetry.json` in its config directory, or `none`.
+  - `cloudsmith telemetry reset` deletes the stored install ID. The CLI creates a new, unrelated ID on the next command.
+  - All three commands support `-F json` and `-F pretty_json`.
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed
