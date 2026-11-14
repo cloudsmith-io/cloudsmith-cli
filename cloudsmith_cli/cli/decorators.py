@@ -19,7 +19,7 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from . import config, deprecation, utils
+from . import config, deprecation, usage_capture, utils
 
 
 def _expired_saml_renewal_message(error):
@@ -242,6 +242,7 @@ def common_cli_config_options(f):
 
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
+        usage_capture.record_config(ctx)
         opts.api_key_from_file = opts.api_key
         _warn_deprecated_config_keys(ctx, opts)
         kwargs["opts"] = opts
@@ -631,6 +632,7 @@ def initialise_session(f):
                 deprecation.warn_envvar(legacy_envvar, "CLOUDSMITH_SSL_VERIFY=0")
         ctx.params["ssl_verify"] = ssl_verify
         opts.ssl_verify = ssl_verify
+        usage_capture.record_session(ctx)
         opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
@@ -816,6 +818,7 @@ def resolve_credentials(f):
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
+        usage_capture.record_credential(ctx, credential)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
