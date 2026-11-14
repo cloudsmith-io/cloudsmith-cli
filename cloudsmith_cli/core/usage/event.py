@@ -9,6 +9,8 @@ Only names declared here can leave the machine, and only with their type.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .environment import persona
+
 EVENT_NAME = "cli command executed"
 SCHEMA_VERSION = 1
 
@@ -133,6 +135,7 @@ PROPERTIES = (
     Property("python_version", str, "support policy"),
     Property("arch", str, "dimension"),
     Property("persona", str, "persona"),
+    Property("agent", str, "persona"),
     Property("ci", bool, "persona"),
     Property("ci_provider", str, "persona"),
     Property("stdout_tty", bool, "persona"),
@@ -167,6 +170,7 @@ def _values(
     environment,
     cli_version,
     ci_provider,
+    agent,
     sample_rate,
     internal,
 ):
@@ -186,7 +190,8 @@ def _values(
         "cli_version": cli_version,
         "channel": channel,
         "environment": environment,
-        "persona": "ci" if ci_provider else "human",
+        "persona": persona(ci=ci_provider is not None, agent=agent),
+        "agent": agent,
         "ci": ci_provider is not None,
         "ci_provider": ci_provider,
         "stdout_tty": facts.stdout_tty,
@@ -211,6 +216,7 @@ def build_event(
     environment,
     cli_version,
     ci_provider,
+    agent,
     sample_rate,
     internal,
     timestamp,
@@ -223,6 +229,7 @@ def build_event(
         environment,
         cli_version,
         ci_provider,
+        agent,
         sample_rate,
         internal,
     )
