@@ -10,6 +10,7 @@ import sys
 import click
 
 from ....credential_helpers.generic import execute
+from ... import telemetry
 from ...decorators import (
     common_api_auth_options,
     common_cli_config_options,
@@ -18,7 +19,9 @@ from ...decorators import (
 from ...usage_capture import TrackedCommand
 
 
+# Run by package managers on every request: report crashes, not usage.
 @click.command(cls=TrackedCommand)
+@telemetry.send(telemetry.ERRORS)
 @common_cli_config_options
 @common_api_auth_options
 @resolve_credentials
