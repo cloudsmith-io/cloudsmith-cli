@@ -61,7 +61,13 @@ def start(
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=SPEC_LOAD_ERROR_MESSAGE, err=True
     ):
-        mcp_server.run()
+        mcp_server.run(
+            on_tools_loaded=lambda: warn_hidden_tools(
+                mcp_server,
+                "run `cloudsmith mcp configure --allow-destructive-tools`, "
+                "then restart the MCP client",
+            )
+        )
 
 
 @mcp_.command(name="list_tools")
@@ -87,6 +93,10 @@ def list_tools(
         utils.maybe_spinner(opts),
     ):
         tools = mcp_server.list_tools()
+
+    warn_hidden_tools(
+        mcp_server, "run `cloudsmith mcp list_tools --allow-destructive-tools`"
+    )
 
     if not use_stderr:
         click.secho("OK", fg="green", err=use_stderr)
@@ -125,6 +135,10 @@ def list_groups(
     ):
         groups = mcp_server.list_groups()
 
+    warn_hidden_tools(
+        mcp_server, "run `cloudsmith mcp list_groups --allow-destructive-tools`"
+    )
+
     if not use_stderr:
         click.secho("OK", fg="green", err=use_stderr)
 
@@ -134,6 +148,21 @@ def list_groups(
         return
 
     print_groups(groups)
+
+
+def warn_hidden_tools(mcp_server: server.DynamicMCPServer, fix: str) -> None:
+    """Warn on stderr about allowlisted tools that need --allow-destructive-tools."""
+    hidden = mcp_server.hidden_allowlisted_tools
+    if not hidden:
+        return
+    count = len(hidden)
+    click.secho(
+        f"Warning: {count} {'tools' if count != 1 else 'tool'} in your MCP allowlist "
+        f"{'are' if count != 1 else 'is'} hidden without --allow-destructive-tools: "
+        f"{', '.join(hidden)}\nFix: {fix}",
+        fg="yellow",
+        err=True,
+    )
 
 
 def print_tools(tool_list: dict[str, OpenAPITool]):

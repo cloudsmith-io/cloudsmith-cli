@@ -4,6 +4,7 @@ import inspect
 import json
 import os
 import ssl
+from collections.abc import Callable
 from typing import Any
 from urllib import parse
 
@@ -70,6 +71,15 @@ DEFAULT_DISABLED_CATEGORIES = [
     "orgs_teams",
     "repo_retention",
 ]
+
+# Read tools in these groups return API keys, entitlement tokens or upstream secrets.
+CREDENTIAL_GROUPS = {
+    "entitlements",
+    "orgs_services",
+    "repos_upstream",
+    "user_token",
+    "user_tokens",
+}
 
 SERVER_NAME = "Cloudsmith MCP Server"
 
@@ -305,6 +315,7 @@ class DynamicMCPServer:
         self.allowed_tools = set(allowed_tools or [])
         self.force_all_tools = force_all_tools
         self.tools: dict[str, OpenAPITool] = {}
+        self.hidden_allowlisted_tools: list[str] = []
         self.spec = {}
         self._ssl_context: ssl.SSLContext | bool | None = None
 
@@ -381,18 +392,22 @@ class DynamicMCPServer:
     def _is_tool_allowed(self, tool: OpenAPITool) -> bool:
         """Check if a tool is allowed based on user configuration"""
 
-        if not self.allow_destructive_tools and tool.is_destructive:
+        tool_groups = self._get_tool_groups(tool.name)
+        allowed_tool_group = bool(set(tool_groups) & set(self.allowed_tool_groups))
+        allowed_tool = tool.name in self.allowed_tools
+
+        if not self.allow_destructive_tools and (
+            tool.is_destructive or CREDENTIAL_GROUPS.intersection(tool_groups)
+        ):
+            if allowed_tool or allowed_tool_group:
+                self.hidden_allowlisted_tools.append(tool.name)
             return False
 
         if self.force_all_tools:
             return True
 
-        tool_groups = self._get_tool_groups(tool.name)
-
         # If user provided their own list of allowed tools or tool groups
         if len(self.allowed_tools) > 0 or len(self.allowed_tool_groups) > 0:
-            allowed_tool_group = bool(set(tool_groups) & set(self.allowed_tool_groups))
-            allowed_tool = tool.name in self.allowed_tools
             return allowed_tool or allowed_tool_group
 
         # Otherwise disable all categories in the default list
@@ -866,9 +881,11 @@ class DynamicMCPServer:
 
         return resolved_schema
 
-    def run(self):
+    def run(self, on_tools_loaded: Callable[[], None] | None = None):
         """Initialize and run the server"""
         asyncio.run(self.load_openapi_spec())
+        if on_tools_loaded:
+            on_tools_loaded()
         try:
             try:
                 self.mcp.run(transport="stdio")

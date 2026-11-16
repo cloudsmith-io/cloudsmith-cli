@@ -26,7 +26,7 @@ from ....cli.commands.mcp import (
 )
 from ....core.api.exceptions import ApiException
 from ....core.mcp.data import OpenAPITool
-from ....core.mcp.server import DynamicMCPServer
+from ....core.mcp.server import CustomFastMCP, DynamicMCPServer
 from ....core.version import get_version as get_cli_version
 
 
@@ -66,6 +66,7 @@ class TestMCPListToolsCommand:
         assert "packages_list" in result.output
         assert "List repositories" in result.output
         assert "List packages" in result.output
+        assert "Warning" not in result.stderr
         list_tools_mock.assert_called_once()
 
     def test_list_tools_command_with_filtering(self, runner):
@@ -306,6 +307,48 @@ class TestMCPSpecLoadErrors:
         assert exc_info.value.detail == "ConnectError: Connection refused"
 
 
+class TestMCPHiddenToolsWarning:
+    @pytest.mark.parametrize(
+        ("command", "fix"),
+        [
+            (
+                start,
+                "Fix: run `cloudsmith mcp configure --allow-destructive-tools`, "
+                "then restart the MCP client",
+            ),
+            (
+                list_tools,
+                "Fix: run `cloudsmith mcp list_tools --allow-destructive-tools`",
+            ),
+            (
+                list_groups,
+                "Fix: run `cloudsmith mcp list_groups --allow-destructive-tools`",
+            ),
+        ],
+    )
+    def test_warns_on_stderr_about_hidden_allowlisted_tools(self, runner, command, fix):
+        def hide_tools(server):
+            server.hidden_allowlisted_tools.extend(["repos_create", "user_tokens_list"])
+
+        with (
+            patch.object(
+                DynamicMCPServer,
+                "load_openapi_spec",
+                autospec=True,
+                side_effect=hide_tools,
+            ),
+            patch.object(CustomFastMCP, "run"),
+        ):
+            result = runner.invoke(command, catch_exceptions=False)
+
+        warning = (
+            "Warning: 2 tools in your MCP allowlist are hidden without "
+            "--allow-destructive-tools: repos_create, user_tokens_list"
+        )
+        assert f"{warning}\n{fix}\n" in result.stderr
+        assert "allowlist" not in result.stdout
+
+
 MUTATING_SPEC = {
     "paths": {
         "/repos/": {
@@ -323,11 +366,15 @@ MUTATING_SPEC = {
         "/orgs/{org}/members/{member}/remove/": {
             "get": {"operationId": "orgs_members_remove"},
         },
-        "/webhooks/{owner}/{repo}/": {"get": {"operationId": "webhooks_list"}},
+        "/webhooks/{owner}/{repo}/": {
+            "get": {"operationId": "webhooks_list"},
+            "post": {"operationId": "webhooks_create"},
+        },
+        "/user/tokens/": {"get": {"operationId": "user_tokens_list"}},
     }
 }
 READ_ONLY_TOOLS = {"repos_list", "user_self"}
-DISABLED_GROUP_TOOLS = {"webhooks_list"}
+DISABLED_GROUP_TOOLS = {"webhooks_list", "webhooks_create", "user_tokens_list"}
 WRITE_TOOLS = {
     "repos_create",
     "repos_privileges_update",
@@ -444,19 +491,34 @@ class TestMCPServerDynamicToolGeneration:
         assert "packages_list" not in server.tools
 
     @pytest.mark.parametrize(
-        ("server_kwargs", "expected_tools"),
+        ("server_kwargs", "expected_tools", "expected_hidden"),
         [
-            ({}, READ_ONLY_TOOLS),
-            ({"allowed_tool_groups": ["repos"]}, {"repos_list"}),
-            ({"force_all_tools": True}, READ_ONLY_TOOLS | DISABLED_GROUP_TOOLS),
+            ({}, READ_ONLY_TOOLS, set()),
+            (
+                {"allowed_tool_groups": ["repos"]},
+                {"repos_list"},
+                {
+                    "repos_create",
+                    "repos_privileges_update",
+                    "repos_privileges_partial_update",
+                },
+            ),
+            ({"allowed_tools": ["user_tokens_list"]}, set(), {"user_tokens_list"}),
+            ({"force_all_tools": True}, READ_ONLY_TOOLS | {"webhooks_list"}, set()),
+            (
+                {"force_all_tools": True, "allow_destructive_tools": True},
+                READ_ONLY_TOOLS | WRITE_TOOLS | DISABLED_GROUP_TOOLS,
+                set(),
+            ),
         ],
     )
-    def test_lists_no_write_tools_without_destructive_opt_in(
-        self, server_kwargs, expected_tools
+    def test_tool_flags_select_listed_and_hidden_tools(
+        self, server_kwargs, expected_tools, expected_hidden
     ):
         server = _server_from_spec(MUTATING_SPEC, **server_kwargs)
 
         assert set(server.tools) == expected_tools
+        assert set(server.hidden_allowlisted_tools) == expected_hidden
 
     def test_destructive_opt_in_marks_write_tools_destructive(self):
         server = _server_from_spec(MUTATING_SPEC, allow_destructive_tools=True)
