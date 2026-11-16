@@ -9,6 +9,8 @@ import os
 import platform
 import re
 
+from .. import installation
+
 #: (provider, variables any of which marks it), checked in order.
 _CI_PROVIDERS = (
     ("github_actions", ("GITHUB_ACTIONS",)),
@@ -33,9 +35,8 @@ def ci_provider(env=None):
 
 
 def is_container():
-    if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
-        return True
-    return "KUBERNETES_SERVICE_HOST" in os.environ
+    # The same check as the update notice, so both agree on what a container is.
+    return installation.running_in_container()
 
 
 def is_ephemeral(*, env=None, channel, state_writable):
