@@ -347,9 +347,12 @@ def _server_from_spec(spec: dict, **server_kwargs) -> DynamicMCPServer:
         is_v2 = "/v2/" in str(request.url)
         return httpx2.Response(200, json={"paths": {}} if is_v2 else spec)
 
-    with patch(
-        "cloudsmith_cli.core.mcp.server.create_http_client",
-        return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    with (
+        patch("cloudsmith_cli.core.mcp.server.create_ssl_context", return_value=True),
+        patch(
+            "cloudsmith_cli.core.mcp.server.create_http_client",
+            return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        ),
     ):
         asyncio.run(server.load_openapi_spec())
     return server

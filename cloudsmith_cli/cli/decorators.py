@@ -911,8 +911,9 @@ def initialise_mcp(f):
         default=False,
         is_flag=True,
         help=(
-            "Enable the tool groups that are disabled by default. Tools that change "
-            "data also need --allow-destructive-tools."
+            "Enable every tool group, and ignore the mcp_allowed_tools and "
+            "mcp_allowed_tool_groups settings. Tools that change data also need "
+            "--allow-destructive-tools."
         ),
     )
     @click.option(
@@ -922,7 +923,7 @@ def initialise_mcp(f):
         is_flag=True,
         help=(
             "Allow tools that change data in the enabled tool groups. Add "
-            "--all-tools to include the groups that are disabled by default."
+            "--all-tools to enable every tool group."
         ),
     )
     @click.pass_context
