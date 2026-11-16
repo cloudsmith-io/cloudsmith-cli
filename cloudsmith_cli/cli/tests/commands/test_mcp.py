@@ -517,11 +517,29 @@ class TestMCPServerPathParameters:
         )
 
     @pytest.mark.parametrize(
-        "key, value", [("identifier", "repo/gpg"), ("package_name", "a/../b")]
+        "key, value, expected_form",
+        [
+            (
+                "identifier",
+                "repo/gpg",
+                "one path segment with no '/' that is not empty, '.' or '..'",
+            ),
+            (
+                "package_name",
+                "a/../b",
+                "a package name with no empty, '.' or '..' part between '/'",
+            ),
+        ],
     )
-    def test_path_parameter_that_changes_the_endpoint_is_rejected(self, key, value):
-        with pytest.raises(ValueError, match=f"parameter '{key}'"):
+    def test_path_parameter_that_changes_the_endpoint_is_rejected(
+        self, key, value, expected_form
+    ):
+        with pytest.raises(ValueError) as exc_info:
             self._request_url(key, value)
+
+        assert str(exc_info.value) == (
+            f"Invalid value '{value}' for parameter '{key}'. Expected: {expected_form}"
+        )
 
 
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}

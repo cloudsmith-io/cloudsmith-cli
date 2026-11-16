@@ -185,17 +185,21 @@ def api_exception_from_http_error(exc: httpx2.HTTPError) -> ApiException:
     )
 
 
-def _changes_endpoint(key: str, path_value: str) -> bool:
-    """Return True when the value can send the request to another endpoint.
+def _expected_path_form(key: str, path_value: str) -> str | None:
+    """Return the expected form if the value can change the endpoint, else None.
 
     The API decodes %2F before it routes a request, so each "/" in a value
     starts a new path segment. Only the badge route accepts a package name
     with a "/", for example "@scope/name" or "library/nginx".
     """
     parts = path_value.split("/")
-    if len(parts) > 1 and key != "package_name":
-        return True
-    return any(part in ("", ".", "..") for part in parts)
+    if key == "package_name":
+        if any(part in ("", ".", "..") for part in parts):
+            return "a package name with no empty, '.' or '..' part between '/'"
+        return None
+    if len(parts) > 1 or path_value in ("", ".", ".."):
+        return "one path segment with no '/' that is not empty, '.' or '..'"
+    return None
 
 
 class CustomFastMCP(MCPServer):
@@ -585,9 +589,11 @@ class DynamicMCPServer:
             if key in properties:
                 if "{" + key + "}" in url:
                     # This is a parameter as part of the URL, so replace it
-                    if _changes_endpoint(key, str(value)):
+                    expected_form = _expected_path_form(key, str(value))
+                    if expected_form:
                         raise ValueError(
-                            f"Invalid value '{value}' for parameter '{key}'."
+                            f"Invalid value '{value}' for parameter '{key}'. "
+                            f"Expected: {expected_form}"
                         )
                     url = url.replace("{" + key + "}", parse.quote(str(value), safe=""))
                 elif tool.method in ["GET", "DELETE"]:
