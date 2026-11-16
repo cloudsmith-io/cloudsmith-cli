@@ -1,5 +1,8 @@
 import html
+import math
+import shutil
 import socket
+import sys
 from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qsl, unquote, urlparse
@@ -14,6 +17,21 @@ from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 
 REJECTED_TWO_FACTOR_STATUSES = frozenset({400, 401, 403, 422})
+TWO_FACTOR_PROMPT = "Please enter your 2FA code"
+
+
+def _clear_echoed_input(prompt, value):
+    """Erase the echoed prompt line so the entered value isn't left on screen.
+
+    The input stays visible while typing so typos can be seen, but a wrong paste
+    (e.g. a password) would otherwise stay in the terminal and its scrollback.
+    """
+    if not (sys.stdin.isatty() and sys.stderr.isatty()):
+        return
+
+    width = shutil.get_terminal_size().columns
+    rows = max(1, math.ceil(len(f"{prompt}: {value}") / width))
+    click.echo("\x1b[1A\x1b[2K" * rows, nl=False, err=True)
 
 
 def get_template_path(template_name):
@@ -162,7 +180,8 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
         click.echo("Press Ctrl-C to give up.", err=True)
 
         while True:
-            totp_token = click.prompt("Please enter your 2FA code", type=str, err=True)
+            totp_token = click.prompt(TWO_FACTOR_PROMPT, type=str, err=True)
+            _clear_echoed_input(TWO_FACTOR_PROMPT, totp_token)
 
             try:
                 return exchange_2fa_token(
@@ -173,7 +192,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                     raise
 
                 click.secho(
-                    f"\nThat 2FA code was rejected ({exc}). Please try again.",
+                    f"That 2FA code was rejected ({exc}). Please try again.",
                     fg="red",
                     err=True,
                 )

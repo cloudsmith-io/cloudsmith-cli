@@ -10,7 +10,12 @@ import pytest
 from keyring.errors import KeyringError
 
 from ...core.api.exceptions import ApiException
-from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
+from ..webserver import (
+    TWO_FACTOR_PROMPT,
+    AuthenticationWebRequestHandler,
+    AuthenticationWebServer,
+    _clear_echoed_input,
+)
 
 
 class TestAuthenticationWebServer:
@@ -306,6 +311,7 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
                 side_effect=exchange_side_effect,
             ) as mock_exchange,
             patch("click.prompt", side_effect=prompt_side_effect) as mock_prompt,
+            patch("cloudsmith_cli.cli.webserver._clear_echoed_input") as mock_clear,
             patch("cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=True),
             patch.object(handler, "_return_success_response") as mock_success,
             patch.object(handler, "_return_error_response") as mock_error,
@@ -327,6 +333,7 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
             mock_two_factor.side_effect = lambda: setattr(handler, "responded", True)
             manager.attach_mock(mock_two_factor, "two_factor_page")
             manager.attach_mock(mock_prompt, "prompt")
+            manager.attach_mock(mock_clear, "clear")
             manager.attach_mock(mock_exchange, "exchange")
             manager.attach_mock(mock_success, "success_page")
             manager.attach_mock(mock_error, "error_page")
@@ -417,6 +424,29 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
             _, kwargs = manager.prompt.call_args
             assert kwargs.get("hide_input", False) is False
 
+    def test_echoed_input_is_cleared_before_each_exchange(self, two_factor_handler):
+        """Verify each entered value is cleared, including rejected ones."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[
+                ApiException(422),
+                ("access_token_123", "refresh_token_123"),
+            ],
+            prompt_side_effect=["oops-my-password", "123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            calls = [
+                name
+                for name, _, _ in manager.mock_calls
+                if name in ("prompt", "clear", "exchange")
+            ]
+            assert calls == ["prompt", "clear", "exchange"] * 2
+            assert [c.args for c in manager.clear.call_args_list] == [
+                (TWO_FACTOR_PROMPT, "oops-my-password"),
+                (TWO_FACTOR_PROMPT, "123456"),
+            ]
+
     def test_user_can_abort_the_prompt(self, two_factor_handler):
         """Verify Ctrl-C at the prompt ends the command."""
         with self._patched(
@@ -440,3 +470,53 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
                 two_factor_handler.do_GET()
 
             assert manager.prompt.call_count == 1
+
+
+class TestClearEchoedInput:
+    """Tests for clearing the echoed 2FA input from the terminal."""
+
+    CLEAR_LINE = "\x1b[1A\x1b[2K"
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _terminal(isatty=True, columns=80):
+        """Fake the TTY state and width, capturing what is written to stderr."""
+        written = []
+        stream = MagicMock()
+        stream.isatty.return_value = isatty
+        with (
+            patch("sys.stdin", stream),
+            patch("sys.stderr", stream),
+            patch(
+                "shutil.get_terminal_size",
+                return_value=MagicMock(columns=columns),
+            ),
+            patch(
+                "click.echo",
+                side_effect=lambda message="", **kwargs: written.append(str(message)),
+            ),
+        ):
+            yield written
+
+    def test_erases_the_prompt_line_entirely(self):
+        """Verify the prompt line is erased without writing anything in its place."""
+        with self._terminal() as written:
+            _clear_echoed_input(TWO_FACTOR_PROMPT, "oops-my-password")
+
+        assert "".join(written) == self.CLEAR_LINE
+
+    def test_clears_every_row_of_wrapped_input(self):
+        """Verify input wider than the terminal is cleared from every row."""
+        value = "x" * 100
+        # "Please enter your 2FA code: " is 28 columns, so 128 columns over 3 rows.
+        with self._terminal(columns=50) as written:
+            _clear_echoed_input(TWO_FACTOR_PROMPT, value)
+
+        assert "".join(written).count(self.CLEAR_LINE) == 3
+
+    def test_does_nothing_without_a_tty(self):
+        """Verify no escape codes are written when not attached to a terminal."""
+        with self._terminal(isatty=False) as written:
+            _clear_echoed_input(TWO_FACTOR_PROMPT, "123456")
+
+        assert not written

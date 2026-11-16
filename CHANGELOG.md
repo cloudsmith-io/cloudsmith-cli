@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type.
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed
