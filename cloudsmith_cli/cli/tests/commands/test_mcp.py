@@ -320,14 +320,20 @@ MUTATING_SPEC = {
         "/packages/{owner}/{repo}/{identifier}/": {
             "delete": {"operationId": "packages_delete"},
         },
+        "/orgs/{org}/members/{member}/remove/": {
+            "get": {"operationId": "orgs_members_remove"},
+        },
+        "/webhooks/{owner}/{repo}/": {"get": {"operationId": "webhooks_list"}},
     }
 }
 READ_ONLY_TOOLS = {"repos_list", "user_self"}
+DISABLED_GROUP_TOOLS = {"webhooks_list"}
 WRITE_TOOLS = {
     "repos_create",
     "repos_privileges_update",
     "repos_privileges_partial_update",
     "packages_delete",
+    "orgs_members_remove",
 }
 
 
@@ -434,11 +440,20 @@ class TestMCPServerDynamicToolGeneration:
         assert "repos_list" in server.tools
         assert "packages_list" not in server.tools
 
-    @pytest.mark.parametrize("server_kwargs", [{}, {"force_all_tools": True}])
-    def test_lists_only_get_tools_without_destructive_opt_in(self, server_kwargs):
+    @pytest.mark.parametrize(
+        ("server_kwargs", "expected_tools"),
+        [
+            ({}, READ_ONLY_TOOLS),
+            ({"allowed_tool_groups": ["repos"]}, {"repos_list"}),
+            ({"force_all_tools": True}, READ_ONLY_TOOLS | DISABLED_GROUP_TOOLS),
+        ],
+    )
+    def test_lists_no_write_tools_without_destructive_opt_in(
+        self, server_kwargs, expected_tools
+    ):
         server = _server_from_spec(MUTATING_SPEC, **server_kwargs)
 
-        assert set(server.tools) == READ_ONLY_TOOLS
+        assert set(server.tools) == expected_tools
 
     def test_destructive_opt_in_marks_write_tools_destructive(self):
         server = _server_from_spec(MUTATING_SPEC, allow_destructive_tools=True)

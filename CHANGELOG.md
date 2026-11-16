@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- `cloudsmith mcp start` now exposes only read-only (GET) tools by default. Earlier versions also exposed tools that change data, such as tools that create repositories, update privileges, or move packages. They hid only the tools with `delete`, `destroy`, or `remove` in their names. To enable tools that change data, add `--allow-destructive-tools` (`-D`). `--all-tools` (`-a`) no longer enables these tools without `-D`. The `mcp_allowed_tools` and `mcp_allowed_tool_groups` settings also need `-D` for tools that change data. Each tool that changes data now has `destructiveHint` set to `true`, and each GET tool has `readOnlyHint` set to `true`. (#620)
+- `cloudsmith mcp start` now exposes only read-only tools by default. A tool changes data when it uses POST, PUT, PATCH, or DELETE, or when its name contains `delete`, `destroy`, or `remove`. Earlier versions used only the name, so they exposed tools that create repositories, update privileges, or move packages. To allow tools that change data, add `--allow-destructive-tools` (`-D`). `-D` applies only to the enabled tool groups. Add `--all-tools` (`-a`) to include the groups that are disabled by default. `-a` no longer enables tools that change data without `-D`. The `mcp_allowed_tools` and `mcp_allowed_tool_groups` settings also need `-D` for tools that change data. Each tool that changes data now has `destructiveHint` set to `true`, and each read-only tool has `readOnlyHint` set to `true`. (#620)
 
 ## [1.31.1] - 2026-11-12
 

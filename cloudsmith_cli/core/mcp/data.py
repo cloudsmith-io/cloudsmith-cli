@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+TOOL_DELETE_SUFFIXES = ["delete", "destroy", "remove"]
+
 
 @dataclass
 class OpenAPITool:
@@ -15,9 +17,11 @@ class OpenAPITool:
     query_filter: str | None
 
     @property
-    def is_read_only(self) -> bool:
-        return self.method == "GET"
+    def is_destructive(self) -> bool:
+        return self.method != "GET" or any(
+            suffix in self.name for suffix in TOOL_DELETE_SUFFIXES
+        )
 
     @property
-    def is_destructive(self) -> bool:
-        return not self.is_read_only
+    def is_read_only(self) -> bool:
+        return not self.is_destructive
