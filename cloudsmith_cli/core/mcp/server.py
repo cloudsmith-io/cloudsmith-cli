@@ -785,8 +785,6 @@ class DynamicMCPServer:
             parameters=parameter_schema,
             base_url=base_url,
             query_filter=simplified_query,
-            is_destructive=method != "GET",
-            is_read_only=method == "GET",
         )
 
     def _format_enum_description(

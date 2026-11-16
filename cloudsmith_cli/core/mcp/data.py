@@ -13,5 +13,11 @@ class OpenAPITool:
     parameters: dict[str, Any]
     base_url: str
     query_filter: str | None
-    is_destructive: bool = False
-    is_read_only: bool = False
+
+    @property
+    def is_read_only(self) -> bool:
+        return self.method == "GET"
+
+    @property
+    def is_destructive(self) -> bool:
+        return not self.is_read_only
