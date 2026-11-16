@@ -6,8 +6,10 @@ import pytest
 import requests
 from cloudsmith_api.rest import ApiException as SdkApiException
 
+from benchmarks.bench_multipart_upload import measure_peak_traced_heap
+
 from ..api.exceptions import ApiException
-from ..api.files import multi_part_upload_file, upload_file
+from ..api.files import CHUNK_SIZE, multi_part_upload_file, upload_file
 from ..credentials.models import CredentialResult
 
 
@@ -117,3 +119,16 @@ class TestUploadErrors:
             )
 
         assert raised.value.status == 0
+
+
+class TestMultiPartUploadMemory:
+    """A regression guard for overlapping multipart request bodies."""
+
+    def test_peak_traced_memory_stays_below_two_parts(self, tmp_path):
+        filepath = tmp_path / "package.raw"
+        with filepath.open("wb") as output:
+            output.truncate(2 * CHUNK_SIZE + 1)
+
+        peak = measure_peak_traced_heap(filepath)
+
+        assert peak < 2 * CHUNK_SIZE

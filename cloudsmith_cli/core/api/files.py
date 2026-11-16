@@ -131,6 +131,8 @@ def multi_part_upload_file(
                     headers=exc.response.headers,
                     body=exc.response.content,
                 )
+            # Drop the previous request body before the next full-part read.
+            del resp, chunk
             callback()
             chunk_number += 1
 
