@@ -511,6 +511,9 @@ class Options:  # pylint: disable=too-many-public-methods
 
     def load_config_file(self, path, profile=None):
         """Load the standard config file."""
+        # Telemetry reads config.ini again at the end of the run, and must read
+        # the same file and profile (see telemetry_common.read_config_file).
+        self.loaded_config = (path, profile)
         config_cls = self.get_config_reader()
         return config_cls.load_config(self, path, profile=profile)
 

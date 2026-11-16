@@ -261,6 +261,25 @@ def test_read_config_file_honours_the_config_file_env(
     assert telemetry_common.read_config_file().telemetry == "true"
 
 
+def test_read_config_file_uses_the_profile_the_command_loaded(
+    telemetry_config_dir, monkeypatch
+):
+    from cloudsmith_cli.cli import config
+
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry = enable\n"
+        "[profile:work]\ntelemetry = disable\n"
+        "[profile:home]\ntelemetry = log\n"
+    )
+    monkeypatch.setenv(telemetry_common.PROFILE_ENV, "home")
+    assert telemetry_common.read_config_file().telemetry == "log"
+    # --profile work beat the env var when the command loaded config.
+    opts = config.Options()
+    opts.load_config_file(None, profile="work")
+    monkeypatch.setattr(config.OPTIONS, "value", opts, raising=False)
+    assert telemetry_common.read_config_file().telemetry == "disable"
+
+
 def test_config_file_env_matches_the_option_declaration():
     from cloudsmith_cli.cli.commands import main
 

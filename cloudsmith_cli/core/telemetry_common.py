@@ -200,14 +200,23 @@ CLOUDSMITH_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
 
 
 def read_config_file():
-    """Read config.ini afresh (``[default]`` plus ``$CLOUDSMITH_PROFILE``).
+    """Read config.ini afresh, with the file and profile the command used.
 
-    The file named by ``$CLOUDSMITH_CONFIG_FILE`` is read first, as the CLI
-    reads it. Returns new options holding what the files set. Covers commands
-    that never load config or failed before doing so. Raises if a file cannot
-    be read; callers fail closed.
+    If the command loaded config, that is its ``--config-file`` and
+    ``--profile`` (which Click already fills from the environment). Otherwise
+    it is ``$CLOUDSMITH_CONFIG_FILE`` and ``$CLOUDSMITH_PROFILE``, as the CLI
+    would read them. Returns new options holding what the files set. Covers
+    commands that never load config or failed before doing so. Raises if a
+    file cannot be read; callers fail closed.
     """
     from ..cli import config
+
+    loaded = getattr(getattr(config.OPTIONS, "value", None), "loaded_config", None)
+    if loaded is not None:
+        path, profile = loaded
+    else:
+        path = os.environ.get(CONFIG_FILE_ENV) or None
+        profile = os.environ.get(PROFILE_ENV)
 
     # load_config inserts the path into the reader's class-level lists, so
     # read through a subclass with copies to leave the CLI's reader as it was.
@@ -220,11 +229,7 @@ def read_config_file():
         },
     )
     probe = config.Options()
-    reader.load_config(
-        probe,
-        path=os.environ.get(CONFIG_FILE_ENV) or None,
-        profile=os.environ.get(PROFILE_ENV),
-    )
+    reader.load_config(probe, path=path, profile=profile)
     return probe
 
 
@@ -248,8 +253,9 @@ def config_mode(
 
     * the options the command loaded, which honour ``--config-file`` and
       ``--profile`` - but only exist if the command loads config at all;
-    * a fresh read of config.ini by ``read_config``, which a caller can pass
-      to share one read with its own config.ini checks.
+    * a fresh read of config.ini by ``read_config``, with the same file and
+      profile, which a caller can pass to share one read with its own
+      config.ini checks.
 
     Otherwise the loaded options win. Fails closed: if the config cannot be
     read we cannot confirm the user has not opted out, so the mode is
