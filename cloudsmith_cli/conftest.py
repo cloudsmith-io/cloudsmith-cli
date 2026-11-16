@@ -3,12 +3,25 @@ import json
 import cloudsmith_api
 import pytest
 
+from cloudsmith_cli.cli.config import OPTIONS
 from cloudsmith_cli.core import keyring as core_keyring
 from cloudsmith_cli.core import session, telemetry
 
 #: A syntactically valid DSN that is never contacted: tests that report use
 #: an in-memory transport.
 FAKE_DSN = "https://publickey@o0.ingest.sentry.invalid/0"
+
+
+@pytest.fixture(autouse=True)
+def reset_cli_options(monkeypatch):
+    """Discard the thread-local Options object between tests.
+
+    ``config.get_or_create_options`` caches the Options object in a
+    thread-local, so state such as ``--debug`` (which is sticky by design)
+    would otherwise leak from one test's CLI invocation into the next.
+    Telemetry in ``core`` reads it too (``telemetry_common.config_mode``).
+    """
+    monkeypatch.delattr(OPTIONS, "value", raising=False)
 
 
 @pytest.fixture(autouse=True)

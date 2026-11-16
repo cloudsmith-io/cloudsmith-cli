@@ -249,6 +249,41 @@ def test_status_config_keys_per_kind(
     }
 
 
+@pytest.mark.parametrize("how", ["flag", "env"])
+def test_status_profile_setting_beats_the_default_opt_out(
+    production_with_key, telemetry_config_dir, monkeypatch, how
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry = disable\n"
+        "[profile:work]\ntelemetry_usage_reporting = enable\n"
+    )
+    args = ["--profile", "work"] if how == "flag" else []
+    if how == "env":
+        monkeypatch.setenv(telemetry_common.PROFILE_ENV, "work")
+    data, _ = _status(*args)
+    assert data["usage_reporting"]["status"] == "enabled"
+    reason = data["usage_reporting"]["reason"]
+    assert reason == "telemetry_usage_reporting in config.ini"
+    # The profile keeps the [default] opt-out for the kind it does not set.
+    assert data["error_reporting"]["reason"] == "telemetry in config.ini"
+    assert data["error_reporting"]["status"] == "disabled"
+
+
+@pytest.mark.parametrize("how", ["flag", "env"])
+def test_status_profile_opt_out_beats_the_default(
+    production_with_key, telemetry_config_dir, monkeypatch, how
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry = enable\n[profile:work]\ntelemetry = disable\n"
+    )
+    args = ["--profile", "work"] if how == "flag" else []
+    if how == "env":
+        monkeypatch.setenv(telemetry_common.PROFILE_ENV, "work")
+    data, _ = _status(*args)
+    assert data["usage_reporting"]["status"] == "disabled"
+    assert data["error_reporting"]["status"] == "disabled"
+
+
 @pytest.mark.parametrize(
     "name", [telemetry_common.USAGE_REPORTING_ENV, telemetry_common.ERROR_REPORTING_ENV]
 )
