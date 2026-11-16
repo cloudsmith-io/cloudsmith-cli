@@ -13,18 +13,23 @@ from ...core.api.exceptions import ApiException
 from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
 
 
+@pytest.fixture
+def server():
+    """Create a server. Other servers that the test creates also bind no socket."""
+
+    def _fake_http_server_init(self, *args, **kwargs):
+        self.socket = MagicMock()
+
+    with patch.object(HTTPServer, "__init__", _fake_http_server_init):
+        yield AuthenticationWebServer(("localhost", 0), MagicMock())
+
+
 class TestAuthenticationWebServer:
     """Tests for AuthenticationWebServer SAML token storage."""
 
-    def test_sso_access_token_initialized_to_none(self):
+    def test_sso_access_token_initialized_to_none(self, server):
         """Verify sso_access_token is initialized to None."""
-
-        def _fake_http_server_init(self, *args, **kwargs):
-            self.socket = MagicMock()
-
-        with patch.object(HTTPServer, "__init__", _fake_http_server_init):
-            server = AuthenticationWebServer(("localhost", 0), MagicMock())
-            assert server.sso_access_token is None
+        assert server.sso_access_token is None
 
     def test_refresh_api_config_passes_sso_token(self):
         """Verify refresh_api_config_after_auth passes sso_access_token to initialise_api."""
@@ -62,6 +67,54 @@ class TestAuthenticationWebServer:
                 server.refresh_api_config_after_auth()
 
         assert mock_init_api.call_args.kwargs["ssl_verify"] is False
+
+
+class TestAuthenticationWebServerCallback:
+    """Tests for how the server binds a callback to this login."""
+
+    def test_each_login_has_its_own_state(self, server):
+        other_login = AuthenticationWebServer(("localhost", 0), MagicMock())
+        assert other_login.state != server.state
+
+    def test_own_state_is_expected(self, server):
+        assert server.is_expected_state(server.state)
+
+    @pytest.mark.parametrize("received_state", ["", "wrong_státe"])
+    def test_other_states_are_not_expected(self, server, received_state):
+        assert not server.is_expected_state(received_state)
+
+    def test_wait_for_callback_waits_past_rejected_callbacks(self, server):
+        def accept_second_callback():
+            server.callback_received = server.handle_request.call_count == 2
+
+        with patch.object(
+            server, "handle_request", side_effect=accept_second_callback
+        ) as mock_handle_request:
+            server.wait_for_callback()
+
+        assert mock_handle_request.call_count == 2
+
+    def test_only_an_error_in_the_callback_stops_the_wait(self, server):
+        with (
+            patch.object(server, "get_request", return_value=(MagicMock(), None)),
+            patch.object(server, "process_request", side_effect=BrokenPipeError),
+        ):
+            server._handle_request_noblock()
+
+            server.callback_received = True
+            with pytest.raises(BrokenPipeError):
+                server._handle_request_noblock()
+
+    def test_idle_connection_times_out(self):
+        connection = MagicMock()
+        handler = AuthenticationWebRequestHandler.__new__(
+            AuthenticationWebRequestHandler
+        )
+        handler.request = connection
+
+        handler.setup()
+
+        connection.settimeout.assert_called_once_with(handler.timeout)
 
 
 class TestAuthenticationWebRequestHandlerKeyring:
@@ -228,6 +281,33 @@ class TestAuthenticationWebRequestHandlerKeyring:
                 mock_handler.server_instance.sso_access_token
                 == "sso_token_for_direct_use"
             )
+            assert mock_handler.server_instance.callback_received is True
+
+    def test_callback_with_unexpected_state_is_rejected(self, mock_handler):
+        """Verify forged callbacks store nothing, warn once and do not end the login."""
+        server = mock_handler.server_instance
+        server.is_expected_state.return_value = False
+        server.callback_received = False
+        server.callback_rejected = False
+        with (
+            patch("cloudsmith_cli.cli.webserver.store_sso_tokens") as mock_store,
+            patch("click.secho") as mock_secho,
+            patch.object(mock_handler, "_return_error_response") as mock_error,
+            patch.object(
+                AuthenticationWebRequestHandler,
+                "query_data",
+                new_callable=PropertyMock,
+                return_value={"access_token": "attacker_token", "state": "wrong"},
+            ),
+        ):
+            mock_handler.do_GET()
+            mock_handler.do_GET()
+
+        server.is_expected_state.assert_called_with("wrong")
+        mock_store.assert_not_called()
+        assert mock_error.call_count == 2
+        mock_secho.assert_called_once()
+        assert server.callback_received is False
 
 
 class TestAuthenticationWebRequestHandlerResponse:
