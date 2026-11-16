@@ -577,6 +577,27 @@ class TestMCPServerConfig:
                 "args": ["-P", "staging", "mcp", "start"],
             }
 
+    def test_configure_keeps_tool_flags_in_start_args(self, runner, tmp_path):
+        config_path = tmp_path / "mcp.json"
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.get_config_path",
+            return_value=config_path,
+        ):
+            result = runner.invoke(
+                configure, ["--client", "cursor", "-k", "x", "-a", "-D"]
+            )
+
+        assert result.exit_code == 0, result.output
+        server_args = json.loads(config_path.read_text())["mcpServers"]["cloudsmith"][
+            "args"
+        ]
+        assert server_args[-4:] == [
+            "mcp",
+            "start",
+            "--all-tools",
+            "--allow-destructive-tools",
+        ]
+
 
 class TestMCPConfigureClaudeCode:
     def test_user_scope_merges_into_existing_claude_json(self, tmp_path):
