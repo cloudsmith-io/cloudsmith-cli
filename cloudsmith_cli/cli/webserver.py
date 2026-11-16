@@ -17,7 +17,9 @@ from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 
 REJECTED_TWO_FACTOR_STATUSES = frozenset({400, 401, 403, 422})
-TWO_FACTOR_PROMPT = "Please enter your 2FA code"
+TWO_FACTOR_PROMPT = (
+    "Enter the code from your authenticator app, or press Ctrl+C to cancel"
+)
 
 
 def _clear_echoed_input(prompt, value):
@@ -172,12 +174,6 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
             bold=True,
             err=True,
         )
-        click.echo(
-            "Enter the code from your authenticator app to finish signing in.",
-            err=True,
-        )
-
-        click.echo("Press Ctrl-C to give up.", err=True)
 
         while True:
             totp_token = click.prompt(TWO_FACTOR_PROMPT, type=str, err=True)
@@ -192,7 +188,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                     raise
 
                 click.secho(
-                    f"That 2FA code was rejected ({exc}). Please try again.",
+                    "That code was rejected. Please try again.",
                     fg="red",
                     err=True,
                 )

@@ -447,6 +447,25 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
                 (TWO_FACTOR_PROMPT, "123456"),
             ]
 
+    def test_rejection_message_leaves_out_the_status_code(
+        self, two_factor_handler, capsys
+    ):
+        """Verify a rejected code shows a plain message, not the HTTP error."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[
+                ApiException(422, detail="Invalid input."),
+                ("access_token_123", "refresh_token_123"),
+            ],
+            prompt_side_effect=["000000", "123456"],
+        ):
+            two_factor_handler.do_GET()
+
+        err = capsys.readouterr().err
+        assert "That code was rejected. Please try again." in err
+        assert "422" not in err
+        assert "Invalid input" not in err
+
     def test_user_can_abort_the_prompt(self, two_factor_handler):
         """Verify Ctrl-C at the prompt ends the command."""
         with self._patched(
@@ -500,7 +519,7 @@ class TestClearEchoedInput:
 
     def test_erases_the_prompt_line_entirely(self):
         """Verify the prompt line is erased without writing anything in its place."""
-        with self._terminal() as written:
+        with self._terminal(columns=120) as written:
             _clear_echoed_input(TWO_FACTOR_PROMPT, "oops-my-password")
 
         assert "".join(written) == self.CLEAR_LINE
@@ -508,11 +527,11 @@ class TestClearEchoedInput:
     def test_clears_every_row_of_wrapped_input(self):
         """Verify input wider than the terminal is cleared from every row."""
         value = "x" * 100
-        # "Please enter your 2FA code: " is 28 columns, so 128 columns over 3 rows.
+        # The prompt and its ": " suffix are 71 columns, so 171 columns over 4 rows.
         with self._terminal(columns=50) as written:
             _clear_echoed_input(TWO_FACTOR_PROMPT, value)
 
-        assert "".join(written).count(self.CLEAR_LINE) == 3
+        assert "".join(written).count(self.CLEAR_LINE) == 4
 
     def test_does_nothing_without_a_tty(self):
         """Verify no escape codes are written when not attached to a terminal."""
