@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import stat
@@ -313,6 +314,46 @@ class TestMCPSpecLoadErrors:
         assert exc_info.value.detail == "ConnectError: Connection refused"
 
 
+MUTATING_SPEC = {
+    "paths": {
+        "/repos/": {
+            "get": {"operationId": "repos_list"},
+            "post": {"operationId": "repos_create"},
+        },
+        "/user/self/": {"get": {"operationId": "user_self"}},
+        "/repos/{owner}/{identifier}/privileges": {
+            "put": {"operationId": "repos_privileges_update"},
+            "patch": {"operationId": "repos_privileges_partial_update"},
+        },
+        "/packages/{owner}/{repo}/{identifier}/move/": {
+            "post": {"operationId": "packages_move"},
+        },
+        "/packages/{owner}/{repo}/{identifier}/": {
+            "delete": {"operationId": "packages_delete"},
+        },
+    }
+}
+READ_ONLY_TOOLS = {"repos_list", "user_self"}
+ALL_SPEC_TOOLS = {
+    operation["operationId"]
+    for path_item in MUTATING_SPEC["paths"].values()
+    for operation in path_item.values()
+}
+
+
+def _server_from_spec(spec: dict, **server_kwargs) -> DynamicMCPServer:
+    api_config = cloudsmith_api.Configuration()
+    api_config.host = "https://api.cloudsmith.io"
+    server = DynamicMCPServer(api_config=api_config, **server_kwargs)
+    server.spec = spec
+    asyncio.run(
+        server._generate_tools_from_spec(  # pylint: disable=protected-access
+            "https://api.cloudsmith.io/v1"
+        )
+    )
+    return server
+
+
 class TestMCPServerDynamicToolGeneration:
     def test_server_generates_tools_from_openapi_spec(self):
         """Test that MCP server dynamically creates tools from OpenAPI spec."""
@@ -368,14 +409,12 @@ class TestMCPServerDynamicToolGeneration:
         api_config.api_key = {"X-Api-Key": "test-key"}
 
         # Create MCP server instance
-        server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
+        server = DynamicMCPServer(api_config=api_config, allow_destructive_tools=True)
 
         # Mock the spec loading directly
         server.spec = mock_openapi_spec
 
         # Call the synchronous tool generation method
-        import asyncio
-
         asyncio.run(
             server._generate_tools_from_spec(  # pylint: disable=protected-access
                 "https://api.cloudsmith.io/v1"
@@ -435,8 +474,6 @@ class TestMCPServerDynamicToolGeneration:
         server.spec = mock_openapi_spec
 
         # Call the tool generation method
-        import asyncio
-
         asyncio.run(
             server._generate_tools_from_spec(  # pylint: disable=protected-access
                 "https://api.cloudsmith.io/v1"
@@ -447,6 +484,31 @@ class TestMCPServerDynamicToolGeneration:
         assert len(server.tools) == 1
         assert "repos_list" in server.tools
         assert "packages_list" not in server.tools
+
+    def test_default_lists_only_get_tools(self):
+        server = _server_from_spec(MUTATING_SPEC)
+
+        assert set(server.tools) == READ_ONLY_TOOLS
+
+    def test_all_tools_needs_destructive_opt_in_for_write_tools(self):
+        server = _server_from_spec(MUTATING_SPEC, force_all_tools=True)
+
+        assert set(server.tools) == READ_ONLY_TOOLS
+
+    def test_destructive_opt_in_marks_write_tools_destructive(self):
+        server = _server_from_spec(MUTATING_SPEC, allow_destructive_tools=True)
+
+        hints = {
+            tool.name: (
+                tool.annotations.read_only_hint,
+                tool.annotations.destructive_hint,
+            )
+            for tool in asyncio.run(server.mcp.list_tools())
+        }
+        assert hints == {
+            name: (name in READ_ONLY_TOOLS, name not in READ_ONLY_TOOLS)
+            for name in ALL_SPEC_TOOLS
+        }
 
     def test_server_reports_cli_version(self):
         import cloudsmith_api
@@ -462,8 +524,6 @@ class TestMCPServerDynamicToolGeneration:
 
 class TestMCPServerLoadOpenAPISpec:
     def test_tool_urls_include_api_version(self):
-        import asyncio
-
         import cloudsmith_api
         import httpx2
 

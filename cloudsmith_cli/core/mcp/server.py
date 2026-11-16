@@ -26,10 +26,6 @@ API_VERSIONS_TO_DISCOVER = {
     "v1": "swagger/?format=openapi",
     "v2": "openapi/?format=json",
 }
-TOOL_DELETE_SUFFIXES = ["delete", "destroy", "remove"]
-
-TOOL_READ_ONLY_SUFFIXES = ["read", "list", "retrieve"]
-
 # Common action suffixes in OpenAPI operation IDs
 # These should not be considered as part of the resource group hierarchy
 TOOL_ACTION_SUFFIXES = [
@@ -382,28 +378,21 @@ class DynamicMCPServer:
 
         return groups
 
-    def _is_tool_destructive(self, tool_name: str) -> bool:
-        return any(suffix in tool_name for suffix in TOOL_DELETE_SUFFIXES)
-
-    def _is_tool_read_only(self, tool_name: str) -> bool:
-        return any(suffix in tool_name for suffix in TOOL_READ_ONLY_SUFFIXES)
-
-    def _is_tool_allowed(self, tool_name: str) -> bool:
+    def _is_tool_allowed(self, tool: OpenAPITool) -> bool:
         """Check if a tool is allowed based on user configuration"""
+
+        if not self.allow_destructive_tools and tool.is_destructive:
+            return False
 
         if self.force_all_tools:
             return True
 
-        # Check if tool is destructive and destructive tools are disabled
-        if not self.allow_destructive_tools and self._is_tool_destructive(tool_name):
-            return False
-
-        tool_groups = self._get_tool_groups(tool_name)
+        tool_groups = self._get_tool_groups(tool.name)
 
         # If user provided their own list of allowed tools or tool groups
         if len(self.allowed_tools) > 0 or len(self.allowed_tool_groups) > 0:
             allowed_tool_group = bool(set(tool_groups) & set(self.allowed_tool_groups))
-            allowed_tool = tool_name in self.allowed_tools
+            allowed_tool = tool.name in self.allowed_tools
             return allowed_tool or allowed_tool_group
 
         # Otherwise disable all categories in the default list
@@ -428,7 +417,7 @@ class DynamicMCPServer:
                         path_parameters,
                         base_url,
                     )
-                    if tool and self._is_tool_allowed(tool.name):
+                    if tool and self._is_tool_allowed(tool):
                         self.tools[tool.name] = tool
                         self._register_dynamic_tool(tool)
 
@@ -796,8 +785,8 @@ class DynamicMCPServer:
             parameters=parameter_schema,
             base_url=base_url,
             query_filter=simplified_query,
-            is_destructive=self._is_tool_destructive(tool_name),
-            is_read_only=self._is_tool_read_only(tool_name),
+            is_destructive=method != "GET",
+            is_read_only=method == "GET",
         )
 
     def _format_enum_description(

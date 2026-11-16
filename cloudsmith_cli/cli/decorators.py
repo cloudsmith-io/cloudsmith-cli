@@ -910,14 +910,21 @@ def initialise_mcp(f):
         "--all-tools",
         default=False,
         is_flag=True,
-        help="Show all tools",
+        help=(
+            "Enable all read-only tools, including the tool groups that are disabled "
+            "by default. Add --allow-destructive-tools to also enable tools that "
+            "change data."
+        ),
     )
     @click.option(
         "-D",
         "--allow-destructive-tools",
         default=False,
         is_flag=True,
-        help="Allow destructive tools to be used",
+        help=(
+            "Enable tools that change data (POST, PUT, PATCH and DELETE operations). "
+            "Without this option, the server exposes only read-only (GET) tools."
+        ),
     )
     @click.pass_context
     @functools.wraps(f)
