@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`.
+- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
 
 ## [1.31.1] - 2026-11-12
 
