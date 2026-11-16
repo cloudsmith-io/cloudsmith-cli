@@ -38,6 +38,27 @@ SSL_OFF_SPELLINGS = frozenset(
 CONFIG_SPELLINGS = frozenset({*option_names.CONFIG_FILE, *option_names.PROFILE})
 #: Not a host: a typed ``--api-host`` that never reached opts fails the gate.
 UNRESOLVED_HOST = "unresolved"
+
+#: The setting that the deprecated spellings in each ``deprecation`` table set.
+_DEPRECATED_SPELLING_SETTINGS = (
+    (deprecation.PROXY_ALIASES, "proxy"),
+    (deprecation.SSL_VERIFY_ALIASES, "ssl_verify"),
+    (deprecation.WORKSPACE_ALIASES, "workspace"),
+)
+#: Names that map onto a setting in ``event.ALLOWED_SETTINGS``: config.ini keys
+#: (``config_sources``) and Click parameter names. Built from ``deprecation``,
+#: so a new deprecated key or spelling needs no change here.
+SETTING_ALIASES = {
+    **deprecation.CONFIG_KEY_REPLACEMENTS,
+    "config_file": "config_file_path",
+    "credentials_file": "credentials_file_path",
+    # The hidden option of each deprecated spelling (``alias_options``).
+    **{
+        deprecation.alias_param_name(spelling): setting
+        for spellings, setting in _DEPRECATED_SPELLING_SETTINGS
+        for spelling in spellings
+    },
+}
 #: Click's boolean spellings (``BoolParamType``); an empty env var is unset.
 _FALSE = frozenset({"0", "false", "no", "off", "n", "f"})
 _TRUE = frozenset({"1", "true", "yes", "on", "y", "t"})
@@ -189,7 +210,6 @@ def _env_names(param):
 
 
 def _param_facts(contexts):
-    from ..core.usage.event import SETTING_ALIASES
 
     flags, envvars, sources = set(), set(), {}
     for ctx in contexts:

@@ -39,26 +39,6 @@ ALLOWED_SETTINGS = frozenset(
         "color",
     }
 )
-#: Names that map onto a setting in ``ALLOWED_SETTINGS``: config.ini keys
-#: (``config_sources``) and Click parameter names (``usage_capture``).
-SETTING_ALIASES = {
-    "api_proxy": "proxy",
-    "api_ssl_verify": "ssl_verify",
-    "org": "workspace",
-    "organization": "workspace",
-    "oidc_org": "workspace",
-    "config_file": "config_file_path",
-    "credentials_file": "credentials_file_path",
-    # The hidden options of deprecated spellings (``deprecation.alias_options``).
-    "deprecated_api_proxy": "proxy",
-    "deprecated_without_api_ssl_verify": "ssl_verify",
-    "deprecated_S": "ssl_verify",
-    "deprecated_org": "workspace",
-    "deprecated_organization": "workspace",
-    "deprecated_oidc_org": "workspace",
-    "deprecated_owner": "workspace",
-    "deprecated_o": "workspace",
-}
 SOURCE_VALUES = frozenset(
     {
         "flag",

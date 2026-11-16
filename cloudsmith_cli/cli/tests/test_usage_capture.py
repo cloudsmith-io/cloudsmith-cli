@@ -271,28 +271,56 @@ NOT_SETTINGS = frozenset(
 )
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        "common_cli_config_options",
-        "common_cli_output_options",
-        "common_api_auth_options",
-        "initialise_session",
-        "resolve_credentials",  # holds -w/--workspace (``org``)
-        "initialise_api",
-    ],
-)
-def test_every_shared_option_is_a_setting_or_explicitly_not(name):
+#: The decorators that declare the options shared by every command.
+SHARED_DECORATORS = [
+    "common_cli_config_options",
+    "common_cli_output_options",
+    "common_api_auth_options",
+    "initialise_session",
+    "resolve_credentials",  # holds -w/--workspace (``org``)
+    "initialise_api",
+]
+
+
+def _shared_params(name):
     from cloudsmith_cli.cli import decorators
-    from cloudsmith_cli.core.usage import event
 
     decorator = getattr(decorators, name)
-    command = click.command()(decorator(lambda **kwargs: None))
-    for param in command.params:
-        setting = event.SETTING_ALIASES.get(param.name, param.name)
+    return click.command()(decorator(lambda **kwargs: None)).params
+
+
+@pytest.mark.parametrize("name", SHARED_DECORATORS)
+def test_every_shared_option_is_a_setting_or_explicitly_not(name):
+    from cloudsmith_cli.core.usage import event
+
+    for param in _shared_params(name):
+        setting = usage_capture.SETTING_ALIASES.get(param.name, param.name)
         assert setting in event.ALLOWED_SETTINGS or param.name in NOT_SETTINGS, (
             param.name
         )
+
+
+def test_every_allowed_setting_is_still_an_option_or_config_key():
+    # The other direction: an option or ini key that is renamed or dropped
+    # must also leave ALLOWED_SETTINGS, so no stale name stays allowed.
+    from cloudsmith_cli.cli import config
+    from cloudsmith_cli.core.usage import event
+
+    names = {p.name for name in SHARED_DECORATORS for p in _shared_params(name)}
+    for schema in (config.ConfigSchema.Default, config.CredentialsSchema.Default):
+        names.update(
+            param.name
+            for param in vars(schema).values()
+            if isinstance(param, config.ConfigParam)
+        )
+    settings = {usage_capture.SETTING_ALIASES.get(n, n) for n in names}
+    assert event.ALLOWED_SETTINGS - settings == set()
+
+
+def test_setting_aliases_point_at_allowed_settings():
+    from cloudsmith_cli.core.usage import event
+
+    assert set(usage_capture.SETTING_ALIASES.values()) <= event.ALLOWED_SETTINGS
 
 
 def test_record_credential_keeps_the_last_resolved_source():

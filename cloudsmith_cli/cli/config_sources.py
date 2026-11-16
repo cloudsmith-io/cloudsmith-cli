@@ -9,8 +9,8 @@ presence only. A value is only checked for being empty, and never kept.
 import configparser
 import os
 
-from ..core.usage.event import SETTING_ALIASES
 from . import config
+from .usage_capture import SETTING_ALIASES
 
 
 def _files(reader, explicit):
