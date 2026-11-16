@@ -185,6 +185,19 @@ def api_exception_from_http_error(exc: httpx2.HTTPError) -> ApiException:
     )
 
 
+def _changes_endpoint(key: str, path_value: str) -> bool:
+    """Return True when the value can send the request to another endpoint.
+
+    The API decodes %2F before it routes a request, so each "/" in a value
+    starts a new path segment. Only the badge route accepts a package name
+    with a "/", for example "@scope/name" or "library/nginx".
+    """
+    parts = path_value.split("/")
+    if len(parts) > 1 and key != "package_name":
+        return True
+    return any(part in ("", ".", "..") for part in parts)
+
+
 class CustomFastMCP(MCPServer):
     """Custom FastMCP that overrides tool listing to clean up schemas to not overwhelm the LLM context"""
 
@@ -537,7 +550,7 @@ class DynamicMCPServer:
 
     def _get_request_params(
         self, url: str, tool: OpenAPITool, arguments: dict[str, Any]
-    ):
+    ) -> tuple[str, dict[str, Any], dict[str, Any]]:
         """Get params to use for HTTP request based on tool arguments"""
 
         query_params = {}
@@ -572,7 +585,11 @@ class DynamicMCPServer:
             if key in properties:
                 if "{" + key + "}" in url:
                     # This is a parameter as part of the URL, so replace it
-                    url = url.replace("{" + key + "}", str(value))
+                    if _changes_endpoint(key, str(value)):
+                        raise ValueError(
+                            f"Invalid value '{value}' for parameter '{key}'."
+                        )
+                    url = url.replace("{" + key + "}", parse.quote(str(value), safe=""))
                 elif tool.method in ["GET", "DELETE"]:
                     # Query parameter for GET/DELETE
                     query_params[key] = value
@@ -594,8 +611,6 @@ class DynamicMCPServer:
             }
         )
 
-        http_client = self._create_http_client(headers=headers)
-
         # Build URL with path parameters
         url = tool.base_url + tool.path
 
@@ -605,6 +620,8 @@ class DynamicMCPServer:
             )
         except ValueError as e:
             return str(e)
+
+        http_client = self._create_http_client(headers=headers)
 
         if tool.query_filter:
             parsed_simplified_filter = parse.parse_qs(tool.query_filter)
