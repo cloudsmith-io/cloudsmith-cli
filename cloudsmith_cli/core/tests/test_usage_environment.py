@@ -1,5 +1,6 @@
 import pytest
 
+from cloudsmith_cli.core import installation
 from cloudsmith_cli.core.usage import environment
 
 
@@ -29,6 +30,33 @@ def test_ephemeral_rule(monkeypatch):
     assert environment.is_ephemeral(env={}, channel="docker", state_writable=True)
     assert environment.is_ephemeral(env={}, channel="pip", state_writable=False)
     assert not environment.is_ephemeral(env={}, channel="pip", state_writable=True)
+
+
+@pytest.mark.parametrize(
+    "env,expected",
+    [
+        ({}, False),
+        ({"container": "systemd-nspawn"}, True),
+        ({"container": "podman"}, True),
+        ({"KUBERNETES_SERVICE_HOST": "10.0.0.1"}, True),
+        ({"KUBERNETES_SERVICE_HOST": ""}, False),
+    ],
+)
+def test_is_container_from_env(monkeypatch, env, expected):
+    monkeypatch.setattr(installation.os.path, "exists", lambda path: False)
+    for name in ("container", "KUBERNETES_SERVICE_HOST"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    assert environment.is_container() is expected
+
+
+@pytest.mark.parametrize("marker", ["/.dockerenv", "/run/.containerenv"])
+def test_is_container_from_marker_file(monkeypatch, marker):
+    monkeypatch.setattr(installation.os.path, "exists", lambda path: path == marker)
+    for name in ("container", "KUBERNETES_SERVICE_HOST"):
+        monkeypatch.delenv(name, raising=False)
+    assert environment.is_container() is True
 
 
 def test_non_tty_alone_is_not_ci():

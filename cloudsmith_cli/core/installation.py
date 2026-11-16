@@ -55,7 +55,8 @@ _UPGRADE_INSTRUCTIONS = {
 }
 
 
-def _running_in_container():
+def running_in_container():
+    """Tell whether the CLI runs in a container (Docker, Podman, nspawn, k8s)."""
     if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
         return True
     return bool(
@@ -88,7 +89,7 @@ def _detect_frozen_channel(executable_path):
         return CHANNEL_AQUA
     if "/Cellar/" in normalized or "/linuxbrew/" in normalized:
         return CHANNEL_HOMEBREW
-    if normalized.startswith("/opt/cloudsmith") and _running_in_container():
+    if normalized.startswith("/opt/cloudsmith") and running_in_container():
         return CHANNEL_DOCKER
     return CHANNEL_STANDALONE
 
