@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.31.2] - 2026-11-16
+
 ### Security
 
-- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login.
+- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login. (#619)
 
 ## [1.31.1] - 2026-11-12
 
