@@ -200,7 +200,10 @@ def test_status_install_id_reason(
     assert data["install_id_reason"] == settings.INSTALL_ID_ENV
 
     text = CliRunner().invoke(main, ["telemetry", "status"]).output
-    assert f"Install ID: on ({settings.INSTALL_ID_ENV})" in text
+    assert f"Install ID: enabled ({settings.INSTALL_ID_ENV})" in text
+    monkeypatch.setenv(settings.INSTALL_ID_ENV, "disable")
+    text = CliRunner().invoke(main, ["telemetry", "status"]).output
+    assert f"Install ID: disabled ({settings.INSTALL_ID_ENV})" in text
 
 
 def test_status_install_id_from_the_profile(production_with_key, telemetry_config_dir):

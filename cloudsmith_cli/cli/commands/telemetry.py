@@ -86,7 +86,8 @@ def status(ctx, opts):
     if not utils.maybe_print_as_json(opts, data):
         click.echo(f"Usage reporting: {usage} ({usage_reason})")
         click.echo(f"Error reporting: {errors} ({errors_reason})")
-        click.echo(f"Install ID: {'on' if install_id else 'off'} ({install_id_reason})")
+        install_id_status = "enabled" if install_id else "disabled"
+        click.echo(f"Install ID: {install_id_status} ({install_id_reason})")
 
 
 @telemetry.command(name="id")
