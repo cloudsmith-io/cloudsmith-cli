@@ -1,6 +1,7 @@
 """Tests for the webserver module."""
 
 import contextlib
+import os
 from http.server import HTTPServer
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -10,7 +11,13 @@ import pytest
 from keyring.errors import KeyringError
 
 from ...core.api.exceptions import ApiException
-from ..webserver import AuthenticationWebRequestHandler, AuthenticationWebServer
+from ..webserver import (
+    TWO_FACTOR_PROMPT,
+    AuthenticationWebRequestHandler,
+    AuthenticationWebServer,
+    _clear_echoed_input,
+    _display_rows,
+)
 
 
 @pytest.fixture
@@ -386,6 +393,7 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
                 side_effect=exchange_side_effect,
             ) as mock_exchange,
             patch("click.prompt", side_effect=prompt_side_effect) as mock_prompt,
+            patch("cloudsmith_cli.cli.webserver._clear_echoed_input") as mock_clear,
             patch("cloudsmith_cli.cli.webserver.store_sso_tokens", return_value=True),
             patch.object(handler, "_return_success_response") as mock_success,
             patch.object(handler, "_return_error_response") as mock_error,
@@ -407,6 +415,7 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
             mock_two_factor.side_effect = lambda: setattr(handler, "responded", True)
             manager.attach_mock(mock_two_factor, "two_factor_page")
             manager.attach_mock(mock_prompt, "prompt")
+            manager.attach_mock(mock_clear, "clear")
             manager.attach_mock(mock_exchange, "exchange")
             manager.attach_mock(mock_success, "success_page")
             manager.attach_mock(mock_error, "error_page")
@@ -497,6 +506,48 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
             _, kwargs = manager.prompt.call_args
             assert kwargs.get("hide_input", False) is False
 
+    def test_echoed_input_is_cleared_before_each_exchange(self, two_factor_handler):
+        """Verify each entered value is cleared, including rejected ones."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[
+                ApiException(422),
+                ("access_token_123", "refresh_token_123"),
+            ],
+            prompt_side_effect=["oops-my-password", "123456"],
+        ) as manager:
+            two_factor_handler.do_GET()
+
+            calls = [
+                name
+                for name, _, _ in manager.mock_calls
+                if name in ("prompt", "clear", "exchange")
+            ]
+            assert calls == ["prompt", "clear", "exchange"] * 2
+            assert [c.args for c in manager.clear.call_args_list] == [
+                (TWO_FACTOR_PROMPT, "oops-my-password"),
+                (TWO_FACTOR_PROMPT, "123456"),
+            ]
+
+    def test_rejection_message_leaves_out_the_status_code(
+        self, two_factor_handler, capsys
+    ):
+        """Verify a rejected code shows a plain message, not the HTTP error."""
+        with self._patched(
+            two_factor_handler,
+            exchange_side_effect=[
+                ApiException(422, detail="Invalid input."),
+                ("access_token_123", "refresh_token_123"),
+            ],
+            prompt_side_effect=["000000", "123456"],
+        ):
+            two_factor_handler.do_GET()
+
+        err = capsys.readouterr().err
+        assert "That code was rejected. Please try again." in err
+        assert "422" not in err
+        assert "Invalid input" not in err
+
     def test_user_can_abort_the_prompt(self, two_factor_handler):
         """Verify Ctrl-C at the prompt ends the command."""
         with self._patched(
@@ -520,3 +571,113 @@ class TestAuthenticationWebRequestHandlerTwoFactor:
                 two_factor_handler.do_GET()
 
             assert manager.prompt.call_count == 1
+
+
+class TestClearEchoedInput:
+    """Tests for clearing the echoed 2FA input from the terminal."""
+
+    CLEAR_LINE = "\x1b[1A\x1b[2K"
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _terminal(isatty=True, columns=80):
+        """Fake a terminal on stdin and stderr, capturing what stderr receives."""
+        written = []
+        stream = MagicMock()
+        stream.isatty.return_value = isatty
+        stream.fileno.return_value = 2
+        stream.write.side_effect = written.append
+        with (
+            patch("sys.stdin", stream),
+            patch("sys.stderr", stream),
+            patch(
+                "os.get_terminal_size",
+                return_value=os.terminal_size((columns, 24)),
+            ) as get_size,
+        ):
+            yield written, get_size
+
+    def test_erases_the_prompt_line_entirely(self):
+        """Verify the prompt line is erased without writing anything in its place."""
+        with self._terminal(columns=120) as (written, _):
+            _clear_echoed_input(TWO_FACTOR_PROMPT, "oops-my-password")
+
+        assert "".join(written) == self.CLEAR_LINE
+
+    def test_clears_every_row_of_wrapped_input(self):
+        """Verify input wider than the terminal is cleared from every row."""
+        value = "x" * 100
+        # The prompt and its ": " suffix are 71 columns, so 171 columns over 4 rows.
+        with self._terminal(columns=50) as (written, _):
+            _clear_echoed_input(TWO_FACTOR_PROMPT, value)
+
+        assert "".join(written).count(self.CLEAR_LINE) == 4
+
+    def test_uses_the_width_of_stderr(self):
+        """Verify the width comes from stderr, which still is a terminal when
+        stdout is redirected."""
+        with self._terminal() as (_, get_size):
+            _clear_echoed_input(TWO_FACTOR_PROMPT, "123456")
+
+        get_size.assert_called_once_with(2)
+
+    def test_falls_back_to_80_columns(self):
+        """Verify a terminal whose size can't be read is treated as 80 wide."""
+        with self._terminal() as (written, get_size):
+            get_size.side_effect = OSError
+            # 71 + 10 = 81 columns, so 2 rows at 80 columns.
+            _clear_echoed_input(TWO_FACTOR_PROMPT, "x" * 10)
+
+        assert "".join(written).count(self.CLEAR_LINE) == 2
+
+    def test_escape_codes_are_written_when_colour_is_off(self):
+        """Verify --color never or NO_COLOR doesn't stop the line being erased."""
+        with self._terminal() as (written, _):
+            with click.Context(click.Command("auth"), color=False):
+                _clear_echoed_input(TWO_FACTOR_PROMPT, "123456")
+
+        assert "".join(written) == self.CLEAR_LINE
+
+    def test_does_nothing_without_a_tty(self):
+        """Verify no escape codes are written when not attached to a terminal."""
+        with self._terminal(isatty=False) as (written, _):
+            _clear_echoed_input(TWO_FACTOR_PROMPT, "123456")
+
+        assert not written
+
+
+class TestDisplayRows:
+    """Tests for counting the rows that echoed text takes up."""
+
+    @pytest.mark.parametrize(
+        ("text", "rows"),
+        [
+            ("", 1),
+            ("x" * 10, 1),
+            ("x" * 10 + "y", 2),
+            ("x" * 25, 3),
+        ],
+    )
+    def test_ascii(self, text, rows):
+        """Verify text exactly as wide as the terminal stays on one row."""
+        assert _display_rows(text, 10) == rows
+
+    def test_wide_characters_take_two_columns(self):
+        """Verify full-width characters count double."""
+        assert _display_rows("界" * 5, 10) == 1
+        assert _display_rows("界" * 6, 10) == 2
+
+    def test_wide_character_that_does_not_fit_moves_to_the_next_row(self):
+        """Verify a wide character never splits across the edge of the row."""
+        # 9 columns used, so the next 2-column character starts row 2.
+        assert _display_rows("x" * 9 + "界" * 5, 10) == 2
+        assert _display_rows("x" * 9 + "界" * 6, 10) == 3
+
+    def test_combining_characters_take_no_columns(self):
+        """Verify combining marks don't push text onto extra rows."""
+        assert _display_rows("e\u0301" * 10, 10) == 1
+
+    def test_tabs_move_to_the_next_stop(self):
+        """Verify a tab advances to the next multiple of 8 columns."""
+        assert _display_rows("x\t" + "y" * 8, 16) == 1
+        assert _display_rows("x\t" + "y" * 9, 16) == 2

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cloudsmith mcp start` now exposes only read-only tools by default. Tools that change data or return credentials need `--allow-destructive-tools` (`-D`). A tool changes data when it uses POST, PUT, PATCH or DELETE, or when its name contains `delete`, `destroy` or `remove`. `--all-tools` (`-a`) enables every tool group and ignores `mcp_allowed_tools` and `mcp_allowed_tool_groups`. It no longer enables these tools without `-D`. When your allowlist matches tools that need `-D`, `mcp start`, `mcp list_tools` and `mcp list_groups` show a warning. `mcp configure` now accepts `-a` and `-D` and keeps them in the client configuration. Tools that change data now have `destructiveHint` set to `true`. (#620)
 
+- `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type. (#618)
+- The 2FA prompt of `cloudsmith auth` is shorter: `Enter the code from your authenticator app, or press Ctrl+C to cancel:`. When the code is rejected, the CLI now shows `That code was rejected. Please try again.` without the HTTP status code. (#618)
+
 ## [1.31.2] - 2026-11-16
 
 ### Security
