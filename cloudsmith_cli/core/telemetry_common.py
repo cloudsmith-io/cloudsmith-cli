@@ -35,6 +35,8 @@ CONFIG_KEY = "telemetry"
 USAGE_REPORTING_CONFIG_KEY = "telemetry_usage_reporting"
 ERROR_REPORTING_CONFIG_KEY = "telemetry_error_reporting"
 CONFIG_KEYS = (CONFIG_KEY, USAGE_REPORTING_CONFIG_KEY, ERROR_REPORTING_CONFIG_KEY)
+#: The config.ini key that matches ``CLOUDSMITH_TELEMETRY_INSTALL_ID`` (on/off).
+INSTALL_ID_CONFIG_KEY = "telemetry_install_id"
 #: The source of a mode that config.ini could not confirm (it fails closed).
 CONFIG_UNREADABLE = "unreadable config.ini"
 
@@ -233,12 +235,46 @@ def read_config_file():
     return probe
 
 
-def _options_mode(opts, kind):
-    for key in (_KIND_CONFIG_KEY[kind], CONFIG_KEY):
-        mode = parse_mode(getattr(opts, key, None))
-        if mode is not None:
-            return mode, f"{key} in config.ini"
+def _options_value(opts, keys, parse):
+    """The first of ``keys`` that ``parse`` recognises in ``opts``, and the key."""
+    for key in keys:
+        value = parse(getattr(opts, key, None))
+        if value is not None:
+            return value, f"{key} in config.ini"
     return None, None
+
+
+def _config_value(keys, parse, off, read_config):
+    """What config.ini sets for ``keys``, and the key that set it.
+
+    Checked two ways, and either one saying ``off`` wins:
+
+    * the options the command loaded, which honour ``--config-file`` and
+      ``--profile`` - but only exist if the command loads config at all;
+    * a fresh read of config.ini by ``read_config``, with the same file and
+      profile, which a caller can pass to share one read with its own
+      config.ini checks.
+
+    Otherwise the loaded options win. Fails closed: if the config cannot be
+    read we cannot confirm the user has not turned it off, so it is ``off``,
+    from :data:`CONFIG_UNREADABLE`. ``(None, None)`` when config.ini does not
+    decide.
+    """
+    from ..cli import config
+
+    loaded = (None, None)
+    opts = getattr(config.OPTIONS, "value", None)
+    if opts is not None:
+        loaded = _options_value(opts, keys, parse)
+        if loaded[0] == off:
+            return loaded
+    try:
+        fresh = _options_value(read_config(), keys, parse)
+    except Exception:  # pylint: disable=broad-exception-caught
+        return off, CONFIG_UNREADABLE
+    if fresh[0] == off or loaded[0] is None:
+        return fresh
+    return loaded
 
 
 def config_mode(
@@ -248,35 +284,38 @@ def config_mode(
 
     The key for ``kind`` (``telemetry_usage_reporting`` or
     ``telemetry_error_reporting``) wins over ``telemetry``; an unrecognised
-    value is ignored. Checked two ways, and either one saying ``disabled``
-    wins:
-
-    * the options the command loaded, which honour ``--config-file`` and
-      ``--profile`` - but only exist if the command loads config at all;
-    * a fresh read of config.ini by ``read_config``, with the same file and
-      profile, which a caller can pass to share one read with its own
-      config.ini checks.
-
-    Otherwise the loaded options win. Fails closed: if the config cannot be
-    read we cannot confirm the user has not opted out, so the mode is
-    disabled, from :data:`CONFIG_UNREADABLE`. ``(None, None)`` when
-    config.ini does not decide.
+    value is ignored. A ``disabled`` in either read wins, and an unreadable
+    file is disabled (see :func:`_config_value`).
     """
-    from ..cli import config
+    return _config_value(
+        (_KIND_CONFIG_KEY[kind], CONFIG_KEY), parse_mode, Mode.DISABLED, read_config
+    )
 
-    loaded = (None, None)
-    opts = getattr(config.OPTIONS, "value", None)
-    if opts is not None:
-        loaded = _options_mode(opts, kind)
-        if loaded[0] is Mode.DISABLED:
-            return loaded
-    try:
-        fresh = _options_mode(read_config(), kind)
-    except Exception:  # pylint: disable=broad-exception-caught
-        return Mode.DISABLED, CONFIG_UNREADABLE
-    if fresh[0] is Mode.DISABLED or loaded[0] is None:
-        return fresh
-    return loaded
+
+def _parse_switch_value(value):
+    return parse_switch(value) if isinstance(value, str) else None
+
+
+def install_id_mode(
+    env: "os._Environ[str] | dict[str, str] | None" = None,
+    read_config=read_config_file,
+) -> tuple[bool, str]:
+    """Whether usage telemetry may store an install ID, and what decided.
+
+    ``CLOUDSMITH_TELEMETRY_INSTALL_ID`` wins over ``telemetry_install_id`` in
+    config.ini; both take on/off values, and an unrecognised one is ignored.
+    On by default. An unreadable config.ini turns it off: storing nothing is
+    the safe side.
+    """
+    enabled = parse_switch(_env_value(env, INSTALL_ID_ENV))
+    if enabled is not None:
+        return enabled, INSTALL_ID_ENV
+    enabled, source = _config_value(
+        (INSTALL_ID_CONFIG_KEY,), _parse_switch_value, False, read_config
+    )
+    if enabled is None:
+        return True, "default"
+    return enabled, source
 
 
 def resolve_mode(kind: Kind, read_config=read_config_file) -> tuple[Mode, str]:

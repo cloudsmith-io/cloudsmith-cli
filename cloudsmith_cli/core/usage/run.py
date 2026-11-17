@@ -133,7 +133,8 @@ def _finish(facts):  # pylint: disable=too-many-return-statements,too-many-local
         return
 
     ident = identity.resolve(
-        ephemeral=ephemeral, install_id_enabled=settings.install_id_enabled()
+        ephemeral=ephemeral,
+        install_id_enabled=settings.install_id_enabled(read_config=read_config),
     )
     _load_deferred_sources(facts)
     payload = event.build_event(

@@ -100,6 +100,7 @@ class ConfigSchema:
         telemetry_error_reporting = ConfigParam(
             name="telemetry_error_reporting", type=str
         )
+        telemetry_install_id = ConfigParam(name="telemetry_install_id", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -880,6 +881,18 @@ class Options:  # pylint: disable=too-many-public-methods
         if value is None:
             return
         self._set_option("telemetry_error_reporting", value)
+
+    @property
+    def telemetry_install_id(self):
+        """Get the install ID switch, as written; None when it is not set."""
+        return self._get_option("telemetry_install_id")
+
+    @telemetry_install_id.setter
+    def telemetry_install_id(self, value):
+        """Set the install ID switch."""
+        if value is None:
+            return
+        self._set_option("telemetry_install_id", value)
 
     @property
     def output(self):

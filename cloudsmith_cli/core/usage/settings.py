@@ -8,7 +8,8 @@ sets ``CLOUDSMITH_TELEMETRY_POSTHOG_KEY``, which also replaces the key.
 
 import os
 
-from ..telemetry_common import INSTALL_ID_ENV, MODE_ENV, parse_switch  # noqa: F401
+from .. import telemetry_common
+from ..telemetry_common import INSTALL_ID_ENV, MODE_ENV  # noqa: F401
 
 #: Project key of the dedicated "CLI" PostHog EU project (336063). Not a
 #: secret: a PostHog project key can only send events, and every client that
@@ -50,10 +51,13 @@ def internal(env=None):
     return _truthy(env, INTERNAL_ENV)
 
 
-def install_id_enabled(env=None):
-    # On by default for laptops; only an off value disables it. The CLI warns
-    # about an unrecognised value and keeps the default.
-    return parse_switch(_env(env).get(INSTALL_ID_ENV, "")) is not False
+def install_id_enabled(env=None, read_config=None):
+    # On by default for laptops; only an off value disables it, from the env
+    # var or config.ini. The CLI warns about an unrecognised value and keeps
+    # the default.
+    return telemetry_common.install_id_mode(
+        env, read_config or telemetry_common.read_config_file
+    )[0]
 
 
 def ci_sample_rate(env=None):

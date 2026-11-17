@@ -180,6 +180,55 @@ def test_status_unrecognised_install_id_value_warns_and_keeps_the_default(
     assert stderr.count("Warning:") == 1
 
 
+def test_status_install_id_reason(
+    production_with_key, telemetry_config_dir, monkeypatch
+):
+    data, _ = _status()
+    assert data["install_id_enabled"] is True
+    assert data["install_id_reason"] == "default"
+
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry_install_id = disable\n"
+    )
+    data, _ = _status()
+    assert data["install_id_enabled"] is False
+    assert data["install_id_reason"] == "telemetry_install_id in config.ini"
+
+    monkeypatch.setenv(settings.INSTALL_ID_ENV, "enable")
+    data, _ = _status()
+    assert data["install_id_enabled"] is True
+    assert data["install_id_reason"] == settings.INSTALL_ID_ENV
+
+    text = CliRunner().invoke(main, ["telemetry", "status"]).output
+    assert f"Install ID: on ({settings.INSTALL_ID_ENV})" in text
+
+
+def test_status_install_id_from_the_profile(production_with_key, telemetry_config_dir):
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry_install_id = enable\n"
+        "[profile:work]\ntelemetry_install_id = disable\n"
+    )
+    assert _status()[0]["install_id_enabled"] is True
+    data, _ = _status("--profile", "work")
+    assert data["install_id_enabled"] is False
+    assert data["install_id_reason"] == "telemetry_install_id in config.ini"
+
+
+def test_status_unrecognised_install_id_config_value_warns(
+    production_with_key, telemetry_config_dir
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry_install_id = log\n"
+    )
+    data, stderr = _status()
+    assert data["install_id_enabled"] is True
+    assert (
+        "The value of the `telemetry_install_id` key in config.ini is not "
+        "recognised, so the CLI ignores it. Use `enable` or `disable`." in stderr
+    )
+    assert stderr.count("Warning:") == 1
+
+
 def test_status_recognised_values_do_not_warn(production_with_key, monkeypatch):
     monkeypatch.setenv(settings.MODE_ENV, "log")
     monkeypatch.setenv(settings.INSTALL_ID_ENV, "disable")
