@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.31.3] - 2026-11-17
+
+### Fixed
+
+- `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type. (#618)
+- The 2FA prompt of `cloudsmith auth` is shorter: `Enter the code from your authenticator app, or press Ctrl+C to cancel:`. When the code is rejected, the CLI now shows `That code was rejected. Please try again.` without the HTTP status code. (#618)
+- `--color`, `-F/--output-format` and `-v/--verbose` given to a group, such as `cloudsmith --color=never list repos` or `cloudsmith -F json list repos`, now apply to its subcommands too. Before, a subcommand used its own default, so the output still had colour, or was not JSON. (#623)
+
+## [1.31.2] - 2026-11-16
+
+### Security
+
+- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login. (#619)
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed

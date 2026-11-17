@@ -117,7 +117,7 @@ def _perform_saml_authentication(
     auth_server, port = _create_auth_server(
         opts, owner, session, enable_token_creation, profile
     )
-    redirect_url = f"http://{AUTH_REDIRECT_HOST}:{port}"
+    redirect_url = f"http://{AUTH_REDIRECT_HOST}:{port}/?state={auth_server.state}"
 
     try:
         click.echo(
@@ -157,7 +157,7 @@ def _perform_saml_authentication(
                     err=use_stderr,
                 )
 
-        auth_server.handle_request()
+        auth_server.wait_for_callback()
         return auth_server.sso_access_token is not None
     finally:
         auth_server.server_close()
