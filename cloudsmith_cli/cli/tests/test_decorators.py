@@ -434,3 +434,114 @@ def test_color_choices_are_text_for_click_before_8_2():
 
     assert all(isinstance(choice, str) for choice in color_option.type.choices)
     assert result.output == "False\n"
+
+
+@pytest.fixture
+def nested_output_commands():
+    """Return a three-level command tree that reports its output options."""
+
+    def report(level, opts):
+        ctx = click.get_current_context()
+        click.echo(
+            f"{level} color={ctx.color} output={opts.output} verbose={opts.verbose}"
+        )
+
+    @click.group()
+    @common_cli_output_options
+    def top(opts):
+        report("top", opts)
+
+    @top.group()
+    @common_cli_output_options
+    def middle(opts):
+        report("middle", opts)
+
+    @middle.command()
+    @common_cli_output_options
+    def leaf(opts):
+        report("leaf", opts)
+
+    @click.command()
+    @common_cli_output_options
+    def forwarded(opts):
+        report("forwarded", opts)
+
+    @middle.command()
+    @common_cli_output_options
+    @click.pass_context
+    def forwarder(ctx, opts):
+        ctx.forward(forwarded)
+
+    def invoke(args, env=None):
+        result = click.testing.CliRunner().invoke(
+            top, args, env={"CLOUDSMITH_FORCE_COLOR": "true", **(env or {})}
+        )
+        assert result.exit_code == 0, result.output
+        return result.output.splitlines()
+
+    return invoke
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--color", "never", "-F", "json", "-v", "middle", "leaf"],
+        ["middle", "--color", "never", "-F", "json", "-v", "leaf"],
+        ["middle", "leaf", "--color", "never", "-F", "json", "-v"],
+    ],
+)
+def test_output_options_reach_nested_commands(nested_output_commands, args):
+    lines = nested_output_commands(args)
+
+    assert lines[-1] == "leaf color=False output=json verbose=True"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--color", "never", "-F", "json", "-v", "middle", "forwarder"],
+        ["middle", "forwarder", "--color", "never", "-F", "json", "-v"],
+    ],
+)
+def test_output_options_reach_forwarded_commands(nested_output_commands, args):
+    lines = nested_output_commands(args)
+
+    assert lines[-1] == "forwarded color=False output=json verbose=True"
+
+
+def test_output_options_given_to_a_group_apply_to_every_level_below_it(
+    nested_output_commands,
+):
+    lines = nested_output_commands(["--color", "never", "-F", "json", "middle", "leaf"])
+
+    assert lines == [
+        "top color=False output=json verbose=False",
+        "middle color=False output=json verbose=False",
+        "leaf color=False output=json verbose=False",
+    ]
+
+
+def test_nested_output_options_override_outer_ones(nested_output_commands):
+    lines = nested_output_commands(
+        "--color never -F json middle leaf --color always -F pretty".split()
+    )
+
+    assert lines == [
+        "top color=False output=json verbose=False",
+        "middle color=False output=json verbose=False",
+        "leaf color=True output=pretty verbose=False",
+    ]
+
+
+def test_output_options_default_without_any_flags(nested_output_commands):
+    lines = nested_output_commands(["middle", "leaf"])
+
+    assert lines[-1] == "leaf color=True output=pretty verbose=False"
+
+
+def test_color_env_var_reaches_nested_commands(nested_output_commands):
+    lines = nested_output_commands(
+        ["middle", "leaf"], env={"CLOUDSMITH_COLOR": "never"}
+    )
+
+    assert lines[-1] == "leaf color=False output=pretty verbose=False"

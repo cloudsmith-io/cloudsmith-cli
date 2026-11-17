@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
 
+## [1.31.3] - 2026-11-17
+
+### Fixed
+
+- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
+- `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type. (#618)
+- The 2FA prompt of `cloudsmith auth` is shorter: `Enter the code from your authenticator app, or press Ctrl+C to cancel:`. When the code is rejected, the CLI now shows `That code was rejected. Please try again.` without the HTTP status code. (#618)
+- `--color`, `-F/--output-format` and `-v/--verbose` given to a group, such as `cloudsmith --color=never list repos` or `cloudsmith -F json list repos`, now apply to its subcommands too. Before, a subcommand used its own default, so the output still had colour, or was not JSON. (#623)
+
+## [1.31.2] - 2026-11-16
+
+### Security
+
+- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login. (#619)
+
 ## [1.31.1] - 2026-11-12
 
 ### Fixed
