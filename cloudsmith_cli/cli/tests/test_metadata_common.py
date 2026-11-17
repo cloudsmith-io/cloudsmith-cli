@@ -125,11 +125,12 @@ def test_attach_metadata_options_defaults_source_identity():
 
 
 @pytest.mark.parametrize(
-    "encoding", ["utf-8", "utf-8-sig", "utf-16"]  # utf-16 writes a LE BOM
+    "encoding",
+    ["utf-8", "utf-8-sig", "utf-16"],  # utf-16 writes a LE BOM
 )
 def test_resolve_metadata_content_file_encodings(tmp_path, encoding):
     path = tmp_path / "payload.json"
-    path.write_bytes('{"name": "caf\u00e9"}'.encode(encoding))
+    path.write_bytes('{"name": "café"}'.encode(encoding))
 
     metadata = resolve_metadata_content(
         content_file=str(path),
@@ -139,7 +140,7 @@ def test_resolve_metadata_content_file_encodings(tmp_path, encoding):
         content_option_name="--content",
     )
 
-    assert metadata.content == {"name": "caf\u00e9"}
+    assert metadata.content == {"name": "café"}
 
 
 def test_resolve_metadata_content_file_invalid_encoding_is_click_error(tmp_path):
