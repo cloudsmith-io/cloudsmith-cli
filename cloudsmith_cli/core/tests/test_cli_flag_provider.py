@@ -13,6 +13,7 @@ class TestCLIFlagProvider:
         assert result.api_key == "my-api-key-1234"
         assert result.source_name == "cli_flag"
         assert result.auth_type == "api_key"
+        assert result.source_detail is not None
         assert "1234" in result.source_detail
         assert "--api-key" in result.source_detail
 
@@ -32,6 +33,7 @@ class TestCLIFlagProvider:
         provider = CLIFlagProvider()
         context = CredentialContext(api_key_from_flag="  my-key  ")
         result = provider.resolve(context)
+        assert result is not None
         assert result.api_key == "my-key"
 
     def test_ignores_env_and_file_keys(self):

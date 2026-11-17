@@ -208,7 +208,7 @@ def resolve_all_packages(
 
     if not packages:
         exc = click.ClickException("No packages found matching the specified criteria.")
-        exc.exit_code = 2
+        exc.exit_code = 2  # ty: ignore[invalid-attribute-access]
         raise exc
 
     return packages
@@ -263,7 +263,7 @@ def resolve_package(
     # Handle results
     if not packages:
         exc = click.ClickException("No packages found matching the specified criteria.")
-        exc.exit_code = 2
+        exc.exit_code = 2  # ty: ignore[invalid-attribute-access]
         raise exc
 
     if len(packages) == 1:
@@ -277,7 +277,7 @@ def resolve_package(
             "--download-all to download all matches, or add more specific filters "
             "(e.g., --filename '*.nupkg')."
         )
-        exc.exit_code = 3
+        exc.exit_code = 3  # ty: ignore[invalid-attribute-access]
         raise exc
 
     # Auto-select best match: highest version, then newest created_at
@@ -470,7 +470,7 @@ def stream_download(
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
         raise click.ClickException(
-            f"Failed to download package: HTTP {e.response.status_code}"
+            f"Failed to download package: HTTP {e.response.status_code}"  # ty: ignore[unresolved-attribute]
         )
     except requests.exceptions.RequestException as e:
         raise click.ClickException(f"Failed to download package: {e!s}")
@@ -543,7 +543,7 @@ def _select_best_package(packages: list[dict]) -> dict:
     return max(packages, key=sort_key)
 
 
-def _format_size(size_bytes: int) -> str:
+def _format_size(size_bytes: float) -> str:
     """Format file size in human-readable format."""
     if size_bytes == 0:
         return "0 B"

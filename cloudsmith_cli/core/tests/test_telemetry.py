@@ -9,6 +9,7 @@ import textwrap
 import threading
 import time
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -54,6 +55,7 @@ def test_default_dsn_is_a_public_ingest_key():
     assert parts.scheme == "https"
     assert parts.username
     assert parts.password is None  # legacy "key:secret@" DSNs carry a secret
+    assert parts.hostname is not None
     assert parts.hostname.endswith(".sentry.io")
     assert ".ingest." in f".{parts.hostname}"
     assert parts.path.strip("/").isdigit()
@@ -118,9 +120,11 @@ def test_report_uses_the_cli_proxy(sentry_events, monkeypatch):
 
     assert len(sentry_events) == 1
     # Build the real HTTP transport so the SDK's own proxy selection is checked.
-    real = sentry_sdk.Client(**{**client.call_args.kwargs, "transport": None})
+    client_kwargs: dict[str, Any] = {**client.call_args.kwargs, "transport": None}
+    real = sentry_sdk.Client(**client_kwargs)
     try:
-        assert real.transport._resolve_proxy() == "http://proxy.example.com:3128"
+        assert real.transport is not None
+        assert real.transport._resolve_proxy() == "http://proxy.example.com:3128"  # ty: ignore[unresolved-attribute]
     finally:
         real.close(timeout=0)
 
@@ -395,6 +399,7 @@ def anonymity_env(tmp_path, monkeypatch):
         )
     )
     spec = importlib.util.spec_from_file_location("acme_tool", module_path)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return SimpleNamespace(home=home, module=module)

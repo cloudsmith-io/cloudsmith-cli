@@ -82,7 +82,7 @@ class TestInitialiseApi:
             host="https://example.com",
             credential=credential,
         )
-        assert config.headers == {"Authorization": "Bearer test_access_token"}
+        assert config.headers == {"Authorization": "Bearer test_access_token"}  # ty: ignore[unresolved-attribute]
 
     def test_initialise_api_sets_api_key(self):
         """Verify key is set as X-Api-Key header."""
@@ -111,7 +111,7 @@ class TestInitialiseApi:
             host="https://example.com",
             credential=credential,
         )
-        assert config.headers == {"Authorization": "Bearer test_access_token"}
+        assert config.headers == {"Authorization": "Bearer test_access_token"}  # ty: ignore[unresolved-attribute]
         assert "X-Api-Key" not in config.api_key
 
     def test_initialise_api_with_basic_auth_header(self):
@@ -126,7 +126,7 @@ class TestInitialiseApi:
             host="https://example.com", headers={"Authorization": auth_header}
         )
 
-        assert config.headers == {"Authorization": auth_header}
+        assert config.headers == {"Authorization": auth_header}  # ty: ignore[unresolved-attribute]
         assert config.username == "username"
         assert config.password == "password"
 

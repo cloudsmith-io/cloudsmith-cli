@@ -211,8 +211,8 @@ class AliasGroup(DYMGroup):
             # Click does not catch a failed write in its Ctrl+C handler.
             if not original_standalone_mode:
                 raise
-            sys.stdout = _PacifyFlushWrapper(sys.stdout)
-            sys.stderr = _PacifyFlushWrapper(sys.stderr)
+            sys.stdout = _PacifyFlushWrapper(sys.stdout)  # ty: ignore[call-non-callable]
+            sys.stderr = _PacifyFlushWrapper(sys.stderr)  # ty: ignore[call-non-callable]
             sys.exit(1)
         except Exception as e:  # pylint: disable=broad-exception-caught
             # Anything reaching here is unexpected: click's own errors and

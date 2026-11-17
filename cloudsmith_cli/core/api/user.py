@@ -1,6 +1,7 @@
 """API - User endpoints."""
 
 import json
+from typing import Any
 
 import cloudsmith_api
 from cloudsmith_api.rest import ApiException
@@ -57,7 +58,7 @@ def get_user_token(login, password, totp_token=None, two_factor_token=None):
             raise
 
 
-def create_user_token_saml() -> dict:
+def create_user_token_saml() -> Any:
     """Create a new user API token using SAML."""
     client = get_user_api()
 
@@ -79,7 +80,7 @@ def get_user_brief():
     return data.authenticated, data.slug, data.email, data.name
 
 
-def list_user_tokens() -> list[dict]:
+def list_user_tokens() -> list[Any]:
     """List all user API tokens."""
     client = get_user_api()
 
@@ -90,7 +91,7 @@ def list_user_tokens() -> list[dict]:
     return data.results
 
 
-def refresh_user_token(token_slug: str) -> dict:
+def refresh_user_token(token_slug: str) -> Any:
     """Refresh user API token."""
     client = get_user_api()
 

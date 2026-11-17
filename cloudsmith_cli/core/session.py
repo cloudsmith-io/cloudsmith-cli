@@ -93,11 +93,15 @@ class RetryWithCallback(Retry):
         if error is not None and (
             find_certificate_error(error) is not None or _is_unknown_host_error(error)
         ):
-            raise MaxRetryError(_pool, url, error) from error
+            raise MaxRetryError(
+                _pool,  # ty: ignore[invalid-argument-type]
+                url,
+                error,
+            ) from error
         return super().increment(method, url, response, error, _pool, _stacktrace)
 
     def sleep_for_retry(self, response=None):
-        retry_after = self.get_retry_after(response)
+        retry_after = self.get_retry_after(response)  # ty: ignore[invalid-argument-type]
         if retry_after:
             self._sleep_with_callback(retry_after, context="retry-after")
             return True

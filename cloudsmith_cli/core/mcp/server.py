@@ -289,7 +289,7 @@ class DynamicMCPServer:
 
     def __init__(
         self,
-        api_config: cloudsmith_api.Configuration = None,
+        api_config: cloudsmith_api.Configuration | None = None,
         use_toon=True,
         allow_destructive_tools=False,
         debug_mode=False,
@@ -301,8 +301,10 @@ class DynamicMCPServer:
         if debug_mode:
             mcp_kwargs["log_level"] = "DEBUG"
         self.mcp = CustomFastMCP(SERVER_NAME, version=get_cli_version(), **mcp_kwargs)
+        if api_config is None:
+            raise ValueError("api_config is required")
         self.api_config = api_config
-        self.api_base_url = api_config.host
+        self.api_base_url = self.api_config.host
         self.use_toon = use_toon
         self.allow_destructive_tools = allow_destructive_tools
         self.allowed_tool_groups = set(allowed_tool_groups or [])
@@ -502,7 +504,9 @@ class DynamicMCPServer:
             annotations[param_name] = param_type
 
         # Create new signature
-        dynamic_tool_func.__signature__ = inspect.Signature(sig_params)
+        dynamic_tool_func.__signature__ = inspect.Signature(  # ty: ignore[unresolved-attribute]
+            sig_params
+        )
         dynamic_tool_func.__annotations__ = annotations
 
         # Register with MCP server - this uses the decorator approach
@@ -530,8 +534,9 @@ class DynamicMCPServer:
         if "X-Api-Key" in self.api_config.api_key:
             headers["X-Api-Key"] = self.api_config.api_key["X-Api-Key"]
 
-        if self.api_config.headers:
-            headers.update(self.api_config.headers)
+        extra_headers = getattr(self.api_config, "headers", None)
+        if extra_headers:
+            headers.update(extra_headers)
 
         return headers
 

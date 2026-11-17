@@ -3,7 +3,7 @@
 import contextlib
 import http.client
 import json
-from collections.abc import Iterator
+from collections.abc import Generator
 
 from cloudsmith_api.rest import ApiException as _ApiException
 
@@ -57,7 +57,7 @@ def error_detail_and_fields(
 
 
 @contextlib.contextmanager
-def catch_raise_api_exception() -> Iterator[None]:
+def catch_raise_api_exception() -> Generator[None]:
     """Context manager that translates upstream API exceptions."""
     try:
         yield

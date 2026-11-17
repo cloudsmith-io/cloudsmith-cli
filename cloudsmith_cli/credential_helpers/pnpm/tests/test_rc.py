@@ -1108,7 +1108,7 @@ class TestNPMRCEncoding:
             encoding: str | None = None,
             **kwargs: object,
         ) -> IO[str]:
-            return builtins.open(
+            return builtins.open(  # ty: ignore[no-matching-overload]
                 file, mode, *args, encoding=encoding or "cp1252", **kwargs
             )
 

@@ -91,6 +91,7 @@ class TestCreateSSLContext:
     def test_strict_verification_by_default(self, api_config):
         ctx = create_ssl_context(api_config)
 
+        assert isinstance(ctx, ssl.SSLContext)
         assert ctx.verify_flags == ssl.create_default_context().verify_flags
 
     def test_strict_verification_disabled(self, api_config):
@@ -98,6 +99,7 @@ class TestCreateSSLContext:
 
         ctx = create_ssl_context(api_config)
 
+        assert isinstance(ctx, ssl.SSLContext)
         assert not ctx.verify_flags & ssl.VERIFY_X509_STRICT
         assert ctx.verify_mode == ssl.CERT_REQUIRED
 

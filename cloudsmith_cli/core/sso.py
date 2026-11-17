@@ -192,15 +192,15 @@ def raise_for_api_error(response):
         response.raise_for_status()
     except requests.RequestException as exc:
         try:
-            body = exc.response.json()
+            body = exc.response.json()  # ty: ignore[unresolved-attribute]
         except ValueError:
             body = None
 
         raise ApiException(
             response.status_code,
             detail=error_detail_and_fields(body)[0],
-            headers=exc.response.headers,
-            body=exc.response.content,
+            headers=exc.response.headers,  # ty: ignore[unresolved-attribute]
+            body=exc.response.content,  # ty: ignore[unresolved-attribute]
         )
 
 
@@ -237,7 +237,4 @@ def refresh_access_token(
     raise_for_api_error(response)
 
     response_data = response_json_object(response, MISSING_SAML_TOKENS)
-    access_token = response_data.get("access_token")
-    refresh_token = response_data.get("refresh_token")
-
-    return (access_token, refresh_token)
+    return (response_data.get("access_token"), response_data.get("refresh_token"))

@@ -1,6 +1,7 @@
 """CLI/Commands - Manage metadata attached to packages."""
 
 import json
+from typing import Any
 
 import click
 
@@ -415,7 +416,7 @@ def update_metadata(
         content_option_name="--content",
     )
 
-    patch_kwargs = {}
+    patch_kwargs: dict[str, Any] = {}
     if metadata.provided:
         patch_kwargs["content"] = metadata.content
     if source_identity is not None:

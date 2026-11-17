@@ -2,6 +2,7 @@
 
 import functools
 from operator import itemgetter
+from typing import Any
 
 import click
 
@@ -174,7 +175,11 @@ def print_entitlements(opts, data, page_info=None, show_list_info=True, page_all
 
 
 def print_entitlements_with_restrictions(
-    opts, data, page_info=None, show_list_info=True, page_all=False
+    opts,
+    data: list[dict[str, Any]],
+    page_info=None,
+    show_list_info=True,
+    page_all=False,
 ):
     # pylint: disable=too-many-locals
     """Print entitlements (with restrictions) as a table or output in another format."""

@@ -22,6 +22,7 @@ def test_execute_success_returns_versioned_document():
 
     assert code == 0
     assert stderr is None
+    assert stdout is not None
     assert json.loads(stdout) == {
         "version": PROTOCOL_VERSION,
         "username": "token",
@@ -35,6 +36,7 @@ def test_execute_document_has_no_extra_keys():
 
     _, stdout, _ = execute(credential=credential)
 
+    assert stdout is not None
     assert set(json.loads(stdout)) == {"version", "username", "password"}
 
 
@@ -44,6 +46,7 @@ def test_execute_no_credential_refuses():
 
     assert code == 1
     assert stdout is None
+    assert stderr is not None
     assert "Unable to retrieve credentials" in stderr
 
 
@@ -81,6 +84,7 @@ def test_token_only_ever_appears_on_stdout():
 
     _, stdout, stderr = execute(credential=credential)
 
+    assert stdout is not None
     assert TOKEN in stdout
     assert stderr is None
 

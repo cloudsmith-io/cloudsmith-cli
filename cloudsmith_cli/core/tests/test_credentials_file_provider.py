@@ -15,6 +15,7 @@ class TestCredentialsFileProvider:
         assert result.api_key == "file-api-key-9012"
         assert result.source_name == "credentials_file"
         assert result.auth_type == "api_key"
+        assert result.source_detail is not None
         assert "9012" in result.source_detail
         assert "credentials.ini" in result.source_detail
 
@@ -34,6 +35,7 @@ class TestCredentialsFileProvider:
         provider = CredentialsFileProvider()
         context = CredentialContext(api_key_from_file="  file-key  ")
         result = provider.resolve(context)
+        assert result is not None
         assert result.api_key == "file-key"
 
     def test_ignores_flag_and_env_keys(self):

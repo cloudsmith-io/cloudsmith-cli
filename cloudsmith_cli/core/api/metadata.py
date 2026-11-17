@@ -76,8 +76,8 @@ def create_metadata(
     *,
     credential: CredentialResult | None,
     content: Any,
-    content_type: str,
-    source_identity: str,
+    content_type: str | None,
+    source_identity: str | None,
 ):
     """Attach a new metadata entry to a package."""
     client = v2.get_client(credential)

@@ -93,8 +93,11 @@ def read_cached_state() -> dict[str, Any]:
 
 def _read_timestamp(key: str) -> float | None:
     """Return a float timestamp for ``key`` from the cached state, or None."""
+    value = read_cached_state().get(key)
+    if value is None:
+        return None
     try:
-        return float(read_cached_state().get(key))
+        return float(value)
     except (TypeError, ValueError):
         return None
 
@@ -466,7 +469,10 @@ def arm(ctx: "click.Context", opts: "Options", no_check_flag: bool) -> None:
     ):
         return
 
-    check = {"due": is_check_due(read_last_check_time()), "thread": None}
+    check: dict[str, Any] = {
+        "due": is_check_due(read_last_check_time()),
+        "thread": None,
+    }
     ctx.meta[_META_KEY] = check
     ctx.call_on_close(lambda: _finish_and_notify(check["thread"], opts, invoked))
 

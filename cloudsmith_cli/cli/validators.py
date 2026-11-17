@@ -54,9 +54,9 @@ def transform_api_header_authorization(param: str, value: str) -> str:
             param_hint=_option_hint(param),
         )
 
-    value = f"{username.strip()}:{password}"
-    value = base64.b64encode(bytes(value.encode()))
-    return "Basic {}".format(value.decode("utf-8"))
+    credentials = f"{username.strip()}:{password}"
+    encoded = base64.b64encode(credentials.encode())
+    return "Basic {}".format(encoded.decode("utf-8"))
 
 
 API_HEADER_TRANSFORMS["Authorization"] = transform_api_header_authorization
@@ -165,27 +165,28 @@ def validate_slashes(
     form: str | None = None,
 ) -> list[str]:
     """Ensure that parameter has slashes and minimum parts."""
+    parts: list[str] | None
     try:
-        value = value.split("/")
+        parts = value.split("/")
     except ValueError:
-        value = None
+        parts = None
 
-    if value and len(value) < minimum or maximum and len(value) > maximum:
-        value = None
+    if parts and len(parts) < minimum or maximum and parts and len(parts) > maximum:
+        parts = None
 
-    if not value:
+    if not parts:
         form = form or "/".join("VALUE" for _ in range(minimum))
         raise click.BadParameter(f"Must be in the form of {form}", param=param)
 
-    value = [v.strip() for v in value]
+    parts = [v.strip() for v in parts]
     # Shell completion leaves "OWNER/", so an empty optional trailing part is not given.
-    while len(value) > minimum and not value[-1]:
-        value.pop()
+    while len(parts) > minimum and not parts[-1]:
+        parts.pop()
 
-    if not all(value):
+    if not all(parts):
         raise click.BadParameter("Individual values cannot be blank", param=param)
 
-    return value
+    return parts
 
 
 def validate_optional_owner_repo(

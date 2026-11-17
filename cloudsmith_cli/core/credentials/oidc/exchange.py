@@ -17,7 +17,7 @@ import requests
 from ...session import create_requests_session as create_session
 
 if TYPE_CHECKING:
-    from ... import CredentialContext
+    from ..models import CredentialContext
 
 logger = logging.getLogger(__name__)
 

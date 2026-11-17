@@ -94,7 +94,7 @@ def resolve_metadata_content(
     if content_file is not None:
         source_label = source_label_for(content_file)
         if content_file == "-":
-            raw = click.get_text_stream("stdin").read()
+            raw = click.get_text_stream("stdin").read()  # ty: ignore[call-non-callable]
         else:
             with open(content_file, encoding="utf-8") as fh:
                 raw = fh.read()
