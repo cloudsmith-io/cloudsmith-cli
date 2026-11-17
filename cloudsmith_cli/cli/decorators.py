@@ -250,6 +250,22 @@ def common_cli_config_options(f):
     return wrapper
 
 
+def _inherit_output_option(ctx, name, resolve):
+    """Resolve an output option, inheriting it from an outer command if left unset.
+
+    The output options are declared on every group and command, so without this a
+    subcommand's default would replace a value given to its parent (e.g.
+    ``cloudsmith --color=never list repos``). A command run through ``ctx.invoke``
+    or ``ctx.forward`` has no parameter source, and inherits too.
+    """
+    key = f"cloudsmith_cli.output_options.{name}"
+    source = ctx.get_parameter_source(name)
+    if source in (ParameterSource.DEFAULT, None) and key in ctx.meta:
+        return ctx.meta[key]
+    ctx.meta[key] = resolve()
+    return ctx.meta[key]
+
+
 def common_cli_output_options(f):
     """Add common CLI output options to commands."""
 
@@ -308,20 +324,30 @@ def common_cli_output_options(f):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
 
-        ctx.color = color_enabled(
-            {
-                "NO_COLOR": kwargs.pop("no_color_env"),
-                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
-                "TERM": kwargs.pop("term_env"),
-            },
-            ColorMode[kwargs.pop("color").upper()],
-            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        color_env = {
+            "NO_COLOR": kwargs.pop("no_color_env"),
+            "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+            "TERM": kwargs.pop("term_env"),
+        }
+        color_mode = ColorMode[kwargs.pop("color").upper()]
+        ctx.color = _inherit_output_option(
+            ctx,
+            "color",
+            lambda: color_enabled(
+                color_env,
+                color_mode,
+                TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+            ),
         )
 
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
-        opts.output = kwargs.pop("output_format")
-        opts.verbose = kwargs.pop("verbose")
+        output_format = kwargs.pop("output_format")
+        opts.output = _inherit_output_option(
+            ctx, "output_format", lambda: output_format
+        )
+        verbose = kwargs.pop("verbose")
+        opts.verbose = _inherit_output_option(ctx, "verbose", lambda: verbose)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
