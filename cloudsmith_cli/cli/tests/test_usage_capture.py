@@ -398,7 +398,6 @@ def _every_command():
 
 def test_every_command_that_sends_less_than_all_is_listed_here():
     from cloudsmith_cli.cli.telemetry import ALL, ERRORS
-    from cloudsmith_cli.core.telemetry_common import declared_policy
 
     # Change this only on purpose: it is the reviewed list of what does not
     # send everything.
@@ -414,11 +413,36 @@ def test_every_command_that_sends_less_than_all_is_listed_here():
         "telemetry reset": ERRORS,
         "telemetry status": ERRORS,
     }
+    assert {p: v for p, v in _effective_policies().items() if v is not ALL} == expected
+
+
+def _effective_policies():
+    """Each command's policy: its own, else the nearest parent's, else ALL."""
+    from cloudsmith_cli.cli.telemetry import ALL
+    from cloudsmith_cli.core.telemetry_common import declared_policy
+
     effective = {}
     for path, cmd in _every_command():
         inherited = effective.get(" ".join(path[:-1]), ALL) if path else ALL
-        effective[" ".join(path)] = declared_policy(cmd) or inherited
-    assert {p: v for p, v in effective.items() if v is not ALL} == expected
+        # Not `or`: NONE is a zero-valued, falsy flag, as in resolve_policy.
+        declared = declared_policy(cmd)
+        effective[" ".join(path)] = inherited if declared is None else declared
+    return effective
+
+
+def test_a_declared_none_policy_is_not_read_as_all(monkeypatch):
+    from cloudsmith_cli.cli.commands.main import main
+    from cloudsmith_cli.cli.telemetry import NONE
+    from cloudsmith_cli.core import telemetry_common
+
+    whoami = main.get_command(click.Context(main), "whoami")
+    real = telemetry_common.declared_policy
+    monkeypatch.setattr(
+        telemetry_common,
+        "declared_policy",
+        lambda cmd: NONE if cmd is whoami else real(cmd),
+    )
+    assert _effective_policies()["whoami"] is NONE
 
 
 @click.group(cls=AliasGroup)
