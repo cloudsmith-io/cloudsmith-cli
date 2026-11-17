@@ -72,6 +72,46 @@ def test_short_option_clusters_are_expanded(token, expected):
     assert usage_capture.match_typed_flags(clustered.params, [token]) == expected
 
 
+def _whoami_params():
+    from cloudsmith_cli.cli.commands.main import main
+
+    whoami = main.get_command(click.Context(main), "whoami")
+    return whoami.get_params(click.Context(whoami))
+
+
+@pytest.mark.parametrize(
+    "tokens,expected",
+    [
+        # Click takes "--" as the key, then reads --profile and --help.
+        (
+            ["--api-key", "--", "--profile", "private", "--help"],
+            ["--api-key", "--help", "--profile"],
+        ),
+        (["--api-key", "-S"], ["--api-key"]),  # -S is the key, not SSL off
+        (["--api-key", "--help"], ["--api-key"]),  # --help is the key
+        (["--api-key=--help", "-S"], ["--api-key", "-S"]),  # attached value
+        (["-P", "--help"], ["-P"]),  # the profile is named --help
+        (["-SP", "-S"], ["-P", "-S"]),  # -P ends the cluster; the next is its value
+        (["-SPprivate", "--help"], ["--help", "-P", "-S"]),
+    ],
+)
+def test_option_values_are_not_taken_for_options(tokens, expected):
+    assert usage_capture.match_typed_flags(_whoami_params(), tokens) == expected
+
+
+def test_a_group_scan_stops_at_its_subcommand():
+    group = click.Group("g", params=[click.Option(["-v", "--verbose"], is_flag=True)])
+    params = group.get_params(click.Context(group))
+    tokens = ["-v", "sub", "--verbose", "--help"]
+    assert usage_capture.match_typed_flags(params, tokens, interspersed=False) == ["-v"]
+    # A plain command reads options after its arguments too.
+    assert usage_capture.match_typed_flags(params, tokens) == [
+        "--help",
+        "--verbose",
+        "-v",
+    ]
+
+
 def test_clustered_profile_and_ssl_off_reach_the_gates():
     typed = usage_capture.match_typed_flags(clustered.params, ["-vPprivate", "-vS"])
     assert usage_capture.CONFIG_SPELLINGS & set(typed)

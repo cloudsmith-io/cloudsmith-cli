@@ -35,9 +35,12 @@ def _declared(schema):
 def _keys(paths, section, declared):
     keys = set()
     for path in paths:
+        # As ConfigReader.read_config reads it: keys keep their case (so
+        # `WORKSPACE` is not `workspace`), and with the file's own encoding.
         parser = configparser.RawConfigParser()
+        parser.optionxform = str
         try:
-            parser.read(path, encoding="utf-8")
+            parser.read(path, encoding=config._get_file_encoding(path))
         except (configparser.Error, UnicodeDecodeError, OSError):
             continue
         if parser.has_section(section):
