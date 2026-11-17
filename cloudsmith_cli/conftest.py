@@ -3,6 +3,7 @@ import json
 import cloudsmith_api
 import pytest
 
+from cloudsmith_cli.cli.config import OPTIONS
 from cloudsmith_cli.core import keyring as core_keyring
 from cloudsmith_cli.core import session, telemetry
 
@@ -12,11 +13,28 @@ FAKE_DSN = "https://publickey@o0.ingest.sentry.invalid/0"
 
 
 @pytest.fixture(autouse=True)
+def reset_cli_options(monkeypatch):
+    """Discard the thread-local Options object between tests.
+
+    ``config.get_or_create_options`` caches the Options object in a
+    thread-local, so state such as ``--debug`` (which is sticky by design)
+    would otherwise leak from one test's CLI invocation into the next.
+    Telemetry in ``core`` reads it too (``telemetry_common.config_mode``).
+    """
+    monkeypatch.delattr(OPTIONS, "value", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def no_real_error_reports(monkeypatch):
     """Never send a real error report from the test suite.
 
     Tests that exercise reporting opt back in with ``sentry_events``.
     """
+    from cloudsmith_cli.core import telemetry_common
+
+    # These win over CLOUDSMITH_NO_TELEMETRY, so a developer's own must go.
+    for name in telemetry_common.MODE_ENVS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
     monkeypatch.setenv(telemetry.DSN_ENV, "")
     monkeypatch.setattr(telemetry, "_transport", None)
@@ -137,6 +155,8 @@ def blocked_usage_posts(monkeypatch):
         settings.SAMPLE_RATE_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
+    # Tests run as if no key were built in; usage_events supplies a test key.
+    monkeypatch.setattr(settings, "POSTHOG_PROJECT_KEY", "")
     monkeypatch.setattr(sender, "_post", refuse)
     yield calls
     if calls:
