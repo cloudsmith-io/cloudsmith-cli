@@ -218,7 +218,7 @@ def common_cli_config_options(f):
     )
     @click.option(
         "--credentials-file",
-        envvar="CLOUDSMITH_CREDENTIALS_FILE",
+        envvar=option_names.CREDENTIALS_FILE_ENV,
         type=click.Path(dir_okay=True, exists=True, writable=False, resolve_path=True),
         help="The path to your credentials.ini file.",
     )

@@ -74,44 +74,69 @@ def _takes_value(param):
     )
 
 
+def _values_taken(param):
+    """How many tokens follow the option as its value (0 for a flag)."""
+    return max(param.nargs, 1) if _takes_value(param) else 0
+
+
 def _short_cluster(token, spellings):
     """Expand ``-vSPname`` the way Click does: ``-v``, ``-S``, ``-P``.
 
     Stops at the first option that takes a value (the rest of the token is
-    that value) or at an undeclared character.
+    that value) or at an undeclared character. Returns the spellings and how
+    many of the following tokens are values.
     """
     found = []
-    for char in token[1:]:
+    for index, char in enumerate(token[1:], start=1):
         spelling = f"-{char}"
         if spelling not in spellings:
             break
         found.append(spelling)
         if spellings[spelling]:
-            break
-    return found
+            attached = index < len(token) - 1
+            return found, spellings[spelling] - attached
+    return found, 0
 
 
-def match_typed_flags(params, args):
-    """Return the declared option spellings present in ``args`` (no values)."""
-    # spelling -> whether the option takes a value
+def match_typed_flags(params, args, interspersed=True):
+    """Return the declared option spellings present in ``args`` (no values).
+
+    Skips option values as Click does, so a value that looks like an option
+    (``--api-key --help``) is not taken for one. With ``interspersed`` off,
+    as for a group, the scan stops at the first argument: what follows is
+    the subcommand's, which records its own.
+    """
+    # spelling -> how many tokens follow it as its value
     spellings = {}
     for param in params:
         if isinstance(param, click.Option):
             for spelling in param.opts:
-                spellings[spelling] = _takes_value(param)
+                spellings[spelling] = _values_taken(param)
             for spelling in param.secondary_opts:
-                spellings[spelling] = False
+                spellings[spelling] = 0
     found = set()
+    skip = 0
     for token in args:
+        if skip:
+            skip -= 1
+            continue
         if token == "--":
             break
         if not token.startswith("-") or token == "-":
+            if not interspersed:
+                break
             continue
-        name = token.split("=", 1)[0]
-        if name in spellings:
-            found.add(name)
-        elif not name.startswith("--"):
-            found.update(_short_cluster(token, spellings))
+        name, equals, _ = token.partition("=")
+        if name.startswith("--"):
+            if name in spellings:
+                found.add(name)
+                skip = max(spellings[name] - bool(equals), 0)
+        elif token in spellings:
+            found.add(token)
+            skip = spellings[token]
+        else:
+            cluster, skip = _short_cluster(token, spellings)
+            found.update(cluster)
     return sorted(found)
 
 
@@ -162,7 +187,11 @@ class TrackingMixin(click.Command):
             _RUN["root_meta"] = ctx.meta
         store = _store(ctx)
         store["contexts"].append(ctx)
-        store["typed"].extend(match_typed_flags(self.get_params(ctx), args))
+        store["typed"].extend(
+            match_typed_flags(
+                self.get_params(ctx), args, interspersed=ctx.allow_interspersed_args
+            )
+        )
         return super().parse_args(ctx, args)
 
 
@@ -230,24 +259,36 @@ def _param_facts(contexts):
     return sorted(flags), sorted(envvars), sources
 
 
+def _config_selection(meta):
+    """The config file, credentials file and profile of the run.
+
+    The config decorator stores them in ``meta``. Root ``--help`` and root
+    usage errors end before it runs, so fall back to the env vars that its
+    options read.
+    """
+    return {
+        "config_file": meta.get("config_file")
+        or os.environ.get(option_names.CONFIG_FILE_ENV)
+        or None,
+        "creds_file": meta.get("creds_file")
+        or os.environ.get(option_names.CREDENTIALS_FILE_ENV)
+        or None,
+        "profile": meta.get("profile")
+        or os.environ.get(option_names.PROFILE_ENV)
+        or None,
+    }
+
+
 def _config_sources(meta):
     from . import config_sources
 
-    return config_sources.detect(
-        config_file=meta.get("config_file"),
-        creds_file=meta.get("creds_file"),
-        profile=meta.get("profile"),
-    )
+    return config_sources.detect(**_config_selection(meta))
 
 
 def _config_keys(meta):
     from . import config_sources
 
-    return config_sources.keys(
-        config_file=meta.get("config_file"),
-        creds_file=meta.get("creds_file"),
-        profile=meta.get("profile"),
-    )
+    return config_sources.keys(**_config_selection(meta))
 
 
 def _options():

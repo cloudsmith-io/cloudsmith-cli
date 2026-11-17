@@ -35,6 +35,27 @@ def test_reports_only_schema_declared_keys_for_each_file(monkeypatch, tmp_path):
     assert found == {"workspace": "config_file", "api_key": "credentials_file"}
 
 
+def test_keys_keep_their_case_as_the_cli_reads_them(monkeypatch, tmp_path):
+    # ConfigReader keeps case, so `WORKSPACE` does not set the workspace, and
+    # `workspace` next to `Workspace` is not a duplicate that hides the file.
+    (tmp_path / "config.ini").write_text(
+        "[default]\nWORKSPACE = acme\napi_host = https://api.cloudsmith.io\n"
+        "workspace = acme\nWorkspace = other\n"
+    )
+    _point_readers(monkeypatch, tmp_path)
+    assert config_sources.keys(config_file=None, creds_file=None, profile=None) == [
+        "api_host",
+        "workspace",
+    ]
+
+
+def test_a_file_with_a_bom_is_read(monkeypatch, tmp_path):
+    (tmp_path / "config.ini").write_bytes(b"\xef\xbb\xbf[default]\nworkspace = acme\n")
+    _point_readers(monkeypatch, tmp_path)
+    found = config_sources.detect(config_file=None, creds_file=None, profile=None)
+    assert found == {"workspace": "config_file"}
+
+
 def test_unreadable_file_is_ignored(monkeypatch, tmp_path):
     (tmp_path / "config.ini").write_text("[default\nbroken")
     _point_readers(monkeypatch, tmp_path)

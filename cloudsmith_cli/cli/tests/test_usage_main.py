@@ -255,6 +255,32 @@ def test_config_file_profile_host_gate_holds_before_config_loads(
 
 
 @pytest.mark.parametrize("args", [["--help"], ["no-such-command"]])
+def test_config_keys_follow_the_env_selection_before_config_loads(
+    usage_events, notice_seen, telemetry_config_dir, tmp_path, monkeypatch, args
+):
+    # Without the env vars, only the default files' `workspace` is seen. The
+    # CLI reads the chosen file on top of them, as here.
+    (telemetry_config_dir / "config.ini").write_text("[default]\nworkspace = acme\n")
+    chosen = tmp_path / "chosen.ini"
+    chosen.write_text("[default]\norg = acme\n[profile:work]\napi_proxy = http://p\n")
+    creds = tmp_path / "creds.ini"
+    creds.write_text("[profile:work]\napi_key = not-real\n")
+    monkeypatch.setenv("CLOUDSMITH_CONFIG_FILE", str(chosen))
+    monkeypatch.setenv("CLOUDSMITH_CREDENTIALS_FILE", str(creds))
+    monkeypatch.setenv("CLOUDSMITH_PROFILE", "work")
+    _run_root(args)
+    (event,) = usage_events
+    assert event["properties"]["config_keys"] == [
+        "api_key",
+        "api_proxy",
+        "org",
+        "workspace",
+    ]
+    assert event["properties"]["source_proxy"] == "config_profile"
+    assert event["properties"]["source_api_key"] == "credentials_profile"
+
+
+@pytest.mark.parametrize("args", [["--help"], ["no-such-command"]])
 def test_config_file_cloudsmith_host_still_sends_before_config_loads(
     usage_events, notice_seen, telemetry_config_dir, args
 ):
