@@ -11,12 +11,15 @@ from typing import NoReturn
 import click
 
 from ....credential_helpers.pnpm import execute
+from ... import telemetry
 from ...config import Options
 from ...decorators import common_api_auth_options, resolve_credentials
 from ...usage_capture import TrackedCommand
 
 
+# Run by package managers on every request: report crashes, not usage.
 @click.command(cls=TrackedCommand)
+@telemetry.send(telemetry.ERRORS)
 @click.argument("repo", required=False, default="npm.cloudsmith.io")
 @common_api_auth_options
 @resolve_credentials

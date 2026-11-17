@@ -7,12 +7,15 @@ There is no production project key yet: only the developer override
 
 import os
 
+# Log mode is shared with error reporting.
+from ..telemetry_common import MODE_ENV  # noqa: F401
+from ..telemetry_common import log_mode as _shared_log_mode
+
 POSTHOG_PROJECT_KEY = ""
 POSTHOG_HOST = "https://eu.i.posthog.com"
 
 KEY_ENV = "CLOUDSMITH_TELEMETRY_POSTHOG_KEY"
 HOST_ENV = "CLOUDSMITH_TELEMETRY_POSTHOG_HOST"
-MODE_ENV = "CLOUDSMITH_TELEMETRY"
 INTERNAL_ENV = "CLOUDSMITH_TELEMETRY_INTERNAL"
 INSTALL_ID_ENV = "CLOUDSMITH_TELEMETRY_INSTALL_ID"
 SAMPLE_RATE_ENV = "CLOUDSMITH_TELEMETRY_CI_SAMPLE_RATE"
@@ -42,7 +45,7 @@ def host(env=None):
 
 
 def log_mode(env=None):
-    return _env(env).get(MODE_ENV, "").strip().lower() == "log"
+    return _shared_log_mode(env)
 
 
 def internal(env=None):
