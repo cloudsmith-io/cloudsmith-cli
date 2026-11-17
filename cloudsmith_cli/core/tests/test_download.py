@@ -97,7 +97,11 @@ class TestResolvePackage(unittest.TestCase):
 
         self.assertEqual(result, mock_package)
         mock_list_packages.assert_called_once_with(
-            owner="owner", repo="repo", query="name:test-package", page=1, page_size=100
+            owner="owner",
+            repo="repo",
+            query="name:test-package AND status:completed",
+            page=1,
+            page_size=100,
         )
 
     @patch("cloudsmith_cli.core.download.list_packages")
@@ -177,7 +181,7 @@ class TestResolvePackage(unittest.TestCase):
         mock_list_packages.assert_called_once_with(
             owner="owner",
             repo="repo",
-            query="name:test-package AND version:1.0.0 AND format:deb",
+            query="name:test-package AND version:1.0.0 AND format:deb AND status:completed",
             page=1,
             page_size=100,
         )
@@ -636,6 +640,27 @@ class TestFilenameFilter(unittest.TestCase):
             )
 
         self.assertEqual(cm.exception.exit_code, 2)
+
+    @patch("cloudsmith_cli.core.download.list_packages")
+    def test_only_completed_packages_are_searched(self, mock_list_packages):
+        """Test failed or in-progress packages never reach --yes or --download-all.
+
+        A duplicate upload that failed is newer than the package it duplicates,
+        so --yes would otherwise pick it and the download would 404.
+        """
+        mock_list_packages.return_value = (
+            [{"name": "TestPkg", "version": "1.0.0"}],
+            self._make_page_info(),
+        )
+
+        for resolve in (download.resolve_package, download.resolve_all_packages):
+            with self.subTest(resolve=resolve.__name__):
+                resolve("owner", "repo", "TestPkg", version="1.0.0")
+
+                call_query = mock_list_packages.call_args[1]["query"]
+                self.assertEqual(
+                    call_query, "name:TestPkg AND version:1.0.0 AND status:completed"
+                )
 
 
 class TestResolveAllPackages(unittest.TestCase):

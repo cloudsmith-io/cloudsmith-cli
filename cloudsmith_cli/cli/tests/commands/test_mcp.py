@@ -563,6 +563,61 @@ class TestMCPServerLoadOpenAPISpec:
         assert server.tools["v2_list"].base_url == "https://api.cloudsmith.io/v2"
 
 
+class TestMCPServerPathParameters:
+    @staticmethod
+    def _request_url(key: str, value: str) -> str:
+        api_config = cloudsmith_api.Configuration()
+        api_config.host = "https://api.cloudsmith.io"
+        tool = OpenAPITool(
+            name="packages_read",
+            description="Get a package",
+            method="GET",
+            path="/packages/{" + key + "}/",
+            parameters={"properties": {key: {"type": "string"}}},
+            base_url="https://api.cloudsmith.io/v1",
+            query_filter=None,
+        )
+        url, _, _ = DynamicMCPServer(api_config=api_config)._get_request_params(
+            tool.base_url + tool.path, tool, {key: value}
+        )
+        return url
+
+    def test_path_parameter_is_percent_encoded(self):
+        assert self._request_url("identifier", "name?a=1#%2e") == (
+            "https://api.cloudsmith.io/v1/packages/name%3Fa%3D1%23%252e/"
+        )
+
+    def test_package_name_can_contain_a_slash(self):
+        assert self._request_url("package_name", "@scope/name") == (
+            "https://api.cloudsmith.io/v1/packages/%40scope%2Fname/"
+        )
+
+    @pytest.mark.parametrize(
+        "key, value, expected_form",
+        [
+            (
+                "identifier",
+                "repo/gpg",
+                "one path segment with no '/' that is not empty, '.' or '..'",
+            ),
+            (
+                "package_name",
+                "a/../b",
+                "a package name with no empty, '.' or '..' part between '/'",
+            ),
+        ],
+    )
+    def test_path_parameter_that_changes_the_endpoint_is_rejected(
+        self, key, value, expected_form
+    ):
+        with pytest.raises(ValueError) as exc_info:
+            self._request_url(key, value)
+
+        assert str(exc_info.value) == (
+            f"Invalid value '{value}' for parameter '{key}'. Expected: {expected_form}"
+        )
+
+
 SERVER_CONFIG = {"command": "cloudsmith", "args": ["mcp", "start"]}
 
 
