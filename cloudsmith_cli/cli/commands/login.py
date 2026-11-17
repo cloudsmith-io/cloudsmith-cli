@@ -73,6 +73,7 @@ class DeprecatedLoginCommand(click.Command):
             removal=DEPRECATION_REMOVAL,
             detail=DEPRECATION_DETAIL,
             ctx=ctx,
+            args=args,
         )
         return super().parse_args(ctx, args)
 

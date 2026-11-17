@@ -100,31 +100,45 @@ def _is_credential_helper_runtime(ctx):
     )
 
 
-def _json_output_requested(ctx):
-    """Return True if the command, or a group above it, prints JSON."""
+def _has_output_format(ctx):
+    return any(param.name == "output_format" for param in ctx.command.params)
+
+
+def _json_output_requested(ctx, args=None):
+    """Return True if the command, or a group above it, prints JSON.
+
+    The nearest command with an `--output-format` option decides, because
+    its value replaces the value of its group. If Click has not parsed that
+    option yet, its value comes from `args`, the arguments of the command,
+    or else from `sys.argv`.
+    """
     while ctx is not None:
-        output_format = ctx.params.get("output_format")
-        if output_format is not None:
-            return output_format in JSON_OUTPUT_FORMATS
+        if _has_output_format(ctx):
+            if "output_format" in ctx.params:
+                return ctx.params["output_format"] in JSON_OUTPUT_FORMATS
+            return json_output_in_argv(args)
         ctx = ctx.parent
-    return json_output_in_argv()
+    return json_output_in_argv(args)
 
 
-def _suppressed(ctx):
+def _suppressed(ctx, args=None):
     """Return True if deprecation warnings are turned off for this run."""
     if os.environ.get(SUPPRESS_ENVVAR, "").strip().lower() in _TRUTHY_ENV_VALUES:
         return True
-    return _json_output_requested(ctx)
+    return _json_output_requested(ctx, args)
 
 
-def warn_message(subject, replacement=None, *, removal=None, detail=None, ctx=None):
+def warn_message(
+    subject, replacement=None, *, removal=None, detail=None, ctx=None, args=None
+):
     """Print the deprecation warning for `subject` to stderr, once per run.
 
-    Prints nothing with JSON output or when `SUPPRESS_ENVVAR` is set.
+    Prints nothing with JSON output or when `SUPPRESS_ENVVAR` is set. Pass
+    `args` when warning while Click parses the arguments of `ctx`.
     """
     message = format_warning(subject, replacement, removal=removal, detail=detail)
     ctx = ctx or click.get_current_context(silent=True)
-    if _suppressed(ctx):
+    if _suppressed(ctx, args):
         return
     if ctx is not None:
         if ctx.resilient_parsing or _is_credential_helper_runtime(ctx):
