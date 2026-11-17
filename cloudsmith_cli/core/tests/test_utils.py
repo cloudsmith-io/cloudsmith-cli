@@ -3,7 +3,7 @@
 
 import pytest
 
-from ..utils import json_output_in_argv
+from ..utils import json_output_in_argv, output_format_in_argv
 
 
 @pytest.mark.parametrize(
@@ -21,3 +21,15 @@ from ..utils import json_output_in_argv
 )
 def test_json_output_in_argv(argv, expected):
     assert json_output_in_argv(argv) is expected
+
+
+@pytest.mark.parametrize(
+    "argv,expected",
+    [
+        (["cloudsmith", "login", "-F", "pretty"], "pretty"),
+        (["cloudsmith", "login"], None),
+        ([], None),
+    ],
+)
+def test_output_format_in_argv(argv, expected):
+    assert output_format_in_argv(argv) == expected

@@ -235,6 +235,28 @@ def test_alias_warnings_are_silenced_too(args, env):
 
 
 @pytest.mark.parametrize(
+    "args,warns",
+    [
+        (["-F", "json", "report", "--org", "acme"], False),
+        (["-F", "json", "report", "-F", "pretty", "--org", "acme"], True),
+        (["report", "-F", "json", "--org", "acme"], False),
+    ],
+)
+def test_subcommand_inherits_the_group_output_format(args, warns):
+    @click.group()
+    @common_cli_output_options
+    def group(opts):  # pylint: disable=unused-argument
+        pass
+
+    group.add_command(_report_command(), name="report")
+
+    result = invoke(args, command=group)
+
+    assert values(result)["org"] == "acme"
+    assert ("`--org` is deprecated" in result.stderr) is warns
+
+
+@pytest.mark.parametrize(
     "args,env",
     [
         (["-w", "acme", "--proxy", "http://proxy:3128", "--without-ssl-verify"], {}),

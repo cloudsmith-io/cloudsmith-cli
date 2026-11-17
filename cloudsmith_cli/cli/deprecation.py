@@ -6,7 +6,11 @@ from dataclasses import dataclass
 import click
 from click.core import ParameterSource
 
-from ..core.utils import JSON_OUTPUT_FORMATS, json_output_in_argv
+from ..core.utils import (
+    JSON_OUTPUT_FORMATS,
+    json_output_in_argv,
+    output_format_in_argv,
+)
 
 #: The release that removes the deprecated aliases.
 REMOVAL_VERSION = "2.0.0"
@@ -104,21 +108,37 @@ def _has_output_format(ctx):
     return any(param.name == "output_format" for param in ctx.command.params)
 
 
-def _json_output_requested(ctx, args=None):
-    """Return True if the command, or a group above it, prints JSON.
+def _given_output_format(ctx, args):
+    """Return the `--output-format` given to `ctx`, or None if it was left unset.
 
-    The nearest command with an `--output-format` option decides, because
-    its value replaces the value of its group. If Click has not parsed that
-    option yet, its value comes from `args`, the arguments of the command,
-    or else from `sys.argv`.
+    If Click has not parsed the option yet, the value comes from `args`, the
+    arguments of the command, or else from `sys.argv`.
     """
+    if "output_format" not in ctx.params:
+        return output_format_in_argv(args)
+    if ctx.get_parameter_source("output_format") in (ParameterSource.DEFAULT, None):
+        return None
+    return ctx.params["output_format"]
+
+
+def _json_output_requested(ctx, args=None):
+    """Return True if the command prints JSON.
+
+    As in `decorators.common_cli_output_options`, the nearest command that
+    is given `--output-format` decides; one left unset inherits it from its
+    group. Only the command that Click is parsing reads `args`.
+    """
+    has_option = False
+    pending_args = args
     while ctx is not None:
         if _has_output_format(ctx):
-            if "output_format" in ctx.params:
-                return ctx.params["output_format"] in JSON_OUTPUT_FORMATS
-            return json_output_in_argv(args)
+            has_option = True
+            output_format = _given_output_format(ctx, pending_args)
+            if output_format is not None:
+                return output_format in JSON_OUTPUT_FORMATS
+        pending_args = ()
         ctx = ctx.parent
-    return json_output_in_argv(args)
+    return False if has_option else json_output_in_argv(args)
 
 
 def _suppressed(ctx, args=None):

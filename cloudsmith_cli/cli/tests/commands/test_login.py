@@ -134,8 +134,8 @@ class TestLoginDeprecation:
         assert "is deprecated" not in result.stderr
         assert json.loads(result.stdout)["data"]["token"] == "fake-api-key"
 
-    def test_root_json_output_still_warns(self, runner, tmp_path, name):
-        """The output format of the command replaces the one of the root."""
+    def test_root_json_output_has_no_warning(self, runner, tmp_path, name):
+        """The command inherits the output format of the root."""
         result = invoke_main_login(
             runner,
             tmp_path,
@@ -144,6 +144,24 @@ class TestLoginDeprecation:
             "you@example.com",
             "-p",
             "secret",
+            root_args=["-F", "json"],
+        )
+
+        assert result.exit_code == 0
+        assert "is deprecated" not in result.stderr
+        assert json.loads(result.stdout)["data"]["token"] == "fake-api-key"
+
+    def test_command_output_format_overrides_the_root(self, runner, tmp_path, name):
+        result = invoke_main_login(
+            runner,
+            tmp_path,
+            name,
+            "-l",
+            "you@example.com",
+            "-p",
+            "secret",
+            "-F",
+            "pretty",
             root_args=["-F", "json"],
         )
 
