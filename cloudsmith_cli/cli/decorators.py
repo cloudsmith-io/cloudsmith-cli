@@ -228,6 +228,9 @@ def _warn_unrecognised_telemetry_values(ctx, opts):
         for key in telemetry_common.CONFIG_KEYS
         if telemetry_common.is_unrecognised(getattr(opts, key, None))
     ]
+    key = telemetry_common.INSTALL_ID_CONFIG_KEY
+    if telemetry_common.is_unrecognised(getattr(opts, key, None), takes_log=False):
+        ignored.append((f"the `{key}` key in config.ini", "`enable` or `disable`"))
     for subject, values in ignored:
         deprecation.warn_once(
             f"Warning: The value of {subject} is not recognised, so the CLI "

@@ -3,6 +3,12 @@ import pytest
 from cloudsmith_cli.core.usage import settings
 
 
+@pytest.fixture(autouse=True)
+def isolated_config(telemetry_config_dir):
+    """install_id_enabled also reads config.ini; never the developer's."""
+    return telemetry_config_dir
+
+
 def test_the_production_key_is_built_in():
     # Read from the source: the autouse conftest guard blanks it at runtime.
     import re
@@ -43,6 +49,40 @@ def test_install_id_is_on_by_default(value):
 )
 def test_install_id_off_switch(value):
     assert settings.install_id_enabled({settings.INSTALL_ID_ENV: value}) is False
+
+
+@pytest.mark.parametrize("value", ["disable", "off", "false", "0"])
+def test_install_id_off_in_config(isolated_config, value):
+    (isolated_config / "config.ini").write_text(
+        f"[default]\ntelemetry_install_id = {value}\n"
+    )
+    assert settings.install_id_enabled({}) is False
+
+
+def test_install_id_env_wins_over_config(isolated_config):
+    (isolated_config / "config.ini").write_text(
+        "[default]\ntelemetry_install_id = disable\n"
+    )
+    assert settings.install_id_enabled({settings.INSTALL_ID_ENV: "enable"}) is True
+    (isolated_config / "config.ini").write_text(
+        "[default]\ntelemetry_install_id = enable\n"
+    )
+    assert settings.install_id_enabled({settings.INSTALL_ID_ENV: "off"}) is False
+
+
+@pytest.mark.parametrize("value", ["enable", "log", "nope"])
+def test_install_id_config_only_turns_it_off_with_an_off_value(isolated_config, value):
+    (isolated_config / "config.ini").write_text(
+        f"[default]\ntelemetry_install_id = {value}\n"
+    )
+    assert settings.install_id_enabled({}) is True
+
+
+def test_install_id_is_off_when_config_is_unreadable():
+    def unreadable():
+        raise OSError("unreadable")
+
+    assert settings.install_id_enabled({}, read_config=unreadable) is False
 
 
 def test_ci_sample_rate_defaults_to_100_and_clamps():

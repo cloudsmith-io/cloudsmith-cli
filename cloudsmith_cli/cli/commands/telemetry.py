@@ -72,6 +72,7 @@ def status(ctx, opts):
     """Show whether usage and error reporting are enabled, disabled or logging, and why."""
     usage, usage_reason = _usage_status(opts, usage_capture.typed_flags(ctx.meta))
     errors, errors_reason = _error_status()
+    install_id, install_id_reason = telemetry_common.install_id_mode()
     data = {
         "usage_reporting": {
             "status": usage,
@@ -79,12 +80,13 @@ def status(ctx, opts):
             "endpoint": settings.host(),
         },
         "error_reporting": {"status": errors, "reason": errors_reason},
-        "install_id_enabled": settings.install_id_enabled(),
+        "install_id_enabled": install_id,
+        "install_id_reason": install_id_reason,
     }
     if not utils.maybe_print_as_json(opts, data):
         click.echo(f"Usage reporting: {usage} ({usage_reason})")
         click.echo(f"Error reporting: {errors} ({errors_reason})")
-        click.echo(f"Install ID: {'on' if data['install_id_enabled'] else 'off'}")
+        click.echo(f"Install ID: {'on' if install_id else 'off'} ({install_id_reason})")
 
 
 @telemetry.command(name="id")

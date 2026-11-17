@@ -35,6 +35,7 @@ ALLOWED_SETTINGS = frozenset(
         "telemetry",
         "telemetry_usage_reporting",
         "telemetry_error_reporting",
+        "telemetry_install_id",
         "api_key",
         "profile",
         "config_file_path",

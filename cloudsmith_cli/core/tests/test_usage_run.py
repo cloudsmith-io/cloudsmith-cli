@@ -558,3 +558,18 @@ def test_install_id_off_switch_gives_one_off_ids(
     first, second = usage_events
     assert first["distinct_id"] != second["distinct_id"]
     assert "install_id" not in state.read()
+
+
+def test_install_id_off_in_config_gives_one_off_ids(
+    usage_events, interactive, telemetry_config_dir, config_reads
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        "[default]\ntelemetry_install_id = disable\n"
+    )
+    run.finish(facts())
+    run.finish(facts())
+    first, second = usage_events
+    assert first["distinct_id"] != second["distinct_id"]
+    assert "install_id" not in state.read()
+    # The install ID check shares the one read of config.ini per run.
+    assert len(config_reads) == 2
