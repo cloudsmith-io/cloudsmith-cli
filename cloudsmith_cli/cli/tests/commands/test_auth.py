@@ -192,10 +192,10 @@ class TestAuthenticateCommand:
         mock_get_idp_url.assert_called_once_with(
             ANY,
             "testorg",
-            redirect_url="http://localhost:12402",
+            redirect_url=f"http://localhost:12402/?state={auth_server.state}",
             session=mock_saml_session.return_value,
         )
-        auth_server.handle_request.assert_called_once()
+        auth_server.wait_for_callback.assert_called_once()
         auth_server.server_close.assert_called_once()
 
     def test_auth_command_fails_after_all_redirect_ports_are_unavailable(
@@ -247,7 +247,7 @@ class TestAuthenticateCommand:
         assert result.exit_code != 0
         assert "Waiting for the authentication callback on port 12400" in result.output
         mock_webbrowser.open.assert_not_called()
-        mock_auth_server.return_value.handle_request.assert_not_called()
+        mock_auth_server.return_value.wait_for_callback.assert_not_called()
         mock_auth_server.return_value.server_close.assert_called_once()
 
     def test_auth_command_opens_browser(
@@ -270,7 +270,7 @@ class TestAuthenticateCommand:
         # Verify browser was opened
         assert "Couldn't open a browser automatically" not in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
     def test_auth_command_passes_owner_to_webserver(
         self,
@@ -414,7 +414,7 @@ class TestBrowserFallback:
         assert "Couldn't open a browser automatically" in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
         mock_auth_server.assert_called_once()
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
     def test_false_return_from_open_uses_manual_fallback(
         self,
@@ -436,7 +436,7 @@ class TestBrowserFallback:
         assert result.exit_code == 0
         assert "Couldn't open a browser automatically" in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
     def test_generic_exception_from_open_does_not_crash(
         self,
@@ -458,7 +458,7 @@ class TestBrowserFallback:
         assert result.exit_code == 0
         assert "Couldn't open a browser automatically" in result.output
         mock_auth_server.assert_called_once()
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
 
 class TestNoBrowserFlag:
@@ -485,7 +485,7 @@ class TestNoBrowserFlag:
         assert "Opening your Workspace's SAML IDP URL" not in result.output
         assert "Your Workspace's SAML IDP URL is:" in result.output
         mock_auth_server.assert_called_once()
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
 
 class TestRequestApiKeyFlag:
@@ -679,7 +679,7 @@ class TestAuthFailureOutputModes:
         mock_auth_server,
     ):
         """Verify auth failures in -F json emit only JSON on stdout."""
-        mock_auth_server.return_value.handle_request.side_effect = ApiException(
+        mock_auth_server.return_value.wait_for_callback.side_effect = ApiException(
             422, detail="Invalid input."
         )
 

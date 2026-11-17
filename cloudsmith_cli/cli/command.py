@@ -12,6 +12,7 @@ except ImportError:  # click before 8.2
     from click.utils import PacifyFlushWrapper as _PacifyFlushWrapper
 
 from ..core.certificate_errors import describe_certificate_error
+from ..core.utils import JSON_OUTPUT_FORMATS, json_output_in_argv
 
 
 def _is_json_output_requested(exception):
@@ -20,26 +21,11 @@ def _is_json_output_requested(exception):
     ctx = getattr(exception, "ctx", None)
     if ctx and ctx.params:
         fmt = ctx.params.get("output")
-        if fmt in ("json", "pretty_json"):
+        if fmt in JSON_OUTPUT_FORMATS:
             return True
 
     # Fallback: check sys.argv for output format flags
-    import sys
-
-    argv = sys.argv
-
-    if "--output-format=json" in argv or "--output-format=pretty_json" in argv:
-        return True
-
-    for idx, arg in enumerate(argv):
-        if (
-            arg in ("-F", "--output-format")
-            and idx + 1 < len(argv)
-            and argv[idx + 1] in ("json", "pretty_json")
-        ):
-            return True
-
-    return False
+    return json_output_in_argv()
 
 
 def _is_debug_requested(args=None):
