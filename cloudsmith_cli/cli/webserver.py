@@ -1,5 +1,6 @@
 import html
 import math
+import secrets
 import shutil
 import socket
 import sys
@@ -56,6 +57,9 @@ class AuthenticationWebServer(HTTPServer):
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
         self.profile = kwargs.get("profile")
+        self.state = secrets.token_urlsafe(32)
+        self.callback_received = False
+        self.callback_rejected = False
         self.sso_access_token = None
         self.exception = None
 
@@ -69,6 +73,14 @@ class AuthenticationWebServer(HTTPServer):
     def api_host(self):
         """Get the API host from api_opts."""
         return self.api_opts.host if self.api_opts else None
+
+    def is_expected_state(self, received_state):
+        return secrets.compare_digest(received_state.encode(), self.state.encode())
+
+    def wait_for_callback(self):
+        """Handle requests until a callback with the expected state arrives."""
+        while not self.callback_received:
+            self.handle_request()
 
     def refresh_api_config_after_auth(self):
         """Refresh the API configuration to pick up newly stored SAML tokens."""
@@ -121,7 +133,8 @@ class AuthenticationWebServer(HTTPServer):
                 ApiException,
             ) as exc:
                 self.handle_error(request, client_address)
-                self.exception = exc
+                if self.callback_received:
+                    self.exception = exc
                 self.shutdown_request(request)
             except BaseException:
                 self.shutdown_request(request)
@@ -145,6 +158,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
     # Set once a response is written, so a later failure doesn't write a
     # second one onto a request the browser already considers finished.
     responded = False
+    timeout = 10
 
     def __init__(self, request, client_address, server, **kwargs):
         self.owner = kwargs.get("owner")
@@ -273,6 +287,20 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
             self.server_instance.refresh_api_config_after_auth()
 
     def do_GET(self):
+        if not self.server_instance.is_expected_state(self.query_data.get("state", "")):
+            if not self.server_instance.callback_rejected:
+                click.secho(
+                    "\nRejected an authentication callback that did not come from "
+                    "this login. Waiting for the correct callback ...",
+                    fg="yellow",
+                    err=True,
+                )
+                self.server_instance.callback_rejected = True
+            self._return_error_response("The callback does not match this login.")
+            return
+
+        self.server_instance.callback_received = True
+
         access_token = self.query_data.get("access_token")
         refresh_token = self.query_data.get("refresh_token")
         two_factor_token = self.query_data.get("two_factor_token")
