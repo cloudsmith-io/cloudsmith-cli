@@ -1,9 +1,9 @@
 import html
-import math
+import os
 import secrets
-import shutil
 import socket
 import sys
+import unicodedata
 from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qsl, unquote, urlparse
@@ -23,6 +23,24 @@ TWO_FACTOR_PROMPT = (
 )
 
 
+def _display_rows(text, width):
+    """Count the terminal rows that echoed text takes up at the given width."""
+    rows, column = 1, 0
+    for char in text:
+        if char == "\t":
+            # A tab moves to the next stop but never wraps onto the next row.
+            column = min(column + 8 - column % 8, width - 1)
+            continue
+        if unicodedata.combining(char) or unicodedata.category(char) in ("Cc", "Cf"):
+            continue
+        char_width = 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+        if column + char_width > width:
+            rows += 1
+            column = 0
+        column += char_width
+    return rows
+
+
 def _clear_echoed_input(prompt, value):
     """Erase the echoed prompt line so the entered value isn't left on screen.
 
@@ -32,9 +50,15 @@ def _clear_echoed_input(prompt, value):
     if not (sys.stdin.isatty() and sys.stderr.isatty()):
         return
 
-    width = shutil.get_terminal_size().columns
-    rows = max(1, math.ceil(len(f"{prompt}: {value}") / width))
-    click.echo("\x1b[1A\x1b[2K" * rows, nl=False, err=True)
+    try:
+        width = os.get_terminal_size(sys.stderr.fileno()).columns
+    except (OSError, ValueError):
+        width = 80
+
+    # Written straight to stderr: click.echo strips escape codes when colour is
+    # off (--color never, NO_COLOR or a redirected stdout).
+    sys.stderr.write("\x1b[1A\x1b[2K" * _display_rows(f"{prompt}: {value}", width))
+    sys.stderr.flush()
 
 
 def get_template_path(template_name):
