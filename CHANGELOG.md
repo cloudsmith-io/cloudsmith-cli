@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
 
+## [1.31.2] - 2026-11-16
+
 ### Security
 
-- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login.
+- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login. (#619)
 
 ## [1.31.1] - 2026-11-12
 
