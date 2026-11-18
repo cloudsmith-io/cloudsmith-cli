@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.channels.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,6 +34,15 @@ jobs:
           VERSION=$(cat cloudsmith_cli/data/VERSION)
           test "${GITHUB_REF_NAME}" = "v${VERSION}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      # The jobs that move a channel run the script again just before they
+      # move it, because "Re-run failed jobs" keeps the outputs of this job.
+      - id: channels
+        name: Find the release channels that this version moves
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/release-channels.sh >> "$GITHUB_OUTPUT"
 
   binaries:
     name: Binaries
@@ -244,6 +254,7 @@ jobs:
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
       CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
+      PRERELEASE: ${{ needs.validate.outputs.prerelease }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -384,6 +395,7 @@ jobs:
 
             # Per-target install manifest, fetched by the install scripts at
             # .../raw/names/cloudsmith-cli-manifest-<target>/versions/{<v>|latest}/manifest.txt.
+            # The cloudsmith-cli-v<MAJOR>-manifest-<target> copy is the channel of one major version.
             # Pushed after the archive so it never references a missing archive.
             ARCHIVE_BASE="cloudsmith-${VERSION}-${TARGET}${EXT}"
             ARCHIVE_SHA256="$(sha256sum "${ARCHIVE}" | awk '{print $1}')"
@@ -400,10 +412,18 @@ jobs:
               printf 'url=%s\n' "${ARCHIVE_URL}"
               printf 'sha256=%s\n' "${ARCHIVE_SHA256}"
             } > "manifests/${TARGET}/manifest.txt"
+            if [ "${PRERELEASE}" = true ]; then
+              continue
+            fi
             push_manifest_if_absent \
               "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
               "manifests/${TARGET}/manifest.txt" \
               "cloudsmith-cli-manifest-${TARGET}" \
+              "install-manifest,${COMMON}"
+            push_manifest_if_absent \
+              "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
+              "manifests/${TARGET}/manifest.txt" \
+              "cloudsmith-cli-v${VERSION%%.*}-manifest-${TARGET}" \
               "install-manifest,${COMMON}"
           done
           push_python_if_absent \
@@ -444,6 +464,7 @@ jobs:
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
       CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY || 'cloudsmith/cloudsmith-cli' }}
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
       VERSION: ${{ needs.validate.outputs.version }}
@@ -493,7 +514,17 @@ jobs:
               -u "${DOCKERHUB_USER}" \
               --password-stdin
 
+      - id: channels
+        name: Find the release channels that this version moves
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/release-channels.sh >> "$GITHUB_OUTPUT"
+
       - name: Build once and push the same image to both registries
+        env:
+          LATEST: ${{ steps.channels.outputs.latest }}
+          MAJOR_LATEST: ${{ steps.channels.outputs.major-latest }}
+          MINOR_LATEST: ${{ steps.channels.outputs.minor-latest }}
         run: |
           set -euo pipefail
           AMD64="binaries/cloudsmith-${VERSION}-linux-x86_64-musl.tar.gz"
@@ -513,13 +544,22 @@ jobs:
             TAGS+=(-t "${CLOUDSMITH_IMAGE}")
           fi
           # Docker Hub (mutable): pinned + floating tags (latest/major/major.minor).
+          # A floating tag moves only for the highest release in its channel.
           # Cloudsmith (immutable) keeps only the pinned :${VERSION} tag.
           if [ "${HAS_DOCKERHUB}" = "true" ]; then
-            HUB="cloudsmith/cloudsmith-cli"
+            HUB="${DOCKERHUB_REPOSITORY}"
             MAJOR="${VERSION%%.*}"
             MINOR="${VERSION#*.}"; MINOR="${MINOR%%.*}"
             TAGS+=(-t "${HUB}:${VERSION}")
-            TAGS+=(-t "${HUB}:${MAJOR}" -t "${HUB}:${MAJOR}.${MINOR}" -t "${HUB}:latest")
+            if [ "${MAJOR_LATEST}" = true ]; then
+              TAGS+=(-t "${HUB}:${MAJOR}")
+            fi
+            if [ "${MINOR_LATEST}" = true ]; then
+              TAGS+=(-t "${HUB}:${MAJOR}.${MINOR}")
+            fi
+            if [ "${LATEST}" = true ]; then
+              TAGS+=(-t "${HUB}:latest")
+            fi
           fi
 
           if [ "${#TAGS[@]}" -eq 0 ]; then
@@ -538,6 +578,7 @@ jobs:
     # Sends a cloudsmith-cli-release event with the version to each repository
     # in the matrix. The workflow in each repository opens a bump pull request.
     needs: [validate, publish-github]
+    if: needs.validate.outputs.prerelease == 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -548,6 +589,9 @@ jobs:
         repository:
           - homebrew-cloudsmith-cli
           - cloudsmith-cli-action
+          - cloudsmith-ado-integration
+          - orb
+          - cloudsmith-sbx-kits
     steps:
       - name: Send the release event
         env:
@@ -573,8 +617,13 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
+      PRERELEASE: ${{ needs.validate.outputs.prerelease }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Assert every expected asset is present
         run: |
           set -euo pipefail
@@ -608,5 +657,15 @@ jobs:
           fi
           echo "All ${#EXPECTED[@]} expected assets present."
 
+      - id: channels
+        name: Find the release channels that this version moves
+        run: bash .github/scripts/release-channels.sh >> "$GITHUB_OUTPUT"
+
       - name: Publish the fully replicated draft release
-        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
+        env:
+          LATEST: ${{ steps.channels.outputs.latest }}
+        run: |
+          gh release edit "${GITHUB_REF_NAME}" \
+            --draft=false \
+            --latest="${LATEST}" \
+            --prerelease="${PRERELEASE}"

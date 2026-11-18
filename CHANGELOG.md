@@ -10,9 +10,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
+- Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
+- When a new major version is available, the update notice and `cloudsmith update` tell you, and link to its release notes. `cloudsmith update` never installs a new major version. With `-F json`, `cloudsmith update` shows the version in the new `new_major_version` field.
 
 ### Changed
 
+- `cloudsmith update` and the update check now read the install manifest of the running major version. A 1.x installation updates only to a later 1.x release.
+- The upgrade commands that the CLI shows for pip, pipx, uv and Docker now stay in the running major version, for example `pip install --upgrade "cloudsmith-cli<2"` and `docker pull cloudsmith/cloudsmith-cli:1`.
+- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`. A pre-release, such as a release candidate, moves no tag and no manifest, and is a GitHub pre-release.
 - The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
 - When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
 
