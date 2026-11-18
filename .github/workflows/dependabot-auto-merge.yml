@@ -55,13 +55,13 @@ jobs:
       - name: Ask Dependabot to recreate
         if: steps.checks.outcome == 'success' && steps.checks.outputs.behind-by != '0'
         env:
-          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_TOKEN }}
         run: gh pr comment "${PR_URL}" --body "@dependabot recreate"
 
       - name: Approve and merge
         if: steps.checks.outcome == 'success' && steps.checks.outputs.behind-by == '0'
         env:
-          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_TOKEN }}
         run: |
           set -euo pipefail
           gh pr review --approve "${PR_URL}"
