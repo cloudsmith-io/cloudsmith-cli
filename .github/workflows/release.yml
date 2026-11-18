@@ -551,7 +551,7 @@ jobs:
     steps:
       - name: Send the release event
         env:
-          GH_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_TOKEN }}
           REPOSITORY: ${{ github.repository_owner }}/${{ matrix.repository }}
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
