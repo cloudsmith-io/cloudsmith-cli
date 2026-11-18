@@ -653,6 +653,7 @@ jobs:
     concurrency:
       group: release-channels
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     env:
