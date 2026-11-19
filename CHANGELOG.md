@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
 
+### Fixed
+
+- `cloudsmith metadata add` and `update`, and the `--metadata-*` file options of `push`, no longer crash with a `UnicodeDecodeError` when the metadata file starts with a UTF-16 byte order mark, as Windows PowerShell 5 writes when you redirect output with `>`. The CLI now reads UTF-8 (with or without a BOM) and UTF-16 files. Other unreadable files fail with a clear error that asks you to re-save the file as UTF-8.
+
 ## [1.31.3] - 2026-11-17
 
 ### Fixed
