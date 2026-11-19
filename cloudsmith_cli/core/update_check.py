@@ -1,9 +1,8 @@
 # Copyright 2026 Cloudsmith Ltd
 """Decide when to check for a newer CLI version, and when to notify about it.
 
-State lives in a small JSON file for each major version, with two timestamps,
-the last-seen version and a higher major version, if one exists:
-``{last_checked_at, last_notified_at, latest_version, new_major_version}``.
+State lives in a small JSON file with two timestamps and the last-seen version:
+``{last_checked_at, last_notified_at, latest_version}``.
 
 Two rhythms run off it, deliberately decoupled:
 
@@ -41,7 +40,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CACHE_FILE_NAME = "update_check-v{major}.json"
+CACHE_FILE_NAME = "update_check.json"
 DEFAULT_INTERVAL_SECONDS = 24 * 60 * 60
 NO_UPDATE_CHECK_ENV = "CLOUDSMITH_NO_UPDATE_CHECK"
 _TRUTHY_ENV_VALUES = ("1", "true", "yes")
@@ -55,7 +54,7 @@ _TRUTHY_ENV_VALUES = ("1", "true", "yes")
 #: to an untrusted host.
 MANIFEST_URL_TEMPLATE = (
     "https://dl.cloudsmith.io/public/cloudsmith/cli/raw/names/"
-    "{name}-{target}/versions/latest/manifest.txt"
+    "cloudsmith-cli-manifest-{target}/versions/latest/manifest.txt"
 )
 #: Fallback build target for the version probe when the host platform is not a
 #: recognised standalone target (e.g. pip/pipx installs). Any published target
@@ -74,9 +73,8 @@ NOTICE_SUPPRESSED_SUBCOMMANDS = frozenset(("mcp", "update", "upgrade"))
 
 
 def get_state_file_path() -> str:
-    """Return the path of the update-check state file of the running major version."""
-    major = version.get_version().split(".", 1)[0]
-    return os.path.join(get_default_config_path(), CACHE_FILE_NAME.format(major=major))
+    """Return the path of the update-check state file."""
+    return os.path.join(get_default_config_path(), CACHE_FILE_NAME)
 
 
 def read_cached_state() -> dict[str, Any]:
@@ -136,24 +134,14 @@ def _write_state(updates: dict[str, Any]) -> None:
         logger.debug("Failed to record the update-check state", exc_info=True)
 
 
-def record_check(
-    latest_version: str,
-    new_major_version: str | None = None,
-    now: float | None = None,
-) -> None:
+def record_check(latest_version: str, now: float | None = None) -> None:
     """Record a check's timestamp and reported latest version.
 
     Preserves ``last_notified_at``. Called after a fetch, or when a
     cache-confirmed newer version re-arms the daily check without a fetch.
     """
     now = time.time() if now is None else now
-    _write_state(
-        {
-            "last_checked_at": now,
-            "latest_version": latest_version,
-            "new_major_version": new_major_version,
-        }
-    )
+    _write_state({"last_checked_at": now, "latest_version": latest_version})
 
 
 def record_notified(now: float | None = None) -> None:
@@ -162,11 +150,7 @@ def record_notified(now: float | None = None) -> None:
     _write_state({"last_notified_at": now})
 
 
-def record_checked_and_notified(
-    latest_version: str,
-    new_major_version: str | None = None,
-    now: float | None = None,
-) -> None:
+def record_checked_and_notified(latest_version: str, now: float | None = None) -> None:
     """Stamp both timestamps and the latest version in a single write.
 
     Used by the ``update`` command, which performs its own check on every run
@@ -181,7 +165,6 @@ def record_checked_and_notified(
             "last_checked_at": now,
             "last_notified_at": now,
             "latest_version": latest_version,
-            "new_major_version": new_major_version,
         }
     )
 
@@ -202,28 +185,18 @@ def parse_manifest(text: str) -> dict[str, str]:
     return manifest
 
 
-def manifest_url(target: str, major: int | None = None) -> str:
-    """Return the manifest URL of the ``latest`` channel, or of one major version."""
-    name = "cloudsmith-cli-manifest"
-    if major is not None:
-        name = f"cloudsmith-cli-v{major}-manifest"
-    return MANIFEST_URL_TEMPLATE.format(name=name, target=target)
-
-
 def fetch_latest_manifest(
     session: "requests.Session",
     target: str = VERSION_PROBE_TARGET,
     timeout: float = MANIFEST_FETCH_TIMEOUT_SECONDS,
-    major: int | None = None,
 ) -> dict[str, str]:
     """Fetch and parse the latest release manifest for a build target.
 
     ``session`` is the shared requests session (so proxy/CA/user-agent settings
     apply and redirects are followed). Raises ``requests.RequestException`` on
     network failure and ``ValueError`` if the manifest has no ``version``.
-    With ``major``, the manifest is the highest release of that major version.
     """
-    url = manifest_url(target, major)
+    url = MANIFEST_URL_TEMPLATE.format(target=target)
     response = session.get(url, timeout=timeout)
     response.raise_for_status()
     manifest = parse_manifest(response.text)
@@ -245,38 +218,6 @@ def _probe_target() -> str:
     return installation.detect_target() or VERSION_PROBE_TARGET
 
 
-def is_higher_major(candidate: str | None, current_version: str | None = None) -> bool:
-    """Tell whether ``candidate`` is in a higher major version than the current one."""
-    if not candidate:
-        return False
-    try:
-        current = (
-            version.get_version_info()
-            if current_version is None
-            else version.parse_version(current_version)
-        )
-        return version.parse_version(candidate).major > current.major
-    except (TypeError, ValueError):
-        return False
-
-
-def fetch_update_manifests(
-    session: "requests.Session", target: str
-) -> tuple[dict[str, str], str | None]:
-    """Return the newest manifest of the running major, and a higher major version.
-
-    The ``latest`` channel holds the highest release of all majors. When that
-    release is in the running major, one fetch gives both results, and the
-    higher major version is None.
-    """
-    newest = fetch_latest_manifest(session, target=target)
-    if not is_higher_major(newest["version"]):
-        return newest, None
-    running_major = version.get_version_info().major
-    manifest = fetch_latest_manifest(session, target=target, major=running_major)
-    return manifest, newest["version"]
-
-
 def run_background_check(session: "requests.Session", now: float | None = None) -> None:
     """Fetch the latest version and record it; swallow all errors.
 
@@ -287,11 +228,11 @@ def run_background_check(session: "requests.Session", now: float | None = None) 
     import requests
 
     try:
-        manifest, new_major_version = fetch_update_manifests(session, _probe_target())
+        manifest = fetch_latest_manifest(session, target=_probe_target())
     except (requests.RequestException, ValueError):
         logger.debug("Update check fetch failed", exc_info=True)
         return
-    record_check(manifest["version"], new_major_version, now=now)
+    record_check(manifest["version"], now=now)
 
 
 def is_check_due(
@@ -384,18 +325,15 @@ def should_notify(
 ) -> bool:
     """Tell whether an "update available" notice is warranted from cached state.
 
-    True when the cached ``latest_version`` is newer than the running CLI, or
-    ``new_major_version`` is a higher major, *and* a check has happened since
-    the last notice (``last_notified_at < last_checked_at``). The second clause
-    is the daily throttle: a check re-arms the notice, and showing it stamps
-    ``last_notified_at`` to disarm it until the next check.
+    True when the cached ``latest_version`` is newer than the running CLI *and*
+    a check has happened since the last notice (``last_notified_at <
+    last_checked_at``). The second clause is the daily throttle: a check re-arms
+    the notice, and showing it stamps ``last_notified_at`` to disarm it until the
+    next check.
     """
     if state is None:
         state = read_cached_state()
-    if not (
-        newer_version_known(state.get("latest_version"), current_version)
-        or is_higher_major(state.get("new_major_version"), current_version)
-    ):
+    if not newer_version_known(state.get("latest_version"), current_version):
         return False
     try:
         last_notified = float(state.get("last_notified_at") or 0)
@@ -445,47 +383,27 @@ def _update_action_lines() -> list[str]:
     if instruction is None:
         if installation.self_update_supported():
             return ["Run `cloudsmith update` to update."]
-        return ["Replace your install with the build from the release page above."]
+        return [
+            "Download the latest build and replace your install:",
+            f"  {installation.RELEASES_LATEST_URL}",
+        ]
     return ["To update, run:", f"  {instruction}"]
 
 
-def new_major_lines(new_major_version: str) -> list[str]:
-    """Return the lines that suggest a new major version."""
-    from . import installation
-
-    first_release = f"{version.parse_version(new_major_version).major}.0.0"
-    return [
-        (
-            f"Cloudsmith CLI {new_major_version} is available. "
-            "It is a new major version with breaking changes."
-        ),
-        (
-            "Read what changed before you upgrade: "
-            f"{installation.changelog_url(first_release)}"
-        ),
-    ]
-
-
-def print_update_notice(
-    latest_version: str | None, new_major_version: str | None = None
-) -> None:
+def print_update_notice(latest_version: str) -> None:
     """Print the "an update is available" notice on stderr."""
     import click
 
     from . import installation
 
-    lines = []
-    if newer_version_known(latest_version):
-        lines += [
-            (
-                "A new version of the Cloudsmith CLI is available: "
-                f"{version.get_version()} -> {latest_version}."
-            ),
-            f"See what's changed: {installation.changelog_url(latest_version)}",
-            *_update_action_lines(),
-        ]
-    if is_higher_major(new_major_version):
-        lines += new_major_lines(new_major_version)
+    lines = [
+        (
+            "A new version of the Cloudsmith CLI is available: "
+            f"{version.get_version()} -> {latest_version}."
+        ),
+        f"See what's changed: {installation.changelog_url(latest_version)}",
+        *_update_action_lines(),
+    ]
     click.secho("\n".join(lines), fg="yellow", err=True)
 
 
@@ -522,7 +440,7 @@ def _finish_and_notify(
     state = read_cached_state()
     if not should_notify(state):
         return
-    print_update_notice(state.get("latest_version"), state.get("new_major_version"))
+    print_update_notice(state["latest_version"])
     record_notified(now=now)
 
 

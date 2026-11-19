@@ -6,8 +6,6 @@ import platform
 import sys
 from importlib import metadata
 
-from . import version
-
 CHANNEL_STANDALONE = "standalone"
 CHANNEL_HOMEBREW = "homebrew"
 CHANNEL_DOCKER = "docker"
@@ -20,7 +18,7 @@ CHANNEL_UNKNOWN = "unknown"
 
 _DISTRIBUTION_NAME = "cloudsmith-cli"
 
-#: The page of the latest release, for a changelog link without a version.
+#: Where a user downloads a fresh standalone build when self-update cannot run.
 RELEASES_LATEST_URL = "https://github.com/cloudsmith-io/cloudsmith-cli/releases/latest"
 
 #: Base for a version's GitHub release page. Each release is tagged ``v<version>``
@@ -43,23 +41,18 @@ def changelog_url(version=None):
     return _RELEASE_TAG_URL_TEMPLATE.format(version=str(version).lstrip("v"))
 
 
-#: The pip, pipx, uv and Docker commands stay in the running major version:
-#: ``{major}`` is that major, and ``{next_major}`` is the first version that the
-#: command must not install.
 _UPGRADE_INSTRUCTIONS = {
-    CHANNEL_PIP: 'pip install --upgrade "cloudsmith-cli<{next_major}"',
-    CHANNEL_PIPX: (
-        'pipx install --force --pip-args=--upgrade "cloudsmith-cli<{next_major}"'
-    ),
-    CHANNEL_UV_TOOL: 'uv tool upgrade "cloudsmith-cli<{next_major}"',
-    CHANNEL_UV_PIP: 'uv pip install --upgrade "cloudsmith-cli<{next_major}"',
+    CHANNEL_PIP: "pip install --upgrade cloudsmith-cli",
+    CHANNEL_PIPX: "pipx upgrade cloudsmith-cli",
+    CHANNEL_UV_TOOL: "uv tool upgrade cloudsmith-cli",
+    CHANNEL_UV_PIP: "uv pip install --upgrade cloudsmith-cli",
     CHANNEL_HOMEBREW: "brew update && brew upgrade cloudsmith-cli",
-    CHANNEL_DOCKER: "docker pull cloudsmith/cloudsmith-cli:{major}",
+    CHANNEL_DOCKER: "docker pull cloudsmith/cloudsmith-cli:latest",
     CHANNEL_AQUA: (
         "update the cloudsmith-io/cloudsmith-cli version in your aqua "
         "configuration, then run `aqua install`"
     ),
-    CHANNEL_UNKNOWN: 'pip install --upgrade "cloudsmith-cli<{next_major}"',
+    CHANNEL_UNKNOWN: "pip install --upgrade cloudsmith-cli",
 }
 
 
@@ -150,8 +143,7 @@ def upgrade_instruction(channel):
     """Return the upgrade command for a channel, or None for self-update."""
     if channel == CHANNEL_STANDALONE:
         return None
-    major = version.get_version_info().major
-    return _UPGRADE_INSTRUCTIONS[channel].format(major=major, next_major=major + 1)
+    return _UPGRADE_INSTRUCTIONS[channel]
 
 
 def self_update_supported():

@@ -43,15 +43,8 @@ def state_path(tmp_path, monkeypatch):
     return path
 
 
-def _write_state(
-    path,
-    *,
-    last_checked_at=None,
-    last_notified_at=None,
-    latest_version,
-    new_major_version=None,
-):
-    state = {"latest_version": latest_version, "new_major_version": new_major_version}
+def _write_state(path, *, last_checked_at=None, last_notified_at=None, latest_version):
+    state = {"latest_version": latest_version}
     if last_checked_at is not None:
         state["last_checked_at"] = last_checked_at
     if last_notified_at is not None:
@@ -78,23 +71,18 @@ class _FakeResponse:
 class _FakeSession:
     """A stand-in requests session recording whether ``get`` was called."""
 
-    def __init__(self, *, version_str=CURRENT_VERSION, newest_str=None, fails=False):
+    def __init__(self, *, version_str=CURRENT_VERSION, fails=False):
         self.version = version_str
-        self.newest = newest_str or version_str
         self.fails = fails
         self.called = False
         self.url = None
-        self.urls = []
 
     def get(self, url, timeout=None):
         self.called = True
-        self.url = self.url or url
-        self.urls.append(url)
+        self.url = url
         if self.fails:
             raise requests.ConnectionError("network down")
-        is_latest_channel = "/cloudsmith-cli-manifest-" in url
-        found = self.newest if is_latest_channel else self.version
-        return _FakeResponse(f"schema=1\nversion={found}\n")
+        return _FakeResponse(f"schema=1\nversion={self.version}\n")
 
 
 def _run(session, *, now=NOW, no_check_flag=False, config_value=True, env=None):
@@ -180,24 +168,6 @@ class TestFetchDecision:
 
 
 class TestShouldNotify:
-    def test_true_when_only_a_new_major_is_known(self, state_path):
-        _write_state(
-            state_path,
-            last_checked_at=NOW,
-            latest_version=CURRENT_VERSION,
-            new_major_version=NEWER_VERSION,
-        )
-        assert update_check.should_notify() is True
-
-    def test_false_when_new_major_is_not_higher(self, state_path):
-        _write_state(
-            state_path,
-            last_checked_at=NOW,
-            latest_version=CURRENT_VERSION,
-            new_major_version="1.30.0",
-        )
-        assert update_check.should_notify() is False
-
     def test_true_when_behind_and_checked_since_notify(self, state_path):
         _write_state(
             state_path,
@@ -236,7 +206,6 @@ class TestShouldNotify:
     def test_current_version_override(self, state_path):
         state = {
             "latest_version": "1.5.0",
-            "new_major_version": "2.0.0",
             "last_checked_at": NOW,
             "last_notified_at": 0,
         }
@@ -443,10 +412,6 @@ class TestStatePersistence:
             json.dump([1, 2, 3], f)
         assert update_check.read_cached_state() == {}
 
-    def test_state_file_is_per_major_version(self, monkeypatch):
-        monkeypatch.setattr(update_check.version, "get_version", lambda: "2.4.1")
-        assert update_check.get_state_file_path().endswith("update_check-v2.json")
-
     def test_record_creates_parent_directory(self, tmp_path, monkeypatch):
         path = str(tmp_path / "nested" / "dir" / "update_check.json")
         monkeypatch.setattr(update_check, "get_state_file_path", lambda: path)
@@ -503,17 +468,7 @@ class TestFetchLatestManifest:
         )
 
     def _url(self, target=update_check.VERSION_PROBE_TARGET):
-        return update_check.manifest_url(target)
-
-    @pytest.mark.parametrize(
-        "major, name",
-        [(None, "cloudsmith-cli-manifest"), (1, "cloudsmith-cli-v1-manifest")],
-    )
-    def test_manifest_url_per_channel(self, major, name):
-        assert update_check.manifest_url("macos-arm64", major=major) == (
-            "https://dl.cloudsmith.io/public/cloudsmith/cli/raw/names/"
-            f"{name}-macos-arm64/versions/latest/manifest.txt"
-        )
+        return update_check.MANIFEST_URL_TEMPLATE.format(target=target)
 
     def test_fetches_and_parses(self):
         import httpretty
@@ -577,19 +532,6 @@ class TestRunBackgroundCheck:
         )
         assert _read_state(state_path)["latest_version"] == NEWER_VERSION
         assert _read_state(state_path)["last_checked_at"] == NOW
-
-    @pytest.mark.parametrize(
-        "newest, new_major, fetches",
-        [(NEWER_VERSION, NEWER_VERSION, 2), ("1.27.0", None, 1)],
-    )
-    def test_records_new_major_from_latest_channel(
-        self, state_path, newest, new_major, fetches
-    ):
-        session = _FakeSession(version_str="1.27.0", newest_str=newest)
-        update_check.run_background_check(session, now=NOW)
-        assert _read_state(state_path)["latest_version"] == "1.27.0"
-        assert _read_state(state_path)["new_major_version"] == new_major
-        assert len(session.urls) == fetches
 
     def test_swallows_network_failure_and_records_nothing(self, state_path):
         update_check.run_background_check(_FakeSession(fails=True), now=NOW)
@@ -674,18 +616,20 @@ class TestUpdateActionLines:
         )
         monkeypatch.setattr(installation, "self_update_supported", lambda: False)
         lines = update_check._update_action_lines()
-        assert "release page above" in lines[-1]
+        assert lines[-1].strip() == installation.RELEASES_LATEST_URL
         assert all("cloudsmith update" not in line for line in lines)
 
     @pytest.mark.parametrize(
         "channel, command",
         [
-            ("pip", 'pip install --upgrade "cloudsmith-cli<2"'),
+            ("pip", "pip install --upgrade cloudsmith-cli"),
+            ("pipx", "pipx upgrade cloudsmith-cli"),
             ("homebrew", "brew update && brew upgrade cloudsmith-cli"),
+            ("unknown", "pip install --upgrade cloudsmith-cli"),
         ],
     )
     def test_package_manager_command_on_its_own_line(
-        self, state_path, monkeypatch, channel, command
+        self, monkeypatch, channel, command
     ):
         from cloudsmith_cli.core import installation
 
@@ -736,21 +680,6 @@ class TestFinishAndNotify:
         assert "new version" in err.lower()
         assert NEWER_VERSION in err
         assert _read_state(state_path)["last_notified_at"] == NOW + 1
-
-    def test_new_major_is_suggested_not_installed(self, state_path, capsys):
-        from cloudsmith_cli.core import installation
-
-        _write_state(
-            state_path,
-            last_checked_at=NOW,
-            latest_version=CURRENT_VERSION,
-            new_major_version=NEWEST_VERSION,
-        )
-        update_check._finish_and_notify(None, self._Opts(), "list", now=NOW + 1)
-        err = capsys.readouterr().err
-        assert f"Cloudsmith CLI {NEWEST_VERSION} is available" in err
-        assert installation.changelog_url(NEWER_VERSION) in err
-        assert "cloudsmith update" not in err
 
     def test_silent_and_untouched_when_suppressed(self, state_path, capsys):
         """JSON output suppresses the notice and does not stamp last_notified."""

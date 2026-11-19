@@ -33,16 +33,11 @@ def invoke_update(
     args=None,
     manifest=None,
     self_update_supported=True,
-    new_major=None,
-    current=CURRENT,
 ):
     """Invoke the update command with all external effects mocked."""
     manifest = manifest or _manifest(latest)
     with ExitStack() as stack:
-        stack.enter_context(patch(f"{_MOD}.get_version", return_value=current))
-        stack.enter_context(
-            patch("cloudsmith_cli.core.version.get_version", return_value=current)
-        )
+        stack.enter_context(patch(f"{_MOD}.get_version", return_value=CURRENT))
         stack.enter_context(
             patch(f"{_MOD}.installation.detect_channel", return_value=channel)
         )
@@ -60,8 +55,8 @@ def invoke_update(
         )
         stack.enter_context(
             patch(
-                f"{_MOD}.update_check.fetch_update_manifests",
-                return_value=(manifest, new_major),
+                f"{_MOD}.update_check.fetch_latest_manifest",
+                return_value=manifest,
             )
         )
         record = stack.enter_context(
@@ -81,7 +76,7 @@ class TestUpToDate:
         )
         assert result.exit_code == 0
         assert "up to date" in result.output
-        record.assert_called_once_with(CURRENT, None)
+        record.assert_called_once_with(CURRENT)
         self_update.assert_not_called()
 
     def test_up_to_date_json(self, runner):
@@ -103,9 +98,9 @@ class TestPackageManagerChannel:
             runner, channel=installation.CHANNEL_PIP, latest=NEWER
         )
         assert result.exit_code == 0
-        assert 'pip install --upgrade "cloudsmith-cli<2"' in result.output
+        assert "pip install --upgrade cloudsmith-cli" in result.output
         assert installation.changelog_url(NEWER) in result.output
-        record.assert_called_once_with(NEWER, None)
+        record.assert_called_once_with(NEWER)
         self_update.assert_not_called()
 
     @pytest.mark.windows
@@ -128,30 +123,6 @@ class TestPackageManagerChannel:
         assert payload["changelog_url"] == installation.changelog_url(NEWER)
 
 
-class TestNewMajor:
-    def test_suggests_new_major_without_installing(self, runner):
-        result, record, self_update = invoke_update(
-            runner,
-            channel=installation.CHANNEL_STANDALONE,
-            latest=CURRENT,
-            new_major=NEWER,
-        )
-        assert f"Cloudsmith CLI {NEWER} is available" in result.output
-        assert installation.changelog_url(NEWER) in result.output
-        record.assert_called_once_with(CURRENT, NEWER)
-        self_update.assert_not_called()
-
-    def test_json_has_new_major_version(self, runner):
-        result, _record, _su = invoke_update(
-            runner,
-            channel=installation.CHANNEL_PIP,
-            latest=CURRENT,
-            new_major=NEWER,
-            args=["-F", "json"],
-        )
-        assert json.loads(result.output)["data"]["new_major_version"] == NEWER
-
-
 class TestStandaloneSelfUpdate:
     def test_self_update_with_yes(self, runner):
         result, record, self_update = invoke_update(
@@ -162,7 +133,7 @@ class TestStandaloneSelfUpdate:
         )
         assert result.exit_code == 0
         assert "now at version 2.0.0" in result.output
-        record.assert_called_once_with(NEWER, None)
+        record.assert_called_once_with(NEWER)
         self_update.assert_called_once()
 
     def test_prompt_declined(self, runner):
@@ -194,8 +165,8 @@ class TestStandaloneSelfUpdate:
             )
             stack.enter_context(
                 patch(
-                    f"{_MOD}.update_check.fetch_update_manifests",
-                    return_value=(manifest, None),
+                    f"{_MOD}.update_check.fetch_latest_manifest",
+                    return_value=manifest,
                 )
             )
             stack.enter_context(
@@ -241,8 +212,8 @@ class TestStandaloneSelfUpdate:
             )
             stack.enter_context(
                 patch(
-                    f"{_MOD}.update_check.fetch_update_manifests",
-                    return_value=(manifest, None),
+                    f"{_MOD}.update_check.fetch_latest_manifest",
+                    return_value=manifest,
                 )
             )
             stack.enter_context(
@@ -304,7 +275,7 @@ class TestChecksRegardlessOfState:
         _result, record, _su = invoke_update(
             runner, channel=installation.CHANNEL_PIP, latest=CURRENT
         )
-        record.assert_called_once_with(CURRENT, None)
+        record.assert_called_once_with(CURRENT)
 
     def test_standalone_without_target_errors(self, runner):
         result, _record, self_update = invoke_update(
@@ -341,22 +312,14 @@ class TestChecksRegardlessOfState:
             )
             fetch = stack.enter_context(
                 patch(
-                    f"{_MOD}.update_check.fetch_update_manifests",
-                    return_value=(_manifest(NEWER), None),
+                    f"{_MOD}.update_check.fetch_latest_manifest",
+                    return_value=_manifest(NEWER),
                 )
             )
             result = runner.invoke(update, [], catch_exceptions=False)
 
         assert result.exit_code == 0
         assert fetch.call_args.kwargs["target"] == update_check.VERSION_PROBE_TARGET
-
-
-def test_unparsable_current_version_is_a_clean_error(runner):
-    result, _record, _su = invoke_update(
-        runner, channel=installation.CHANNEL_PIP, latest=CURRENT, current="2.0.0rc1"
-    )
-    assert result.exit_code == 1
-    assert "Cannot compare versions" in result.output
 
 
 def test_ssl_settings_reach_the_session(runner):
@@ -374,8 +337,8 @@ def test_ssl_settings_reach_the_session(runner):
         stack.enter_context(patch(f"{_MOD}.update_check.record_checked_and_notified"))
         stack.enter_context(
             patch(
-                f"{_MOD}.update_check.fetch_update_manifests",
-                return_value=(_manifest(CURRENT), None),
+                f"{_MOD}.update_check.fetch_latest_manifest",
+                return_value=_manifest(CURRENT),
             )
         )
         result = runner.invoke(
