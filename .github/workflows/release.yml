@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
-      prerelease: ${{ steps.channels.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,21 +33,6 @@ jobs:
           VERSION=$(cat cloudsmith_cli/data/VERSION)
           test "${GITHUB_REF_NAME}" = "v${VERSION}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          enable-cache: false
-
-      # The promote-channels job runs the script again just before it moves a
-      # channel. "Re-run failed jobs" keeps the outputs of this job. For
-      # example, the v1.40.2 release fails, v2.0.0 ships, and then you re-run
-      # v1.40.2. This job said latest=true, but v2.0.0 now holds latest.
-      - id: channels
-        name: Find the release channels that this version moves
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: uv run .github/scripts/release_channels.py >> "$GITHUB_OUTPUT"
 
   binaries:
     name: Binaries
@@ -260,7 +244,6 @@ jobs:
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
       CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
-      PRERELEASE: ${{ needs.validate.outputs.prerelease }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -418,9 +401,6 @@ jobs:
               printf 'url=%s\n' "${ARCHIVE_URL}"
               printf 'sha256=%s\n' "${ARCHIVE_SHA256}"
             } > "manifests/${TARGET}/manifest.txt"
-            if [ "${PRERELEASE}" = true ]; then
-              continue
-            fi
             push_manifest_if_absent \
               "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
               "manifests/${TARGET}/manifest.txt" \
@@ -562,7 +542,6 @@ jobs:
     # Sends a cloudsmith-cli-release event with the version to each repository
     # in the matrix. The workflow in each repository opens a bump pull request.
     needs: [validate, publish-github]
-    if: needs.validate.outputs.prerelease == 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -601,13 +580,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      PRERELEASE: ${{ needs.validate.outputs.prerelease }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Assert every expected asset is present
         run: |
           set -euo pipefail
@@ -645,8 +619,7 @@ jobs:
         run: |
           gh release edit "${GITHUB_REF_NAME}" \
             --draft=false \
-            --latest=false \
-            --prerelease="${PRERELEASE}"
+            --latest=false
 
   promote-channels:
     # Moves the GitHub "Latest" release and the Docker Hub tags latest, MAJOR
@@ -657,7 +630,6 @@ jobs:
     # and decide that it holds latest. Its Docker push can then finish after
     # the push of v2.0.0, and latest moves back to v1.40.2.
     needs: [validate, publish-github]
-    if: needs.validate.outputs.prerelease == 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
