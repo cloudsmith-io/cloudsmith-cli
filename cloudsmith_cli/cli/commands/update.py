@@ -1,5 +1,5 @@
 # Copyright 2026 Cloudsmith Ltd
-"""CLI/Commands - Update the CLI to the latest released version."""
+"""CLI/Commands - Update the CLI to the latest release of its major version."""
 
 import click
 
@@ -21,7 +21,7 @@ def _fetch_manifest(opts, session, target):
     target = target or update_check.VERSION_PROBE_TARGET
     try:
         with maybe_spinner(opts):
-            return update_check.fetch_latest_manifest(session, target=target)
+            return update_check.fetch_update_manifests(session, target=target)
     except (requests.RequestException, ValueError) as exc:
         raise click.ClickException(f"Failed to fetch the latest version: {exc}")
 
@@ -110,11 +110,11 @@ def _print_manual_update(opts, current, latest, manifest, data):
 @decorators.initialise_session
 @click.pass_context
 def update(ctx, opts, assume_yes):
-    """Update the Cloudsmith CLI to the latest released version.
+    """Update the Cloudsmith CLI to the latest release of its major version.
 
     The check runs on every invocation, independent of the once-a-day
-    background version check. A standalone binary downloads and installs the
-    latest release in place; every other install channel is told the correct
+    background version check. A standalone binary downloads and installs that
+    release in place; every other install channel is told the correct
     upgrade command for that channel.
     """
     # pylint: disable=unused-argument
@@ -127,14 +127,18 @@ def update(ctx, opts, assume_yes):
         )
 
     session = opts.session
-    manifest = _fetch_manifest(opts, session, target)
+    manifest, new_major = _fetch_manifest(opts, session, target)
     latest = manifest["version"]
 
     # Stamp both timestamps regardless of the outcome: the user has just run an
     # explicit check, so the background notice's daily re-nag is disarmed.
-    update_check.record_checked_and_notified(latest)
+    update_check.record_checked_and_notified(latest, new_major)
 
     data = {"current_version": current, "latest_version": latest, "channel": channel}
+    if new_major:
+        data["new_major_version"] = new_major
+        if not utils.should_use_stderr(opts):
+            click.echo("\n".join(update_check.new_major_lines(new_major)))
 
     if _is_up_to_date(latest, current):
         data["up_to_date"] = True
