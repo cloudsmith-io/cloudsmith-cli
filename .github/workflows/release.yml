@@ -40,7 +40,9 @@ jobs:
           enable-cache: false
 
       # The promote-channels job runs the script again just before it moves a
-      # channel, because "Re-run failed jobs" keeps the outputs of this job.
+      # channel. "Re-run failed jobs" keeps the outputs of this job. For
+      # example, the v1.40.2 release fails, v2.0.0 ships, and then you re-run
+      # v1.40.2. This job said latest=true, but v2.0.0 now holds latest.
       - id: channels
         name: Find the release channels that this version moves
         env:
@@ -647,9 +649,13 @@ jobs:
             --prerelease="${PRERELEASE}"
 
   promote-channels:
-    # A channel moves only for the highest release in it. One concurrency
-    # group for all release tags stops an older release that finishes last
-    # from moving a channel back.
+    # Moves the GitHub "Latest" release and the Docker Hub tags latest, MAJOR
+    # and MAJOR.MINOR. promote_channels.py moves them.
+    # All release tags share one concurrency group, so one release at a time
+    # checks and moves the channels. For example, push v2.0.0 and v1.40.2
+    # together. Without the group, v1.40.2 can check before v2.0.0 is published
+    # and decide that it holds latest. Its Docker push can then finish after
+    # the push of v2.0.0, and latest moves back to v1.40.2.
     needs: [validate, publish-github]
     if: needs.validate.outputs.prerelease == 'false'
     runs-on: ubuntu-24.04
@@ -662,7 +668,6 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GH_REPO: ${{ github.repository }}
       DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY || 'cloudsmith/cloudsmith-cli' }}
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
@@ -690,37 +695,5 @@ jobs:
         with:
           enable-cache: false
 
-      - id: channels
-        name: Find the release channels that this version moves
-        run: uv run .github/scripts/release_channels.py >> "$GITHUB_OUTPUT"
-
-      - name: Make this release the GitHub "Latest" release
-        if: steps.channels.outputs.latest == 'true'
-        run: gh release edit "${GITHUB_REF_NAME}" --latest
-
-      - name: Move the floating Docker Hub tags
-        if: env.HAS_DOCKERHUB == 'true'
-        env:
-          LATEST: ${{ steps.channels.outputs.latest }}
-          MAJOR_LATEST: ${{ steps.channels.outputs.major-latest }}
-          MINOR_LATEST: ${{ steps.channels.outputs.minor-latest }}
-        run: |
-          set -euo pipefail
-          HUB="${DOCKERHUB_REPOSITORY}"
-          MAJOR="${VERSION%%.*}"
-          MINOR="${VERSION#*.}"; MINOR="${MINOR%%.*}"
-          TAGS=()
-          if [ "${MAJOR_LATEST}" = true ]; then
-            TAGS+=(-t "${HUB}:${MAJOR}")
-          fi
-          if [ "${MINOR_LATEST}" = true ]; then
-            TAGS+=(-t "${HUB}:${MAJOR}.${MINOR}")
-          fi
-          if [ "${LATEST}" = true ]; then
-            TAGS+=(-t "${HUB}:latest")
-          fi
-          if [ "${#TAGS[@]}" -eq 0 ]; then
-            echo "A higher release holds every floating tag; skipping"
-            exit 0
-          fi
-          docker buildx imagetools create "${TAGS[@]}" "${HUB}:${VERSION}"
+      - name: Move the release channels that this version holds
+        run: uv run .github/scripts/promote_channels.py
