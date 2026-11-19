@@ -9,6 +9,7 @@ stubs those inputs so nothing depends on how the test host installed the CLI.
 from __future__ import annotations
 
 import pytest
+import semver
 
 from cloudsmith_cli.core import installation
 
@@ -121,21 +122,40 @@ class TestUpgradeInstruction:
         assert installation.upgrade_instruction(installation.CHANNEL_STANDALONE) is None
 
     @pytest.mark.parametrize(
-        "channel",
+        "channel, instruction",
         [
-            installation.CHANNEL_PIP,
-            installation.CHANNEL_PIPX,
-            installation.CHANNEL_UV_TOOL,
-            installation.CHANNEL_UV_PIP,
-            installation.CHANNEL_HOMEBREW,
-            installation.CHANNEL_DOCKER,
-            installation.CHANNEL_AQUA,
-            installation.CHANNEL_UNKNOWN,
+            (installation.CHANNEL_PIP, 'pip install --upgrade "cloudsmith-cli<3"'),
+            (
+                installation.CHANNEL_PIPX,
+                'pipx install --force --pip-args=--upgrade "cloudsmith-cli<3"',
+            ),
+            (installation.CHANNEL_UV_TOOL, 'uv tool upgrade "cloudsmith-cli<3"'),
+            (
+                installation.CHANNEL_UV_PIP,
+                'uv pip install --upgrade "cloudsmith-cli<3"',
+            ),
+            (
+                installation.CHANNEL_HOMEBREW,
+                "brew update && brew upgrade cloudsmith-cli",
+            ),
+            (installation.CHANNEL_DOCKER, "docker pull cloudsmith/cloudsmith-cli:2"),
+            (
+                installation.CHANNEL_AQUA,
+                "update the cloudsmith-io/cloudsmith-cli version in your aqua "
+                "configuration, then run `aqua install`",
+            ),
+            (installation.CHANNEL_UNKNOWN, 'pip install --upgrade "cloudsmith-cli<3"'),
         ],
     )
-    def test_channels_return_instruction(self, channel):
-        instruction = installation.upgrade_instruction(channel)
-        assert isinstance(instruction, str) and instruction
+    def test_instruction_stays_in_running_major(
+        self, monkeypatch, channel, instruction
+    ):
+        monkeypatch.setattr(
+            installation.version,
+            "get_version_info",
+            lambda: semver.VersionInfo.parse("2.4.1"),
+        )
+        assert installation.upgrade_instruction(channel) == instruction
 
 
 class TestChangelogUrl:

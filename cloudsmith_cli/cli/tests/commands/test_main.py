@@ -186,7 +186,7 @@ class TestMainUpdateNotice:
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
         assert "9.9.9" in result.output
-        assert installation.RELEASES_LATEST_URL in result.output
+        assert "release page above" in result.output
         assert "cloudsmith update" not in result.output
 
     def test_notice_prints_package_manager_command(
@@ -203,7 +203,7 @@ class TestMainUpdateNotice:
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
         assert "9.9.9" in result.output
-        assert "pip install --upgrade cloudsmith-cli" in result.output
+        assert 'pip install --upgrade "cloudsmith-cli<2"' in result.output
         assert "cloudsmith update" not in result.output
 
     def test_no_check_update_flag_suppresses(self, runner, state_file):
