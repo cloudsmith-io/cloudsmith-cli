@@ -141,7 +141,7 @@ def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch) ->
     expired_access_token = jwt.encode(
         {"exp": datetime(2024, 1, 1, tzinfo=UTC)}, "secret", algorithm="HS256"
     )
-    session = create_requests_session(max_retry_after=60)
+    session = create_requests_session(retry_after_budget=60)
     with (
         patch(
             "cloudsmith_cli.core.sso.keyring.get_access_token",
