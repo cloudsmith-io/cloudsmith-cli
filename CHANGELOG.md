@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
+- `cloudsmith auth`, `cloudsmith whoami`, and every other command no longer hang without output when Cloudsmith throttles the renewal of a stored SAML session. The CLI waited for as long as the `Retry-After` header of the response asked, up to five times, and `-R` and `--error-retry-max` did not change this. The renewal, the SAML login, and the OIDC token exchange now wait at most 60 seconds in total on `Retry-After` for each request, and print a message before each wait. When the `Retry-After` is longer, the renewal fails with a 429 error, and `cloudsmith auth` starts a new SAML login. The SAML login itself reports a longer `Retry-After` as a 429 error.
 
 ## [1.31.3] - 2026-11-17
 

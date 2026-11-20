@@ -263,3 +263,61 @@ class TestRetryOnNameResolutionErrors:
     )
     def test_other_name_resolution_errors_are_retried(self, retry, error):
         assert retry.increment("GET", "/", error=error).total == 5
+
+
+class TestRetryAfterBudget:
+    @pytest.mark.parametrize(
+        "retry_after_budget, retry_afters, sleeps",
+        [
+            pytest.param(None, ["3600"], [3600.0], id="no-budget"),
+            pytest.param(60, ["30"], [30.0], id="one-wait-within-budget"),
+            pytest.param(60, ["30", "30"], [30.0, 30.0], id="waits-total-the-budget"),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_within_the_budget_is_honored(
+        self, monkeypatch, retry_after_budget, retry_afters, sleeps
+    ) -> None:
+        self._register_throttled_then_ok(retry_afters)
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        session = create_requests_session(retry_after_budget=retry_after_budget)
+
+        assert session.post("https://api.example.com/").status_code == 200
+        assert slept == sleeps
+
+    @pytest.mark.parametrize(
+        "retry_afters, sleeps",
+        [
+            pytest.param(["3600"], [], id="one-long-wait"),
+            pytest.param(["40", "40"], [40.0], id="waits-exceed-the-budget-in-total"),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_past_the_budget_fails_without_waiting(
+        self, monkeypatch, retry_afters, sleeps
+    ) -> None:
+        self._register_throttled_then_ok(retry_afters)
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        session = create_requests_session(retry_after_budget=60)
+
+        with pytest.raises(requests.exceptions.RetryError):
+            session.post("https://api.example.com/")
+        assert slept == sleeps
+
+    @staticmethod
+    def _register_throttled_then_ok(retry_afters):
+        httpretty.register_uri(
+            httpretty.POST,
+            "https://api.example.com/",
+            responses=[
+                *(
+                    httpretty.Response(
+                        "", status=429, adding_headers={"Retry-After": retry_after}
+                    )
+                    for retry_after in retry_afters
+                ),
+                httpretty.Response("", status=200),
+            ],
+        )

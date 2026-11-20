@@ -11,7 +11,7 @@ import requests
 import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.connectionpool import ConnectionPool
-from urllib3.exceptions import MaxRetryError
+from urllib3.exceptions import MaxRetryError, ResponseError
 from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 from urllib3.util.ssl_ import create_urllib3_context
@@ -68,15 +68,38 @@ def _is_unknown_host_error(error: BaseException | None) -> bool:
     return False
 
 
+class RetryAfterLimitError(ResponseError):
+    """The server asked to wait past the retry's ``retry_after_budget``."""
+
+    def __init__(self, message, headers=None):
+        super().__init__(message)
+        self.headers = headers
+
+
+def find_retry_after_limit_error(
+    error: BaseException,
+) -> RetryAfterLimitError | None:
+    """Return the RetryAfterLimitError behind a requests RetryError, or None."""
+    if isinstance(error, requests.exceptions.RetryError) and error.args:
+        reason = getattr(error.args[0], "reason", None)
+        if isinstance(reason, RetryAfterLimitError):
+            return reason
+    return None
+
+
 class RetryWithCallback(Retry):
-    """A urllib3 Retry with a callback on retries."""
+    """A urllib3 Retry with a callback on retries and an optional Retry-After budget."""
 
     def __init__(self, *args, **kwargs):
         self.error_retry_cb = kwargs.pop("error_retry_cb", None)
+        self.retry_after_budget = kwargs.pop("retry_after_budget", None)
+        self.retry_after_waited = kwargs.pop("retry_after_waited", 0)
         super().__init__(*args, **kwargs)
 
     def new(self, **kw):
         kw["error_retry_cb"] = self.error_retry_cb
+        kw["retry_after_budget"] = self.retry_after_budget
+        kw["retry_after_waited"] = self.retry_after_waited
         return super().new(**kw)
 
     def increment(
@@ -94,7 +117,27 @@ class RetryWithCallback(Retry):
             find_certificate_error(error) is not None or _is_unknown_host_error(error)
         ):
             raise MaxRetryError(_pool, url, error) from error
-        return super().increment(method, url, response, error, _pool, _stacktrace)
+        retry_after = (
+            self.get_retry_after(response)
+            if self.retry_after_budget is not None
+            and self.respect_retry_after_header
+            and response is not None
+            else None
+        )
+        if not retry_after:
+            return super().increment(method, url, response, error, _pool, _stacktrace)
+
+        waited = self.retry_after_waited + retry_after
+        if waited > self.retry_after_budget:
+            reason = RetryAfterLimitError(
+                f"The server asked to retry after {retry_after:g} seconds, past the "
+                f"{self.retry_after_budget:g}-second limit on waiting for a request.",
+                headers=response.headers,
+            )
+            raise MaxRetryError(_pool, url, reason)
+        retry = super().increment(method, url, response, error, _pool, _stacktrace)
+        retry.retry_after_waited = waited
+        return retry
 
     def sleep_for_retry(self, response=None):
         retry_after = self.get_retry_after(response)
@@ -185,6 +228,7 @@ def create_requests_session(
     session=None,
     error_retry_cb=None,
     respect_retry_after_header=True,
+    retry_after_budget=None,
     user_agent=None,
     headers=None,
 ):
@@ -242,6 +286,7 @@ def create_requests_session(
         total=retries,
         error_retry_cb=error_retry_cb,
         respect_retry_after_header=respect_retry_after_header,
+        retry_after_budget=retry_after_budget,
     )
 
     adapter = SSLContextAdapter(
