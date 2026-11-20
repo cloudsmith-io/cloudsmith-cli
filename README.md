@@ -329,6 +329,8 @@ You can specify the following configuration options:
 - `api_user_agent`: The user agent to use for requests.
 - `workspace`: The Cloudsmith Workspace slug. Use `-w`/`--workspace` or `CLOUDSMITH_WORKSPACE` to set it for one command. The config keys `org`, `organization`, and `oidc_org`, the flags `--org`, `--organization`, `--oidc-org`, `--owner`, and `-o`, and the environment variable `CLOUDSMITH_ORG` still work, but they are deprecated and will be removed in version 2.0.0; the CLI prints a warning when you use them.
 
+The CLI prints deprecation warnings to stderr, once per run. It does not print them with `-F json` or `-F pretty_json`, or when `CLOUDSMITH_SUPPRESS_DEPRECATIONS` is `1`, `true`, or `yes`.
+
 ### Credentials (credentials.ini)
 
 See the [default config](https://raw.githubusercontent.com/cloudsmith-io/cloudsmith-cli/master/cloudsmith_cli/data/credentials.ini) in GitHub:

@@ -48,18 +48,20 @@ jobs:
           BEHIND_BY="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE_REF}...${HEAD_SHA}" --jq .behind_by)"
           echo "behind-by=${BEHIND_BY}" >> "${GITHUB_OUTPUT}"
 
-      # Cloudsmith Bot can bypass the up-to-date rule of master. A rebase
+      # Cloudsmith Bot can bypass the up-to-date rule of master. A recreate
       # makes sure that the checks ran against the latest master.
-      - name: Ask Dependabot to rebase
+      # Dependabot can refuse a rebase with "The base commit for this pull
+      # request has not changed". It always does a recreate.
+      - name: Ask Dependabot to recreate
         if: steps.checks.outcome == 'success' && steps.checks.outputs.behind-by != '0'
         env:
-          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN }}
-        run: gh pr comment "${PR_URL}" --body "@dependabot rebase"
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_TOKEN }}
+        run: gh pr comment "${PR_URL}" --body "@dependabot recreate"
 
       - name: Approve and merge
         if: steps.checks.outcome == 'success' && steps.checks.outputs.behind-by == '0'
         env:
-          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_TOKEN }}
         run: |
           set -euo pipefail
           gh pr review --approve "${PR_URL}"
