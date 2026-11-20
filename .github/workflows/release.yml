@@ -384,6 +384,7 @@ jobs:
 
             # Per-target install manifest, fetched by the install scripts at
             # .../raw/names/cloudsmith-cli-manifest-<target>/versions/{<v>|latest}/manifest.txt.
+            # The cloudsmith-cli-v<MAJOR>-manifest-<target> copy is the channel of one major version.
             # Pushed after the archive so it never references a missing archive.
             ARCHIVE_BASE="cloudsmith-${VERSION}-${TARGET}${EXT}"
             ARCHIVE_SHA256="$(sha256sum "${ARCHIVE}" | awk '{print $1}')"
@@ -404,6 +405,11 @@ jobs:
               "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
               "manifests/${TARGET}/manifest.txt" \
               "cloudsmith-cli-manifest-${TARGET}" \
+              "install-manifest,${COMMON}"
+            push_manifest_if_absent \
+              "${CLOUDSMITH_NAMESPACE}/${CLOUDSMITH_REPO}" \
+              "manifests/${TARGET}/manifest.txt" \
+              "cloudsmith-cli-v${VERSION%%.*}-manifest-${TARGET}" \
               "install-manifest,${COMMON}"
           done
           push_python_if_absent \
@@ -444,6 +450,7 @@ jobs:
       CLOUDSMITH_REPO: ${{ vars.CLOUDSMITH_REPO }}
       CLOUDSMITH_SERVICE_SLUG: ${{ vars.CLOUDSMITH_SERVICE_SLUG }}
       CLOUDSMITH_WORKSPACE: ${{ vars.CLOUDSMITH_NAMESPACE }}
+      DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY || 'cloudsmith/cloudsmith-cli' }}
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
       VERSION: ${{ needs.validate.outputs.version }}
@@ -512,14 +519,11 @@ jobs:
           else
             TAGS+=(-t "${CLOUDSMITH_IMAGE}")
           fi
-          # Docker Hub (mutable): pinned + floating tags (latest/major/major.minor).
+          # Docker Hub (mutable): pinned tag here. The promote-channels job
+          # moves the floating tags (latest/major/major.minor).
           # Cloudsmith (immutable) keeps only the pinned :${VERSION} tag.
           if [ "${HAS_DOCKERHUB}" = "true" ]; then
-            HUB="cloudsmith/cloudsmith-cli"
-            MAJOR="${VERSION%%.*}"
-            MINOR="${VERSION#*.}"; MINOR="${MINOR%%.*}"
-            TAGS+=(-t "${HUB}:${VERSION}")
-            TAGS+=(-t "${HUB}:${MAJOR}" -t "${HUB}:${MAJOR}.${MINOR}" -t "${HUB}:latest")
+            TAGS+=(-t "${DOCKERHUB_REPOSITORY}:${VERSION}")
           fi
 
           if [ "${#TAGS[@]}" -eq 0 ]; then
@@ -548,10 +552,13 @@ jobs:
         repository:
           - homebrew-cloudsmith-cli
           - cloudsmith-cli-action
+          - cloudsmith-ado-integration
+          - orb
+          - cloudsmith-sbx-kits
     steps:
       - name: Send the release event
         env:
-          GH_TOKEN: ${{ secrets.DOWNSTREAM_RELEASE_PUSH_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLOUDSMITH_BOT_TOKEN }}
           REPOSITORY: ${{ github.repository_owner }}/${{ matrix.repository }}
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
@@ -609,4 +616,56 @@ jobs:
           echo "All ${#EXPECTED[@]} expected assets present."
 
       - name: Publish the fully replicated draft release
-        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
+        run: |
+          gh release edit "${GITHUB_REF_NAME}" \
+            --draft=false \
+            --latest=false
+
+  promote-channels:
+    # Moves the GitHub "Latest" release and the Docker Hub tags latest, MAJOR
+    # and MAJOR.MINOR. promote_channels.py moves them.
+    # All release tags share one concurrency group, so one release at a time
+    # checks and moves the channels. For example, push v2.0.0 and v1.40.2
+    # together. Without the group, v1.40.2 can check before v2.0.0 is published
+    # and decide that it holds latest. Its Docker push can then finish after
+    # the push of v2.0.0, and latest moves back to v1.40.2.
+    needs: [validate, publish-github]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: release-channels
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY || 'cloudsmith/cloudsmith-cli' }}
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_PAT != '' }}
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: env.HAS_DOCKERHUB == 'true'
+
+      - name: Authenticate to Docker Hub
+        if: env.HAS_DOCKERHUB == 'true'
+        env:
+          DOCKERHUB_PAT: ${{ secrets.DOCKERHUB_PAT }}
+        run: |
+          set -euo pipefail
+          echo "${DOCKERHUB_PAT}" \
+            | docker login \
+              -u "${DOCKERHUB_USER}" \
+              --password-stdin
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+
+      - name: Move the release channels that this version holds
+        run: uv run .github/scripts/promote_channels.py

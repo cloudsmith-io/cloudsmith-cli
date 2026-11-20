@@ -112,6 +112,9 @@ def _search_packages(
     # Use server-side filename filtering for exact matches (no wildcards)
     if filename_filter and not any(c in filename_filter for c in "*?["):
         query_parts.append(f"filename:{filename_filter}")
+    # Only a package that finished syncing can be downloaded. A failed duplicate
+    # upload is newer than the package it duplicates, so --yes would pick it.
+    query_parts.append("status:completed")
 
     query = " AND ".join(query_parts)
 
