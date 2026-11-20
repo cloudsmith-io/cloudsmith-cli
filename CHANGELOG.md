@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it. This also applies to the POST request that uploads a file.
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
 
 ## [1.31.3] - 2026-11-17
