@@ -22,9 +22,17 @@ def credential_helper():
     """
     Credential helpers for package managers.
 
-    These commands provide credentials for package managers like Docker.
-    Use ``install`` to set up the on-PATH launcher and configure the package
-    manager automatically, or run the runtime command directly for debugging.
+    These commands provide credentials for package managers. Use ``install``
+    to set up a helper and configure the package manager automatically, and
+    ``list`` to see every helper and whether it is installed.
+
+    \b
+    Helpers: cargo, docker, gradle, maven, pnpm, sbt, terraform.
+
+    Docker, pnpm, cargo and Terraform call the runtime command of the same
+    name, which you can also run directly for debugging. Maven, Gradle and
+    sbt load a Cloudsmith extension or plugin that gets credentials from
+    ``generic``, so they have no runtime command of their own.
 
     Examples:
 
@@ -37,6 +45,12 @@ def credential_helper():
     \b
         # Install cargo credential helper
         $ cloudsmith credential-helper install cargo
+    \b
+        # Install the Maven extension (also: gradle, sbt)
+        $ cloudsmith credential-helper install maven
+    \b
+        # List the helpers and their installation status
+        $ cloudsmith credential-helper list
     \b
         # Test Docker credential helper directly
         $ echo "docker.cloudsmith.io" | cloudsmith credential-helper docker

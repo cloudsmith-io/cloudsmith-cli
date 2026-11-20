@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
+- Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
+
+### Changed
+
+- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
+- The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
+- When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
+
+### Fixed
+
+- Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
+
+## [1.31.3] - 2026-11-17
+
+### Fixed
+
+- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
+- `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type. (#618)
+- The 2FA prompt of `cloudsmith auth` is shorter: `Enter the code from your authenticator app, or press Ctrl+C to cancel:`. When the code is rejected, the CLI now shows `That code was rejected. Please try again.` without the HTTP status code. (#618)
+- `--color`, `-F/--output-format` and `-v/--verbose` given to a group, such as `cloudsmith --color=never list repos` or `cloudsmith -F json list repos`, now apply to its subcommands too. Before, a subcommand used its own default, so the output still had colour, or was not JSON. (#623)
+
+## [1.31.2] - 2026-11-16
+
+### Security
+
+- `cloudsmith auth` now accepts the SAML callback only when it carries a random state that the CLI makes for each login. Before, a web page or a local process could send its own tokens to the callback while you logged in, and the CLI stored them. The CLI now rejects such a callback and continues to wait for the correct one. An idle connection to the callback no longer blocks the login. (#619)
+
+## [1.31.1] - 2026-11-12
+
+### Fixed
+
+- The help of `cloudsmith credential-helper`, `credential-helper install` and `credential-helper uninstall` now lists every helper, including `maven`, `gradle` and `sbt`, and has examples for Maven. The help also explains that Maven, Gradle and sbt have no runtime command of their own. (#610)
+
 ## [1.31.0] - 2026-11-11
 
 ### Added
