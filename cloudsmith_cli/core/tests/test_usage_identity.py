@@ -68,6 +68,24 @@ def test_reset_raises_when_delete_fails(usage_state_dir, monkeypatch):
         identity.reset()
 
 
+def test_forget_deletes_the_id_and_keeps_other_state(usage_state_dir):
+    identity.resolve(ephemeral=False, install_id_enabled=True)
+    state.write({"notice_version": 1})
+    identity.forget()
+    assert state.read() == {"notice_version": 1}
+
+
+def test_forget_without_an_id_writes_nothing(usage_state_dir):
+    identity.forget()
+    assert not usage_state_dir.joinpath(state.STATE_FILE_NAME).exists()
+
+
+def test_forget_never_raises(usage_state_dir, monkeypatch):
+    identity.resolve(ephemeral=False, install_id_enabled=True)
+    monkeypatch.setattr(state, "delete", lambda: False)
+    identity.forget()
+
+
 def test_reset_raises_when_restoring_other_state_fails(usage_state_dir, monkeypatch):
     state.write({"install_id": "x", "notice_version": 1})
     monkeypatch.setattr(state, "write", lambda updates: False)
