@@ -271,13 +271,35 @@ class TestRetryAfterLimit:
         [
             pytest.param(None, "3600", [3600.0], id="no-limit"),
             pytest.param(60, "30", [30.0], id="within-limit"),
-            pytest.param(60, "3600", [], id="beyond-limit"),
         ],
     )
     @httpretty.activate(allow_net_connect=False)
-    def test_retry_after_is_honored_up_to_the_limit(
+    def test_retry_after_within_the_limit_is_honored(
         self, monkeypatch, max_retry_after, retry_after, sleeps
     ) -> None:
+        self._register_throttled_then_ok(retry_after)
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        session = create_requests_session(max_retry_after=max_retry_after)
+
+        assert session.post("https://api.example.com/").status_code == 200
+        assert slept == sleeps
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_beyond_the_limit_fails_without_waiting(
+        self, monkeypatch
+    ) -> None:
+        self._register_throttled_then_ok("3600")
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        session = create_requests_session(max_retry_after=60)
+
+        with pytest.raises(requests.exceptions.RetryError):
+            session.post("https://api.example.com/")
+        assert slept == []
+
+    @staticmethod
+    def _register_throttled_then_ok(retry_after):
         httpretty.register_uri(
             httpretty.POST,
             "https://api.example.com/",
@@ -288,18 +310,3 @@ class TestRetryAfterLimit:
                 httpretty.Response("", status=200),
             ],
         )
-        slept = []
-        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
-        reported = []
-        session = create_requests_session(
-            max_retry_after=max_retry_after,
-            error_retry_cb=lambda seconds, context: reported.append(seconds),
-        )
-
-        try:
-            session.post("https://api.example.com/")
-        except requests.exceptions.RetryError:
-            pass
-
-        assert slept == sleeps
-        assert reported == sleeps

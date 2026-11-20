@@ -46,9 +46,7 @@ def report_retry(seconds: float, context: str | None = None) -> None:
         click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
 
-#: The longest Retry-After, in seconds, that the shared session waits for. It
-#: renews SAML sessions and exchanges OIDC tokens before every command, so a
-#: longer wait would look like a hang.
+#: The longest Retry-After, in seconds, that the pre-command auth session waits for.
 SESSION_MAX_RETRY_AFTER = 60
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"

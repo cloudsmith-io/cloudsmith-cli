@@ -8,7 +8,6 @@ import jwt
 import requests
 from freezegun import freeze_time
 
-from cloudsmith_cli.cli.decorators import SESSION_MAX_RETRY_AFTER
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.session import create_requests_session
 from cloudsmith_cli.core.sso import get_access_token_expiry, renew_sso_session
@@ -142,7 +141,7 @@ def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch):
     expired_access_token = jwt.encode(
         {"exp": datetime(2024, 1, 1, tzinfo=UTC)}, "secret", algorithm="HS256"
     )
-    session = create_requests_session(max_retry_after=SESSION_MAX_RETRY_AFTER)
+    session = create_requests_session(max_retry_after=60)
     with (
         patch(
             "cloudsmith_cli.core.sso.keyring.get_access_token",

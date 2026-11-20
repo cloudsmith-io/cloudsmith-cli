@@ -81,18 +81,6 @@ class RetryWithCallback(Retry):
         kw["max_retry_after"] = self.max_retry_after
         return super().new(**kw)
 
-    def _retry_after_exceeds_limit(self, response):
-        if (
-            self.max_retry_after is None
-            or not self.respect_retry_after_header
-            or response is None
-        ):
-            return None
-        retry_after = self.get_retry_after(response)
-        if retry_after and retry_after > self.max_retry_after:
-            return retry_after
-        return None
-
     def increment(
         self,
         method: str | None = None,
@@ -108,13 +96,18 @@ class RetryWithCallback(Retry):
             find_certificate_error(error) is not None or _is_unknown_host_error(error)
         ):
             raise MaxRetryError(_pool, url, error) from error
-        retry_after = self._retry_after_exceeds_limit(response)
-        if retry_after:
-            reason = ResponseError(
-                f"the server asked to retry after {retry_after:g} seconds, "
-                f"longer than the {self.max_retry_after:g} second limit"
-            )
-            raise MaxRetryError(_pool, url, reason)
+        if (
+            self.max_retry_after is not None
+            and self.respect_retry_after_header
+            and response is not None
+        ):
+            retry_after = self.get_retry_after(response)
+            if retry_after and retry_after > self.max_retry_after:
+                reason = ResponseError(
+                    f"the server asked to retry after {retry_after:g} seconds, "
+                    f"longer than the {self.max_retry_after:g} second limit"
+                )
+                raise MaxRetryError(_pool, url, reason)
         return super().increment(method, url, response, error, _pool, _stacktrace)
 
     def sleep_for_retry(self, response=None):
