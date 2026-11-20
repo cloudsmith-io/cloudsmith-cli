@@ -163,10 +163,24 @@ class RestClient(RESTClientObject):
         resp.encoding = resp.apparent_encoding or "utf-8"
         rest_resp = RestResponse(resp)
 
-        if _preload_content:
-            logger.debug("response body: %s", rest_resp.data)
-
         if not 200 <= rest_resp.status <= 299:
             raise ApiException(http_resp=rest_resp)
 
+        _raise_for_html(rest_resp)
+
+        if _preload_content:
+            logger.debug("response body: %s", rest_resp.data)
+
         return rest_resp
+
+
+def _raise_for_html(rest_resp: RestResponse) -> None:
+    """Reject an HTML page, such as a proxy login page, that has a 2xx status."""
+    content_type = rest_resp.getheader("Content-Type") or ""
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if media_type == "text/html":
+        raise ApiException(
+            status=0,
+            reason="The API host returned an HTML page, not an API response. "
+            "Check the API host and your proxy settings.",
+        )

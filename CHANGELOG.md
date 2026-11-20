@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
+- When the API host returns an HTML page instead of an API response, the CLI now shows an error and exits with code 1. Examples are a proxy login page, a captive portal, or an `--api-host` that points to a website. Before, commands such as `entitlements list`, `check service`, and `metadata list` stopped with an unexpected error and sent an error report.
 
 ## [1.31.3] - 2026-11-17
 
