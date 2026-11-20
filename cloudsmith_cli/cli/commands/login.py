@@ -68,11 +68,12 @@ class DeprecatedLoginCommand(click.Command):
         # Click prompts for --login and --password while parsing, so the
         # warning must be printed here rather than in the command body.
         # Shell completion also parses (resiliently); the warning skips it.
-        deprecation.warn(
+        deprecation.warn_message(
             f"`cloudsmith {ctx.info_name}`",
             removal=DEPRECATION_REMOVAL,
             detail=DEPRECATION_DETAIL,
             ctx=ctx,
+            args=args,
         )
         return super().parse_args(ctx, args)
 
