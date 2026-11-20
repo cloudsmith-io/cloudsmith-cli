@@ -950,7 +950,7 @@ def initialise_mcp(f):
     def wrapper(ctx, *args, **kwargs):
         from ..core.mcp import server
 
-        opts = kwargs.get("opts")
+        opts = kwargs["opts"]
 
         all_tools = kwargs.pop("all_tools")
         allow_destructive_tools = kwargs.pop("allow_destructive_tools")

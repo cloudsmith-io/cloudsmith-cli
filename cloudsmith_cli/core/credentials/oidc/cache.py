@@ -172,7 +172,7 @@ def store_cached_token(
     """
     expires_at = _decode_jwt_exp(token)
 
-    data = {
+    data: dict[str, object] = {
         "token": token,
         "expires_at": expires_at,
         "api_host": api_host,

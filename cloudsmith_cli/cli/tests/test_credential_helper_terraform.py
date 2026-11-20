@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Any
 from unittest.mock import patch
 
 import click.testing
@@ -113,6 +114,7 @@ def test_execute_get_returns_token_object_for_cloudsmith_host(credential):
     )
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {"token": "acme/myrepo/k_abc"}
 
 
@@ -145,6 +147,7 @@ def test_execute_get_omits_org_from_token_for_a_custom_domain(credential):
         )
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {"token": "myrepo/k_abc"}
 
 
@@ -174,6 +177,7 @@ def test_execute_get_keeps_the_org_in_the_token_for_a_cloudsmith_owned_host(
         )
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {"token": "acme/myrepo/k_abc"}
 
 
@@ -222,6 +226,7 @@ def test_execute_get_custom_domain_does_not_require_an_org_in_the_token(credenti
         )
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {"token": "myrepo/k_abc"}
 
 
@@ -231,6 +236,7 @@ def test_execute_get_returns_empty_object_for_foreign_host(credential):
     exit_code, stdout, stderr = execute("get", FOREIGN_HOST, credential=credential)
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {}
 
 
@@ -295,6 +301,7 @@ def test_execute_get_returns_empty_object_for_foreign_host_without_a_repo(creden
     )
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {}
 
 
@@ -306,6 +313,7 @@ def test_execute_get_returns_empty_object_for_foreign_host_without_an_org(creden
     )
 
     assert (exit_code, stderr) == (0, None)
+    assert stdout is not None
     assert json.loads(stdout) == {}
 
 
@@ -315,6 +323,7 @@ def test_execute_get_refuses_when_no_hostname_provided(credential):
 
     assert exit_code == 1
     assert stdout is None
+    assert stderr is not None
     assert "hostname" in stderr.lower()
 
 
@@ -344,6 +353,7 @@ def test_execute_rejects_store_and_forget(verb, credential):
 
     assert exit_code == 1
     assert stdout is None
+    assert stderr is not None
     assert verb in stderr
 
 
@@ -355,6 +365,7 @@ def test_execute_rejects_unknown_verb(credential):
 
     assert exit_code == 1
     assert stdout is None
+    assert stderr is not None
     assert "Unknown verb" in stderr
 
 
@@ -425,7 +436,7 @@ def test_cli_store_drains_stdin_before_erroring(runner):
     payload = json.dumps({"token": "should-not-be-stored"}) + "\n"
 
     reads: list[str] = []
-    real_execute = None
+    real_execute: Any = None
 
     def _spy_execute(*args, **kwargs):
         # By the time execute() runs, the store branch must already have drained

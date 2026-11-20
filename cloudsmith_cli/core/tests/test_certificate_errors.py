@@ -16,7 +16,7 @@ def certificate_error(verify_code, verify_message):
     )
     error.verify_code = verify_code
     error.verify_message = verify_message
-    return requests.exceptions.SSLError(MaxRetryError(None, "/", SSLError(error)))
+    return requests.exceptions.SSLError(MaxRetryError(None, "/", SSLError(error)))  # ty: ignore[invalid-argument-type]
 
 
 class TestDescribeCertificateError:

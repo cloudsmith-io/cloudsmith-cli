@@ -2,6 +2,7 @@
 
 import click
 import cloudsmith_api
+import cloudsmith_api.rest
 
 from ...core.api.exceptions import TwoFactorRequiredException
 from ...core.api.user import get_user_token

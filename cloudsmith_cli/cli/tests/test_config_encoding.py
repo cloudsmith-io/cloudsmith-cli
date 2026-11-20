@@ -33,7 +33,7 @@ def fixture_cp1252_locale(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> IO:
         if "b" not in mode and encoding in (None, "locale"):
             encoding = "cp1252"
-        return builtins.open(file, mode, *args, encoding=encoding, **kwargs)
+        return builtins.open(file, mode, *args, encoding=encoding, **kwargs)  # ty: ignore[no-matching-overload]
 
     monkeypatch.setattr(io, "text_encoding", lambda encoding, *_: encoding or "locale")
     monkeypatch.setattr(configparser, "open", open_with_cp1252_default, raising=False)

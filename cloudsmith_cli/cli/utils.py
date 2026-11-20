@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 def make_user_agent(prefix=None):
     """Get a suitable user agent for identifying the CLI process."""
-    prefix = (prefix or platform.platform(terse=1)).strip().lower()
+    prefix = (prefix or platform.platform(terse=True)).strip().lower()
     return f"cloudsmith-cli/{prefix} cli:{get_cli_version()} api:{get_api_version()}"
 
 
@@ -37,7 +37,8 @@ def pretty_print_list_info(
         click.echo(f"Results: {num_results} {suffix}")
     elif page_info is not None and page_info.is_valid and num_results > 0:
         start, end = page_info.calculate_range(num_results)
-        end = min(end, page_info.count)
+        if page_info.count is not None:
+            end = min(end, page_info.count)
         click.echo(
             f"Results: {start}-{end} ({num_results}) of {page_info.count} {suffix} "
             f"(page: {page_info.page}/{page_info.page_total}, page size: {page_info.page_size})"
@@ -200,7 +201,7 @@ def maybe_unstyle_prompt(prompt, err=False):
 
     Applying ``click.unstyle`` to plain text is a harmless no-op.
     """
-    stream = click.get_text_stream("stderr" if err else "stdout")
+    stream = click.get_text_stream("stderr" if err else "stdout")  # ty: ignore[call-non-callable]
     if not stream.isatty():
         prompt = click.unstyle(prompt)
     return prompt
@@ -229,7 +230,7 @@ def confirm_operation(prompt, prefix=None, assume_yes=False, err=False):
     # discipline to echo typed characters. In non-TTY contexts (CI logs,
     # piped stdin, captured output) the answer is invisible next to the
     # prompt, so echo the resolved value explicitly.
-    if not click.get_text_stream("stdin").isatty():
+    if not click.get_text_stream("stdin").isatty():  # ty: ignore[call-non-callable]
         click.echo("y" if answered else "N", err=err)
 
     if answered:

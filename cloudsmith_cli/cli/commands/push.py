@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 from datetime import UTC, datetime
+from typing import Any
 
 import click
 
@@ -1127,8 +1128,10 @@ def create_push_handlers():
     # HACK: hacky territory - Dynamically generate a handler for each of the
     # package formats, until we have slightly more clever 'guess type'
     # handling. :-)
-    handlers = create_push_handlers.handlers = {}
-    context = create_push_handlers.context = get_package_formats()
+    handlers = create_push_handlers.handlers = {}  # ty: ignore[unresolved-attribute]
+    context = create_push_handlers.context = (  # ty: ignore[unresolved-attribute]
+        get_package_formats()
+    )
 
     for key, parameters in context.items():
         kwargs = parameters.copy()
@@ -1333,7 +1336,9 @@ def create_push_handlers():
             # over env/config without an explicit thread through every call.
             cli_failure_mode = kwargs.pop(METADATA_FAILURE_MODE_KWARG, None)
             if cli_failure_mode is not None:
-                opts.cli_metadata_failure_mode = cli_failure_mode
+                opts.cli_metadata_failure_mode = (  # ty: ignore[invalid-assignment]
+                    cli_failure_mode
+                )
 
             # ``--compress`` is a client-side switch, not a
             # package-create field, so keep it out of the API payload.
@@ -1436,7 +1441,7 @@ def create_push_handlers():
 
         # Add any additional arguments
         for k, info in kwargs.items():
-            option_kwargs = {}
+            option_kwargs: dict[str, Any] = {}
             option_name_fmt = "--%(key)s"
 
             if k.endswith("_file"):

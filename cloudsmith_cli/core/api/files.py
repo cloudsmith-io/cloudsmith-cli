@@ -100,7 +100,9 @@ def upload_file(upload_url, upload_fields, filepath, callback=None):
         resp.raise_for_status()
     except requests.RequestException as exc:
         raise ApiException(
-            resp.status_code, headers=exc.response.headers, body=exc.response.content
+            resp.status_code,
+            headers=exc.response.headers,  # ty: ignore[unresolved-attribute]
+            body=exc.response.content,  # ty: ignore[unresolved-attribute]
         )
 
 
@@ -128,8 +130,8 @@ def multi_part_upload_file(
             except requests.RequestException as exc:
                 raise ApiException(
                     resp.status_code,
-                    headers=exc.response.headers,
-                    body=exc.response.content,
+                    headers=exc.response.headers,  # ty: ignore[unresolved-attribute]
+                    body=exc.response.content,  # ty: ignore[unresolved-attribute]
                 )
             callback()
             chunk_number += 1

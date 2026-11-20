@@ -97,6 +97,7 @@ def test_execute_protocol_matrix(
     if stderr_substr is None:
         assert stderr is None
     else:
+        assert stderr is not None
         assert stderr_substr in stderr
 
 
@@ -212,6 +213,7 @@ def test_execute_get_empty_stdin_returns_exit_1():
 
     assert code == 1
     assert stdout is None
+    assert stderr is not None
     assert "No server URL provided" in stderr
 
 

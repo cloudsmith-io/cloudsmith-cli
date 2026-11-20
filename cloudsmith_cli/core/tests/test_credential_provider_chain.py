@@ -30,6 +30,7 @@ class TestCredentialProviderChain:
             ]
         )
         result = chain.resolve(CredentialContext())
+        assert result is not None
         assert result.api_key == "key1"
         assert result.source_name == "first"
 
@@ -42,6 +43,7 @@ class TestCredentialProviderChain:
             ]
         )
         result = chain.resolve(CredentialContext())
+        assert result is not None
         assert result.api_key == "key2"
 
     def test_returns_none_when_all_fail(self):
@@ -63,6 +65,7 @@ class TestCredentialProviderChain:
             ]
         )
         result = chain.resolve(CredentialContext())
+        assert result is not None
         assert result.api_key == "key2"
 
     def test_empty_chain(self):

@@ -9,10 +9,10 @@ MAX_PAGE_SIZE = 1000
 class PageInfo:
     """Data for pagination results."""
 
-    count = None
-    page = None
-    page_size = None
-    page_total = None
+    count: int | None = None
+    page: int | None = None
+    page_size: int | None = None
+    page_total: int | None = None
 
     def __str__(self) -> str:
         """Get page information as text."""
@@ -23,7 +23,12 @@ class PageInfo:
 
     def calculate_range(self, num_results):
         """Calculate beginning and end of page range for results."""
-        if self.is_valid and num_results:
+        if (
+            self.is_valid
+            and self.page is not None
+            and self.page_size is not None
+            and num_results
+        ):
             from_range = (self.page - 1) * self.page_size
             to_range = from_range + num_results
             from_range += 1
@@ -33,12 +38,12 @@ class PageInfo:
 
         return from_range, to_range
 
-    def as_dict(self, num_results: int | None = None) -> dict[str, int]:
+    def as_dict(self, num_results: int | None = None) -> dict[str, Any]:
         """Create PageInfo from a dictionary."""
         if not self.is_valid:
             return {}
 
-        data = {
+        data: dict[str, Any] = {
             "results_total": self.count,
             "page": self.page,
             "page_size": self.page_size,
@@ -125,7 +130,10 @@ def paginate_results(
             return all_results, last_page_info
         all_results.extend(page_results)
 
-        if current_page >= last_page_info.page_total:
+        if (
+            last_page_info.page_total is not None
+            and current_page >= last_page_info.page_total
+        ):
             break
         current_page += 1
 

@@ -193,7 +193,7 @@ class TestDownloadCommand(unittest.TestCase):
 
         # Mock package not found
         exc = click.ClickException("No packages found")
-        exc.exit_code = 2
+        exc.exit_code = 2  # ty: ignore[invalid-attribute-access]
         mock_resolve_pkg.side_effect = exc
 
         result = self.runner.invoke(
@@ -214,7 +214,7 @@ class TestDownloadCommand(unittest.TestCase):
 
         # Mock multiple packages found
         exc = click.ClickException("Multiple packages found")
-        exc.exit_code = 3
+        exc.exit_code = 3  # ty: ignore[invalid-attribute-access]
         mock_resolve_pkg.side_effect = exc
 
         result = self.runner.invoke(

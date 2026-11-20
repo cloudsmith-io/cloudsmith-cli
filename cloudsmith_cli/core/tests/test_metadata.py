@@ -584,7 +584,7 @@ class TestAuthHeaders:
         import cloudsmith_api
 
         cfg = cloudsmith_api.Configuration()
-        cfg.headers = headers if headers is not None else cfg.headers
+        cfg.headers = headers if headers is not None else cfg.headers  # ty: ignore[unresolved-attribute]
         monkeypatch.setattr(cloudsmith_api.Configuration, "_default", cfg)
 
     @httpretty.activate(allow_net_connect=False)

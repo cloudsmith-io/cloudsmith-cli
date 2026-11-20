@@ -21,6 +21,20 @@ def no_real_error_reports(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_user_config_files(monkeypatch):
+    """Never read the developer's own config.ini or credentials.ini.
+
+    The search path is fixed at import, so a local ``~/.cloudsmith/config.ini``
+    would otherwise leak settings such as ``org`` into every test. Tests that
+    need a config file pass an explicit path or set the search path themselves.
+    """
+    from cloudsmith_cli.cli import config
+
+    monkeypatch.setattr(config.ConfigReader, "config_searchpath", ["."])
+    monkeypatch.setattr(config.CredentialsReader, "config_searchpath", ["."])
+
+
+@pytest.fixture(autouse=True)
 def default_keyring_settings():
     """Start each test with the default keyring settings."""
     core_keyring.configure(core_keyring.KeyringSettings())

@@ -907,7 +907,7 @@ def _keyring_session(backend, env, has_terminal=False, typed_password=None):
             "controlling_terminal_mode",
             return_value=TTYMode.ENABLED if has_terminal else TTYMode.DISABLED,
         ),
-        patch.object(getpass, "getpass", **prompt) as getpass_mock,
+        patch.object(getpass, "getpass", **prompt) as getpass_mock,  # ty: ignore[no-matching-overload]
     ):
         yield getpass_mock
     if typed_password is None:

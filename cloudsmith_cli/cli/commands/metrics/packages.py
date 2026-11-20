@@ -1,5 +1,7 @@
 """CLI/Commands - retrieve metrics."""
 
+from typing import Any
+
 import click
 
 from ....core.api import metrics as api
@@ -44,7 +46,7 @@ def _print_metrics_table(opts, data):
         category_data = getattr(data, category_key)
         cols = [category_header]
         for metric_key in metrics_keys.values():
-            metric_data = getattr(category_data, metric_key, {})
+            metric_data: Any = getattr(category_data, metric_key, {})
             if hasattr(metric_data, "display"):
                 value = metric_data.display
             else:

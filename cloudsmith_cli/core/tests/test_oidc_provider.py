@@ -40,6 +40,7 @@ def test_cached_oidc_token_names_the_vendor():
     ):
         credential = OidcProvider().resolve(_context())
 
+    assert credential is not None
     assert credential.api_key == "cached-token"
     assert credential.source_detail == (
         "OIDC via GitHub Actions [cached] (org: cloudsmith, service: github-actions)"
@@ -54,6 +55,7 @@ def test_cached_oidc_token_without_a_vendor_keeps_the_old_source():
     ):
         credential = OidcProvider().resolve(_context())
 
+    assert credential is not None
     assert credential.source_detail == (
         "OIDC [cached] (org: cloudsmith, service: github-actions)"
     )
@@ -234,6 +236,9 @@ def test_malformed_disk_cache_entry_does_not_block_exchange(tmp_path, entry):
     context = _context()
     cache_dir = tmp_path / "oidc_token_cache"
     cache_dir.mkdir()
+    assert context.org is not None
+    assert context.api_host is not None
+    assert context.oidc_service_slug is not None
     cache_key = _cache_key(context.api_host, context.org, context.oidc_service_slug)
     (cache_dir / cache_key).write_text(json.dumps(entry))
 

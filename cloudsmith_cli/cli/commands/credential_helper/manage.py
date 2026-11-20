@@ -212,9 +212,10 @@ def _launcher_settings_from_cli(ctx: click.Context) -> dict[str, str]:
     that replaces it.
     """
     contexts = []
-    while ctx is not None:
-        contexts.insert(0, ctx)
-        ctx = ctx.parent
+    current: click.Context | None = ctx
+    while current is not None:
+        contexts.insert(0, current)
+        current = current.parent
 
     supplied = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
     settings = {}

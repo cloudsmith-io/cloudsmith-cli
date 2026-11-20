@@ -18,7 +18,7 @@ from .gitlab_ci import GitLabCIDetector
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from ... import CredentialContext
+    from ...models import CredentialContext
     from .base import EnvironmentDetector
 
 logger = logging.getLogger(__name__)

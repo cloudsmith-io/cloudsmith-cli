@@ -479,7 +479,7 @@ def gpg_dry_run(ctx, opts, action, reasons, owner, repo, note=None, err=False):
 
 def stdin_is_a_terminal():
     """Check whether stdin is attached to a terminal."""
-    return click.get_text_stream("stdin").isatty()
+    return click.get_text_stream("stdin").isatty()  # ty: ignore[call-non-callable]
 
 
 def confirm_regenerate(err=False):

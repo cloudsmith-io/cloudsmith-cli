@@ -303,7 +303,7 @@ class TestMCPSpecLoadErrors:
 
         api_config = cloudsmith_api.Configuration()
         api_config.host = "https://api.cloudsmith.io"
-        api_config.headers = {}
+        api_config.headers = {}  # ty: ignore[unresolved-attribute]
         server = DynamicMCPServer(api_config=api_config)
 
         with self._api_replies(refuse), pytest.raises(ApiException) as exc_info:
@@ -469,7 +469,7 @@ class TestMCPServerLoadOpenAPISpec:
 
         api_config = cloudsmith_api.Configuration()
         api_config.host = "https://api.cloudsmith.io"
-        api_config.headers = {}
+        api_config.headers = {}  # ty: ignore[unresolved-attribute]
         server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
 
         def handler(request):

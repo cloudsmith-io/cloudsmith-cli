@@ -13,6 +13,7 @@ class TestEnvVarProvider:
         assert result.api_key == "env-api-key-5678"
         assert result.source_name == "env_var"
         assert result.auth_type == "api_key"
+        assert result.source_detail is not None
         assert "5678" in result.source_detail
         assert "CLOUDSMITH_API_KEY" in result.source_detail
 
@@ -32,6 +33,7 @@ class TestEnvVarProvider:
         provider = EnvVarProvider()
         context = CredentialContext(api_key_from_env="  my-env-key  ")
         result = provider.resolve(context)
+        assert result is not None
         assert result.api_key == "my-env-key"
 
     def test_ignores_flag_and_file_keys(self):

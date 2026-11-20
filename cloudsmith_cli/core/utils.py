@@ -3,6 +3,7 @@
 import hashlib
 import os
 import sys
+from collections.abc import Mapping
 from enum import Enum, auto
 
 import click
@@ -77,7 +78,7 @@ def color_enabled(env: dict[str, str], colorMode: ColorMode, ttyMode: TTYMode) -
     return True
 
 
-def is_interactive(env: dict[str, str], tty_mode: TTYMode) -> bool:
+def is_interactive(env: Mapping[str, str], tty_mode: TTYMode) -> bool:
     """Suppresses interactive prompts for user input based on conditions in the shell environment"""
     if env.get("CI"):
         return False

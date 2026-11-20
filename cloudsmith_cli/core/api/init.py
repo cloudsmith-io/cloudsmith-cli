@@ -1,7 +1,7 @@
 """Cloudsmith API - Initialisation."""
 
 import base64
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import click
 import cloudsmith_api
@@ -40,7 +40,8 @@ def initialise_api(
 ) -> cloudsmith_api.Configuration:
     """Initialise the cloudsmith_api.Configuration."""
     # FIXME: pylint: disable=too-many-arguments
-    config = cloudsmith_api.Configuration()
+    # The SDK Configuration gains attributes at runtime (see set_default below).
+    config: Any = cloudsmith_api.Configuration()
     config.debug = debug
     config.host = host if host else config.host
     config.proxy = proxy if proxy else config.proxy
@@ -93,7 +94,7 @@ T = TypeVar("T")
 def get_api_client(cls: type[T]) -> T:
     """Get an API client (with configuration)."""
     config = cloudsmith_api.Configuration()
-    client = cls()
+    client: Any = cls()
     client.config = config
     client.api_client.rest_client = RestClient(
         error_retry_cb=getattr(config, "error_retry_cb", None),

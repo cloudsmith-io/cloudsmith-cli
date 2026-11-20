@@ -110,7 +110,7 @@ class TestRestClient:
         client = RestClient()
 
         with pytest.raises(ApiException) as raised:
-            client.request("GET", "https://test.site", _request_timeout=(5, 10, 15))
+            client.request("GET", "https://test.site", _request_timeout=(5, 10, 15))  # ty: ignore[invalid-argument-type]
 
         assert raised.value.status == 0
 
@@ -228,7 +228,7 @@ class TestRetryOnSSLErrors:
 
 def name_resolution_error(reason):
     """Return the ``NameResolutionError`` that urllib3 raises from ``reason``."""
-    error = NameResolutionError("api.example.com", None, reason)
+    error = NameResolutionError("api.example.com", None, reason)  # ty: ignore[invalid-argument-type]
     error.__cause__ = reason
     return error
 
@@ -257,7 +257,7 @@ class TestRetryOnNameResolutionErrors:
         "error",
         [
             name_resolution_error(socket.gaierror(socket.EAI_AGAIN, "try again")),
-            NameResolutionError("api.example.com", None, None),
+            NameResolutionError("api.example.com", None, None),  # ty: ignore[invalid-argument-type]
         ],
         ids=["temporary-failure", "no-gaierror"],
     )

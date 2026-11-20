@@ -7,7 +7,7 @@ import os
 import re
 import stat
 import threading
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import click
 from click_configfile import (
@@ -21,6 +21,9 @@ from click_configfile import (
 
 from ..core.utils import get_data_path, read_file
 from . import deprecation, utils, validators
+
+if TYPE_CHECKING:
+    from ..core.credentials.models import CredentialResult
 
 OPTIONS = threading.local()
 
@@ -111,10 +114,15 @@ class ConfigSchema:
 class ConfigReader(ConfigFileReader):
     """Reader for standard configuration."""
 
-    config_files: ClassVar = ["config.ini"]
+    config_files: ClassVar = ["config.ini"]  # ty: ignore[invalid-attribute-override]
     config_name = "standard"
-    config_searchpath: ClassVar = list(_CFG_SEARCH_PATHS)
-    config_section_schemas: ClassVar = [ConfigSchema.Default, ConfigSchema.Profile]
+    config_searchpath: ClassVar = list(  # ty: ignore[invalid-attribute-override]
+        _CFG_SEARCH_PATHS
+    )
+    config_section_schemas: ClassVar = [  # ty: ignore[invalid-attribute-override]
+        ConfigSchema.Default,
+        ConfigSchema.Profile,
+    ]
 
     @classmethod
     def select_config_schema_for(cls, section_name):
@@ -129,7 +137,7 @@ class ConfigReader(ConfigFileReader):
         """Read the config files, each with its own text encoding."""
         # click_configfile reads all files with the locale encoding only.
         parser = configparser.ConfigParser()
-        parser.optionxform = str
+        parser.optionxform = str  # ty: ignore[invalid-assignment]
         for path in generate_configfile_names(cls.config_files, cls.config_searchpath):
             encoding = _get_file_encoding(path)
             try:
@@ -292,7 +300,7 @@ class ConfigReader(ConfigFileReader):
             # A malformed file is the user's to fix, not a CLI bug: keep the
             # error as-is for the user, but never send it to error reporting
             # (see core.telemetry.is_reportable).
-            exc.report_to_telemetry = False
+            exc.report_to_telemetry = False  # ty: ignore[invalid-assignment]
             raise
         values = config.get("default", {})
         cls._load_values_into_opts(opts, values)
@@ -362,7 +370,7 @@ def _get_file_encoding(path: str | os.PathLike[str]) -> str:
 def _get_section_value(content, section, key):
     """Get `key` from the INI `section` of `content`, or None if it does not parse."""
     parser = configparser.ConfigParser(interpolation=None)
-    parser.optionxform = str
+    parser.optionxform = str  # ty: ignore[invalid-assignment]
     try:
         parser.read_string(content)
     except configparser.Error:
@@ -474,6 +482,9 @@ class CredentialsReader(ConfigReader):
 
 class Options:  # pylint: disable=too-many-public-methods
     """Options object that holds config for the application."""
+
+    # Set by the credential decorator once credentials have been resolved.
+    credential: "CredentialResult | None"
 
     def __init__(self, *args, **kwargs):
         """Initialise a new Options object."""

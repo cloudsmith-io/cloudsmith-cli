@@ -6,6 +6,7 @@ import sys
 import unicodedata
 from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any
 from urllib.parse import parse_qsl, unquote, urlparse
 
 import click
@@ -132,7 +133,9 @@ class AuthenticationWebServer(HTTPServer):
         )
 
     def finish_request(self, request, client_address):
-        self.RequestHandlerClass(
+        # The handler takes extra keyword arguments beyond BaseRequestHandler's.
+        handler_class: Any = self.RequestHandlerClass
+        handler_class(
             request,
             client_address,
             self,
@@ -187,9 +190,9 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
     def __init__(self, request, client_address, server, **kwargs):
         self.owner = kwargs.get("owner")
         self.debug = kwargs.get("debug", False)
-        self.session = kwargs.get("session")
+        self.session: Any = kwargs.get("session")
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
-        self.server_instance = kwargs.get("server_instance")
+        self.server_instance: Any = kwargs.get("server_instance")
 
         super().__init__(request, client_address, server)
 

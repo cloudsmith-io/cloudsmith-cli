@@ -134,5 +134,6 @@ class TestGetToken:
         detector = AWSDetector(context=CredentialContext())
         with mock.patch.dict("os.environ", env, clear=True):
             assert detector.detect()
+            assert detector._session is not None
             sts = detector._session.client("sts", region_name="eu-west-1")
         assert sts.meta.config.proxies == {"http": proxy, "https": proxy}

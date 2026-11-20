@@ -432,7 +432,7 @@ def test_color_choices_are_text_for_click_before_8_2():
     color_option = next(param for param in command.params if param.name == "color")
     result = click.testing.CliRunner().invoke(command, ["--color", "NEVER"])
 
-    assert all(isinstance(choice, str) for choice in color_option.type.choices)
+    assert all(isinstance(choice, str) for choice in color_option.type.choices)  # ty: ignore[unresolved-attribute]
     assert result.output == "False\n"
 
 

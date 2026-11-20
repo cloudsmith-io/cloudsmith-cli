@@ -620,7 +620,7 @@ def _format_package_size(package: dict) -> str:
     return _format_file_size(size)
 
 
-def _format_file_size(size: int) -> str:
+def _format_file_size(size: float) -> str:
     """Format file size in bytes to human-readable format."""
     if size == 0:
         return "Unknown"

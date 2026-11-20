@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import tomlkit
+import tomlkit.exceptions
 
 from ...core.cache_utils import merge_config_file
 from ..backends import BackendKind

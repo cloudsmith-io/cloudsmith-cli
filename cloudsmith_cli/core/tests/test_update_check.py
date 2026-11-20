@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -528,13 +529,15 @@ class TestFetchLatestManifest:
 class TestRunBackgroundCheck:
     def test_records_on_success(self, state_path):
         update_check.run_background_check(
-            _FakeSession(version_str=NEWER_VERSION), now=NOW
+            cast(requests.Session, _FakeSession(version_str=NEWER_VERSION)), now=NOW
         )
         assert _read_state(state_path)["latest_version"] == NEWER_VERSION
         assert _read_state(state_path)["last_checked_at"] == NOW
 
     def test_swallows_network_failure_and_records_nothing(self, state_path):
-        update_check.run_background_check(_FakeSession(fails=True), now=NOW)
+        update_check.run_background_check(
+            cast(requests.Session, _FakeSession(fails=True)), now=NOW
+        )
         assert not os.path.exists(state_path)
 
     def test_probes_host_target(self, state_path, monkeypatch):
@@ -544,7 +547,8 @@ class TestRunBackgroundCheck:
 
         monkeypatch.setattr(installation, "detect_target", lambda: "macos-arm64")
         session = _FakeSession(version_str=NEWER_VERSION)
-        update_check.run_background_check(session, now=NOW)
+        update_check.run_background_check(cast(requests.Session, session), now=NOW)
+        assert session.url is not None
         assert "cloudsmith-cli-manifest-macos-arm64" in session.url
 
     def test_falls_back_to_default_target_when_host_unknown(
@@ -554,7 +558,8 @@ class TestRunBackgroundCheck:
 
         monkeypatch.setattr(installation, "detect_target", lambda: None)
         session = _FakeSession(version_str=NEWER_VERSION)
-        update_check.run_background_check(session, now=NOW)
+        update_check.run_background_check(cast(requests.Session, session), now=NOW)
+        assert session.url is not None
         assert update_check.VERSION_PROBE_TARGET in session.url
 
 
@@ -675,7 +680,9 @@ class TestFinishAndNotify:
 
     def test_notifies_and_stamps_when_behind(self, state_path, capsys):
         _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
-        update_check._finish_and_notify(None, self._Opts(), "list", now=NOW + 1)
+        update_check._finish_and_notify(
+            None, cast(Options, self._Opts()), "list", now=NOW + 1
+        )
         err = capsys.readouterr().err
         assert "new version" in err.lower()
         assert NEWER_VERSION in err
@@ -684,13 +691,17 @@ class TestFinishAndNotify:
     def test_silent_and_untouched_when_suppressed(self, state_path, capsys):
         """JSON output suppresses the notice and does not stamp last_notified."""
         _write_state(state_path, last_checked_at=NOW, latest_version=NEWER_VERSION)
-        update_check._finish_and_notify(None, self._Opts("json"), "list", now=NOW + 1)
+        update_check._finish_and_notify(
+            None, cast(Options, self._Opts("json")), "list", now=NOW + 1
+        )
         assert capsys.readouterr().err == ""
         assert "last_notified_at" not in _read_state(state_path)
 
     def test_silent_when_up_to_date(self, state_path, capsys):
         _write_state(state_path, last_checked_at=NOW, latest_version=CURRENT_VERSION)
-        update_check._finish_and_notify(None, self._Opts(), "list", now=NOW)
+        update_check._finish_and_notify(
+            None, cast(Options, self._Opts()), "list", now=NOW
+        )
         assert capsys.readouterr().err == ""
 
     def test_joins_thread_before_reading_state(self, state_path, capsys):
@@ -703,5 +714,7 @@ class TestFinishAndNotify:
 
         thread = threading.Thread(target=writer)
         thread.start()
-        update_check._finish_and_notify(thread, self._Opts(), "list", now=NOW + 1)
+        update_check._finish_and_notify(
+            thread, cast(Options, self._Opts()), "list", now=NOW + 1
+        )
         assert NEWER_VERSION in capsys.readouterr().err
