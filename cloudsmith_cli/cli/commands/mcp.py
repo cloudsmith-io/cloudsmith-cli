@@ -61,7 +61,13 @@ def start(
     with handle_api_exceptions(
         ctx, opts=opts, context_msg=SPEC_LOAD_ERROR_MESSAGE, err=True
     ):
-        mcp_server.run()
+        mcp_server.run(
+            on_tools_loaded=lambda: warn_hidden_tools(
+                mcp_server,
+                "run `cloudsmith mcp configure --allow-destructive-tools`, "
+                "then restart the MCP client",
+            )
+        )
 
 
 @mcp_.command(name="list_tools")
@@ -87,6 +93,10 @@ def list_tools(
         utils.maybe_spinner(opts),
     ):
         tools = mcp_server.list_tools()
+
+    warn_hidden_tools(
+        mcp_server, "run `cloudsmith mcp list_tools --allow-destructive-tools`"
+    )
 
     if not use_stderr:
         click.secho("OK", fg="green", err=use_stderr)
@@ -125,6 +135,10 @@ def list_groups(
     ):
         groups = mcp_server.list_groups()
 
+    warn_hidden_tools(
+        mcp_server, "run `cloudsmith mcp list_groups --allow-destructive-tools`"
+    )
+
     if not use_stderr:
         click.secho("OK", fg="green", err=use_stderr)
 
@@ -134,6 +148,21 @@ def list_groups(
         return
 
     print_groups(groups)
+
+
+def warn_hidden_tools(mcp_server: server.DynamicMCPServer, fix: str) -> None:
+    """Warn on stderr about allowlisted tools that need --allow-destructive-tools."""
+    hidden = mcp_server.hidden_allowlisted_tools
+    if not hidden:
+        return
+    count = len(hidden)
+    click.secho(
+        f"Warning: {count} {'tools' if count != 1 else 'tool'} in your MCP allowlist "
+        f"{'are' if count != 1 else 'is'} hidden without --allow-destructive-tools: "
+        f"{', '.join(hidden)}\nFix: {fix}",
+        fg="yellow",
+        err=True,
+    )
 
 
 def print_tools(tool_list: dict[str, OpenAPITool]):
@@ -214,10 +243,17 @@ def print_groups(group_list: dict[str, list[str]]):
     default=True,
     help="Configure globally (default) or in current project directory (local)",
 )
+@decorators.MCP_ALL_TOOLS_OPTION
+@decorators.MCP_ALLOW_DESTRUCTIVE_TOOLS_OPTION
 @decorators.initialise_api
 @click.pass_context
 def configure(  # pylint: disable=unused-argument
-    ctx: click.Context, opts: Options, client: str | None, is_global: bool
+    ctx: click.Context,
+    opts: Options,
+    client: str | None,
+    is_global: bool,
+    all_tools: bool,
+    allow_destructive_tools: bool,
 ) -> None:
     """
     Configure the Cloudsmith MCP server for supported clients.
@@ -249,7 +285,7 @@ def configure(  # pylint: disable=unused-argument
     profile = ctx.meta.get("profile")
 
     # Determine the best command to run the MCP server
-    server_config = _get_server_config(profile)
+    server_config = _get_server_config(profile, all_tools, allow_destructive_tools)
 
     clients_to_configure = []
     if client:
@@ -318,7 +354,9 @@ def configure(  # pylint: disable=unused-argument
         click.echo(click.style("\nNo clients were configured successfully", fg="red"))
 
 
-def _get_server_config(profile=None):
+def _get_server_config(
+    profile=None, all_tools: bool = False, allow_destructive_tools: bool = False
+):
     """Determine the first available command configuration to run the MCP server."""
     is_frozen = getattr(sys, "frozen", False)
     in_venv = hasattr(sys, "real_prefix") or (
@@ -330,24 +368,30 @@ def _get_server_config(profile=None):
     if profile:
         base_args.extend(["-P", profile])
 
+    start_args = ["mcp", "start"]
+    if all_tools:
+        start_args.append("--all-tools")
+    if allow_destructive_tools:
+        start_args.append("--allow-destructive-tools")
+
     if is_frozen:
-        return {"command": sys.executable, "args": base_args + ["mcp", "start"]}
+        return {"command": sys.executable, "args": base_args + start_args}
 
     # In a venv, always use python -m to ensure we use the venv's packages
     if in_venv:
         return {
             "command": sys.executable,
-            "args": ["-m", "cloudsmith_cli"] + base_args + ["mcp", "start"],
+            "args": ["-m", "cloudsmith_cli"] + base_args + start_args,
         }
 
     # Otherwise, try to find cloudsmith in PATH, fall back to python -m
     cloudsmith_cmd = shutil.which("cloudsmith")
     if cloudsmith_cmd:
-        return {"command": cloudsmith_cmd, "args": base_args + ["mcp", "start"]}
+        return {"command": cloudsmith_cmd, "args": base_args + start_args}
 
     return {
         "command": sys.executable,
-        "args": ["-m", "cloudsmith_cli"] + base_args + ["mcp", "start"],
+        "args": ["-m", "cloudsmith_cli"] + base_args + start_args,
     }
 
 

@@ -930,21 +930,33 @@ def initialise_api(f):
     return resolve_credentials(wrapper)
 
 
+MCP_ALL_TOOLS_OPTION = click.option(
+    "-a",
+    "--all-tools",
+    default=False,
+    is_flag=True,
+    help=(
+        "Enable every tool group and ignore mcp_allowed_tools and "
+        "mcp_allowed_tool_groups. Tools that change data or return credentials "
+        "also need --allow-destructive-tools"
+    ),
+)
+
+MCP_ALLOW_DESTRUCTIVE_TOOLS_OPTION = click.option(
+    "-D",
+    "--allow-destructive-tools",
+    default=False,
+    is_flag=True,
+    help=(
+        "Allow tools that change data or return credentials in the enabled tool "
+        "groups. Add --all-tools to enable every tool group"
+    ),
+)
+
+
 def initialise_mcp(f):
-    @click.option(
-        "-a",
-        "--all-tools",
-        default=False,
-        is_flag=True,
-        help="Show all tools",
-    )
-    @click.option(
-        "-D",
-        "--allow-destructive-tools",
-        default=False,
-        is_flag=True,
-        help="Allow destructive tools to be used",
-    )
+    @MCP_ALL_TOOLS_OPTION
+    @MCP_ALLOW_DESTRUCTIVE_TOOLS_OPTION
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
