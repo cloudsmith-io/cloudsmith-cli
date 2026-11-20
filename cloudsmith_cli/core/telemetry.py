@@ -22,6 +22,7 @@ Keep this module's imports light: it is loaded on the error path only, and
 ``sentry_sdk`` must only ever be imported inside :func:`_send`.
 """
 
+import errno
 import os
 import platform
 import re
@@ -149,10 +150,12 @@ def is_reportable(exc: BaseException) -> bool:
     ``report_to_telemetry = False``. Checked by attribute rather than by
     importing the types, so this module stays light on the error path. A failed
     TLS certificate check is a problem with the network, not with the CLI.
+    An EIO error comes from the device, such as a terminal that hung up.
     """
     return (
         getattr(exc, REPORTABLE_ATTR, True) is not False
         and find_certificate_error(exc) is None
+        and not (isinstance(exc, OSError) and exc.errno == errno.EIO)
     )
 
 

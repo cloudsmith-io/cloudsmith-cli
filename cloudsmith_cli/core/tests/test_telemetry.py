@@ -1,5 +1,6 @@
 """Tests for error reporting: opt-out controls, sending, and anonymisation."""
 
+import errno
 import importlib.util
 import json
 import socket
@@ -151,6 +152,14 @@ def test_user_error_marker_is_inherited(sentry_events):
         pass
 
     assert telemetry.report_exception(raise_and_catch(SpecificUserError())) is False
+    assert sentry_events == []
+
+
+def test_device_io_errors_are_not_reported(sentry_events):
+    """A terminal that hangs up mid-command fails the next write with EIO."""
+    exc = raise_and_catch(OSError(errno.EIO, "Input/output error"))
+
+    assert telemetry.report_exception(exc) is False
     assert sentry_events == []
 
 
