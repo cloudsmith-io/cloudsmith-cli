@@ -194,7 +194,9 @@ def retry_after_limit_as_api_error() -> Iterator[None]:
         limit_error = find_retry_after_limit_error(exc)
         if limit_error is None:
             raise
-        raise ApiException(429, detail=str(limit_error)) from exc
+        raise ApiException(
+            429, detail=str(limit_error), headers=limit_error.headers
+        ) from exc
 
 
 def raise_for_api_error(response):

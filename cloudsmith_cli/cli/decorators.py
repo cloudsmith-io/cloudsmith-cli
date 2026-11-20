@@ -46,7 +46,7 @@ def report_retry(seconds: float, context: str | None = None) -> None:
         click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
 
-#: The longest Retry-After, in seconds, that the pre-command auth session waits for.
+#: The longest Retry-After, in seconds, that the command's shared session waits for.
 SESSION_MAX_RETRY_AFTER = 60
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"

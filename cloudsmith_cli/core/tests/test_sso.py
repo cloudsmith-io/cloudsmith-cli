@@ -124,7 +124,7 @@ def test_definitive_rejection_cleans_up_profile_then_legacy_tokens():
 
 
 @httpretty.activate(allow_net_connect=False)
-def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch):
+def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch) -> None:
     monkeypatch.setattr(
         httpretty.core.fakesock.socket,
         "shutdown",
@@ -159,4 +159,5 @@ def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch):
     assert result.status == "failed"
     assert isinstance(result.error, ApiException)
     assert result.error.status == 429
+    assert result.error.headers["Retry-After"] == "3600"
     sleep.assert_not_called()
