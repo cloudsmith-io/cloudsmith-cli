@@ -68,6 +68,21 @@ def _is_unknown_host_error(error: BaseException | None) -> bool:
     return False
 
 
+class RetryAfterLimitError(ResponseError):
+    """The server asked to wait longer than the retry's ``max_retry_after``."""
+
+
+def find_retry_after_limit_error(
+    error: BaseException,
+) -> RetryAfterLimitError | None:
+    """Return the RetryAfterLimitError behind a requests RetryError, or None."""
+    if isinstance(error, requests.exceptions.RetryError) and error.args:
+        reason = getattr(error.args[0], "reason", None)
+        if isinstance(reason, RetryAfterLimitError):
+            return reason
+    return None
+
+
 class RetryWithCallback(Retry):
     """A urllib3 Retry with a callback on retries and an optional Retry-After limit."""
 
@@ -103,9 +118,9 @@ class RetryWithCallback(Retry):
         ):
             retry_after = self.get_retry_after(response)
             if retry_after and retry_after > self.max_retry_after:
-                reason = ResponseError(
-                    f"the server asked to retry after {retry_after:g} seconds, "
-                    f"longer than the {self.max_retry_after:g} second limit"
+                reason = RetryAfterLimitError(
+                    f"The server asked to retry after {retry_after:g} seconds, "
+                    f"longer than the {self.max_retry_after:g}-second limit."
                 )
                 raise MaxRetryError(_pool, url, reason)
         return super().increment(method, url, response, error, _pool, _stacktrace)

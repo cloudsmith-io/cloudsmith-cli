@@ -60,11 +60,8 @@ def _renew_existing_sso_session(opts, profile):
         SsoRenewalStatus.CURRENT,
     ):
         return renewal
-    # A RetryError means Cloudsmith answered but would not renew the session yet.
-    if (
-        renewal.status == SsoRenewalStatus.FAILED
-        and isinstance(renewal.error, requests.RequestException)
-        and not isinstance(renewal.error, requests.exceptions.RetryError)
+    if renewal.status == SsoRenewalStatus.FAILED and isinstance(
+        renewal.error, requests.RequestException
     ):
         raise click.ClickException(
             "The SAML session has expired and Cloudsmith could not be reached: "

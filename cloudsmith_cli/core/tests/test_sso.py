@@ -157,5 +157,6 @@ def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch):
         result = renew_sso_session(API_HOST, session)
 
     assert result.status == "failed"
-    assert isinstance(result.error, requests.exceptions.RetryError)
+    assert isinstance(result.error, ApiException)
+    assert result.error.status == 429
     sleep.assert_not_called()

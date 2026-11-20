@@ -394,7 +394,7 @@ class TestAuthenticateCommand:
     ) -> None:
         renewal = SsoRenewalResult(
             status=SsoRenewalStatus.FAILED,
-            error=requests.exceptions.RetryError("too many 429 error responses"),
+            error=ApiException(429, detail="Request was throttled."),
         )
         with (
             patch(
