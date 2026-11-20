@@ -11,11 +11,18 @@ See: https://github.com/docker/docker-credential-helpers
 
 import json
 import logging
+from typing import TextIO
 
+from ...core.credentials.models import CredentialResult
 from ..backends import BackendKind
 from ..common import REFUSAL_MESSAGE, is_cloudsmith_domain
 
 logger = logging.getLogger(__name__)
+
+# Docker treats these exact stdout strings as typed errors, and pulls
+# anonymously on the not-found one. See docker-credential-helpers credentials/error.go.
+CREDENTIALS_NOT_FOUND_MESSAGE = "credentials not found in native keychain"
+MISSING_SERVER_URL_MESSAGE = "no credentials server URL"
 
 
 def get_credentials(server_url, credential=None, api_host=None, org=None):
@@ -50,19 +57,26 @@ def get_credentials(server_url, credential=None, api_host=None, org=None):
 
 
 def _execute_get(
-    stdin, credential, api_host, org
+    stdin: TextIO,
+    credential: CredentialResult | None,
+    api_host: str | None,
+    org: str | None,
 ) -> tuple[int, str | None, str | None]:
     """Handle the 'get' operation of the Docker credential helper protocol."""
     try:
         server_url = stdin.read().strip()
         if not server_url:
-            return (1, None, "Error: No server URL provided on stdin")
+            return (
+                1,
+                MISSING_SERVER_URL_MESSAGE,
+                "Error: No server URL provided on stdin",
+            )
 
         creds = get_credentials(
             server_url, credential=credential, api_host=api_host, org=org
         )
         if creds is None:
-            return (1, None, REFUSAL_MESSAGE)
+            return (1, CREDENTIALS_NOT_FOUND_MESSAGE, REFUSAL_MESSAGE)
 
         return (0, json.dumps(creds), None)
     except Exception as exc:  # pylint: disable=broad-except
