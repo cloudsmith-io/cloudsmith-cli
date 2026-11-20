@@ -263,3 +263,43 @@ class TestRetryOnNameResolutionErrors:
     )
     def test_other_name_resolution_errors_are_retried(self, retry, error):
         assert retry.increment("GET", "/", error=error).total == 5
+
+
+class TestRetryAfterLimit:
+    @pytest.mark.parametrize(
+        "max_retry_after, retry_after, sleeps",
+        [
+            pytest.param(None, "3600", [3600.0], id="no-limit"),
+            pytest.param(60, "30", [30.0], id="within-limit"),
+            pytest.param(60, "3600", [], id="beyond-limit"),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_is_honored_up_to_the_limit(
+        self, monkeypatch, max_retry_after, retry_after, sleeps
+    ) -> None:
+        httpretty.register_uri(
+            httpretty.POST,
+            "https://api.example.com/",
+            responses=[
+                httpretty.Response(
+                    "", status=429, adding_headers={"Retry-After": retry_after}
+                ),
+                httpretty.Response("", status=200),
+            ],
+        )
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        reported = []
+        session = create_requests_session(
+            max_retry_after=max_retry_after,
+            error_retry_cb=lambda seconds, context: reported.append(seconds),
+        )
+
+        try:
+            session.post("https://api.example.com/")
+        except requests.exceptions.RetryError:
+            pass
+
+        assert slept == sleeps
+        assert reported == sleeps

@@ -3,11 +3,14 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, call, patch
 
+import httpretty
 import jwt
 import requests
 from freezegun import freeze_time
 
+from cloudsmith_cli.cli.decorators import SESSION_MAX_RETRY_AFTER
 from cloudsmith_cli.core.api.exceptions import ApiException
+from cloudsmith_cli.core.session import create_requests_session
 from cloudsmith_cli.core.sso import get_access_token_expiry, renew_sso_session
 
 API_HOST = "https://api.example.com"
@@ -119,3 +122,41 @@ def test_definitive_rejection_cleans_up_profile_then_legacy_tokens():
         call(API_HOST, profile="work", include_legacy=False),
         call(API_HOST),
     ]
+
+
+@httpretty.activate(allow_net_connect=False)
+def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch):
+    monkeypatch.setattr(
+        httpretty.core.fakesock.socket,
+        "shutdown",
+        lambda self, how: None,
+        raising=False,
+    )
+    httpretty.register_uri(
+        httpretty.POST,
+        f"{API_HOST}/user/refresh-token/",
+        status=429,
+        body='{"detail": "Request was throttled."}',
+        adding_headers={"Retry-After": "3600"},
+    )
+    expired_access_token = jwt.encode(
+        {"exp": datetime(2024, 1, 1, tzinfo=UTC)}, "secret", algorithm="HS256"
+    )
+    session = create_requests_session(max_retry_after=SESSION_MAX_RETRY_AFTER)
+    with (
+        patch(
+            "cloudsmith_cli.core.sso.keyring.get_access_token",
+            return_value=expired_access_token,
+        ),
+        patch(
+            "cloudsmith_cli.core.sso.keyring.get_refresh_token",
+            return_value="old-refresh",
+        ),
+        patch("cloudsmith_cli.core.sso.keyring.update_refresh_attempted_at"),
+        patch("cloudsmith_cli.core.session.time.sleep") as sleep,
+    ):
+        result = renew_sso_session(API_HOST, session)
+
+    assert result.status == "failed"
+    assert isinstance(result.error, requests.exceptions.RetryError)
+    sleep.assert_not_called()
