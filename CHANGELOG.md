@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `repos create`/`update`, `upstream <format> create`/`update` and `policy deny|license|vulnerability create`/`update` now report a usage error when the config file isn't valid JSON or doesn't hold a JSON object, for example a file with a trailing comma. Previously the command crashed with a `JSONDecodeError` or `AttributeError` traceback.
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
 
 ## [1.31.3] - 2026-11-17
