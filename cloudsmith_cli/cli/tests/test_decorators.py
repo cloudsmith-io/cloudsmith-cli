@@ -32,7 +32,7 @@ def test_report_retry_writes_to_stderr():
     result = click.testing.CliRunner().invoke(command, catch_exceptions=False)
 
     assert result.stdout == '{"data": []}\n'
-    assert "The server asked to retry after 30 second(s)" in result.stderr
+    assert "Request was throttled (429)" in result.stderr
 
 
 def test_report_retry_announces_backoff_on_stderr():
