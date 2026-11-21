@@ -1,4 +1,4 @@
-FROM astral/uv:0.13.7-alpine3.23@sha256:a788290ce829958f18bcea1dfd9fb5dcf4bfb22f6380b52c9322f9d91e86b117 AS build
+FROM astral/uv:0.13.8-alpine3.23@sha256:d436fa324e71ef7c8accd7902e893d18a19a0e3afb3ecf57626d696d982137e5 AS build
 
 WORKDIR /root/cloudsmith-cli
 
