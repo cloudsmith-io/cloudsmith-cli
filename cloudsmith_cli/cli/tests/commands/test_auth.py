@@ -364,11 +364,19 @@ class TestAuthenticateCommand:
                 legacy_result.stderr
             )
 
-    def test_expired_session_offline_has_actionable_error(self, runner):
-        renewal = SsoRenewalResult(
-            status=SsoRenewalStatus.FAILED,
-            error=requests.ConnectionError("offline"),
-        )
+    @pytest.mark.parametrize(
+        "error, reason",
+        [
+            pytest.param(requests.ConnectionError("offline"), "offline", id="offline"),
+            pytest.param(
+                ApiException(503, detail="Service unavailable"),
+                "503 - Service unavailable",
+                id="unavailable",
+            ),
+        ],
+    )
+    def test_expired_session_offline_has_actionable_error(self, runner, error, reason):
+        renewal = SsoRenewalResult(status=SsoRenewalStatus.FAILED, error=error)
         with (
             patch(
                 "cloudsmith_cli.cli.commands.auth.renew_sso_session",
@@ -385,7 +393,7 @@ class TestAuthenticateCommand:
             result = runner.invoke(authenticate, [])
 
         assert result.exit_code == 1
-        assert "Cloudsmith could not be reached: offline" in result.output
+        assert f"Cloudsmith could not be reached: {reason}" in result.output
         assert "Check your connection" in result.output
         auth_server.assert_not_called()
 

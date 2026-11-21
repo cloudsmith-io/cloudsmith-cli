@@ -152,7 +152,9 @@ def test_renewal_stopped_by_retry_after_keeps_the_response_status(
     expired_access_token = jwt.encode(
         {"exp": datetime(2024, 1, 1, tzinfo=UTC)}, "secret", algorithm="HS256"
     )
-    session = create_requests_session(retry_after_budget=60)
+    session = create_requests_session(
+        retry_after_budget=60, status_forcelist=[429, 500, 502, 503, 504]
+    )
     with (
         patch(
             "cloudsmith_cli.core.sso.keyring.get_access_token",

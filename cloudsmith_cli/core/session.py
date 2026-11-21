@@ -69,7 +69,7 @@ def _is_unknown_host_error(error: BaseException | None) -> bool:
 
 
 class RetryAfterLimitError(ResponseError):
-    """The server asked to wait past the retry's ``retry_after_budget``."""
+    """Retries stopped on a 429, or on a Retry-After past the ``retry_after_budget``."""
 
     def __init__(self, message, status, headers=None):
         super().__init__(message)
@@ -118,16 +118,12 @@ class RetryWithCallback(Retry):
             find_certificate_error(error) is not None or _is_unknown_host_error(error)
         ):
             raise MaxRetryError(_pool, url, error) from error
-        retry_after = (
-            self.get_retry_after(response)
-            if self.retry_after_budget is not None
-            and self.respect_retry_after_header
-            and response is not None
-            else None
-        )
-        if not retry_after:
+        if self.retry_after_budget is None or response is None:
             return super().increment(method, url, response, error, _pool, _stacktrace)
 
+        retry_after = (
+            self.get_retry_after(response) if self.respect_retry_after_header else None
+        ) or 0
         waited = self.retry_after_waited + retry_after
         if waited > self.retry_after_budget:
             reason = RetryAfterLimitError(
@@ -137,7 +133,17 @@ class RetryWithCallback(Retry):
                 headers=response.headers,
             )
             raise MaxRetryError(_pool, url, reason)
-        retry = super().increment(method, url, response, error, _pool, _stacktrace)
+        try:
+            retry = super().increment(method, url, response, error, _pool, _stacktrace)
+        except MaxRetryError as exc:
+            if response.status != 429:
+                raise
+            reason = RetryAfterLimitError(
+                "The server throttled the request on every retry.",
+                status=response.status,
+                headers=response.headers,
+            )
+            raise MaxRetryError(_pool, url, reason) from exc
         retry.retry_after_waited = waited
         return retry
 
