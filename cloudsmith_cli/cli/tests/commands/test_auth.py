@@ -395,6 +395,7 @@ class TestAuthenticateCommand:
         assert result.exit_code == 1
         assert f"Cloudsmith could not be reached: {reason}" in result.output
         assert "Check your connection" in result.output
+        assert "https://status.cloudsmith.com" in result.output
         auth_server.assert_not_called()
 
     def test_throttled_renewal_falls_back_to_browser_login(

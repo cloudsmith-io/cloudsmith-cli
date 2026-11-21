@@ -56,7 +56,7 @@ def _create_auth_server(opts, owner, session, enable_token_creation, profile):
 def _is_outage(error: Exception | None) -> bool:
     """Return True when the error means Cloudsmith could not serve the request."""
     if isinstance(error, ApiException):
-        return error.status >= 500
+        return 500 <= error.status < 600
     return isinstance(error, requests.RequestException)
 
 
@@ -72,7 +72,8 @@ def _renew_existing_sso_session(opts, profile):
         raise click.ClickException(
             "The SAML session has expired and Cloudsmith could not be reached: "
             f"{renewal.error}\n"
-            "Check your connection, then run 'cloudsmith auth' again."
+            "Check your connection and https://status.cloudsmith.com, "
+            "then run 'cloudsmith auth' again."
         ) from renewal.error
     return None
 
