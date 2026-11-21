@@ -187,7 +187,7 @@ def renew_sso_session(api_host, session, profile=None):
 
 @contextmanager
 def retry_after_limit_as_api_error() -> Iterator[None]:
-    """Raise a Retry-After over the session's limit as a 429 :class:`ApiException`."""
+    """Raise a Retry-After over the session's limit as an :class:`ApiException`."""
     try:
         yield
     except requests.exceptions.RetryError as exc:
@@ -195,7 +195,7 @@ def retry_after_limit_as_api_error() -> Iterator[None]:
         if limit_error is None:
             raise
         raise ApiException(
-            429, detail=str(limit_error), headers=limit_error.headers
+            limit_error.status, detail=str(limit_error), headers=limit_error.headers
         ) from exc
 
 

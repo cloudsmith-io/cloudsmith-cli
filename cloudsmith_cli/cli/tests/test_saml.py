@@ -324,7 +324,7 @@ class TestSaml:
         self, mock_session, method, call
     ) -> None:
         limit_error = RetryAfterLimitError(
-            "The server asked to retry after 3600 seconds."
+            "The server asked to retry after 3600 seconds.", status=429
         )
         getattr(mock_session, method).side_effect = requests.exceptions.RetryError(
             MaxRetryError(None, "/", limit_error)

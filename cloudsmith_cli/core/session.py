@@ -71,8 +71,9 @@ def _is_unknown_host_error(error: BaseException | None) -> bool:
 class RetryAfterLimitError(ResponseError):
     """The server asked to wait past the retry's ``retry_after_budget``."""
 
-    def __init__(self, message, headers=None):
+    def __init__(self, message, status, headers=None):
         super().__init__(message)
+        self.status = status
         self.headers = headers
 
 
@@ -132,6 +133,7 @@ class RetryWithCallback(Retry):
             reason = RetryAfterLimitError(
                 f"The server asked to retry after {retry_after:g} seconds, past the "
                 f"{self.retry_after_budget:g}-second limit on waiting for a request.",
+                status=response.status,
                 headers=response.headers,
             )
             raise MaxRetryError(_pool, url, reason)

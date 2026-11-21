@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, call, patch
 
 import httpretty
 import jwt
+import pytest
 import requests
 from freezegun import freeze_time
 
@@ -123,8 +124,18 @@ def test_definitive_rejection_cleans_up_profile_then_legacy_tokens():
     ]
 
 
+@pytest.mark.parametrize(
+    "status, retry_after",
+    [
+        pytest.param(429, "3600", id="throttled-past-the-limit"),
+        pytest.param(429, "1", id="throttled-on-every-retry"),
+        pytest.param(503, "3600", id="unavailable-past-the-limit"),
+    ],
+)
 @httpretty.activate(allow_net_connect=False)
-def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch) -> None:
+def test_renewal_stopped_by_retry_after_keeps_the_response_status(
+    monkeypatch, status, retry_after
+) -> None:
     monkeypatch.setattr(
         httpretty.core.fakesock.socket,
         "shutdown",
@@ -134,9 +145,9 @@ def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch) ->
     httpretty.register_uri(
         httpretty.POST,
         f"{API_HOST}/user/refresh-token/",
-        status=429,
+        status=status,
         body='{"detail": "Request was throttled."}',
-        adding_headers={"Retry-After": "3600"},
+        adding_headers={"Retry-After": retry_after},
     )
     expired_access_token = jwt.encode(
         {"exp": datetime(2024, 1, 1, tzinfo=UTC)}, "secret", algorithm="HS256"
@@ -158,6 +169,6 @@ def test_throttled_renewal_fails_without_waiting_for_retry_after(monkeypatch) ->
 
     assert result.status == "failed"
     assert isinstance(result.error, ApiException)
-    assert result.error.status == 429
-    assert result.error.headers["Retry-After"] == "3600"
-    sleep.assert_not_called()
+    assert result.error.status == status
+    assert result.error.headers["Retry-After"] == retry_after
+    assert sum(sleep_call.args[0] for sleep_call in sleep.call_args_list) <= 60
