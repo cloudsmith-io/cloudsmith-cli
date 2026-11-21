@@ -142,7 +142,9 @@ class RetryWithCallback(Retry):
     def sleep_for_retry(self, response=None):
         retry_after = self.get_retry_after(response)
         if retry_after:
-            self._sleep_with_callback(retry_after, context="retry-after")
+            self._sleep_with_callback(
+                retry_after, context="retry-after", status=response.status
+            )
             return True
 
         return False
@@ -153,10 +155,10 @@ class RetryWithCallback(Retry):
             return
         self._sleep_with_callback(backoff, context="backoff")
 
-    def _sleep_with_callback(self, seconds, context=None):
+    def _sleep_with_callback(self, seconds, context=None, **callback_kwargs):
         """Sleep, but generate a callback before it."""
         if self.error_retry_cb and callable(self.error_retry_cb):
-            self.error_retry_cb(seconds, context=context)
+            self.error_retry_cb(seconds, context=context, **callback_kwargs)
         return time.sleep(seconds)
 
 

@@ -1,5 +1,6 @@
 import socket
 import ssl
+from unittest.mock import MagicMock
 
 import httpretty
 import pytest
@@ -305,6 +306,23 @@ class TestRetryAfterBudget:
         with pytest.raises(requests.exceptions.RetryError):
             session.post("https://api.example.com/")
         assert slept == sleeps
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_callback_gets_the_response_status(self, monkeypatch) -> None:
+        httpretty.register_uri(
+            httpretty.POST,
+            "https://api.example.com/",
+            responses=[
+                httpretty.Response("", status=503, adding_headers={"Retry-After": "1"}),
+                httpretty.Response("", status=200),
+            ],
+        )
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", lambda _: None)
+        callback = MagicMock()
+        session = create_requests_session(error_retry_cb=callback)
+
+        assert session.post("https://api.example.com/").status_code == 200
+        callback.assert_called_once_with(1.0, context="retry-after", status=503)
 
     @staticmethod
     def _register_throttled_then_ok(retry_afters):

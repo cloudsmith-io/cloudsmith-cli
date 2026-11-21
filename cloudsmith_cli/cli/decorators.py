@@ -34,11 +34,12 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds: float, context: str | None = None) -> None:
+def report_retry(seconds: float, context: str | None = None, status: int = 429) -> None:
     if context == "retry-after":
+        reason = "Request was throttled" if status == 429 else "Request failed"
         click.echo(err=True)
         click.echo(
-            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
+            f"{reason} ({status}): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
     elif context == "backoff":
