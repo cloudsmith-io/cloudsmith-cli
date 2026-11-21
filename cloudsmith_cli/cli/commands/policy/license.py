@@ -1,7 +1,5 @@
 """CLI/Commands - create, retrieve, update or delete license policies."""
 
-import json
-
 import click
 
 from ....core.api import orgs as api
@@ -169,7 +167,9 @@ def create(ctx, opts, owner, policy_config_file):
     """
     # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = opts.output != "pretty"
-    policy_config = json.load(policy_config_file)
+    policy_config = utils.load_json_config_file(
+        policy_config_file, param_hint="'POLICY_CONFIG_FILE'"
+    )
 
     policy_name = policy_config.get("name", None)
     if policy_name is None:
@@ -250,7 +250,9 @@ def update(ctx, opts, owner, identifier, policy_config_file):
     # Use stderr for message if the output is something else (e.g. JSON)
     use_stderr = opts.output != "pretty"
 
-    policy_config = json.load(policy_config_file)
+    policy_config = utils.load_json_config_file(
+        policy_config_file, param_hint="'POLICY_CONFIG_FILE'"
+    )
 
     click.secho(
         f"Updating {click.style(identifier, bold=True)} license policy in the {click.style(owner, bold=True)} namespace ...",
