@@ -10,15 +10,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
+- Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
 
 ### Changed
 
+- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
 - The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
 - When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
 
 ### Fixed
 
 - `cloudsmith mcp start` now exposes only read-only tools by default. Tools that change data or return credentials need `--allow-destructive-tools` (`-D`). A tool changes data when it uses POST, PUT, PATCH or DELETE, or when its name contains `delete`, `destroy` or `remove`. `--all-tools` (`-a`) enables every tool group and ignores `mcp_allowed_tools` and `mcp_allowed_tool_groups`. It no longer enables these tools without `-D`. When your allowlist matches tools that need `-D`, `mcp start`, `mcp list_tools` and `mcp list_groups` show a warning. `mcp configure` now accepts `-a` and `-D` and keeps them in the client configuration. Tools that change data now have `destructiveHint` set to `true`. (#620)
+
+- `repos create`/`update`, `upstream <format> create`/`update` and `policy deny|license|vulnerability create`/`update` now report a usage error when the config file isn't valid JSON or doesn't hold a JSON object, for example a file with a trailing comma. Previously the command crashed with a `JSONDecodeError` or `AttributeError` traceback.
 
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
 
