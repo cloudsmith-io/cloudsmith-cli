@@ -1,6 +1,7 @@
 """Token creation and refresh persist credentials without corrupting JSON output."""
 
 import json
+import os
 import socket
 from unittest.mock import patch
 
@@ -201,7 +202,9 @@ def test_refresh_updates_the_file_the_search_found(
     assert result.exception is None, repr(result.exception)
     assert result.exit_code == 0
     assert "review_fake_key" in target.read_text()
-    shown = "./credentials.ini" if scenario == "cwd_first" else str(target)
+    shown = (
+        os.path.join(".", "credentials.ini") if scenario == "cwd_first" else str(target)
+    )
     assert f"{shown} ... UPDATED" in result.output
     if target != user_file:
         assert "review_old_key" in user_file.read_text()
