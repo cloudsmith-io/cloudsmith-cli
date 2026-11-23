@@ -18,6 +18,7 @@ HEAVY_PREFIXES = (
     "urllib3",
     "semver",
     "ssl",
+    "yaml",
     # Error reporting imports it on the error path only.
     "sentry_sdk",
 )

@@ -69,12 +69,18 @@ def test_install_adds_the_entry_to_the_plugins_of_the_user(home, indent):
     )
 
 
-def test_install_with_plugins_on_one_line_fails(home):
-    """The command does not rewrite a flow sequence, so it names the entry to add."""
-    (home / ".yarnrc.yml").write_text("plugins: []\n")
+@pytest.mark.parametrize(
+    "rc_text",
+    ["plugins: []\n", "  plugins:\n    - path: other.cjs\n", "plugins:\n  - a\n - b\n"],
+)
+def test_install_refuses_a_layout_that_it_cannot_change_safely(home, rc_text):
+    """The command names the file, and leaves the file as it is."""
+    (home / ".yarnrc.yml").write_text(rc_text)
 
-    with pytest.raises(ConfigFileConflict, match=PLUGIN_PATH):
+    with pytest.raises(ConfigFileConflict, match=".yarnrc.yml"):
         YarnInstaller().install()
+
+    assert (home / ".yarnrc.yml").read_text() == rc_text
 
 
 def test_dry_run_changes_nothing(home):
@@ -133,7 +139,6 @@ def test_install_and_uninstall_change_only_the_plugins_list(home, key):
     assert rc_file.read_text() == f"{key}\n  - path: other.cjs\n{other_setting}"
 
 
-@pytest.mark.parametrize("command", ["install", "uninstall"])
 @pytest.mark.parametrize(
     "rc_text",
     [
@@ -141,19 +146,31 @@ def test_install_and_uninstall_change_only_the_plugins_list(home, key):
         f"plugins: [{{path: {PLUGIN_PATH}}}]\n",
         f"plugins:\n  - {{path: {PLUGIN_PATH}}}\n",
         f"plugins:\n  {ENTRY}  - checksum: abc\n    path: {PLUGIN_PATH}\n",
+        f"  plugins:\n    {ENTRY}",
     ],
 )
-def test_an_entry_in_another_form_changes_nothing(home, command, rc_text):
-    """The command names the file, and keeps the plugin that the file still loads."""
+def test_an_entry_in_another_form_changes_nothing(home, rc_text):
+    """Install sees that Yarn loads the plugin, and uninstall keeps the plugin that the file loads."""
     (home / ".yarnrc.yml").write_text(rc_text)
     (home / PLUGIN_PATH).parent.mkdir(parents=True)
     (home / PLUGIN_PATH).write_bytes(b"plugin")
 
+    assert "(no change)" in YarnInstaller().install()[0]
     with pytest.raises(ConfigFileConflict, match=".yarnrc.yml"):
-        getattr(YarnInstaller(), command)()
+        YarnInstaller().uninstall()
 
     assert (home / ".yarnrc.yml").read_text() == rc_text
     assert (home / PLUGIN_PATH).exists()
+
+
+def test_install_and_uninstall_keep_an_item_with_a_lone_dash(home):
+    rc_file = home / ".yarnrc.yml"
+    rc_file.write_text("plugins:\n  -\n    path: other.cjs\n")
+
+    YarnInstaller().install()
+    assert rc_file.read_text() == f"plugins:\n  {ENTRY}  -\n    path: other.cjs\n"
+    YarnInstaller().uninstall()
+    assert rc_file.read_text() == "plugins:\n  -\n    path: other.cjs\n"
 
 
 def test_install_does_not_save_a_page_that_is_not_the_plugin():

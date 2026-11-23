@@ -60,6 +60,8 @@ dependencies = [
     # standalone-binary build resolve without the cryptography wheels.
     "PyJWT[crypto]>=2.13.0",
     "python-toon==0.2.0",
+    # Checks each edit of the Yarn home configuration before the CLI saves it.
+    "pyyaml>=6.0.2",
     "requests>=2.32.5",
     "requests_toolbelt>=1.0.0",
     "rich>=13.0.0",

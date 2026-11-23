@@ -29,19 +29,15 @@ PLUGIN_URL = (
 )
 # Yarn reads a plugin path relative to the directory of the .yarnrc.yml file.
 PLUGIN_PATH = f".yarn/plugins/{PLUGIN_NAME}.cjs"
-_PLUGINS_KEY = re.compile(r"^([\"']?)plugins\1[ \t]*:([^\n]*)\n", re.MULTILINE)
+_PLUGINS_KEY = re.compile(r"^([\"']?)plugins\1[ \t]*:[^\n]*\n", re.MULTILINE)
 _ENTRY = re.compile(
-    rf"^([ \t]*)- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\2[ \t]*(?:#[^\n]*)?\n",
+    rf"^[ \t]*- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\1[ \t]*(?:#[^\n]*)?\n",
     re.MULTILINE,
 )
-# A line of a plugins list that loads the plugin, in any form that Yarn writes.
-_ACTIVE_REFERENCE = re.compile(
-    rf"^[ \t]*(?:- )?(?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\1[ \t]*(?:#.*)?$",
-    re.MULTILINE,
-)
-_NEXT_LINE = re.compile(r"(?:[ \t]*(?:#[^\n]*)?\n)*([ \t]*)\S")
 _NEXT_KEY = re.compile(r"^[^\s#-]", re.MULTILINE)
-_ITEM = re.compile(r"^([ \t]*)- ", re.MULTILINE)
+_ITEM = re.compile(r"^([ \t]*)-(?=[ \t\n])", re.MULTILINE)
+_OUR_ITEM = {"path": PLUGIN_PATH}
+_INVALID = object()
 _STACK_FRAME = re.compile(r"^[ \t]+at [^\n]*\n?", re.MULTILINE)
 # The first bytes of the plugin bundle.
 _PLUGIN_HEADER = f'module.exports = {{name: "{PLUGIN_NAME}"'.encode()
@@ -82,6 +78,63 @@ def _remove_with_empty_parents(plugin_file: Path) -> None:
             directory.rmdir()
 
 
+def _load_yaml(text: str) -> object:
+    """Return the value of the YAML *text*, or ``_INVALID`` when it is not valid YAML."""
+    import yaml
+
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError:
+        return _INVALID
+
+
+def _settings(text: str, rc_file: Path) -> dict:
+    """Return the settings in *text*, or raise ConfigFileConflict when they are not valid."""
+    settings = _load_yaml(text) or {}
+    if not isinstance(settings, dict):
+        raise ConfigFileConflict(
+            f"{rc_file} is not a valid Yarn configuration file. Correct the file, "
+            "and then run the command again."
+        )
+    return settings
+
+
+def _plugins(settings: dict) -> list:
+    plugins = settings.get("plugins")
+    return plugins if isinstance(plugins, list) else []
+
+
+def _is_ours(item: object) -> bool:
+    """Return whether a plugins *item*, a path or a mapping with a path, is the plugin."""
+    path = item.get("path") if isinstance(item, dict) else item
+    return path == PLUGIN_PATH
+
+
+def _check_edit(settings: dict, new_text: str, plugins: list, message: str) -> None:
+    """Raise ConfigFileConflict with *message* unless *new_text* is *settings* with *plugins*."""
+    new_settings = _load_yaml(new_text) or {}
+    expected = {**settings, "plugins": plugins}
+    if not isinstance(new_settings, dict) or _comparable(new_settings) != _comparable(
+        expected
+    ):
+        raise ConfigFileConflict(message)
+
+
+def _comparable(settings: dict) -> dict:
+    """Return *settings* without an empty plugins key, which Yarn reads as no plugins."""
+    return {key: value for key, value in settings.items() if key != "plugins" or value}
+
+
+def _loads_plugin(directory: Path) -> bool:
+    """Return whether the .yarnrc.yml in *directory* loads the plugin file next to it."""
+    try:
+        settings = _load_yaml(_read(directory / ".yarnrc.yml"))
+    except OSError:
+        return False
+    loads = isinstance(settings, dict) and any(map(_is_ours, _plugins(settings)))
+    return loads and (directory / PLUGIN_PATH).is_file()
+
+
 def _plugins_list(text: str) -> tuple[re.Match[str], int] | None:
     """Return the plugins key and the end of its list, or ``None`` when there is no key."""
     key = _PLUGINS_KEY.search(text)
@@ -100,63 +153,21 @@ def _find_in_list(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
     return pattern.search(text, key.end(), end)
 
 
-def _entry(text: str, rc_file: Path) -> re.Match[str] | None:
-    """Return the plugin item in *text*, or ``None`` when *text* does not name the plugin.
-
-    The command changes only one ``- path:`` item that is the only reference to
-    the plugin. An item with more keys, such as the spec and checksum of
-    `yarn plugin import`, can have blank lines and comments between its keys.
-    """
-    plugins = _plugins_list(text)
-    if plugins is None:
-        return None
-    key, end = plugins
-    references = text.count(PLUGIN_PATH, key.start(), end)
-    if references == 0:
-        return None
-    entry = _ENTRY.search(text, key.end(), end)
-    if references == 1 and entry and not _has_more_keys(text, entry):
-        return entry
-    raise ConfigFileConflict(
-        f"{rc_file} names {PLUGIN_PATH} in a form that the command does not "
-        "change. Remove the plugin from the file, and then run the command again."
-    )
-
-
-def _has_more_keys(text: str, entry: re.Match[str]) -> bool:
-    """Return whether the next line with content is indented under the *entry* item."""
-    following = _NEXT_LINE.match(text, entry.end())
-    return following is not None and len(following.group(1)) > len(entry.group(1))
-
-
-def _loads_plugin(directory: Path) -> bool:
-    """Return whether the .yarnrc.yml in *directory* loads the plugin file next to it."""
-    try:
-        text = _read(directory / ".yarnrc.yml")
-    except OSError:
-        return False
-    loads = _find_in_list(_ACTIVE_REFERENCE, text) is not None
-    return loads and (directory / PLUGIN_PATH).is_file()
-
-
-def _with_entry(text: str, rc_file: Path) -> str:
+def _with_entry(text: str) -> str:
     """Return *text* with the plugin first in its plugins list."""
     key = _PLUGINS_KEY.search(text)
     if key is None:
         return f"{text}plugins:\n  - path: {PLUGIN_PATH}\n"
-    if key.group(2).split("#")[0].strip():
-        raise ConfigFileConflict(
-            f"{rc_file} lists its plugins on one line, which the command does not "
-            f"change. Add `- path: {PLUGIN_PATH}` to the plugins, or put each "
-            "plugin on its own line and run the command again."
-        )
     item = _find_in_list(_ITEM, text)
     at, indent = (item.start(), item.group(1)) if item else (key.end(), "  ")
     return f"{text[:at]}{indent}- path: {PLUGIN_PATH}\n{text[at:]}"
 
 
-def _without_entry(text: str, entry: re.Match[str]) -> str:
-    """Return *text* without *entry*, and without the plugins key when it has no other item."""
+def _without_entry(text: str) -> str:
+    """Return *text* without the plugin item, and without the plugins key when it has no other item."""
+    entry = _find_in_list(_ENTRY, text)
+    if entry is None:
+        return text
     text = text[: entry.start()] + text[entry.end() :]
     key = _PLUGINS_KEY.search(text)
     if key is not None and _find_in_list(_ITEM, text) is None:
@@ -221,7 +232,18 @@ class YarnInstaller:
         rc_file = _rc_file()
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
-        new_text = text if _entry(text, rc_file) else _with_entry(text, rc_file)
+        settings = _settings(text, rc_file)
+        new_text = text
+        if not any(map(_is_ours, _plugins(settings))):
+            new_text = _with_entry(text)
+            _check_edit(
+                settings,
+                new_text,
+                [_OUR_ITEM, *_plugins(settings)],
+                f"The command cannot add the plugin to {rc_file} safely. Add "
+                f"`- path: {PLUGIN_PATH}` to the plugins in the file, and then run "
+                "the command again.",
+            )
         content, version = _download(session)
         new_plugin = not plugin_file.exists() or plugin_file.read_bytes() != content
         if new_text == text and not new_plugin:
@@ -247,15 +269,25 @@ class YarnInstaller:
         rc_file = _rc_file()
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
-        entry = _entry(text, rc_file)
-        if entry is None and not plugin_file.exists():
+        settings = _settings(text, rc_file)
+        loads = any(map(_is_ours, _plugins(settings)))
+        if not loads and not plugin_file.exists():
             return [f"{rc_file} does not load {PLUGIN_NAME} (nothing to remove)"]
         verb = "would remove" if dry_run else "removed"
         actions = []
-        if entry is not None:
+        if loads:
+            new_text = _without_entry(text)
+            _check_edit(
+                settings,
+                new_text,
+                [item for item in _plugins(settings) if not _is_ours(item)],
+                f"The command cannot remove the plugin from {rc_file} safely. Remove "
+                f"`{PLUGIN_PATH}` from the plugins in the file, and then run the "
+                "command again.",
+            )
             actions.append(f"{verb} {PLUGIN_PATH} from the plugins in {rc_file}")
             if not dry_run:
-                _write_or_remove(rc_file, _without_entry(text, entry))
+                _write_or_remove(rc_file, new_text)
         if plugin_file.exists():
             actions.append(f"{verb} {plugin_file}")
             if not dry_run:
