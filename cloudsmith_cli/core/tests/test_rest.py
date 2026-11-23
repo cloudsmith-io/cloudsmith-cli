@@ -2,6 +2,7 @@ import socket
 import ssl
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import MagicMock
 
 import httpretty
 import pytest
@@ -149,13 +150,17 @@ class TestRestClient:
     @pytest.mark.parametrize(
         "method, expected_requests", [("POST", 1), ("PATCH", 1), ("GET", 3)]
     )
+    @pytest.mark.parametrize("retry_after_budget", [None, 60])
     def test_retries_a_read_timeout_only_for_idempotent_methods(
-        self, silent_api, method, expected_requests
+        self, silent_api, method, expected_requests, retry_after_budget
     ):
         """A retry after a read timeout can repeat a POST that the server processed."""
         url, requests_seen = silent_api
         initialise_api()
         client = RestClient(retries=2, backoff_factor=0)
+        client.session = create_requests_session(
+            retries=2, backoff_factor=0, retry_after_budget=retry_after_budget
+        )
 
         with pytest.raises(ApiException):
             client.request(method, url, _request_timeout=(1, 0.2))
@@ -165,13 +170,17 @@ class TestRestClient:
     @pytest.mark.parametrize(
         "method, expected_requests", [("POST", 1), ("PATCH", 1), ("GET", 3)]
     )
+    @pytest.mark.parametrize("retry_after_budget", [None, 60])
     def test_retries_a_dropped_connection_only_for_idempotent_methods(
-        self, silent_api, method, expected_requests
+        self, silent_api, method, expected_requests, retry_after_budget
     ):
         """The server can drop the connection after it processed the request."""
         url, requests_seen = silent_api
         initialise_api()
         client = RestClient(retries=2, backoff_factor=0)
+        client.session = create_requests_session(
+            retries=2, backoff_factor=0, retry_after_budget=retry_after_budget
+        )
 
         with pytest.raises(ApiException):
             client.request(method, f"{url}drop", body={}, _request_timeout=(1, 5))
@@ -353,3 +362,78 @@ class TestRetryOnNameResolutionErrors:
     )
     def test_other_name_resolution_errors_are_retried(self, retry, error):
         assert retry.increment("GET", "/", error=error).total == 5
+
+
+class TestRetryAfterBudget:
+    @pytest.mark.parametrize(
+        "retry_after_budget, retry_afters, sleeps",
+        [
+            pytest.param(None, ["3600"], [3600.0], id="no-budget"),
+            pytest.param(60, ["30"], [30.0], id="one-wait-within-budget"),
+            pytest.param(60, ["30", "30"], [30.0, 30.0], id="waits-total-the-budget"),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_within_the_budget_is_honored(
+        self, monkeypatch, retry_after_budget, retry_afters, sleeps
+    ) -> None:
+        self._register_throttled_then_ok(retry_afters)
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        session = create_requests_session(retry_after_budget=retry_after_budget)
+
+        assert session.post("https://api.example.com/").status_code == 200
+        assert slept == sleeps
+
+    @pytest.mark.parametrize(
+        "retry_afters, sleeps",
+        [
+            pytest.param(["3600"], [], id="one-long-wait"),
+            pytest.param(["40", "40"], [40.0], id="waits-exceed-the-budget-in-total"),
+        ],
+    )
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_past_the_budget_fails_without_waiting(
+        self, monkeypatch, retry_afters, sleeps
+    ) -> None:
+        self._register_throttled_then_ok(retry_afters)
+        slept = []
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", slept.append)
+        session = create_requests_session(retry_after_budget=60)
+
+        with pytest.raises(requests.exceptions.RetryError):
+            session.post("https://api.example.com/")
+        assert slept == sleeps
+
+    @httpretty.activate(allow_net_connect=False)
+    def test_retry_after_callback_gets_the_response_status(self, monkeypatch) -> None:
+        httpretty.register_uri(
+            httpretty.POST,
+            "https://api.example.com/",
+            responses=[
+                httpretty.Response("", status=503, adding_headers={"Retry-After": "1"}),
+                httpretty.Response("", status=200),
+            ],
+        )
+        monkeypatch.setattr("cloudsmith_cli.core.session.time.sleep", lambda _: None)
+        callback = MagicMock()
+        session = create_requests_session(error_retry_cb=callback)
+
+        assert session.post("https://api.example.com/").status_code == 200
+        callback.assert_called_once_with(1.0, context="retry-after", status=503)
+
+    @staticmethod
+    def _register_throttled_then_ok(retry_afters):
+        httpretty.register_uri(
+            httpretty.POST,
+            "https://api.example.com/",
+            responses=[
+                *(
+                    httpretty.Response(
+                        "", status=429, adding_headers={"Retry-After": retry_after}
+                    )
+                    for retry_after in retry_afters
+                ),
+                httpretty.Response("", status=200),
+            ],
+        )

@@ -21,14 +21,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it. This also applies to the POST request that uploads a file.
+
+## [1.31.4] - 2026-11-23
+
+### Fixed
+
+- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
+- `cloudsmith auth` no longer crashes with `ValueError: MAC check failed` when the encrypted keyring file holds a saved token that the keyring key cannot decrypt, for example a token written under another key. The CLI now treats the token as missing and starts a new login, which replaces it.
+- `auth --request-api-key --save-config`, `tokens create --save-config` and `tokens refresh --save-config` now update the `credentials.ini` file that the CLI found, and show its path. Previously they updated `./credentials.ini`. When the file was only in another folder, such as `~/.cloudsmith`, the update failed with "No such file or directory" and the CLI did not write the new key. After a refresh, the previous key had already stopped working. A file in the current directory still takes precedence.
 - `repos create`/`update`, `upstream <format> create`/`update` and `policy deny|license|vulnerability create`/`update` now report a usage error when the config file isn't valid JSON or doesn't hold a JSON object, for example a file with a trailing comma. Previously the command crashed with a `JSONDecodeError` or `AttributeError` traceback.
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
+- Fixed commands hanging with no output when Cloudsmith throttled the renewal of a stored SAML session. The CLI now waits at most 60 seconds for a throttled renewal, SAML login, or OIDC token exchange, and prints a message before each wait. When the server asks for a longer wait, `cloudsmith auth` starts a new SAML login.
 
 ## [1.31.3] - 2026-11-17
 
 ### Fixed
 
-- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
 - `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type. (#618)
 - The 2FA prompt of `cloudsmith auth` is shorter: `Enter the code from your authenticator app, or press Ctrl+C to cancel:`. When the code is rejected, the CLI now shows `That code was rejected. Please try again.` without the HTTP status code. (#618)
 - `--color`, `-F/--output-format` and `-v/--verbose` given to a group, such as `cloudsmith --color=never list repos` or `cloudsmith -F json list repos`, now apply to its subcommands too. Before, a subcommand used its own default, so the output still had colour, or was not JSON. (#623)
