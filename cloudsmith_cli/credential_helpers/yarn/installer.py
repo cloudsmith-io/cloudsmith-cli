@@ -29,7 +29,7 @@ PLUGIN_URL = (
 )
 # Yarn reads a plugin path relative to the directory of the .yarnrc.yml file.
 PLUGIN_PATH = f".yarn/plugins/{PLUGIN_NAME}.cjs"
-_PLUGINS_KEY = re.compile(r"^plugins:([^\n]*)\n", re.MULTILINE)
+_PLUGINS_KEY = re.compile(r"^([\"']?)plugins\1:([^\n]*)\n", re.MULTILINE)
 _ENTRY = re.compile(
     rf"^([ \t]*)- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\2[ \t]*(?:#[^\n]*)?\n",
     re.MULTILINE,
@@ -62,10 +62,22 @@ def _write(path: Path, text: str) -> None:
     write_atomically(path, text.encode("utf-8", errors="surrogateescape"))
 
 
-def _first_item(text: str, key: re.Match[str]) -> re.Match[str] | None:
-    """Return the first item of the list under the plugins *key*, or ``None``."""
+def _plugins_list(text: str) -> tuple[re.Match[str], int] | None:
+    """Return the plugins key and the end of its list, or ``None`` when there is no key."""
+    key = _PLUGINS_KEY.search(text)
+    if key is None:
+        return None
     next_key = _NEXT_KEY.search(text, key.end())
-    return _ITEM.search(text, key.end(), next_key.start() if next_key else len(text))
+    return key, next_key.start() if next_key else len(text)
+
+
+def _find_in_list(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
+    """Return the first match of *pattern* in the plugins list, or ``None``."""
+    plugins = _plugins_list(text)
+    if plugins is None:
+        return None
+    key, end = plugins
+    return pattern.search(text, key.end(), end)
 
 
 def _entry(text: str, rc_file: Path) -> re.Match[str] | None:
@@ -75,9 +87,13 @@ def _entry(text: str, rc_file: Path) -> re.Match[str] | None:
     can have blank lines and comments between its keys, so the command does not
     change it.
     """
-    entry = _ENTRY.search(text)
+    plugins = _plugins_list(text)
+    if plugins is None:
+        return None
+    key, end = plugins
+    entry = _ENTRY.search(text, key.end(), end)
     if entry is None:
-        if PLUGIN_PATH not in text:
+        if PLUGIN_PATH not in text[key.start() : end]:
             return None
     elif not _has_more_keys(text, entry):
         return entry
@@ -107,13 +123,13 @@ def _with_entry(text: str, rc_file: Path) -> str:
     key = _PLUGINS_KEY.search(text)
     if key is None:
         return f"{text}plugins:\n  - path: {PLUGIN_PATH}\n"
-    if key.group(1).split("#")[0].strip():
+    if key.group(2).split("#")[0].strip():
         raise ConfigFileConflict(
             f"{rc_file} lists its plugins on one line, which the command does not "
             f"change. Add `- path: {PLUGIN_PATH}` to the plugins, or put each "
             "plugin on its own line and run the command again."
         )
-    item = _first_item(text, key)
+    item = _find_in_list(_ITEM, text)
     at, indent = (item.start(), item.group(1)) if item else (key.end(), "  ")
     return f"{text[:at]}{indent}- path: {PLUGIN_PATH}\n{text[at:]}"
 
@@ -122,7 +138,7 @@ def _without_entry(text: str, entry: re.Match[str]) -> str:
     """Return *text* without *entry*, and without the plugins key when it has no other item."""
     text = text[: entry.start()] + text[entry.end() :]
     key = _PLUGINS_KEY.search(text)
-    if key is not None and _first_item(text, key) is None:
+    if key is not None and _find_in_list(_ITEM, text) is None:
         text = text[: key.start()] + text[key.end() :]
     return text
 
@@ -184,7 +200,7 @@ class YarnInstaller:
         rc_file = _rc_file()
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
-        new_text = text if _ENTRY.search(text) else _with_entry(text, rc_file)
+        new_text = text if _find_in_list(_ENTRY, text) else _with_entry(text, rc_file)
         content, version = _download(session)
         new_plugin = not plugin_file.exists() or plugin_file.read_bytes() != content
         if new_text == text and not new_plugin:
