@@ -118,12 +118,20 @@ def _is_ours(item: object, directory: Path) -> bool:
     """Return whether a plugins *item* of the .yarnrc.yml in *directory* is the plugin.
 
     Yarn reads the path of a plugin relative to *directory*, so
-    ``./.yarn/plugins/...`` and the absolute path name the same file.
+    ``./.yarn/plugins/...`` and the absolute path name the same file. A path
+    through a link, or in other letter case on a file system that ignores
+    case, names the same file too.
     """
     path = item.get("path") if isinstance(item, dict) else item
-    return isinstance(path, str) and os.path.normpath(
-        directory / path
-    ) == os.path.normpath(directory / PLUGIN_PATH)
+    if not isinstance(path, str):
+        return False
+    candidate, plugin = directory / path, directory / PLUGIN_PATH
+    if os.path.normpath(candidate) == os.path.normpath(plugin):
+        return True
+    try:
+        return os.path.samefile(candidate, plugin)
+    except OSError:
+        return False
 
 
 def _loads(settings: dict, directory: Path) -> bool:

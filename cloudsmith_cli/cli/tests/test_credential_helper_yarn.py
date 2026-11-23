@@ -14,7 +14,12 @@ from ...cli.commands.credential_helper import manage
 from ...credential_helpers import maven_tools
 from ...credential_helpers.maven_tools import BuildToolError, ConfigFileConflict
 from ...credential_helpers.yarn import installer
-from ...credential_helpers.yarn.installer import PLUGIN_PATH, PLUGIN_URL, YarnInstaller
+from ...credential_helpers.yarn.installer import (
+    PLUGIN_NAME,
+    PLUGIN_PATH,
+    PLUGIN_URL,
+    YarnInstaller,
+)
 
 ENTRY = f"- path: {PLUGIN_PATH}\n"
 
@@ -153,6 +158,7 @@ def test_install_and_uninstall_change_only_the_plugins_list(home, key):
         f"plugins:\n  {ENTRY}  - checksum: abc\n    path: {PLUGIN_PATH}\n",
         f"  plugins:\n    {ENTRY}",
         f"plugins:\n  - path: ./{PLUGIN_PATH}\n",
+        f"plugins:\n  - path: linked/{PLUGIN_NAME}.cjs\n",
     ],
 )
 def test_an_entry_in_another_form_changes_nothing(home, rc_text):
@@ -160,6 +166,7 @@ def test_an_entry_in_another_form_changes_nothing(home, rc_text):
     (home / ".yarnrc.yml").write_text(rc_text)
     (home / PLUGIN_PATH).parent.mkdir(parents=True)
     (home / PLUGIN_PATH).write_bytes(b"plugin")
+    (home / "linked").symlink_to(home / PLUGIN_PATH.rpartition("/")[0])
 
     assert "(no change)" in YarnInstaller().install()[0]
     with pytest.raises(ConfigFileConflict, match=".yarnrc.yml"):
