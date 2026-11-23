@@ -147,6 +147,7 @@ def test_install_and_uninstall_change_only_the_plugins_list(home, key):
         f"plugins:\n  - {{path: {PLUGIN_PATH}}}\n",
         f"plugins:\n  {ENTRY}  - checksum: abc\n    path: {PLUGIN_PATH}\n",
         f"  plugins:\n    {ENTRY}",
+        f"plugins:\n  - path: ./{PLUGIN_PATH}\n",
     ],
 )
 def test_an_entry_in_another_form_changes_nothing(home, rc_text):

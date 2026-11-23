@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 import shutil
 from pathlib import Path
@@ -104,10 +105,21 @@ def _plugins(settings: dict) -> list:
     return plugins if isinstance(plugins, list) else []
 
 
-def _is_ours(item: object) -> bool:
-    """Return whether a plugins *item*, a path or a mapping with a path, is the plugin."""
+def _is_ours(item: object, directory: Path) -> bool:
+    """Return whether a plugins *item* of the .yarnrc.yml in *directory* is the plugin.
+
+    Yarn reads the path of a plugin relative to *directory*, so
+    ``./.yarn/plugins/...`` and the absolute path name the same file.
+    """
     path = item.get("path") if isinstance(item, dict) else item
-    return path == PLUGIN_PATH
+    return isinstance(path, str) and os.path.normpath(
+        directory / path
+    ) == os.path.normpath(directory / PLUGIN_PATH)
+
+
+def _loads(settings: dict, directory: Path) -> bool:
+    """Return whether the plugins list in *settings* loads the plugin."""
+    return any(_is_ours(item, directory) for item in _plugins(settings))
 
 
 def _check_edit(settings: dict, new_text: str, plugins: list, message: str) -> None:
@@ -131,7 +143,7 @@ def _loads_plugin(directory: Path) -> bool:
         settings = _load_yaml(_read(directory / ".yarnrc.yml"))
     except OSError:
         return False
-    loads = isinstance(settings, dict) and any(map(_is_ours, _plugins(settings)))
+    loads = isinstance(settings, dict) and _loads(settings, directory)
     return loads and (directory / PLUGIN_PATH).is_file()
 
 
@@ -234,7 +246,7 @@ class YarnInstaller:
         text = _read(rc_file)
         settings = _settings(text, rc_file)
         new_text = text
-        if not any(map(_is_ours, _plugins(settings))):
+        if not _loads(settings, Path.home()):
             new_text = _with_entry(text)
             _check_edit(
                 settings,
@@ -270,7 +282,7 @@ class YarnInstaller:
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
         settings = _settings(text, rc_file)
-        loads = any(map(_is_ours, _plugins(settings)))
+        loads = _loads(settings, Path.home())
         if not loads and not plugin_file.exists():
             return [f"{rc_file} does not load {PLUGIN_NAME} (nothing to remove)"]
         verb = "would remove" if dry_run else "removed"
@@ -280,7 +292,11 @@ class YarnInstaller:
             _check_edit(
                 settings,
                 new_text,
-                [item for item in _plugins(settings) if not _is_ours(item)],
+                [
+                    item
+                    for item in _plugins(settings)
+                    if not _is_ours(item, Path.home())
+                ],
                 f"The command cannot remove the plugin from {rc_file} safely. Remove "
                 f"`{PLUGIN_PATH}` from the plugins in the file, and then run the "
                 "command again.",
