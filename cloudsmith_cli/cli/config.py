@@ -243,15 +243,20 @@ class ConfigReader(ConfigFileReader):
         return path
 
     @classmethod
-    def has_default_file(cls):
-        """Check if a configuration file exists."""
+    def find_default_file(cls) -> str | None:
+        """Return the first configuration file that exists, or None."""
         for filename in cls.config_files:
             for searchpath in cls.config_searchpath:
                 path = os.path.join(searchpath, filename)
                 if os.path.exists(path):
-                    return True
+                    return path
 
-        return False
+        return None
+
+    @classmethod
+    def has_default_file(cls):
+        """Check if a configuration file exists."""
+        return cls.find_default_file() is not None
 
     @classmethod
     def read_relative_config_value(cls, key, profile=None):
