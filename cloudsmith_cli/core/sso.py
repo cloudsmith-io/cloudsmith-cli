@@ -4,6 +4,8 @@ import base64
 import binascii
 import json
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -13,6 +15,7 @@ import requests
 
 from . import keyring
 from .api.exceptions import ApiException, error_detail_and_fields
+from .session import find_retry_after_limit_error
 
 logger = logging.getLogger(__name__)
 REFRESH_REJECTED_STATUSES = frozenset({400, 401, 403, 422})
@@ -182,6 +185,20 @@ def renew_sso_session(api_host, session, profile=None):
     return _store_renewed_tokens(api_host, profile, new_access_token, new_refresh_token)
 
 
+@contextmanager
+def retry_after_limit_as_api_error() -> Iterator[None]:
+    """Raise a retry stopped by the session's limits as an :class:`ApiException`."""
+    try:
+        yield
+    except requests.exceptions.RetryError as exc:
+        limit_error = find_retry_after_limit_error(exc)
+        if limit_error is None:
+            raise
+        raise ApiException(
+            limit_error.status, detail=str(limit_error), headers=limit_error.headers
+        ) from exc
+
+
 def raise_for_api_error(response):
     """Raise :class:`ApiException` if *response* failed, keeping the API's detail.
 
@@ -227,12 +244,13 @@ def refresh_access_token(
 
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    response = session.post(
-        url,
-        data=data,
-        headers=headers,
-        timeout=30,
-    )
+    with retry_after_limit_as_api_error():
+        response = session.post(
+            url,
+            data=data,
+            headers=headers,
+            timeout=30,
+        )
 
     raise_for_api_error(response)
 
