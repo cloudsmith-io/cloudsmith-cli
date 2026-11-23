@@ -29,7 +29,7 @@ PLUGIN_URL = (
 )
 # Yarn reads a plugin path relative to the directory of the .yarnrc.yml file.
 PLUGIN_PATH = f".yarn/plugins/{PLUGIN_NAME}.cjs"
-_PLUGINS_KEY = re.compile(r"^([\"']?)plugins\1:([^\n]*)\n", re.MULTILINE)
+_PLUGINS_KEY = re.compile(r"^([\"']?)plugins\1[ \t]*:([^\n]*)\n", re.MULTILINE)
 _ENTRY = re.compile(
     rf"^([ \t]*)- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\2[ \t]*(?:#[^\n]*)?\n",
     re.MULTILINE,

@@ -118,18 +118,19 @@ def test_uninstall_removes_a_hand_written_entry_and_keeps_other_plugins(home):
     )
 
 
-def test_install_and_uninstall_change_only_the_plugins_list(home):
-    """A quoted plugins key is the same key, and the path under another setting is not an entry."""
+@pytest.mark.parametrize("key", ['"plugins":', "plugins :"])
+def test_install_and_uninstall_change_only_the_plugins_list(home, key):
+    """Each spelling of the key is the same key, and the path under another setting is not an entry."""
     rc_file = home / ".yarnrc.yml"
     other_setting = f"changesetIgnorePatterns:\n  {ENTRY}"
-    rc_file.write_text(f'"plugins":\n  - path: other.cjs\n{other_setting}')
+    rc_file.write_text(f"{key}\n  - path: other.cjs\n{other_setting}")
 
     YarnInstaller().install()
-    assert rc_file.read_text() == (
-        f'"plugins":\n  {ENTRY}  - path: other.cjs\n{other_setting}'
+    assert (
+        rc_file.read_text() == f"{key}\n  {ENTRY}  - path: other.cjs\n{other_setting}"
     )
     YarnInstaller().uninstall()
-    assert rc_file.read_text() == f'"plugins":\n  - path: other.cjs\n{other_setting}'
+    assert rc_file.read_text() == f"{key}\n  - path: other.cjs\n{other_setting}"
 
 
 @pytest.mark.parametrize("command", ["install", "uninstall"])
