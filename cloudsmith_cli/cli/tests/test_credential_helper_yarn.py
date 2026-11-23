@@ -95,6 +95,14 @@ def test_uninstall_removes_the_plugin_and_keeps_other_settings(home):
     assert "(nothing to remove)" in YarnInstaller().uninstall()[0]
 
 
+def test_uninstall_removes_the_files_and_directories_that_install_created(home):
+    YarnInstaller().install()
+
+    YarnInstaller().uninstall()
+
+    assert not any(home.iterdir())
+
+
 def test_uninstall_removes_a_hand_written_entry_and_keeps_other_plugins(home):
     """The whole item goes, and the plugins key stays while it has an item."""
     rc_file = home / ".yarnrc.yml"

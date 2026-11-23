@@ -62,6 +62,22 @@ def _write(path: Path, text: str) -> None:
     write_atomically(path, text.encode("utf-8", errors="surrogateescape"))
 
 
+def _write_or_remove(path: Path, text: str) -> None:
+    """Write *text* to *path*, or remove *path* when *text* is empty."""
+    if text.strip():
+        _write(path, text)
+    else:
+        path.unlink()
+
+
+def _remove_with_empty_parents(plugin_file: Path) -> None:
+    """Remove *plugin_file*, then .yarn/plugins and .yarn when nothing else is in them."""
+    plugin_file.unlink()
+    for directory in (plugin_file.parent, plugin_file.parent.parent):
+        with contextlib.suppress(OSError):
+            directory.rmdir()
+
+
 def _plugins_list(text: str) -> tuple[re.Match[str], int] | None:
     """Return the plugins key and the end of its list, or ``None`` when there is no key."""
     key = _PLUGINS_KEY.search(text)
@@ -234,11 +250,11 @@ class YarnInstaller:
         if entry is not None:
             actions.append(f"{verb} {PLUGIN_PATH} from the plugins in {rc_file}")
             if not dry_run:
-                _write(rc_file, _without_entry(text, entry))
+                _write_or_remove(rc_file, _without_entry(text, entry))
         if plugin_file.exists():
             actions.append(f"{verb} {plugin_file}")
             if not dry_run:
-                plugin_file.unlink()
+                _remove_with_empty_parents(plugin_file)
         return actions
 
     def _import_into_project(self, dry_run: bool) -> list[str]:
