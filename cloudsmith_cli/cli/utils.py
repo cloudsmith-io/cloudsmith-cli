@@ -275,3 +275,22 @@ def echo_skipped_error(opts: "Options") -> None:
 def maybe_print_status_json(opts, status_dict):
     """Maybe print a status dict as JSON."""
     return maybe_print_as_json(opts, status_dict)
+
+
+def load_json_config_file(config_file, param_hint):
+    """Load a JSON object from a config file argument.
+
+    Raise ``click.BadParameter`` instead of an unhandled exception when the
+    file isn't valid JSON or doesn't hold a JSON object.
+    """
+    try:
+        config = json.load(config_file)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise click.BadParameter(f"Invalid JSON: {exc}", param_hint=param_hint)
+
+    if not isinstance(config, dict):
+        raise click.BadParameter(
+            "The file must contain a JSON object.", param_hint=param_hint
+        )
+
+    return config
