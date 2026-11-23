@@ -27,11 +27,11 @@ def credential_helper():
     ``list`` to see every helper and whether it is installed.
 
     \b
-    Helpers: cargo, docker, gradle, maven, pnpm, sbt, terraform.
+    Helpers: cargo, docker, gradle, maven, pnpm, sbt, terraform, yarn.
 
     Docker, pnpm, cargo and Terraform call the runtime command of the same
-    name, which you can also run directly for debugging. Maven, Gradle and
-    sbt load a Cloudsmith extension or plugin that gets credentials from
+    name, which you can also run directly for debugging. Maven, Gradle, sbt
+    and Yarn load a Cloudsmith extension or plugin that gets credentials from
     ``generic``, so they have no runtime command of their own.
 
     Examples:
@@ -48,6 +48,9 @@ def credential_helper():
     \b
         # Install the Maven extension (also: gradle, sbt)
         $ cloudsmith credential-helper install maven
+    \b
+        # Install the Yarn plugin
+        $ cloudsmith credential-helper install yarn
     \b
         # List the helpers and their installation status
         $ cloudsmith credential-helper list

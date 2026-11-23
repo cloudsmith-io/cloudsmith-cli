@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
+- Added `cloudsmith credential-helper install yarn` and `uninstall yarn`. The command adds the Cloudsmith Yarn plugin, [`yarn-plugin-cloudsmith-auth`](https://github.com/cloudsmith-labs/yarn-plugin-cloudsmith-auth), to `~/.yarnrc.yml`, so Yarn 3.1 or later gets credentials from the CLI in every project. Use `--local` to import the plugin into the project in the current directory with `yarn plugin import`. The plugin still works when you install it by hand.
 - Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
 
 ### Changed

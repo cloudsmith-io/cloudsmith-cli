@@ -74,8 +74,13 @@ def _stop(process: subprocess.Popen[str]) -> None:
     process.wait()
 
 
-def tool_output(command: list[str], cwd: Path | None = None) -> str:
-    """Return what the build tool prints, without colors, or an empty string when it does not run."""
+def tool_output(
+    command: list[str], cwd: Path | None = None, check: bool = False
+) -> str:
+    """Return what the build tool prints, without colors, or an empty string when it does not run.
+
+    With *check*, a tool that exits with an error raises BuildToolError with its output.
+    """
     try:
         process = subprocess.Popen(
             # PATH can have a relative directory, and the tool runs in another one.
@@ -87,7 +92,9 @@ def tool_output(command: list[str], cwd: Path | None = None) -> str:
             errors="replace",
             start_new_session=True,
         )
-    except OSError:
+    except OSError as exc:
+        if check:
+            raise BuildToolError(f"{Path(command[0]).name} did not run: {exc}") from exc
         return ""
     with process:
         try:
@@ -102,7 +109,11 @@ def tool_output(command: list[str], cwd: Path | None = None) -> str:
             # The tool runs in its own session, so Ctrl+C does not reach it.
             _stop(process)
             raise
-    return _ANSI_ESCAPE.sub("", output)
+    output = _ANSI_ESCAPE.sub("", output)
+    if check and process.returncode != 0:
+        command_line = " ".join([Path(command[0]).name, *command[1:]])
+        raise BuildToolError(f"`{command_line}` failed:\n{output.strip()}")
+    return output
 
 
 def ask_outside_projects(

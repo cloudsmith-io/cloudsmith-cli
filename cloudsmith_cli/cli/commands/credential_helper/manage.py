@@ -41,6 +41,7 @@ from cloudsmith_cli.credential_helpers.terraform.installer import (
 from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
+from cloudsmith_cli.credential_helpers.yarn.installer import YarnInstaller
 
 from ....core.session import create_requests_session
 from ....credential_helpers.docker.installer import DockerInstaller
@@ -64,6 +65,7 @@ _INSTALLERS: dict[str, type] = {
     "maven": MavenInstaller,
     "gradle": GradleInstaller,
     "sbt": SbtInstaller,
+    "yarn": YarnInstaller,
 }
 
 
@@ -112,7 +114,7 @@ def _helper_options(ctx: click.Context, helper: str) -> dict[str, bool]:
             continue
         if helper not in param.helpers:
             raise click.UsageError(
-                f"{param.opts[0]} applies only to {' and '.join(param.helpers)}.", ctx
+                f"{param.opts[0]} applies only to {', '.join(param.helpers)}.", ctx
             )
         given[param.name] = True
     return given
@@ -346,10 +348,10 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 @click.option(
     "--local",
     cls=HelperOption,
-    helpers=("maven", "sbt"),
+    helpers=("maven", "sbt", "yarn"),
     is_flag=True,
     default=False,
-    help="Maven and sbt only: set up the project in the current directory "
+    help="Maven, sbt and Yarn only: set up the project in the current directory "
     "instead of every build of the user.",
 )
 @click.option(
@@ -382,7 +384,8 @@ def install_cmd(
     """Install a credential helper launcher and configure the package manager.
 
     HELPER is the name of the credential helper to install: one of ``cargo``,
-    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt``, ``terraform`` or
+    ``yarn``.
 
     Important for pnpm: The tokenHelper directive is only honored in the
     user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
@@ -415,6 +418,10 @@ def install_cmd(
     \b
         # Install the Maven extension
         $ cloudsmith credential-helper install maven
+
+    \b
+        # Import the Yarn plugin into the project in the current directory
+        $ cloudsmith credential-helper install yarn --local
     """
     installer = _get_installer(helper)
     helper_options = _helper_options(ctx, helper)
@@ -476,7 +483,7 @@ def install_cmd(
     warnings = [a for a in actions if a.startswith("WARNING")]
     normal = [a for a in actions if not a.startswith("WARNING")]
 
-    next_steps: list[str] = []
+    next_steps: list[str] = list(getattr(installer, "NEXT_STEPS", ()))
     if helper == "terraform":
         next_steps = (
             _terraform_workspace_next_steps(helper_args)
@@ -527,11 +534,11 @@ def install_cmd(
 @click.option(
     "--local",
     cls=HelperOption,
-    helpers=("maven", "sbt"),
+    helpers=("maven", "sbt", "yarn"),
     is_flag=True,
     default=False,
-    help="Maven and sbt only: remove the setup of the project in the current "
-    "directory.",
+    help="Maven, sbt and Yarn only: remove the setup of the project in the "
+    "current directory.",
 )
 @common_cli_config_options
 @common_cli_output_options
@@ -542,7 +549,8 @@ def uninstall_cmd(
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall: one of ``cargo``,
-    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt``, ``terraform`` or
+    ``yarn``.
 
     Examples:
 
