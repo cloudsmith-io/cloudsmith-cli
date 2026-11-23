@@ -57,12 +57,14 @@ def create_config_files(ctx, opts, api_key, force=False):
 
     has_errors = False
     for config in configs:
+        # The default path is the current directory, which can lack the file.
+        filepath = config.reader.find_default_file() or (
+            config.reader.get_default_filepath()
+        )
         click.echo(
             "{name} config file: {filepath} ... ".format(
                 name=click.style(config.reader.config_name.capitalize(), bold=True),
-                filepath=click.style(
-                    config.reader.get_default_filepath(), fg="magenta"
-                ),
+                filepath=click.style(filepath, fg="magenta"),
             ),
             nl=False,
             err=err,
@@ -98,10 +100,7 @@ def create_config_files(ctx, opts, api_key, force=False):
             and hasattr(config.reader, "update_api_key")
         ):
             try:
-                config.reader.update_api_key(
-                    config.reader.get_default_filepath(),
-                    config.data["api_key"],
-                )
+                config.reader.update_api_key(filepath, config.data["api_key"])
                 click.secho("UPDATED", fg="green", err=err)
             except OSError as exc:
                 has_errors = True
