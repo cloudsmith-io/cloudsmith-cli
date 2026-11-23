@@ -1,7 +1,5 @@
 """CLI/Commands - create, retrieve, update or delete repository upstreams."""
 
-import json
-
 import click
 
 from ...core.api import upstreams as api
@@ -234,7 +232,9 @@ def build_upstream_create_command(upstream_fmt):
 
         owner, repo = owner_repo
 
-        upstream_config = json.load(upstream_config_file)
+        upstream_config = utils.load_json_config_file(
+            upstream_config_file, param_hint="'UPSTREAM_CONFIG_FILE'"
+        )
 
         upstream_name = upstream_config.get("name", None)
 
@@ -321,7 +321,9 @@ def build_upstream_update_command(upstream_fmt):
 
         owner, repo, slug_perm = owner_repo_slug_perm
 
-        upstream_config = json.load(upstream_config_file)
+        upstream_config = utils.load_json_config_file(
+            upstream_config_file, param_hint="'UPSTREAM_CONFIG_FILE'"
+        )
 
         if not use_stderr:
             click.secho(

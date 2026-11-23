@@ -35,6 +35,16 @@ def test_report_retry_writes_to_stderr():
     assert "Request was throttled (429)" in result.stderr
 
 
+def test_report_retry_names_the_status_of_a_retry_after_wait():
+    @click.command()
+    def command():
+        report_retry(30, context="retry-after", status=503)
+
+    result = click.testing.CliRunner().invoke(command, catch_exceptions=False)
+
+    assert "Request failed (503): Retrying after 30 second(s)" in result.stderr
+
+
 def test_report_retry_announces_backoff_on_stderr():
     @click.command()
     def command():

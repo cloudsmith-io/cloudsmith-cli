@@ -5,6 +5,7 @@ import webbrowser
 import click
 import requests
 
+from ...core.api.exceptions import ApiException
 from ...core.sso import (
     SsoRenewalStatus,
     get_access_token_expiry,
@@ -52,6 +53,13 @@ def _create_auth_server(opts, owner, session, enable_token_creation, profile):
     ) from last_error
 
 
+def _is_outage(error: Exception | None) -> bool:
+    """Return True when the error means Cloudsmith could not serve the request."""
+    if isinstance(error, ApiException):
+        return 500 <= error.status < 600
+    return isinstance(error, requests.RequestException)
+
+
 def _renew_existing_sso_session(opts, profile):
     """Return a usable existing SAML session, or fall back to browser auth."""
     renewal = renew_sso_session(opts.api_config.host, opts.session, profile=profile)
@@ -60,13 +68,12 @@ def _renew_existing_sso_session(opts, profile):
         SsoRenewalStatus.CURRENT,
     ):
         return renewal
-    if renewal.status == SsoRenewalStatus.FAILED and isinstance(
-        renewal.error, requests.RequestException
-    ):
+    if renewal.status == SsoRenewalStatus.FAILED and _is_outage(renewal.error):
         raise click.ClickException(
             "The SAML session has expired and Cloudsmith could not be reached: "
             f"{renewal.error}\n"
-            "Check your connection, then run 'cloudsmith auth' again."
+            "Check your connection and https://status.cloudsmith.com, "
+            "then run 'cloudsmith auth' again."
         ) from renewal.error
     return None
 
