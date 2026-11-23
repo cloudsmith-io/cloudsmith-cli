@@ -364,11 +364,19 @@ class TestAuthenticateCommand:
                 legacy_result.stderr
             )
 
-    def test_expired_session_offline_has_actionable_error(self, runner):
-        renewal = SsoRenewalResult(
-            status=SsoRenewalStatus.FAILED,
-            error=requests.ConnectionError("offline"),
-        )
+    @pytest.mark.parametrize(
+        "error, reason",
+        [
+            pytest.param(requests.ConnectionError("offline"), "offline", id="offline"),
+            pytest.param(
+                ApiException(503, detail="Service unavailable"),
+                "503 - Service unavailable",
+                id="unavailable",
+            ),
+        ],
+    )
+    def test_expired_session_offline_has_actionable_error(self, runner, error, reason):
+        renewal = SsoRenewalResult(status=SsoRenewalStatus.FAILED, error=error)
         with (
             patch(
                 "cloudsmith_cli.cli.commands.auth.renew_sso_session",
@@ -385,9 +393,33 @@ class TestAuthenticateCommand:
             result = runner.invoke(authenticate, [])
 
         assert result.exit_code == 1
-        assert "Cloudsmith could not be reached: offline" in result.output
+        assert f"Cloudsmith could not be reached: {reason}" in result.output
         assert "Check your connection" in result.output
+        assert "https://status.cloudsmith.com" in result.output
         auth_server.assert_not_called()
+
+    def test_throttled_renewal_falls_back_to_browser_login(
+        self, runner, mock_get_idp_url, mock_auth_server
+    ) -> None:
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.FAILED,
+            error=ApiException(429, detail="Request was throttled."),
+        )
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.auth.renew_sso_session",
+                return_value=renewal,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+                wraps=_renew_existing_sso_session,
+            ),
+        ):
+            result = runner.invoke(authenticate, ["-w", "acme", "--no-browser"])
+
+        assert result.exit_code == 0, result.output
+        assert "Your Workspace's SAML IDP URL is" in result.output
+        mock_auth_server.assert_called_once()
 
 
 class TestBrowserFallback:
