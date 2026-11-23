@@ -187,6 +187,12 @@ def _get_value(key):
         return keyring.get_password(key, username)
     except KeyringError:
         return None
+    except ValueError:
+        # keyrings.cryptfile raises ValueError ("MAC check failed") for an
+        # entry that the unlocked file cannot decrypt, for example one written
+        # under another key. Treat the entry as missing, so the caller can
+        # authenticate again and overwrite it.
+        return None
 
 
 def _import_macos_keychain():
