@@ -132,21 +132,24 @@ def test_install_and_uninstall_change_only_the_plugins_list(home):
     assert rc_file.read_text() == f'"plugins":\n  - path: other.cjs\n{other_setting}'
 
 
+@pytest.mark.parametrize("command", ["install", "uninstall"])
 @pytest.mark.parametrize(
     "rc_text",
     [
         f"plugins:\n  - path: {PLUGIN_PATH}\n\n    spec: url\n",
         f"plugins: [{{path: {PLUGIN_PATH}}}]\n",
+        f"plugins:\n  - {{path: {PLUGIN_PATH}}}\n",
+        f"plugins:\n  {ENTRY}  - checksum: abc\n    path: {PLUGIN_PATH}\n",
     ],
 )
-def test_uninstall_of_an_entry_in_another_form_changes_nothing(home, rc_text):
+def test_an_entry_in_another_form_changes_nothing(home, command, rc_text):
     """The command names the file, and keeps the plugin that the file still loads."""
     (home / ".yarnrc.yml").write_text(rc_text)
     (home / PLUGIN_PATH).parent.mkdir(parents=True)
     (home / PLUGIN_PATH).write_bytes(b"plugin")
 
     with pytest.raises(ConfigFileConflict, match=".yarnrc.yml"):
-        YarnInstaller().uninstall()
+        getattr(YarnInstaller(), command)()
 
     assert (home / ".yarnrc.yml").read_text() == rc_text
     assert (home / PLUGIN_PATH).exists()
@@ -162,7 +165,10 @@ def test_install_does_not_save_a_page_that_is_not_the_plugin():
 
 def test_list_finds_the_project_that_loads_the_plugin(home, tmp_path, monkeypatch):
     """Yarn reads .yarnrc.yml from the parent directories, and an unused bundle does not count."""
-    for project, rc_text in (("app", f"  path: {PLUGIN_PATH}\n"), ("old", "")):
+    for project, rc_text in (
+        ("app", f"plugins:\n  - checksum: abc\n    path: {PLUGIN_PATH}\n"),
+        ("old", f"plugins:\n  # - path: {PLUGIN_PATH}\n"),
+    ):
         (tmp_path / project / PLUGIN_PATH).parent.mkdir(parents=True)
         (tmp_path / project / PLUGIN_PATH).write_bytes(b"plugin")
         (tmp_path / project / ".yarnrc.yml").write_text(rc_text)

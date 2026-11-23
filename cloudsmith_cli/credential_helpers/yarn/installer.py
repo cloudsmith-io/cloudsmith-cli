@@ -34,7 +34,11 @@ _ENTRY = re.compile(
     rf"^([ \t]*)- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\2[ \t]*(?:#[^\n]*)?\n",
     re.MULTILINE,
 )
-_REFERENCE = re.compile(rf"path: [\"']?{re.escape(PLUGIN_PATH)}")
+# A line of a plugins list that loads the plugin, in any form that Yarn writes.
+_ACTIVE_REFERENCE = re.compile(
+    rf"^[ \t]*(?:- )?(?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\1[ \t]*(?:#.*)?$",
+    re.MULTILINE,
+)
 _NEXT_LINE = re.compile(r"(?:[ \t]*(?:#[^\n]*)?\n)*([ \t]*)\S")
 _NEXT_KEY = re.compile(r"^[^\s#-]", re.MULTILINE)
 _ITEM = re.compile(r"^([ \t]*)- ", re.MULTILINE)
@@ -99,19 +103,19 @@ def _find_in_list(pattern: re.Pattern[str], text: str) -> re.Match[str] | None:
 def _entry(text: str, rc_file: Path) -> re.Match[str] | None:
     """Return the plugin item in *text*, or ``None`` when *text* does not name the plugin.
 
-    An item with more keys, such as the spec and checksum of `yarn plugin import`,
-    can have blank lines and comments between its keys, so the command does not
-    change it.
+    The command changes only one ``- path:`` item that is the only reference to
+    the plugin. An item with more keys, such as the spec and checksum of
+    `yarn plugin import`, can have blank lines and comments between its keys.
     """
     plugins = _plugins_list(text)
     if plugins is None:
         return None
     key, end = plugins
+    references = text.count(PLUGIN_PATH, key.start(), end)
+    if references == 0:
+        return None
     entry = _ENTRY.search(text, key.end(), end)
-    if entry is None:
-        if PLUGIN_PATH not in text[key.start() : end]:
-            return None
-    elif not _has_more_keys(text, entry):
+    if references == 1 and entry and not _has_more_keys(text, entry):
         return entry
     raise ConfigFileConflict(
         f"{rc_file} names {PLUGIN_PATH} in a form that the command does not "
@@ -131,7 +135,8 @@ def _loads_plugin(directory: Path) -> bool:
         text = _read(directory / ".yarnrc.yml")
     except OSError:
         return False
-    return bool(_REFERENCE.search(text)) and (directory / PLUGIN_PATH).is_file()
+    loads = _find_in_list(_ACTIVE_REFERENCE, text) is not None
+    return loads and (directory / PLUGIN_PATH).is_file()
 
 
 def _with_entry(text: str, rc_file: Path) -> str:
@@ -216,7 +221,7 @@ class YarnInstaller:
         rc_file = _rc_file()
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
-        new_text = text if _find_in_list(_ENTRY, text) else _with_entry(text, rc_file)
+        new_text = text if _entry(text, rc_file) else _with_entry(text, rc_file)
         content, version = _download(session)
         new_plugin = not plugin_file.exists() or plugin_file.read_bytes() != content
         if new_text == text and not new_plugin:
