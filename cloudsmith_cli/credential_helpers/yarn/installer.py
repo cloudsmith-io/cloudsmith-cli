@@ -30,12 +30,12 @@ PLUGIN_URL = (
 # Yarn reads a plugin path relative to the directory of the .yarnrc.yml file.
 PLUGIN_PATH = f".yarn/plugins/{PLUGIN_NAME}.cjs"
 _PLUGINS_KEY = re.compile(r"^plugins:([^\n]*)\n", re.MULTILINE)
-# The item, with any keys that Yarn writes under it, such as spec and checksum.
 _ENTRY = re.compile(
-    rf"^([ \t]*)- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\2[ \t]*(?:#[^\n]*)?\n"
-    r"(?:\1[ \t]+[^\s-][^\n]*\n)*",
+    rf"^([ \t]*)- (?:path: )?([\"']?){re.escape(PLUGIN_PATH)}\2[ \t]*(?:#[^\n]*)?\n",
     re.MULTILINE,
 )
+_REFERENCE = re.compile(rf"path: [\"']?{re.escape(PLUGIN_PATH)}")
+_NEXT_LINE = re.compile(r"(?:[ \t]*(?:#[^\n]*)?\n)*([ \t]*)\S")
 _NEXT_KEY = re.compile(r"^[^\s#-]", re.MULTILINE)
 _ITEM = re.compile(r"^([ \t]*)- ", re.MULTILINE)
 _STACK_FRAME = re.compile(r"^[ \t]+at [^\n]*\n?", re.MULTILINE)
@@ -66,6 +66,40 @@ def _first_item(text: str, key: re.Match[str]) -> re.Match[str] | None:
     """Return the first item of the list under the plugins *key*, or ``None``."""
     next_key = _NEXT_KEY.search(text, key.end())
     return _ITEM.search(text, key.end(), next_key.start() if next_key else len(text))
+
+
+def _entry(text: str, rc_file: Path) -> re.Match[str] | None:
+    """Return the plugin item in *text*, or ``None`` when *text* does not name the plugin.
+
+    An item with more keys, such as the spec and checksum of `yarn plugin import`,
+    can have blank lines and comments between its keys, so the command does not
+    change it.
+    """
+    entry = _ENTRY.search(text)
+    if entry is None:
+        if PLUGIN_PATH not in text:
+            return None
+    elif not _has_more_keys(text, entry):
+        return entry
+    raise ConfigFileConflict(
+        f"{rc_file} names {PLUGIN_PATH} in a form that the command does not "
+        "change. Remove the plugin from the file, and then run the command again."
+    )
+
+
+def _has_more_keys(text: str, entry: re.Match[str]) -> bool:
+    """Return whether the next line with content is indented under the *entry* item."""
+    following = _NEXT_LINE.match(text, entry.end())
+    return following is not None and len(following.group(1)) > len(entry.group(1))
+
+
+def _loads_plugin(directory: Path) -> bool:
+    """Return whether the .yarnrc.yml in *directory* loads the plugin file next to it."""
+    try:
+        text = _read(directory / ".yarnrc.yml")
+    except OSError:
+        return False
+    return bool(_REFERENCE.search(text)) and (directory / PLUGIN_PATH).is_file()
 
 
 def _with_entry(text: str, rc_file: Path) -> str:
@@ -176,7 +210,7 @@ class YarnInstaller:
         rc_file = _rc_file()
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
-        entry = _ENTRY.search(text)
+        entry = _entry(text, rc_file)
         if entry is None and not plugin_file.exists():
             return [f"{rc_file} does not load {PLUGIN_NAME} (nothing to remove)"]
         verb = "would remove" if dry_run else "removed"
@@ -226,11 +260,10 @@ class YarnInstaller:
         return [f"removed {PLUGIN_NAME} from the Yarn project in {project_dir}"]
 
     def status(self) -> dict:
-        paths = []
-        with contextlib.suppress(OSError):
-            if _ENTRY.search(_read(_rc_file())):
-                paths.append(Path.home() / PLUGIN_PATH)
+        # Yarn reads the .yarnrc.yml of each parent directory, and the home one.
+        directories = [Path.home()]
         with contextlib.suppress(ProjectNotFound):
-            paths.append(current_dir() / PLUGIN_PATH)
-        path = next((path for path in paths if path.is_file()), None)
-        return {"launcher": str(path) if path else None, "hosts": []}
+            directories[:0] = [current_dir(), *current_dir().parents]
+        directory = next(filter(_loads_plugin, directories), None)
+        launcher = str(directory / PLUGIN_PATH) if directory else None
+        return {"launcher": launcher, "hosts": []}

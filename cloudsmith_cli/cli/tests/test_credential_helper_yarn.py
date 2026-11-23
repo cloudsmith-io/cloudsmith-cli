@@ -99,7 +99,7 @@ def test_uninstall_removes_a_hand_written_entry_and_keeps_other_plugins(home):
     """The whole item goes, and the plugins key stays while it has an item."""
     rc_file = home / ".yarnrc.yml"
     rc_file.write_text(
-        f'plugins:\n# keep\n- path: "{PLUGIN_PATH}"  # mine\n  spec: url\n'
+        f'plugins:\n# keep\n- path: "{PLUGIN_PATH}"  # mine\n'
         "- path: other.cjs\nnodeLinker: pnp\n"
     )
 
@@ -110,12 +110,46 @@ def test_uninstall_removes_a_hand_written_entry_and_keeps_other_plugins(home):
     )
 
 
+@pytest.mark.parametrize(
+    "rc_text",
+    [
+        f"plugins:\n  - path: {PLUGIN_PATH}\n\n    spec: url\n",
+        f"plugins: [{{path: {PLUGIN_PATH}}}]\n",
+    ],
+)
+def test_uninstall_of_an_entry_in_another_form_changes_nothing(home, rc_text):
+    """The command names the file, and keeps the plugin that the file still loads."""
+    (home / ".yarnrc.yml").write_text(rc_text)
+    (home / PLUGIN_PATH).parent.mkdir(parents=True)
+    (home / PLUGIN_PATH).write_bytes(b"plugin")
+
+    with pytest.raises(ConfigFileConflict, match=".yarnrc.yml"):
+        YarnInstaller().uninstall()
+
+    assert (home / ".yarnrc.yml").read_text() == rc_text
+    assert (home / PLUGIN_PATH).exists()
+
+
 def test_install_does_not_save_a_page_that_is_not_the_plugin():
     """A proxy can answer with its own page, which would stop Yarn in every project."""
     page = Mock(content=b"<html>", url=PLUGIN_URL)
 
     with pytest.raises(OSError, match="proxy"):
         installer._download(Mock(get=Mock(return_value=page)))
+
+
+def test_list_finds_the_project_that_loads_the_plugin(home, tmp_path, monkeypatch):
+    """Yarn reads .yarnrc.yml from the parent directories, and an unused bundle does not count."""
+    for project, rc_text in (("app", f"  path: {PLUGIN_PATH}\n"), ("old", "")):
+        (tmp_path / project / PLUGIN_PATH).parent.mkdir(parents=True)
+        (tmp_path / project / PLUGIN_PATH).write_bytes(b"plugin")
+        (tmp_path / project / ".yarnrc.yml").write_text(rc_text)
+        (tmp_path / project / "packages").mkdir()
+
+    monkeypatch.chdir(tmp_path / "app" / "packages")
+    assert YarnInstaller().status()["launcher"] == str(tmp_path / "app" / PLUGIN_PATH)
+    monkeypatch.chdir(tmp_path / "old" / "packages")
+    assert YarnInstaller().status()["launcher"] is None
 
 
 def test_list_with_an_unreadable_yarnrc_shows_no_plugin(home):
