@@ -71,7 +71,12 @@ def test_install_adds_the_entry_to_the_plugins_of_the_user(home, indent):
 
 @pytest.mark.parametrize(
     "rc_text",
-    ["plugins: []\n", "  plugins:\n    - path: other.cjs\n", "plugins:\n  - a\n - b\n"],
+    [
+        "plugins: []\n",
+        "  plugins:\n    - path: other.cjs\n",
+        "plugins:\n  - a\n - b\n",
+        '"plugin\\x73": []\n',
+    ],
 )
 def test_install_refuses_a_layout_that_it_cannot_change_safely(home, rc_text):
     """The command names the file, and leaves the file as it is."""

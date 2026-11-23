@@ -80,10 +80,19 @@ def _remove_with_empty_parents(plugin_file: Path) -> None:
 
 
 def _load_yaml(text: str) -> object:
-    """Return the value of the YAML *text*, or ``_INVALID`` when it is not valid YAML."""
+    """Return the value of the YAML *text*, or ``_INVALID`` when it is not valid YAML.
+
+    With the same top-level key twice, Yarn keeps only the last value, so a
+    second plugins key would hide the plugins of the first one.
+    """
     import yaml
 
     try:
+        root = yaml.compose(text, Loader=yaml.SafeLoader)
+        if isinstance(root, yaml.MappingNode):
+            keys = [key.value for key, _ in root.value]
+            if len(keys) != len(set(keys)):
+                return _INVALID
         return yaml.safe_load(text)
     except yaml.YAMLError:
         return _INVALID
