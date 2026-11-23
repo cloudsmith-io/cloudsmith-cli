@@ -34,17 +34,21 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds: float, context: str | None = None) -> None:
+def report_retry(seconds: float, context: str | None = None, status: int = 429) -> None:
     if context == "retry-after":
+        reason = "Request was throttled" if status == 429 else "Request failed"
         click.echo(err=True)
         click.echo(
-            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
+            f"{reason} ({status}): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
     elif context == "backoff":
         click.echo(err=True)
         click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
+
+#: The most time, in seconds, that the shared session waits on Retry-After per request.
+SESSION_RETRY_AFTER_BUDGET = 60
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
 
@@ -672,6 +676,8 @@ def initialise_session(f):
             ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
+            error_retry_cb=report_retry,
+            retry_after_budget=SESSION_RETRY_AFTER_BUDGET,
         )
         # A group (e.g. `mcp`) defers to its subcommand, whose options win.
         if not ctx.invoked_subcommand:

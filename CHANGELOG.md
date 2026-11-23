@@ -22,9 +22,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cloudsmith mcp start` now exposes only read-only tools by default. Tools that change data or return credentials need `--allow-destructive-tools` (`-D`). A tool changes data when it uses POST, PUT, PATCH or DELETE, or when its name contains `delete`, `destroy` or `remove`. `--all-tools` (`-a`) enables every tool group and ignores `mcp_allowed_tools` and `mcp_allowed_tool_groups`. It no longer enables these tools without `-D`. When your allowlist matches tools that need `-D`, `mcp start`, `mcp list_tools` and `mcp list_groups` show a warning. `mcp configure` now accepts `-a` and `-D` and keeps them in the client configuration. Tools that change data now have `destructiveHint` set to `true`. (#620)
 
+- `cloudsmith auth` no longer crashes with `ValueError: MAC check failed` when the encrypted keyring file holds a saved token that the keyring key cannot decrypt, for example a token written under another key. The CLI now treats the token as missing and starts a new login, which replaces it.
+
 - `repos create`/`update`, `upstream <format> create`/`update` and `policy deny|license|vulnerability create`/`update` now report a usage error when the config file isn't valid JSON or doesn't hold a JSON object, for example a file with a trailing comma. Previously the command crashed with a `JSONDecodeError` or `AttributeError` traceback.
 
 - Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
+- Fixed commands hanging with no output when Cloudsmith throttled the renewal of a stored SAML session. The CLI now waits at most 60 seconds for a throttled renewal, SAML login, or OIDC token exchange, and prints a message before each wait. When the server asks for a longer wait, `cloudsmith auth` starts a new SAML login.
 
 ## [1.31.3] - 2026-11-17
 
