@@ -16,7 +16,7 @@ Entire records Claude Code sessions as checkpoints (`.entire/settings.json`, `.c
 
 All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps.
 
-Python `>=3.11` is required (CI tests 3.11–3.14). Use at least the patched releases 3.11.18, 3.12.16, 3.13.18 or 3.14.10: earlier patch levels still trust the compromised eMudhra CA keys (CVE-2026-115557). CI pins these exactly, and `mise.toml` pins 3.14.10. To use a different version, run `export MISE_PYTHON_VERSION=3.12.16`, then `direnv reload`. The CI test matrix sets the same variable.
+Python `>=3.11` is required (CI tests 3.11–3.14). Use at least the patched releases 3.11.18, 3.12.16, 3.13.18 or 3.14.10: earlier patch levels still trust the compromised eMudhra CA keys (CVE-2026-115557). CI pins these exactly, and `mise.toml` pins 3.14.10. To use a different version, run `export MISE_PYTHON_VERSION=3.12.16`, then `direnv reload`.
 
 ## Common commands
 
