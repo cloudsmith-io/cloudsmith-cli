@@ -17,6 +17,23 @@ def test_version_sends_success(usage_events, notice_seen):
     assert usage_events[-1]["properties"]["command"] == "<root>"
 
 
+def test_run_without_agent_markers_is_human(usage_events, notice_seen):
+    main(args=["--version"], standalone_mode=False)
+    props = usage_events[-1]["properties"]
+    assert props["persona"] == "human" and "agent" not in props
+
+
+def test_agent_run_sends_a_name_never_the_raw_value(
+    usage_events, notice_seen, monkeypatch
+):
+    monkeypatch.setenv("AI_AGENT", "acme-internal-bot_9")
+    main(args=["--version"], standalone_mode=False)
+    props = usage_events[-1]["properties"]
+    assert props["persona"] == "agent"
+    assert props["agent"] == "unidentified_agent"
+    assert "acme" not in json.dumps(usage_events[-1])
+
+
 def test_help_is_recorded_as_help(usage_events, notice_seen):
     # Click returns 0 for --help when standalone_mode is False.
     assert main(args=["repositories", "--help"], standalone_mode=False) == 0
