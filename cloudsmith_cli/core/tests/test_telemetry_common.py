@@ -66,3 +66,76 @@ def test_config_file_env_matches_the_option_declaration():
 
     envvars = {p.name: p.envvar for p in main.main.params}
     assert envvars["config_file"] == telemetry_common.CONFIG_FILE_ENV
+
+
+# --- Per-command policy (@telemetry.send) ------------------------------------
+
+Send = telemetry_common.Send
+
+
+def test_policy_levels_combine_as_flags():
+    assert Send.ALL == Send.ERRORS | Send.USAGE
+    assert Send.ERRORS in Send.ALL and Send.USAGE in Send.ALL
+    assert Send.USAGE not in Send.ERRORS and Send.ERRORS not in Send.USAGE
+    assert Send.ERRORS not in Send.NONE and Send.USAGE not in Send.NONE
+
+
+def test_cli_module_exposes_the_four_levels():
+    from cloudsmith_cli.cli import telemetry as cli_telemetry
+
+    assert (cli_telemetry.NONE, cli_telemetry.ERRORS) == (Send.NONE, Send.ERRORS)
+    assert (cli_telemetry.USAGE, cli_telemetry.ALL) == (Send.USAGE, Send.ALL)
+    assert cli_telemetry.send is telemetry_common.send
+
+
+def test_send_rejects_anything_but_a_policy():
+    with pytest.raises(TypeError):
+        telemetry_common.send("errors")  # ty: ignore[invalid-argument-type]
+
+
+def _ctx(command, parent=None):
+    import types
+
+    return types.SimpleNamespace(command=command, parent=parent)
+
+
+def test_send_works_above_or_below_the_click_decorator():
+    import click
+
+    @click.command()
+    @telemetry_common.send(Send.ERRORS)
+    def below():
+        pass
+
+    @telemetry_common.send(Send.USAGE)
+    @click.command()
+    def above():
+        pass
+
+    assert telemetry_common.declared_policy(below) is Send.ERRORS
+    assert telemetry_common.declared_policy(above) is Send.USAGE
+
+
+def test_the_policy_nearest_the_command_wins_and_all_is_the_default():
+    import click
+
+    @click.group()
+    @telemetry_common.send(Send.ERRORS)
+    def group():
+        pass
+
+    @group.command()
+    def inherits():
+        pass
+
+    @group.command()
+    @telemetry_common.send(Send.ALL)
+    def overrides():
+        pass
+
+    root = _ctx(click.Group("root"))
+    group_ctx = _ctx(group, root)
+    assert telemetry_common.resolve_policy(_ctx(inherits, group_ctx)) is Send.ERRORS
+    assert telemetry_common.resolve_policy(_ctx(overrides, group_ctx)) is Send.ALL
+    assert telemetry_common.resolve_policy(root) is Send.ALL
+    assert telemetry_common.resolve_policy(None) is Send.ALL

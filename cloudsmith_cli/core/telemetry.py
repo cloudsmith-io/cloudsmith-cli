@@ -10,6 +10,9 @@ in CI) and is turned off by any of:
 * ``telemetry = false`` in config.ini - so the choice survives a new shell.
 
 Any one opt-out wins; ``telemetry = true`` does not override the env vars.
+A command whose ``@telemetry.send`` policy leaves out ERRORS never reports
+(checked by the caller, ``AliasGroup.main``). ``CLOUDSMITH_TELEMETRY=log``
+prints the scrubbed report instead of sending it.
 
 Anonymisation is enforced by :func:`scrub_event`, which *rebuilds* the event
 from an allowlist rather than deleting known-bad fields, so anything new the
@@ -38,6 +41,7 @@ from .telemetry_common import (  # noqa: F401  (re-exported for callers and test
     PROFILE_ENV,
     config_disabled,
     get_environment,
+    log_mode,
     telemetry_disabled,
 )
 
@@ -123,6 +127,9 @@ def is_reportable(exc: BaseException) -> bool:
 def report_exception(exc: BaseException) -> bool:
     """Report ``exc`` unless opted out; return whether an event was sent.
 
+    In log mode (``CLOUDSMITH_TELEMETRY=log``) the scrubbed event is printed
+    to stderr instead and nothing is sent, even without a DSN.
+
     Never raises - not even ``KeyboardInterrupt`` during the flush wait - and
     never waits longer than :data:`FLUSH_TIMEOUT_SECONDS`: a failure while
     reporting must not change the outcome of the command that is failing.
@@ -132,6 +139,10 @@ def report_exception(exc: BaseException) -> bool:
             return False
         if telemetry_disabled() or config_disabled():
             return False
+        if log_mode():
+            # The DSN is only parsed here: the log transport never sends.
+            _send(exc, get_dsn() or DSN, log=True)
+            return False
         dsn = get_dsn()
         if not dsn:
             return False
@@ -140,7 +151,26 @@ def report_exception(exc: BaseException) -> bool:
         return False
 
 
-def _send(exc: BaseException, dsn: str) -> bool:
+def _log_transport():
+    """A transport that prints each event to stderr and sends nothing."""
+    import json
+
+    from sentry_sdk.transport import Transport
+
+    class LogTransport(Transport):
+        def capture_envelope(self, envelope):
+            for item in envelope.items:
+                if item.type == "event":
+                    click.echo(
+                        "[telemetry] would send error report (log mode, nothing sent):\n"
+                        + json.dumps(item.payload.json, indent=2, sort_keys=True),
+                        err=True,
+                    )
+
+    return LogTransport()
+
+
+def _send(exc: BaseException, dsn: str, log: bool = False) -> bool:
     """Build a locked-down, single-use Sentry client and send one event."""
     import sentry_sdk
 
@@ -151,7 +181,7 @@ def _send(exc: BaseException, dsn: str) -> bool:
     proxy = get_default_proxy()
     client = sentry_sdk.Client(
         dsn=dsn,
-        transport=_transport,
+        transport=_log_transport() if log else _transport,
         # Both: the SDK prefers https_proxy (and $HTTPS_PROXY) for HTTPS DSNs.
         http_proxy=proxy,
         https_proxy=proxy,

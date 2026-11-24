@@ -5,6 +5,7 @@ import pytest
 from click.testing import CliRunner
 
 from cloudsmith_cli.cli import option_names, usage_capture
+from cloudsmith_cli.cli import telemetry as cli_telemetry
 from cloudsmith_cli.cli.command import AliasGroup
 
 CAPTURED = {}
@@ -372,3 +373,114 @@ def test_record_credential_keeps_the_last_resolved_source():
         store_ctx, SimpleNamespace(source_name="credentials_file")
     )
     assert store_ctx.meta[usage_capture.META_KEY]["auth_source"] == "credentials_file"
+
+
+def _every_command():
+    """Yield (path, command, parent path) for the whole real CLI."""
+    import importlib
+    import pkgutil
+
+    from cloudsmith_cli.cli import commands
+    from cloudsmith_cli.cli.commands.main import main
+
+    for info in pkgutil.walk_packages(
+        commands.__path__, prefix=commands.__name__ + "."
+    ):
+        importlib.import_module(info.name)
+
+    def walk(cmd, path):
+        yield path, cmd
+        for name, sub in getattr(cmd, "commands", {}).items():
+            yield from walk(sub, (*path, name))
+
+    yield from walk(main, ())
+
+
+def test_every_command_that_sends_less_than_all_is_listed_here():
+    from cloudsmith_cli.cli.telemetry import ALL, ERRORS
+
+    # Change this only on purpose: it is the reviewed list of what does not
+    # send everything.
+    expected = {
+        "credential-helper cargo": ERRORS,
+        "credential-helper docker": ERRORS,
+        "credential-helper generic": ERRORS,
+        "credential-helper pnpm": ERRORS,
+        "credential-helper terraform": ERRORS,
+        "mcp start": ERRORS,
+        "telemetry": ERRORS,
+        "telemetry id": ERRORS,
+        "telemetry reset": ERRORS,
+        "telemetry status": ERRORS,
+    }
+    assert {p: v for p, v in _effective_policies().items() if v is not ALL} == expected
+
+
+def _effective_policies():
+    """Each command's policy: its own, else the nearest parent's, else ALL."""
+    from cloudsmith_cli.cli.telemetry import ALL
+    from cloudsmith_cli.core.telemetry_common import declared_policy
+
+    effective = {}
+    for path, cmd in _every_command():
+        inherited = effective.get(" ".join(path[:-1]), ALL) if path else ALL
+        # Not `or`: NONE is a zero-valued, falsy flag, as in resolve_policy.
+        declared = declared_policy(cmd)
+        effective[" ".join(path)] = inherited if declared is None else declared
+    return effective
+
+
+def test_a_declared_none_policy_is_not_read_as_all(monkeypatch):
+    from cloudsmith_cli.cli.commands.main import main
+    from cloudsmith_cli.cli.telemetry import NONE
+    from cloudsmith_cli.core import telemetry_common
+
+    whoami = main.get_command(click.Context(main), "whoami")
+    real = telemetry_common.declared_policy
+    monkeypatch.setattr(
+        telemetry_common,
+        "declared_policy",
+        lambda cmd: NONE if cmd is whoami else real(cmd),
+    )
+    assert _effective_policies()["whoami"] is NONE
+
+
+@click.group(cls=AliasGroup)
+def policy_app():
+    pass
+
+
+@policy_app.group(cls=AliasGroup)
+@cli_telemetry.send(cli_telemetry.ERRORS)
+def quiet():
+    pass
+
+
+@quiet.command()
+@click.pass_context
+def inherits(ctx):
+    CAPTURED["facts"] = usage_capture.collect_facts(
+        ctx.meta, outcome="success", exit_code=0, duration_ms=1, nested=False
+    )
+
+
+@quiet.command()
+@cli_telemetry.send(cli_telemetry.ALL)
+@click.pass_context
+def overrides(ctx):
+    CAPTURED["facts"] = usage_capture.collect_facts(
+        ctx.meta, outcome="success", exit_code=0, duration_ms=1, nested=False
+    )
+
+
+@pytest.mark.parametrize(
+    "args, allowed",
+    [(["quiet", "inherits"], False), (["quiet", "overrides"], True)],
+)
+def test_the_command_policy_reaches_the_run_facts(args, allowed):
+    CliRunner().invoke(policy_app, args, catch_exceptions=False)
+    assert CAPTURED["facts"].usage_allowed is allowed
+
+
+def test_a_command_without_a_policy_sends_usage():
+    assert _run(["listing"]).usage_allowed is True
