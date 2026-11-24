@@ -34,17 +34,21 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds: float, context: str | None = None) -> None:
+def report_retry(seconds: float, context: str | None = None, status: int = 429) -> None:
     if context == "retry-after":
+        reason = "Request was throttled" if status == 429 else "Request failed"
         click.echo(err=True)
         click.echo(
-            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
+            f"{reason} ({status}): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
     elif context == "backoff":
         click.echo(err=True)
         click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
+
+#: The most time, in seconds, that the shared session waits on Retry-After per request.
+SESSION_RETRY_AFTER_BUDGET = 60
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
 
@@ -250,6 +254,22 @@ def common_cli_config_options(f):
     return wrapper
 
 
+def _inherit_output_option(ctx, name, resolve):
+    """Resolve an output option, inheriting it from an outer command if left unset.
+
+    The output options are declared on every group and command, so without this a
+    subcommand's default would replace a value given to its parent (e.g.
+    ``cloudsmith --color=never list repos``). A command run through ``ctx.invoke``
+    or ``ctx.forward`` has no parameter source, and inherits too.
+    """
+    key = f"cloudsmith_cli.output_options.{name}"
+    source = ctx.get_parameter_source(name)
+    if source in (ParameterSource.DEFAULT, None) and key in ctx.meta:
+        return ctx.meta[key]
+    ctx.meta[key] = resolve()
+    return ctx.meta[key]
+
+
 def common_cli_output_options(f):
     """Add common CLI output options to commands."""
 
@@ -308,20 +328,30 @@ def common_cli_output_options(f):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
 
-        ctx.color = color_enabled(
-            {
-                "NO_COLOR": kwargs.pop("no_color_env"),
-                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
-                "TERM": kwargs.pop("term_env"),
-            },
-            ColorMode[kwargs.pop("color").upper()],
-            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        color_env = {
+            "NO_COLOR": kwargs.pop("no_color_env"),
+            "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+            "TERM": kwargs.pop("term_env"),
+        }
+        color_mode = ColorMode[kwargs.pop("color").upper()]
+        ctx.color = _inherit_output_option(
+            ctx,
+            "color",
+            lambda: color_enabled(
+                color_env,
+                color_mode,
+                TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+            ),
         )
 
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
-        opts.output = kwargs.pop("output_format")
-        opts.verbose = kwargs.pop("verbose")
+        output_format = kwargs.pop("output_format")
+        opts.output = _inherit_output_option(
+            ctx, "output_format", lambda: output_format
+        )
+        verbose = kwargs.pop("verbose")
+        opts.verbose = _inherit_output_option(ctx, "verbose", lambda: verbose)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -646,6 +676,8 @@ def initialise_session(f):
             ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
+            error_retry_cb=report_retry,
+            retry_after_budget=SESSION_RETRY_AFTER_BUDGET,
         )
         # A group (e.g. `mcp`) defers to its subcommand, whose options win.
         if not ctx.invoked_subcommand:
