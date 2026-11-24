@@ -155,7 +155,37 @@ class TestUpgradeInstruction:
             "get_version_info",
             lambda: semver.VersionInfo.parse("2.4.1"),
         )
+        monkeypatch.setattr(installation, "_is_installed", lambda name: False)
         assert installation.upgrade_instruction(channel) == instruction
+
+    @pytest.mark.parametrize(
+        "installed, spec",
+        [
+            ({"boto3"}, "cloudsmith-cli[aws]<3"),
+            ({"boto3", "google-auth"}, "cloudsmith-cli[all]<3"),
+        ],
+    )
+    def test_pipx_keeps_installed_extras(self, monkeypatch, installed, spec):
+        monkeypatch.setattr(
+            installation.version,
+            "get_version_info",
+            lambda: semver.VersionInfo.parse("2.4.1"),
+        )
+        monkeypatch.setattr(
+            installation.metadata,
+            "requires",
+            lambda name: [
+                "click>=8.2",
+                'boto3[crt]>=1.26.0; extra == "aws"',
+                'google-auth>=2.40.0; extra == "gcp"',
+                'boto3[crt]>=1.26.0; extra == "all"',
+                'google-auth>=2.40.0; extra == "all"',
+            ],
+        )
+        monkeypatch.setattr(installation, "_is_installed", installed.__contains__)
+        assert installation.upgrade_instruction(installation.CHANNEL_PIPX) == (
+            f'pipx install --force --pip-args=--upgrade "{spec}"'
+        )
 
 
 class TestChangelogUrl:
