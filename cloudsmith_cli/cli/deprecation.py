@@ -156,10 +156,22 @@ def warn_message(
     Prints nothing with JSON output or when `SUPPRESS_ENVVAR` is set. Pass
     `args` when warning while Click parses the arguments of `ctx`.
     """
-    message = format_warning(subject, replacement, removal=removal, detail=detail)
-    ctx = ctx or click.get_current_context(silent=True)
-    if _suppressed(ctx, args):
+    if _suppressed(ctx or click.get_current_context(silent=True), args):
         return
+    warn_once(
+        format_warning(subject, replacement, removal=removal, detail=detail), ctx=ctx
+    )
+
+
+def warn_once(message, ctx=None):
+    """Print the warning `message` to stderr, once per run.
+
+    Silent for shell completion and for the credential helpers. Unlike
+    `warn_message`, it also prints with JSON output and `SUPPRESS_ENVVAR`:
+    for warnings that are not deprecations, such as an ignored telemetry
+    setting.
+    """
+    ctx = ctx or click.get_current_context(silent=True)
     if ctx is not None:
         if ctx.resilient_parsing or _is_credential_helper_runtime(ctx):
             return

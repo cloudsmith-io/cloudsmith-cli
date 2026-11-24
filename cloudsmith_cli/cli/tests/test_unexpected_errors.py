@@ -590,12 +590,21 @@ def test_log_mode_prints_without_a_dsn(runner, tmp_path, sentry_events, monkeypa
     assert "would send error report" in result.stderr
 
 
-def test_log_mode_still_honours_the_opt_out(
-    runner, tmp_path, sentry_events, monkeypatch
+@pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
+def test_log_mode_wins_over_the_opt_outs(
+    runner, tmp_path, sentry_events, monkeypatch, name
 ):
     monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
-    monkeypatch.setenv("DO_NOT_TRACK", "1")
+    monkeypatch.setenv(name, "1")
     with whoami_raises(RuntimeError("boom")):
         result = runner.invoke(main, whoami_args(tmp_path))
-    assert "would send error report" not in result.stderr
+    assert "would send error report" in result.stderr
+    assert sentry_events == []
+
+
+def test_disable_sends_nothing(runner, tmp_path, sentry_events, monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "disable")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+    assert result.exit_code == 1
     assert sentry_events == []
