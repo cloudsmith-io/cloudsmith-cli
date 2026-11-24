@@ -24,7 +24,7 @@ Our [direnv config](./.envrc) file codifies the development environment setup wh
 mise trust && direnv allow
 ```
 
-`.envrc` also installs the Entire Brain plugin. Run `entire enable` once to install Entire's git hooks in your clone. Build this repository's brain and pull its shared memories once with `entire brain setup && entire brain connect`.
+If you can read the private checkpoint repository, `.envrc` also turns on Entire and installs its Brain plugin. Build this repository's brain and pull its shared memories once with `entire brain setup && entire brain connect`.
 
 ## Coding Conventions
 

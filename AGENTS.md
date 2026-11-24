@@ -12,7 +12,7 @@ uv sync --locked --group dev
 pre-commit install
 ```
 
-Entire records Claude Code sessions as checkpoints (`.entire/settings.json`, `.claude/settings.json`). This repository is public, so `.entire/settings.json` turns checkpoint uploads off. `.envrc` writes the private `cloudsmith-io/cloudsmith-cli-checkpoints` repository and `push_sessions: true` into the untracked `.entire/settings.local.json`. Entire then pushes checkpoints only to that repository on `git push`. Run `entire enable` once per clone to install its git hooks.
+Entire records Claude Code sessions as checkpoints (`.entire/settings.json`, `.claude/settings.json`). This repository is public, so `.entire/settings.json` turns Entire off. When you can read the private `cloudsmith-io/cloudsmith-cli-checkpoints` repository, `.envrc` turns Entire on in the untracked `.entire/settings.local.json`. Entire then pushes checkpoints only to that repository on `git push`. The first Claude Code session installs Entire's git hooks.
 
 All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps.
 
