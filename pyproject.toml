@@ -96,7 +96,7 @@ dev = [
 ]
 binary = [
     "pyinstaller==6.22.3",
-    "pyinstaller-hooks-contrib==2026.9",
+    "pyinstaller-hooks-contrib==2026.10",
     "setuptools==84.2.1",
     "wheel==0.48.0",
 ]
