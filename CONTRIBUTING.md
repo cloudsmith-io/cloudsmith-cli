@@ -18,7 +18,13 @@ All dependencies are declared in [pyproject.toml](./pyproject.toml): production 
 
 For most purposes you just want [uv](https://docs.astral.sh/uv/): `uv sync --locked --group dev` creates a virtual environment with the project (editable) and all dev dependencies installed.
 
-Our [direnv config](./.envrc) file codifies the development environment setup which we use internally.
+Our [direnv config](./.envrc) file codifies the development environment setup which we use internally. It installs the Python, uv and [Entire](https://entire.io) versions pinned in [mise.toml](./mise.toml). Install [mise](https://mise.jdx.dev) and [direnv](https://direnv.net), then allow both once:
+
+```bash
+mise trust && direnv allow
+```
+
+`.envrc` also installs the Entire Brain plugin. Run `entire enable` once to install Entire's git hooks in your clone. Build this repository's brain and pull its shared memories once with `entire brain setup && entire brain connect`.
 
 ## Coding Conventions
 
