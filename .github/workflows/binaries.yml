@@ -25,6 +25,8 @@ on:
       - cloudsmith_cli/**
       - packaging/**
       - Dockerfile
+      - mise.lock
+      - mise.toml
       - pyproject.toml
       - uv.lock
       - .github/scripts/**
@@ -35,6 +37,8 @@ on:
       - cloudsmith_cli/**
       - packaging/**
       - Dockerfile
+      - mise.lock
+      - mise.toml
       - pyproject.toml
       - uv.lock
       - .github/scripts/**
