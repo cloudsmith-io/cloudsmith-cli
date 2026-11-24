@@ -37,7 +37,7 @@ class TestDetectFrozenChannel:
 
     def test_docker(self, monkeypatch):
         monkeypatch.setattr(installation.os.path, "realpath", lambda p: p)
-        monkeypatch.setattr(installation, "_running_in_container", lambda: True)
+        monkeypatch.setattr(installation, "running_in_container", lambda: True)
         assert (
             installation.detect_channel(
                 frozen=True, executable_path="/opt/cloudsmith/bin/cloudsmith"
@@ -47,7 +47,7 @@ class TestDetectFrozenChannel:
 
     def test_opt_cloudsmith_without_container_is_standalone(self, monkeypatch):
         monkeypatch.setattr(installation.os.path, "realpath", lambda p: p)
-        monkeypatch.setattr(installation, "_running_in_container", lambda: False)
+        monkeypatch.setattr(installation, "running_in_container", lambda: False)
         assert (
             installation.detect_channel(
                 frozen=True, executable_path="/opt/cloudsmith/bin/cloudsmith"
