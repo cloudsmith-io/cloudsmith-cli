@@ -293,7 +293,7 @@ The CLI sends two types of telemetry to Cloudsmith:
 - Usage telemetry: after each command, the CLI sends one event. The event contains the command name and the names of the options and environment variables that you set, but never their values. Usage telemetry is on by default, also in CI.
 - Error reports: when the CLI fails with an unexpected error, it sends an error report.
 
-To turn off both types, set `CLOUDSMITH_TELEMETRY=disable`. To learn what each type contains and how to turn off each one, see [CLI telemetry](https://docs.cloudsmith.com/developer-tools/cli-telemetry).
+To turn off both types, set `CLOUDSMITH_TELEMETRY=disable`. `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` and `CLOUDSMITH_TELEMETRY_ERROR_REPORTING` override it for their type, so do not set them to `enable`. To learn what each type contains and how to turn off each one, see [CLI telemetry](https://docs.cloudsmith.com/developer-tools/cli-telemetry).
 
 If Cloudsmith adds a new type of data or a new destination, `CHANGELOG.md` lists it in that release, with instructions to opt out.
 
