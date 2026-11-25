@@ -301,7 +301,7 @@ If Cloudsmith adds a new type of data or a new destination, `CHANGELOG.md` lists
 
 Only the latest minor release of the current major version receives fixes. To get a fix, upgrade to the latest minor release.
 
-After Cloudsmith releases a new major version, the previous major version receives bug fixes, security fixes, and [API-driven changes](#api-driven-changes) for [N] months.
+After Cloudsmith releases a new major version, the previous major version receives bug fixes, security fixes, and [API-driven changes](#api-driven-changes) for a limited time.
 
 ## How Cloudsmith announces changes
 
