@@ -46,3 +46,6 @@ reports/
 
 # macOS system files
 .DS_Store
+
+# Local CLI config in the repo root
+/config.ini
