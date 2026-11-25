@@ -1,11 +1,13 @@
 """Token creation and refresh persist credentials without corrupting JSON output."""
 
 import json
+import os
 import socket
 from unittest.mock import patch
 
 import pytest
 
+from cloudsmith_cli.cli import config
 from cloudsmith_cli.cli.commands.tokens import create, refresh
 from cloudsmith_cli.core.api.exceptions import ApiException
 from cloudsmith_cli.core.config import create_config_files
@@ -157,3 +159,56 @@ def test_refresh_existing_saves_and_prints_once(runner, telemetry_config_dir, ou
     assert "review_fake_key" in (telemetry_config_dir / "credentials.ini").read_text()
     if output != "pretty":
         assert json.loads(result.stdout)["data"]["key"] == TOKEN.key
+
+
+@pytest.mark.parametrize(
+    "scenario", ["user_only", "cwd_first", "explicit_file", "explicit_dir"]
+)
+def test_refresh_updates_the_file_the_search_found(
+    runner, tmp_path, monkeypatch, scenario
+):
+    """Update the file that the search found, not always ``./``."""
+    user_dir, work_dir, named_dir = (tmp_path / n for n in ("user", "work", "named"))
+    for directory in (user_dir, work_dir, named_dir):
+        directory.mkdir()
+    (user_dir / "config.ini").write_text("[default]\n")
+    monkeypatch.chdir(work_dir)
+    search = [".", str(user_dir)]
+    if scenario == "explicit_dir":
+        search.insert(0, str(named_dir))
+    for reader in (config.ConfigReader, config.CredentialsReader):
+        monkeypatch.setattr(reader, "config_searchpath", search)
+
+    user_file = user_dir / "credentials.ini"
+    target = {
+        "user_only": user_file,
+        "cwd_first": work_dir / "credentials.ini",
+        "explicit_file": named_dir / "mine.ini",
+        "explicit_dir": user_file,
+    }[scenario]
+    if scenario == "explicit_file":
+        monkeypatch.setattr(
+            config.CredentialsReader, "config_files", [str(target), "credentials.ini"]
+        )
+    for path in {user_file, target}:
+        path.write_text("[default]\napi_key = review_old_key\n")
+
+    with (
+        patch("cloudsmith_cli.core.api.user.list_user_tokens", return_value=[TOKEN]),
+        patch("cloudsmith_cli.core.api.user.refresh_user_token", return_value=TOKEN),
+    ):
+        result = runner.invoke(refresh, ["review-token", "--force", "--save-config"])
+
+    assert result.exception is None, repr(result.exception)
+    assert result.exit_code == 0
+    assert "review_fake_key" in target.read_text()
+    shown = (
+        os.path.join(".", "credentials.ini") if scenario == "cwd_first" else str(target)
+    )
+    assert f"{shown} ... UPDATED" in result.output
+    if target != user_file:
+        assert "review_old_key" in user_file.read_text()
+    if scenario != "cwd_first":
+        assert not (work_dir / "credentials.ini").exists()
+    if scenario != "explicit_file":
+        assert not (named_dir / "credentials.ini").exists()

@@ -37,7 +37,7 @@ class TestDetectFrozenChannel:
 
     def test_docker(self, monkeypatch):
         monkeypatch.setattr(installation.os.path, "realpath", lambda p: p)
-        monkeypatch.setattr(installation, "_running_in_container", lambda: True)
+        monkeypatch.setattr(installation, "running_in_container", lambda: True)
         assert (
             installation.detect_channel(
                 frozen=True, executable_path="/opt/cloudsmith/bin/cloudsmith"
@@ -47,7 +47,7 @@ class TestDetectFrozenChannel:
 
     def test_opt_cloudsmith_without_container_is_standalone(self, monkeypatch):
         monkeypatch.setattr(installation.os.path, "realpath", lambda p: p)
-        monkeypatch.setattr(installation, "_running_in_container", lambda: False)
+        monkeypatch.setattr(installation, "running_in_container", lambda: False)
         assert (
             installation.detect_channel(
                 frozen=True, executable_path="/opt/cloudsmith/bin/cloudsmith"
@@ -140,10 +140,16 @@ class TestUpgradeInstruction:
 
 class TestChangelogUrl:
     @pytest.mark.parametrize("version", ["2.0.0", "v2.0.0"])
-    def test_points_at_release_tag(self, version):
+    def test_points_at_changelog_entry(self, version):
         assert (
             installation.changelog_url(version)
-            == "https://github.com/cloudsmith-io/cloudsmith-cli/releases/tag/v2.0.0"
+            == "https://cloudsmith.com/changelog/cli-v2-0-0"
+        )
+
+    def test_multi_digit_parts(self):
+        assert (
+            installation.changelog_url("1.12.3")
+            == "https://cloudsmith.com/changelog/cli-v1-12-3"
         )
 
     @pytest.mark.parametrize("version", [None, ""])

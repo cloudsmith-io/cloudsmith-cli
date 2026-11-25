@@ -8,6 +8,7 @@ from ..core.sso import (
     raise_for_api_error,
     refresh_access_token,
     response_json_object,
+    retry_after_limit_as_api_error,
 )
 
 __all__ = [
@@ -30,7 +31,8 @@ def get_idp_url(
         params=urlencode({"redirect_url": redirect_url}),
     )
 
-    org_saml_response = session.get(org_saml_url, timeout=30)
+    with retry_after_limit_as_api_error():
+        org_saml_response = session.get(org_saml_url, timeout=30)
 
     raise_for_api_error(org_saml_response)
 
@@ -50,12 +52,13 @@ def exchange_2fa_token(
 
     headers = {"Authorization": f"Bearer {two_factor_token}"}
 
-    exchange_response = session.post(
-        exchange_url,
-        data=exchange_data,
-        headers=headers,
-        timeout=30,
-    )
+    with retry_after_limit_as_api_error():
+        exchange_response = session.post(
+            exchange_url,
+            data=exchange_data,
+            headers=headers,
+            timeout=30,
+        )
 
     raise_for_api_error(exchange_response)
 

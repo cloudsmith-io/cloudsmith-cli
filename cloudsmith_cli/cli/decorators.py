@@ -11,7 +11,7 @@ from click.core import ParameterSource
 from cloudsmith_cli.cli import validators
 from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
-from ..core import keyring, update_check
+from ..core import keyring, telemetry_common, update_check
 from ..core.certificate_errors import describe_certificate_error
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -19,7 +19,7 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from . import config, utils
+from . import config, deprecation, option_names, usage_capture, utils
 
 
 def _expired_saml_renewal_message(error):
@@ -34,17 +34,21 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds: float, context: str | None = None) -> None:
+def report_retry(seconds: float, context: str | None = None, status: int = 429) -> None:
     if context == "retry-after":
+        reason = "Request was throttled" if status == 429 else "Request failed"
         click.echo(err=True)
         click.echo(
-            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
+            f"{reason} ({status}): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
     elif context == "backoff":
         click.echo(err=True)
         click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
+
+#: The most time, in seconds, that the shared session waits on Retry-After per request.
+SESSION_RETRY_AFTER_BUDGET = 60
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
 
@@ -191,27 +195,73 @@ def keyring_options(f):
     return wrapper
 
 
+def _warn_deprecated_config_keys(ctx, opts):
+    """Warn about the deprecated config.ini keys that are in effect.
+
+    Only the command that runs warns, not its parent groups, so a credential
+    helper subcommand can stay quiet. A subcommand that inherits the config
+    from its group, such as `mcp start`, warns from its session setup.
+    """
+    if not ctx.invoked_subcommand:
+        for key in opts.deprecated_config_keys:
+            deprecation.warn_config_key(key, ctx=ctx)
+
+
+_TELEMETRY_MODES = "`enable`, `disable`, or `log`"
+
+
+def _warn_unrecognised_telemetry_values(ctx, opts):
+    """Warn about a telemetry variable or config.ini key whose value is ignored.
+
+    Only the command that runs warns, as for deprecated config keys. The
+    value itself is not repeated.
+    """
+    if ctx.invoked_subcommand:
+        return
+    ignored = [
+        (f"`{name}`", _TELEMETRY_MODES)
+        for name in telemetry_common.MODE_ENVS
+        if telemetry_common.unrecognised(name)
+    ]
+    if telemetry_common.unrecognised(telemetry_common.INSTALL_ID_ENV):
+        ignored.append(
+            (f"`{telemetry_common.INSTALL_ID_ENV}`", "`enable` or `disable`")
+        )
+    ignored += [
+        (f"the `{key}` key in config.ini", _TELEMETRY_MODES)
+        for key in telemetry_common.CONFIG_KEYS
+        if telemetry_common.is_unrecognised(getattr(opts, key, None))
+    ]
+    key = telemetry_common.INSTALL_ID_CONFIG_KEY
+    if telemetry_common.is_unrecognised(getattr(opts, key, None), takes_log=False):
+        ignored.append((f"the `{key}` key in config.ini", "`enable` or `disable`"))
+    for subject, values in ignored:
+        deprecation.warn_once(
+            f"Warning: The value of {subject} is not recognised, so the CLI "
+            f"ignores it. Use {values}.",
+            ctx=ctx,
+        )
+
+
 def common_cli_config_options(f):
     """Add common CLI config options to commands."""
 
     @click.option(
-        "-C",
-        "--config-file",
-        envvar="CLOUDSMITH_CONFIG_FILE",
+        *option_names.CONFIG_FILE,
+        envvar=option_names.CONFIG_FILE_ENV,
         type=click.Path(dir_okay=True, exists=True, writable=False, resolve_path=True),
         help="The path to your config.ini file.",
     )
     @click.option(
         "--credentials-file",
-        envvar="CLOUDSMITH_CREDENTIALS_FILE",
+        envvar=option_names.CREDENTIALS_FILE_ENV,
         type=click.Path(dir_okay=True, exists=True, writable=False, resolve_path=True),
         help="The path to your credentials.ini file.",
     )
     @click.option(
-        "-P",
-        "--profile",
+        *option_names.PROFILE,
         default=None,
-        envvar="CLOUDSMITH_PROFILE",
+        envvar=option_names.PROFILE_ENV,
         help="The name of the profile to use for configuration.",
     )
     @click.pass_context
@@ -230,11 +280,30 @@ def common_cli_config_options(f):
 
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
+        usage_capture.record_config(ctx)
         opts.api_key_from_file = opts.api_key
+        _warn_deprecated_config_keys(ctx, opts)
+        _warn_unrecognised_telemetry_values(ctx, opts)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper
+
+
+def _inherit_output_option(ctx, name, resolve):
+    """Resolve an output option, inheriting it from an outer command if left unset.
+
+    The output options are declared on every group and command, so without this a
+    subcommand's default would replace a value given to its parent (e.g.
+    ``cloudsmith --color=never list repos``). A command run through ``ctx.invoke``
+    or ``ctx.forward`` has no parameter source, and inherits too.
+    """
+    key = f"cloudsmith_cli.output_options.{name}"
+    source = ctx.get_parameter_source(name)
+    if source in (ParameterSource.DEFAULT, None) and key in ctx.meta:
+        return ctx.meta[key]
+    ctx.meta[key] = resolve()
+    return ctx.meta[key]
 
 
 def common_cli_output_options(f):
@@ -295,20 +364,30 @@ def common_cli_output_options(f):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
 
-        ctx.color = color_enabled(
-            {
-                "NO_COLOR": kwargs.pop("no_color_env"),
-                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
-                "TERM": kwargs.pop("term_env"),
-            },
-            ColorMode[kwargs.pop("color").upper()],
-            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        color_env = {
+            "NO_COLOR": kwargs.pop("no_color_env"),
+            "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+            "TERM": kwargs.pop("term_env"),
+        }
+        color_mode = ColorMode[kwargs.pop("color").upper()]
+        ctx.color = _inherit_output_option(
+            ctx,
+            "color",
+            lambda: color_enabled(
+                color_env,
+                color_mode,
+                TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+            ),
         )
 
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
-        opts.output = kwargs.pop("output_format")
-        opts.verbose = kwargs.pop("verbose")
+        output_format = kwargs.pop("output_format")
+        opts.output = _inherit_output_option(
+            ctx, "output_format", lambda: output_format
+        )
+        verbose = kwargs.pop("verbose")
+        opts.verbose = _inherit_output_option(ctx, "verbose", lambda: verbose)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -336,16 +415,23 @@ def common_cli_list_options(f):
     )
     @click.option(
         "--page-all",
-        "--show-all",
         default=False,
         is_flag=True,
         help="Show all results. Cannot be used with --page (-p) or --page-size (-l).",
     )  # Validation performed post-parse for order-independence.
+    @deprecation.alias_options(deprecation.PAGE_ALL_ALIASES, is_flag=True)
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
+
+        show_all = deprecation.pop_alias_options(
+            ctx, kwargs, deprecation.PAGE_ALL_ALIASES
+        )
+        page_all = kwargs["page_all"] = bool(kwargs.get("page_all") or show_all)
+        # `list repos` forwards ctx.params, which no longer holds --show-all.
+        ctx.params["page_all"] = page_all
 
         # Handle wildcard page_size (converts to page_all behavior)
         page_size = kwargs.get("page_size")
@@ -355,9 +441,8 @@ def common_cli_list_options(f):
             validators.enforce_page_all_exclusive(ctx, wildcard_used=True)
 
         # Order-independent validation: perform after all options parsed.
-        page_all = kwargs.get("page_all")
         if page_all:
-            validators.enforce_page_all_exclusive(ctx)
+            validators.enforce_page_all_exclusive(ctx, page_all=page_all)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -404,6 +489,28 @@ PROXY_SUFFIX_ENVVARS = (
     "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
     "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
 )
+WORKSPACE_ENVVARS = ("CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG")
+
+
+def _resolve_alias(ctx, kwargs, name, envvars, aliases):
+    """Pop option `name` and its deprecated spellings, warning for each one used.
+
+    The current spelling wins on the command line, then a deprecated spelling,
+    then the environment (where the current variable name wins). The resolved
+    value is stored in `ctx.params`, so `ctx.forward` passes it on.
+    """
+    value = kwargs.pop(name)
+    alias_value = deprecation.pop_alias_options(ctx, kwargs, aliases)
+    if (
+        alias_value is not None
+        and ctx.get_parameter_source(name) != ParameterSource.COMMANDLINE
+    ):
+        value = alias_value
+        deprecation.keep_alias_source(ctx, name, aliases)
+    else:
+        deprecation.warn_deprecated_envvar(ctx, name, envvars)
+    ctx.params[name] = value
+    return value
 
 
 def _parse_suffixes(value):
@@ -413,14 +520,17 @@ def _parse_suffixes(value):
     )
 
 
-def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
+def _guard_untrusted_endpoints(
+    ctx, opts, host_suffixes, proxy_suffixes, proxy_trusted=False
+):
     """Reject api_host/proxy redirections from directory-relative config.
 
     Enforcement applies only when the effective value originated from an
     untrusted (relative) config file and was not supplied via a CLI flag or
     environment variable. Both must match their allow-listed host suffixes;
     proxy has no public default suffixes, so it is rejected unless one is
-    supplied via the environment.
+    supplied via the environment. `proxy_trusted` marks a proxy given by the
+    deprecated `--api-proxy` flag, which is a separate parameter.
     """
     trusted_sources = (ParameterSource.COMMANDLINE, ParameterSource.ENVIRONMENT)
     profile = ctx.meta.get("profile")
@@ -432,7 +542,7 @@ def _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes):
         if relative_host and opts.api_host == relative_host:
             validators.validate_untrusted_api_host(opts.api_host, host_suffixes)
 
-    if ctx.get_parameter_source("proxy") not in trusted_sources:
+    if not proxy_trusted and ctx.get_parameter_source("proxy") not in trusted_sources:
         _guard_untrusted_proxy(ctx, opts, proxy_suffixes)
 
 
@@ -479,34 +589,31 @@ def initialise_session(f):
     """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
     @click.option(
-        "--api-host",
-        envvar="CLOUDSMITH_API_HOST",
+        option_names.API_HOST,
+        envvar=option_names.API_HOST_ENV,
         help="The API host to connect to",
     )
     @click.option(
         "--proxy",
-        "--api-proxy",
         "proxy",
         envvar=list(PROXY_ENVVARS),
-        help="The proxy to connect through for all HTTP requests. "
-        "--api-proxy and CLOUDSMITH_API_PROXY are compatibility aliases.",
+        help="The proxy to connect through for all HTTP requests.",
     )
+    @deprecation.alias_options(deprecation.PROXY_ALIASES)
     @click.option(
-        "--ssl-verify/--without-ssl-verify",
+        f"{option_names.SSL_VERIFY}/{option_names.WITHOUT_SSL_VERIFY}",
         default=None,
-        envvar="CLOUDSMITH_SSL_VERIFY",
+        envvar=option_names.SSL_VERIFY_ENV,
         help="Verify SSL certificates for HTTPS connections (enabled by default). "
         "Disabling verification is dangerous; prefer --without-ssl-verify-strict "
         "if a TLS-intercepting proxy issues certificates that fail strict checks.",
     )
-    @click.option(
-        "-S",
-        "--without-api-ssl-verify",
-        default=None,
+    @deprecation.alias_options(
+        deprecation.SSL_VERIFY_ALIASES,
+        envvars={
+            "--without-api-ssl-verify": option_names.WITHOUT_SSL_VERIFY_LEGACY_ENV
+        },
         is_flag=True,
-        envvar="CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
-        help="Compatibility alias for --without-ssl-verify. Disabling SSL "
-        "certificate verification is dangerous.",
     )
     @click.option(
         "--ssl-verify-strict/--without-ssl-verify-strict",
@@ -536,12 +643,12 @@ def initialise_session(f):
     )
     @click.option(
         "--allowed-proxy-suffixes",
-        "--allowed-api-proxy-suffixes",
         "allowed_proxy_suffixes",
         envvar=list(PROXY_SUFFIX_ENVVARS),
         hidden=True,
         help="Comma-separated trusted proxy host suffixes (internal use).",
     )
+    @deprecation.alias_options(deprecation.PROXY_SUFFIXES_ALIASES)
     @click.pass_context
     @functools.wraps(f)
     def wrapper(ctx, *args, **kwargs):
@@ -550,26 +657,56 @@ def initialise_session(f):
         from ..core.session import set_default_proxy
 
         opts = config.get_or_create_options(ctx)
+        _warn_deprecated_config_keys(ctx, opts)
+        _warn_unrecognised_telemetry_values(ctx, opts)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
-        proxy_suffixes = _parse_suffixes(kwargs.pop("allowed_proxy_suffixes"))
+        proxy_suffixes = _parse_suffixes(
+            _resolve_alias(
+                ctx,
+                kwargs,
+                "allowed_proxy_suffixes",
+                PROXY_SUFFIX_ENVVARS,
+                deprecation.PROXY_SUFFIXES_ALIASES,
+            )
+        )
         opts.api_host = kwargs.pop("api_host")
-        opts.proxy = kwargs.pop("proxy")
+        opts.proxy = _resolve_alias(
+            ctx, kwargs, "proxy", PROXY_ENVVARS, deprecation.PROXY_ALIASES
+        )
+        proxy_from_alias = deprecation.used_on_command_line(
+            ctx, deprecation.PROXY_ALIASES
+        )
         ssl_verify = kwargs.pop("ssl_verify")
-        legacy_ssl_verify = _pop_boolean_flag(
-            kwargs, "without_api_ssl_verify", invert=True
+        legacy_without_ssl_verify = deprecation.pop_alias_options(
+            ctx, kwargs, deprecation.SSL_VERIFY_ALIASES
+        )
+        legacy_ssl_verify = (
+            None if legacy_without_ssl_verify is None else not legacy_without_ssl_verify
         )
         if (
             ctx.get_parameter_source("ssl_verify") != ParameterSource.COMMANDLINE
-            and ctx.get_parameter_source("without_api_ssl_verify")
-            == ParameterSource.COMMANDLINE
+            and deprecation.used_on_command_line(ctx, deprecation.SSL_VERIFY_ALIASES)
         ) or ssl_verify is None:
             ssl_verify = legacy_ssl_verify
+            deprecation.keep_alias_source(
+                ctx, "ssl_verify", deprecation.SSL_VERIFY_ALIASES
+            )
+            # Warn about the variable only when its value is the one used.
+            legacy_envvar = deprecation.alias_envvar(
+                ctx, deprecation.SSL_VERIFY_ALIASES
+            )
+            if legacy_envvar:
+                deprecation.warn_envvar(legacy_envvar, "CLOUDSMITH_SSL_VERIFY=0")
+        ctx.params["ssl_verify"] = ssl_verify
         opts.ssl_verify = ssl_verify
+        usage_capture.record_session(ctx)
         opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
 
-        _guard_untrusted_endpoints(ctx, opts, host_suffixes, proxy_suffixes)
+        _guard_untrusted_endpoints(
+            ctx, opts, host_suffixes, proxy_suffixes, proxy_trusted=proxy_from_alias
+        )
 
         set_default_proxy(opts.proxy)
         opts.session = _create_session(
@@ -578,6 +715,8 @@ def initialise_session(f):
             ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
+            error_retry_cb=report_retry,
+            retry_after_budget=SESSION_RETRY_AFTER_BUDGET,
         )
         # A group (e.g. `mcp`) defers to its subcommand, whose options win.
         if not ctx.invoked_subcommand:
@@ -644,15 +783,11 @@ def resolve_credentials(f):
     @click.option(
         "-w",
         "--workspace",
-        "--org",
-        "--organization",
-        "--oidc-org",
-        "-o",
-        "--owner",
         "org",
-        envvar=["CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG"],
+        envvar=list(WORKSPACE_ENVVARS),
         help="The Cloudsmith Workspace slug.",
     )
+    @deprecation.alias_options(deprecation.WORKSPACE_ALIASES)
     @click.option(
         "--oidc-service-slug",
         envvar="CLOUDSMITH_SERVICE_SLUG",
@@ -678,7 +813,9 @@ def resolve_credentials(f):
         opts = config.get_or_create_options(ctx)
 
         oidc_audience = kwargs.pop("oidc_audience")
-        org = kwargs.pop("org")
+        org = _resolve_alias(
+            ctx, kwargs, "org", WORKSPACE_ENVVARS, deprecation.WORKSPACE_ALIASES
+        )
         oidc_service_slug = kwargs.pop("oidc_service_slug")
         oidc_discovery_disabled = _pop_boolean_flag(kwargs, "oidc_discovery_disabled")
         oidc_detector_order = kwargs.pop("oidc_detector_order")
@@ -750,6 +887,7 @@ def resolve_credentials(f):
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
+        usage_capture.record_credential(ctx, credential)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)

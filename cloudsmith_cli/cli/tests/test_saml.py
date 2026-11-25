@@ -2,8 +2,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from urllib3.exceptions import MaxRetryError
 
 from ...core.api.exceptions import ApiException
+from ...core.session import RetryAfterLimitError
 from ..saml import exchange_2fa_token, get_idp_url, refresh_access_token
 
 
@@ -291,3 +293,47 @@ class TestSaml:
                 headers={"Authorization": "Bearer access_token"},
                 timeout=30,
             )
+
+    @pytest.mark.parametrize(
+        "method, call",
+        [
+            pytest.param(
+                "get",
+                lambda session: get_idp_url(
+                    "https://example.com", "acme", session, "http://localhost"
+                ),
+                id="idp-url",
+            ),
+            pytest.param(
+                "post",
+                lambda session: exchange_2fa_token(
+                    "https://example.com", "token", "123456", session
+                ),
+                id="2fa-exchange",
+            ),
+            pytest.param(
+                "post",
+                lambda session: refresh_access_token(
+                    "https://example.com", "access", "refresh", session
+                ),
+                id="refresh",
+            ),
+        ],
+    )
+    def test_retry_after_over_the_limit_raises_a_429(
+        self, mock_session, method, call
+    ) -> None:
+        limit_error = RetryAfterLimitError(
+            "The server asked to retry after 3600 seconds.", status=429
+        )
+        getattr(mock_session, method).side_effect = requests.exceptions.RetryError(
+            MaxRetryError(None, "/", limit_error)
+        )
+
+        with pytest.raises(ApiException) as exc_info:
+            call(mock_session)
+
+        assert (exc_info.value.status, exc_info.value.detail) == (
+            429,
+            "The server asked to retry after 3600 seconds.",
+        )

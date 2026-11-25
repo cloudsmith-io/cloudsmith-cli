@@ -11,6 +11,7 @@ import requests
 
 from ....core.api.exceptions import ApiException
 from ....core.sso import SsoRenewalResult, SsoRenewalStatus
+from ... import deprecation
 from ...commands.auth import _renew_existing_sso_session, authenticate
 from ...commands.main import main
 from .conftest import MockToken
@@ -118,6 +119,30 @@ class TestAuthenticateCommand:
         assert result.exit_code == 0, result.output
         assert mock_auth_server.call_args.kwargs["owner"] == "test-workspace"
 
+    @pytest.mark.parametrize(
+        "flag,replacement",
+        [
+            ("--token", "--request-api-key"),
+            ("--force", "--request-api-key"),
+            ("--json", "--output-format json"),
+        ],
+    )
+    def test_deprecated_flags_use_the_shared_warning(
+        self,
+        flag,
+        replacement,
+        runner,
+        mock_saml_session,
+        mock_get_idp_url,
+        mock_webbrowser,
+        mock_auth_server,
+    ):
+        result = runner.invoke(authenticate, ["-w", "acme", "--no-browser", flag])
+
+        assert (
+            deprecation.format_warning(f"`{flag}`", f"`{replacement}`") in result.stderr
+        )
+
     def test_auth_command_invokes_webserver(
         self,
         runner,
@@ -167,10 +192,10 @@ class TestAuthenticateCommand:
         mock_get_idp_url.assert_called_once_with(
             ANY,
             "testorg",
-            redirect_url="http://localhost:12402",
+            redirect_url=f"http://localhost:12402/?state={auth_server.state}",
             session=mock_saml_session.return_value,
         )
-        auth_server.handle_request.assert_called_once()
+        auth_server.wait_for_callback.assert_called_once()
         auth_server.server_close.assert_called_once()
 
     def test_auth_command_fails_after_all_redirect_ports_are_unavailable(
@@ -222,7 +247,7 @@ class TestAuthenticateCommand:
         assert result.exit_code != 0
         assert "Waiting for the authentication callback on port 12400" in result.output
         mock_webbrowser.open.assert_not_called()
-        mock_auth_server.return_value.handle_request.assert_not_called()
+        mock_auth_server.return_value.wait_for_callback.assert_not_called()
         mock_auth_server.return_value.server_close.assert_called_once()
 
     def test_auth_command_opens_browser(
@@ -245,7 +270,7 @@ class TestAuthenticateCommand:
         # Verify browser was opened
         assert "Couldn't open a browser automatically" not in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
     def test_auth_command_passes_owner_to_webserver(
         self,
@@ -339,11 +364,19 @@ class TestAuthenticateCommand:
                 legacy_result.stderr
             )
 
-    def test_expired_session_offline_has_actionable_error(self, runner):
-        renewal = SsoRenewalResult(
-            status=SsoRenewalStatus.FAILED,
-            error=requests.ConnectionError("offline"),
-        )
+    @pytest.mark.parametrize(
+        "error, reason",
+        [
+            pytest.param(requests.ConnectionError("offline"), "offline", id="offline"),
+            pytest.param(
+                ApiException(503, detail="Service unavailable"),
+                "503 - Service unavailable",
+                id="unavailable",
+            ),
+        ],
+    )
+    def test_expired_session_offline_has_actionable_error(self, runner, error, reason):
+        renewal = SsoRenewalResult(status=SsoRenewalStatus.FAILED, error=error)
         with (
             patch(
                 "cloudsmith_cli.cli.commands.auth.renew_sso_session",
@@ -360,9 +393,33 @@ class TestAuthenticateCommand:
             result = runner.invoke(authenticate, [])
 
         assert result.exit_code == 1
-        assert "Cloudsmith could not be reached: offline" in result.output
+        assert f"Cloudsmith could not be reached: {reason}" in result.output
         assert "Check your connection" in result.output
+        assert "https://status.cloudsmith.com" in result.output
         auth_server.assert_not_called()
+
+    def test_throttled_renewal_falls_back_to_browser_login(
+        self, runner, mock_get_idp_url, mock_auth_server
+    ) -> None:
+        renewal = SsoRenewalResult(
+            status=SsoRenewalStatus.FAILED,
+            error=ApiException(429, detail="Request was throttled."),
+        )
+        with (
+            patch(
+                "cloudsmith_cli.cli.commands.auth.renew_sso_session",
+                return_value=renewal,
+            ),
+            patch(
+                "cloudsmith_cli.cli.commands.auth._renew_existing_sso_session",
+                wraps=_renew_existing_sso_session,
+            ),
+        ):
+            result = runner.invoke(authenticate, ["-w", "acme", "--no-browser"])
+
+        assert result.exit_code == 0, result.output
+        assert "Your Workspace's SAML IDP URL is" in result.output
+        mock_auth_server.assert_called_once()
 
 
 class TestBrowserFallback:
@@ -389,7 +446,7 @@ class TestBrowserFallback:
         assert "Couldn't open a browser automatically" in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
         mock_auth_server.assert_called_once()
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
     def test_false_return_from_open_uses_manual_fallback(
         self,
@@ -411,7 +468,7 @@ class TestBrowserFallback:
         assert result.exit_code == 0
         assert "Couldn't open a browser automatically" in result.output
         mock_webbrowser.open.assert_called_once_with("https://idp.example.com/saml")
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
     def test_generic_exception_from_open_does_not_crash(
         self,
@@ -433,7 +490,7 @@ class TestBrowserFallback:
         assert result.exit_code == 0
         assert "Couldn't open a browser automatically" in result.output
         mock_auth_server.assert_called_once()
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
 
 class TestNoBrowserFlag:
@@ -460,7 +517,7 @@ class TestNoBrowserFlag:
         assert "Opening your Workspace's SAML IDP URL" not in result.output
         assert "Your Workspace's SAML IDP URL is:" in result.output
         mock_auth_server.assert_called_once()
-        mock_auth_server.return_value.handle_request.assert_called_once()
+        mock_auth_server.return_value.wait_for_callback.assert_called_once()
 
 
 class TestRequestApiKeyFlag:
@@ -654,7 +711,7 @@ class TestAuthFailureOutputModes:
         mock_auth_server,
     ):
         """Verify auth failures in -F json emit only JSON on stdout."""
-        mock_auth_server.return_value.handle_request.side_effect = ApiException(
+        mock_auth_server.return_value.wait_for_callback.side_effect = ApiException(
             422, detail="Invalid input."
         )
 
