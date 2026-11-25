@@ -14,14 +14,18 @@ import sys
 import click
 
 from ....credential_helpers.terraform import execute
+from ... import telemetry
 from ...decorators import (
     common_api_auth_options,
     common_cli_config_options,
     resolve_credentials,
 )
+from ...usage_capture import TrackedCommand
 
 
-@click.command(context_settings={"ignore_unknown_options": True})
+# Run by package managers on every request: report crashes, not usage.
+@click.command(cls=TrackedCommand, context_settings={"ignore_unknown_options": True})
+@telemetry.send(telemetry.ERRORS)
 @click.option(
     "-r",
     "--repo",
