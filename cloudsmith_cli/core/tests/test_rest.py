@@ -247,6 +247,21 @@ class TestSSLSystemTrustStore:
 
         assert "ssl_context" not in self._pool_kwargs(session, verify=False)
 
+    @pytest.mark.parametrize("verify, uses_truststore", [(True, True), (False, False)])
+    def test_verifies_an_https_proxy_with_the_system_trust_store(
+        self, verify, uses_truststore
+    ):
+        proxy = "https://proxy.example:3128"
+        session = create_requests_session(ssl_system_trust_store=True, proxy=proxy)
+        request = requests.Request("GET", "https://api.example/").prepare()
+
+        conn = session.get_adapter(request.url).get_connection_with_tls_context(
+            request, verify, session.proxies
+        )
+
+        proxy_context = conn.proxy_config.ssl_context
+        assert isinstance(proxy_context, truststore.SSLContext) is uses_truststore
+
     def test_falls_back_to_the_sdk_configuration(self):
         initialise_api(ssl_system_trust_store=True)
 

@@ -1,6 +1,7 @@
 """HTTP session creation with retry support."""
 
 import functools
+import os
 import socket
 import ssl
 import sys
@@ -11,8 +12,10 @@ from typing import Self
 import requests
 import urllib3
 from requests.adapters import HTTPAdapter
+from requests.utils import DEFAULT_CA_BUNDLE_PATH, extract_zipped_paths, select_proxy
 from urllib3.connectionpool import ConnectionPool
 from urllib3.exceptions import MaxRetryError, ResponseError
+from urllib3.poolmanager import proxy_from_url
 from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 from urllib3.util.ssl_ import create_urllib3_context
@@ -217,6 +220,7 @@ class SSLContextAdapter(HTTPAdapter):
     def __init__(self, *args, ssl_context_factory=None, **kwargs):
         self.ssl_context_factory = ssl_context_factory
         self.ssl_contexts = {}
+        self.tls_proxy_managers = {}
         super().__init__(*args, **kwargs)
 
     def build_connection_pool_key_attributes(self, request, verify, cert=None):
@@ -232,6 +236,51 @@ class SSLContextAdapter(HTTPAdapter):
                 self.ssl_contexts[key] = self.ssl_context_factory()
             pool_kwargs["ssl_context"] = self.ssl_contexts[key]
         return host_params, pool_kwargs
+
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        proxy = select_proxy(request.url, proxies)
+        if (
+            self.ssl_context_factory is None
+            or verify is False
+            or not proxy
+            or not proxy.lower().startswith("https://")
+        ):
+            return super().get_connection_with_tls_context(
+                request, verify, proxies, cert
+            )
+        # urllib3 verifies an HTTPS proxy with its own context, not the pool context
+        key = (proxy, verify)
+        if key not in self.tls_proxy_managers:
+            self.tls_proxy_managers[key] = proxy_from_url(
+                proxy,
+                proxy_headers=self.proxy_headers(proxy),
+                num_pools=self._pool_connections,
+                maxsize=self._pool_maxsize,
+                block=self._pool_block,
+                proxy_ssl_context=self._proxy_ssl_context(verify),
+            )
+        host_params, pool_kwargs = self.build_connection_pool_key_attributes(
+            request, verify, cert
+        )
+        return self.tls_proxy_managers[key].connection_from_host(
+            **host_params, pool_kwargs=pool_kwargs
+        )
+
+    def _proxy_ssl_context(self, verify):
+        context = self.ssl_context_factory()
+        ca_bundle = (
+            extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH) if verify is True else verify
+        )
+        if os.path.isdir(ca_bundle):
+            context.load_verify_locations(capath=ca_bundle)
+        else:
+            context.load_verify_locations(cafile=ca_bundle)
+        return context
+
+    def close(self):
+        super().close()
+        for manager in self.tls_proxy_managers.values():
+            manager.clear()
 
 
 def _create_non_strict_ssl_context():
