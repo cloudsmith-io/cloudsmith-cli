@@ -8,6 +8,7 @@ from ...core.api.user import get_user_token
 from ...core.config import create_config_files, new_config_messaging
 from .. import decorators, deprecation, utils
 from ..exceptions import handle_api_exceptions
+from ..usage_capture import TrackedCommand
 from ..utils import maybe_spinner
 from .main import main
 
@@ -61,18 +62,19 @@ def summarise_removed_login(exc, detail, fields):
     return None
 
 
-class DeprecatedLoginCommand(click.Command):
+class DeprecatedLoginCommand(TrackedCommand):
     """Command that prints the deprecation warning before any prompt."""
 
     def parse_args(self, ctx, args):
         # Click prompts for --login and --password while parsing, so the
         # warning must be printed here rather than in the command body.
         # Shell completion also parses (resiliently); the warning skips it.
-        deprecation.warn(
+        deprecation.warn_message(
             f"`cloudsmith {ctx.info_name}`",
             removal=DEPRECATION_REMOVAL,
             detail=DEPRECATION_DETAIL,
             ctx=ctx,
+            args=args,
         )
         return super().parse_args(ctx, args)
 

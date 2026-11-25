@@ -11,7 +11,7 @@ from click.core import ParameterSource
 from cloudsmith_cli.cli import validators
 from cloudsmith_cli.core.utils import ColorMode, TTYMode, color_enabled
 
-from ..core import keyring, update_check
+from ..core import keyring, telemetry_common, update_check
 from ..core.certificate_errors import describe_certificate_error
 from ..core.credentials.chain import CredentialProviderChain
 from ..core.credentials.models import CredentialContext
@@ -19,7 +19,7 @@ from ..core.credentials.oidc.detectors import (
     disabled_detectors_from_env,
     registered_detectors,
 )
-from . import config, deprecation, utils
+from . import config, deprecation, option_names, usage_capture, utils
 
 
 def _expired_saml_renewal_message(error):
@@ -34,17 +34,21 @@ def _expired_saml_renewal_message(error):
     return f"{message}\nHint: {hint}" if hint else message
 
 
-def report_retry(seconds: float, context: str | None = None) -> None:
+def report_retry(seconds: float, context: str | None = None, status: int = 429) -> None:
     if context == "retry-after":
+        reason = "Request was throttled" if status == 429 else "Request failed"
         click.echo(err=True)
         click.echo(
-            f"Request was throttled (429): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
+            f"{reason} ({status}): Retrying after {click.style(str(seconds), bold=True)} second(s) ... ",
             err=True,
         )
     elif context == "backoff":
         click.echo(err=True)
         click.echo(f"Request failed: retrying in {seconds:g} second(s) ...", err=True)
 
+
+#: The most time, in seconds, that the shared session waits on Retry-After per request.
+SESSION_RETRY_AFTER_BUDGET = 60
 
 _DEBUG_LOG_HANDLER_NAME = "cloudsmith-cli-debug"
 
@@ -203,27 +207,61 @@ def _warn_deprecated_config_keys(ctx, opts):
             deprecation.warn_config_key(key, ctx=ctx)
 
 
+_TELEMETRY_MODES = "`enable`, `disable`, or `log`"
+
+
+def _warn_unrecognised_telemetry_values(ctx, opts):
+    """Warn about a telemetry variable or config.ini key whose value is ignored.
+
+    Only the command that runs warns, as for deprecated config keys. The
+    value itself is not repeated.
+    """
+    if ctx.invoked_subcommand:
+        return
+    ignored = [
+        (f"`{name}`", _TELEMETRY_MODES)
+        for name in telemetry_common.MODE_ENVS
+        if telemetry_common.unrecognised(name)
+    ]
+    if telemetry_common.unrecognised(telemetry_common.INSTALL_ID_ENV):
+        ignored.append(
+            (f"`{telemetry_common.INSTALL_ID_ENV}`", "`enable` or `disable`")
+        )
+    ignored += [
+        (f"the `{key}` key in config.ini", _TELEMETRY_MODES)
+        for key in telemetry_common.CONFIG_KEYS
+        if telemetry_common.is_unrecognised(getattr(opts, key, None))
+    ]
+    key = telemetry_common.INSTALL_ID_CONFIG_KEY
+    if telemetry_common.is_unrecognised(getattr(opts, key, None), takes_log=False):
+        ignored.append((f"the `{key}` key in config.ini", "`enable` or `disable`"))
+    for subject, values in ignored:
+        deprecation.warn_once(
+            f"Warning: The value of {subject} is not recognised, so the CLI "
+            f"ignores it. Use {values}.",
+            ctx=ctx,
+        )
+
+
 def common_cli_config_options(f):
     """Add common CLI config options to commands."""
 
     @click.option(
-        "-C",
-        "--config-file",
-        envvar="CLOUDSMITH_CONFIG_FILE",
+        *option_names.CONFIG_FILE,
+        envvar=option_names.CONFIG_FILE_ENV,
         type=click.Path(dir_okay=True, exists=True, writable=False, resolve_path=True),
         help="The path to your config.ini file.",
     )
     @click.option(
         "--credentials-file",
-        envvar="CLOUDSMITH_CREDENTIALS_FILE",
+        envvar=option_names.CREDENTIALS_FILE_ENV,
         type=click.Path(dir_okay=True, exists=True, writable=False, resolve_path=True),
         help="The path to your credentials.ini file.",
     )
     @click.option(
-        "-P",
-        "--profile",
+        *option_names.PROFILE,
         default=None,
-        envvar="CLOUDSMITH_PROFILE",
+        envvar=option_names.PROFILE_ENV,
         help="The name of the profile to use for configuration.",
     )
     @click.pass_context
@@ -242,12 +280,30 @@ def common_cli_config_options(f):
 
         opts.load_config_file(path=config_file, profile=profile)
         opts.load_creds_file(path=creds_file, profile=profile)
+        usage_capture.record_config(ctx)
         opts.api_key_from_file = opts.api_key
         _warn_deprecated_config_keys(ctx, opts)
+        _warn_unrecognised_telemetry_values(ctx, opts)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
     return wrapper
+
+
+def _inherit_output_option(ctx, name, resolve):
+    """Resolve an output option, inheriting it from an outer command if left unset.
+
+    The output options are declared on every group and command, so without this a
+    subcommand's default would replace a value given to its parent (e.g.
+    ``cloudsmith --color=never list repos``). A command run through ``ctx.invoke``
+    or ``ctx.forward`` has no parameter source, and inherits too.
+    """
+    key = f"cloudsmith_cli.output_options.{name}"
+    source = ctx.get_parameter_source(name)
+    if source in (ParameterSource.DEFAULT, None) and key in ctx.meta:
+        return ctx.meta[key]
+    ctx.meta[key] = resolve()
+    return ctx.meta[key]
 
 
 def common_cli_output_options(f):
@@ -308,20 +364,30 @@ def common_cli_output_options(f):
         # pylint: disable=missing-docstring
         opts = config.get_or_create_options(ctx)
 
-        ctx.color = color_enabled(
-            {
-                "NO_COLOR": kwargs.pop("no_color_env"),
-                "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
-                "TERM": kwargs.pop("term_env"),
-            },
-            ColorMode[kwargs.pop("color").upper()],
-            TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+        color_env = {
+            "NO_COLOR": kwargs.pop("no_color_env"),
+            "CLOUDSMITH_FORCE_COLOR": kwargs.pop("force_color_env"),
+            "TERM": kwargs.pop("term_env"),
+        }
+        color_mode = ColorMode[kwargs.pop("color").upper()]
+        ctx.color = _inherit_output_option(
+            ctx,
+            "color",
+            lambda: color_enabled(
+                color_env,
+                color_mode,
+                TTYMode.ENABLED if sys.stdout.isatty() else TTYMode.DISABLED,
+            ),
         )
 
         opts.debug = kwargs.pop("debug") or opts.debug
         _configure_debug_logging(opts.debug)
-        opts.output = kwargs.pop("output_format")
-        opts.verbose = kwargs.pop("verbose")
+        output_format = kwargs.pop("output_format")
+        opts.output = _inherit_output_option(
+            ctx, "output_format", lambda: output_format
+        )
+        verbose = kwargs.pop("verbose")
+        opts.verbose = _inherit_output_option(ctx, "verbose", lambda: verbose)
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
 
@@ -423,7 +489,6 @@ PROXY_SUFFIX_ENVVARS = (
     "CLOUDSMITH_ALLOWED_PROXY_SUFFIXES",
     "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
 )
-SSL_VERIFY_LEGACY_ENVVAR = "CLOUDSMITH_WITHOUT_API_SSL_VERIFY"
 WORKSPACE_ENVVARS = ("CLOUDSMITH_WORKSPACE", "CLOUDSMITH_ORG")
 
 
@@ -524,8 +589,8 @@ def initialise_session(f):
     """Create a shared HTTP session with proxy/SSL/user-agent settings."""
 
     @click.option(
-        "--api-host",
-        envvar="CLOUDSMITH_API_HOST",
+        option_names.API_HOST,
+        envvar=option_names.API_HOST_ENV,
         help="The API host to connect to",
     )
     @click.option(
@@ -536,16 +601,18 @@ def initialise_session(f):
     )
     @deprecation.alias_options(deprecation.PROXY_ALIASES)
     @click.option(
-        "--ssl-verify/--without-ssl-verify",
+        f"{option_names.SSL_VERIFY}/{option_names.WITHOUT_SSL_VERIFY}",
         default=None,
-        envvar="CLOUDSMITH_SSL_VERIFY",
+        envvar=option_names.SSL_VERIFY_ENV,
         help="Verify SSL certificates for HTTPS connections (enabled by default). "
         "Disabling verification is dangerous; prefer --without-ssl-verify-strict "
         "if a TLS-intercepting proxy issues certificates that fail strict checks.",
     )
     @deprecation.alias_options(
         deprecation.SSL_VERIFY_ALIASES,
-        envvars={"--without-api-ssl-verify": SSL_VERIFY_LEGACY_ENVVAR},
+        envvars={
+            "--without-api-ssl-verify": option_names.WITHOUT_SSL_VERIFY_LEGACY_ENV
+        },
         is_flag=True,
     )
     @click.option(
@@ -591,6 +658,7 @@ def initialise_session(f):
 
         opts = config.get_or_create_options(ctx)
         _warn_deprecated_config_keys(ctx, opts)
+        _warn_unrecognised_telemetry_values(ctx, opts)
         host_suffixes = _parse_suffixes(kwargs.pop("allowed_api_host_suffixes"))
         proxy_suffixes = _parse_suffixes(
             _resolve_alias(
@@ -631,6 +699,7 @@ def initialise_session(f):
                 deprecation.warn_envvar(legacy_envvar, "CLOUDSMITH_SSL_VERIFY=0")
         ctx.params["ssl_verify"] = ssl_verify
         opts.ssl_verify = ssl_verify
+        usage_capture.record_session(ctx)
         opts.ssl_verify_strict = kwargs.pop("ssl_verify_strict")
         opts.api_user_agent = kwargs.pop("api_user_agent")
         opts.api_headers = kwargs.pop("api_headers")
@@ -646,6 +715,8 @@ def initialise_session(f):
             ssl_verify_strict=opts.ssl_verify_strict,
             user_agent=opts.api_user_agent,
             headers=opts.api_headers,
+            error_retry_cb=report_retry,
+            retry_after_budget=SESSION_RETRY_AFTER_BUDGET,
         )
         # A group (e.g. `mcp`) defers to its subcommand, whose options win.
         if not ctx.invoked_subcommand:
@@ -816,6 +887,7 @@ def resolve_credentials(f):
             click.secho(message, fg="yellow", err=True)
 
         opts.credential = credential
+        usage_capture.record_credential(ctx, credential)
 
         kwargs["opts"] = opts
         return ctx.invoke(f, *args, **kwargs)
