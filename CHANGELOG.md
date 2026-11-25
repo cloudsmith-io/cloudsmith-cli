@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - When the API host returns an HTML page instead of an API response, the CLI now shows an error and exits with code 1. Examples are a proxy login page, a captive portal, or an `--api-host` that points to a website. Before, commands such as `entitlements list`, `check service`, and `metadata list` stopped with an unexpected error and sent an error report.
 
 ## [1.31.4] - 2026-11-23

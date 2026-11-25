@@ -491,6 +491,31 @@ def test_color_choices_are_text_for_click_before_8_2():
     assert result.output == "False\n"
 
 
+@pytest.mark.parametrize("option", ["--api-host", "--proxy"])
+def test_malformed_url_is_a_usage_error(option):
+    @click.command()
+    @initialise_session
+    def command(opts):
+        pass
+
+    result = click.testing.CliRunner().invoke(
+        command, [option, "http://[bad"], obj=Options()
+    )
+
+    assert result.exit_code == 2, result.output
+    assert '"http://[bad" is not a valid URL' in result.output
+
+
+def test_malformed_proxy_in_cwd_config_is_a_usage_error(tmp_path, monkeypatch):
+    (tmp_path / "config.ini").write_text("[default]\nproxy = http://[bad\n")
+    monkeypatch.chdir(tmp_path)
+
+    result = click.testing.CliRunner().invoke(main, ["whoami"])
+
+    assert result.exit_code == 2, result.output
+    assert '"http://[bad" is not a valid URL' in result.output
+
+
 @pytest.fixture
 def nested_output_commands():
     """Return a three-level command tree that reports its output options."""
