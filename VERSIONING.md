@@ -22,7 +22,12 @@ Includes changes to the public contract that can break your scripts or pipelines
 
 ### Minor
 
-Adds new features, and can include the minor changes listed in the [breaking change reference](#breaking-change-reference). Scripts keep working, but can show new deprecation warnings. A command or option in early access is the exception.
+Adds new features, and can include the minor changes listed in the [breaking change reference](#breaking-change-reference). Scripts that use stable features keep working, but can show new deprecation warnings. These minor changes can break a script:
+
+- A change to a command or option in [early access](#early-access)
+- A [bug fix that changes the contract](#bug-fixes-that-change-the-contract)
+- A change that a [Cloudsmith API change](#api-driven-changes) requires
+- A change to the order of the sources in [credential resolution](#credential-resolution)
 
 ### Patch
 
@@ -283,7 +288,12 @@ The bundled Python version, base images, image contents other than the CLI, and 
 
 ## Telemetry
 
-When the CLI fails with an unexpected error, it sends an error report to Cloudsmith. To learn what a report contains and how to opt out, see [CLI telemetry](https://docs.cloudsmith.com/developer-tools/cli-telemetry).
+The CLI sends two types of telemetry to Cloudsmith:
+
+- Usage telemetry: after each command, the CLI sends one event. The event contains the command name and the names of the options and environment variables that you set, but never their values. Usage telemetry is on by default, also in CI.
+- Error reports: when the CLI fails with an unexpected error, it sends an error report.
+
+To turn off both types, set `CLOUDSMITH_TELEMETRY=disable`. To learn what each type contains and how to turn off each one, see [CLI telemetry](https://docs.cloudsmith.com/developer-tools/cli-telemetry).
 
 If Cloudsmith adds a new type of data or a new destination, `CHANGELOG.md` lists it in that release, with instructions to opt out.
 
