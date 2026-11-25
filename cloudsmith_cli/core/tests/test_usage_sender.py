@@ -137,6 +137,16 @@ def test_session_follows_the_resolved_ssl_strictness(strict, x509_strict_cleared
         assert not adapter.ssl_context_factory().verify_flags & ssl.VERIFY_X509_STRICT
 
 
+def test_session_uses_the_system_trust_store_setting():
+    import truststore
+
+    from cloudsmith_cli.core import session as session_module
+
+    session_module.set_default_tls(ssl_system_trust_store=True)
+    adapter = sender._session().get_adapter("https://eu.i.posthog.com/")
+    assert isinstance(adapter.ssl_context_factory(), truststore.SSLContext)
+
+
 def test_send_reports_failed_post(monkeypatch):
     monkeypatch.setenv("CLOUDSMITH_TELEMETRY_POSTHOG_KEY", "phc_test")
     monkeypatch.setattr(sender, "_post", lambda *a: False)

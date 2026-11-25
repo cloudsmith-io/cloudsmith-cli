@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The matching `telemetry_usage_reporting` and `telemetry_error_reporting` keys in `config.ini` control each one separately. The `telemetry` key now takes the same values, including `log`. `telemetry = false` and `telemetry = true` work as before.
   - For each kind, the first of these settings that is set decides: `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` or `CLOUDSMITH_TELEMETRY_ERROR_REPORTING`, then `CLOUDSMITH_TELEMETRY`, then `CLOUDSMITH_NO_TELEMETRY`, then `DO_NOT_TRACK`, then `telemetry_usage_reporting` or `telemetry_error_reporting` in `config.ini`, then `telemetry` in `config.ini`. So `CLOUDSMITH_TELEMETRY=enable` turns telemetry on for this CLI when `DO_NOT_TRACK=1` turns it off for every tool. `CLOUDSMITH_NO_TELEMETRY` and `DO_NOT_TRACK` still count only when set to `1`, `true`, or `yes`.
   - If one of these variables or keys, or `CLOUDSMITH_TELEMETRY_INSTALL_ID` or `telemetry_install_id`, has a value that the CLI does not recognise, the CLI prints a warning to stderr and ignores it.
+- Added `--ssl-system-trust-store`, the `CLOUDSMITH_SSL_SYSTEM_TRUST_STORE` environment variable, and the `ssl_system_trust_store` key in `config.ini`. With this setting, the CLI also trusts the trust store of the operating system, for example the macOS Keychain or the Windows certificate store. It still trusts the CA bundle that it trusts without the setting: `REQUESTS_CA_BUNDLE` when it is set, else the CA bundle that the CLI includes. Use it behind a TLS-intercepting proxy whose CA is in the trust store of the operating system. The setting is off by default. (#603)
 
 ### Changed
 
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
 - `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- The credential helpers now use `--ssl-verify`, `--ssl-verify-strict`, and their environment variables and `config.ini` keys when they look up the custom domains of a Workspace. Previously, the lookup always verified certificates with the strict X.509 checks, so it failed behind a TLS-intercepting proxy even with `--without-ssl-verify-strict`. (#603)
 
 ## [1.31.4] - 2026-11-23
 

@@ -22,6 +22,7 @@ ALLOWED_SETTINGS = frozenset(
         "proxy",
         "ssl_verify",
         "ssl_verify_strict",
+        "ssl_system_trust_store",
         "api_user_agent",
         "mcp_allowed_tools",
         "mcp_allowed_tool_groups",

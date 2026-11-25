@@ -7,6 +7,7 @@ import click
 import cloudsmith_api
 
 from ..rest import RestClient
+from ..session import get_default_tls
 
 
 def _basic_auth_credentials(encoded: str) -> tuple[str, str]:
@@ -27,8 +28,9 @@ def initialise_api(
     host=None,
     credential=None,
     proxy=None,
-    ssl_verify=True,
-    ssl_verify_strict=True,
+    ssl_verify=None,
+    ssl_verify_strict=None,
+    ssl_system_trust_store=None,
     user_agent=None,
     headers=None,
     rate_limit=True,
@@ -52,8 +54,18 @@ def initialise_api(
     config.error_retry_backoff = error_retry_backoff
     config.error_retry_codes = error_retry_codes
     config.error_retry_cb = error_retry_cb
-    config.verify_ssl = ssl_verify
-    config.ssl_verify_strict = ssl_verify_strict
+    # A caller that leaves out a TLS setting, such as a domain lookup, keeps the
+    # setting of the session.
+    tls = get_default_tls()
+    config.verify_ssl = tls["ssl_verify"] if ssl_verify is None else ssl_verify
+    config.ssl_verify_strict = (
+        tls["ssl_verify_strict"] if ssl_verify_strict is None else ssl_verify_strict
+    )
+    config.ssl_system_trust_store = (
+        tls["ssl_system_trust_store"]
+        if ssl_system_trust_store is None
+        else ssl_system_trust_store
+    )
     config.client_side_validation = False
 
     if credential:

@@ -1,5 +1,7 @@
 """HTTP session creation with retry support."""
 
+import functools
+import os
 import socket
 import ssl
 import sys
@@ -10,8 +12,10 @@ from typing import Self
 import requests
 import urllib3
 from requests.adapters import HTTPAdapter
+from requests.utils import DEFAULT_CA_BUNDLE_PATH, extract_zipped_paths, select_proxy
 from urllib3.connectionpool import ConnectionPool
 from urllib3.exceptions import MaxRetryError, ResponseError
+from urllib3.poolmanager import proxy_from_url
 from urllib3.response import BaseHTTPResponse
 from urllib3.util.retry import Retry
 from urllib3.util.ssl_ import create_urllib3_context
@@ -37,6 +41,34 @@ def set_default_proxy(proxy):
 def get_default_proxy():
     """Get the proxy that set_default_proxy() set, or None."""
     return _default_proxy["url"]
+
+
+_default_tls = {}
+
+
+def set_default_tls(
+    ssl_verify=None, ssl_verify_strict=None, ssl_system_trust_store=None
+):
+    """Set the TLS settings for every SDK configuration that is not given them."""
+    settings = {
+        "ssl_verify": ssl_verify,
+        "ssl_verify_strict": ssl_verify_strict,
+        "ssl_system_trust_store": ssl_system_trust_store,
+    }
+    _default_tls.clear()
+    _default_tls.update(
+        {name: value for name, value in settings.items() if value is not None}
+    )
+
+
+def get_default_tls():
+    """Get the TLS settings that set_default_tls() set, else the CLI defaults."""
+    return {
+        "ssl_verify": True,
+        "ssl_verify_strict": True,
+        "ssl_system_trust_store": False,
+        **_default_tls,
+    }
 
 
 class ApiKeySafeSession(requests.Session):
@@ -188,6 +220,7 @@ class SSLContextAdapter(HTTPAdapter):
     def __init__(self, *args, ssl_context_factory=None, **kwargs):
         self.ssl_context_factory = ssl_context_factory
         self.ssl_contexts = {}
+        self.tls_proxy_managers = {}
         super().__init__(*args, **kwargs)
 
     def build_connection_pool_key_attributes(self, request, verify, cert=None):
@@ -204,9 +237,83 @@ class SSLContextAdapter(HTTPAdapter):
             pool_kwargs["ssl_context"] = self.ssl_contexts[key]
         return host_params, pool_kwargs
 
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        proxy = select_proxy(request.url, proxies)
+        if (
+            self.ssl_context_factory is None
+            or verify is False
+            or not proxy
+            or not proxy.lower().startswith("https://")
+        ):
+            return super().get_connection_with_tls_context(
+                request, verify, proxies, cert
+            )
+        # urllib3 verifies an HTTPS proxy with its own context, not the pool context
+        key = (proxy, verify)
+        if key not in self.tls_proxy_managers:
+            self.tls_proxy_managers[key] = proxy_from_url(
+                proxy,
+                proxy_headers=self.proxy_headers(proxy),
+                num_pools=self._pool_connections,
+                maxsize=self._pool_maxsize,
+                block=self._pool_block,
+                proxy_ssl_context=self._proxy_ssl_context(verify),
+            )
+        host_params, pool_kwargs = self.build_connection_pool_key_attributes(
+            request, verify, cert
+        )
+        return self.tls_proxy_managers[key].connection_from_host(
+            **host_params, pool_kwargs=pool_kwargs
+        )
+
+    def _proxy_ssl_context(self, verify):
+        context = self.ssl_context_factory()
+        ca_bundle = (
+            extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH) if verify is True else verify
+        )
+        try:
+            if os.path.isdir(ca_bundle):
+                context.load_verify_locations(capath=ca_bundle)
+            else:
+                context.load_verify_locations(cafile=ca_bundle)
+        except OSError as error:
+            raise requests.exceptions.SSLError(error) from error
+        return context
+
+    def close(self):
+        super().close()
+        for manager in self.tls_proxy_managers.values():
+            manager.clear()
+
 
 def _create_non_strict_ssl_context():
     return disable_x509_strict(create_urllib3_context())
+
+
+def create_system_trust_store_context(verify_strict=True):
+    """Return an SSL context that verifies against the operating system trust store.
+
+    The context also trusts the CA certificates that are loaded into it, for
+    example the certifi bundle or REQUESTS_CA_BUNDLE.
+    """
+    import truststore
+
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.verify_flags = create_urllib3_context().verify_flags
+    if not verify_strict:
+        disable_x509_strict(context)
+    return context
+
+
+def _ssl_context_factory(ssl_verify_strict, ssl_system_trust_store):
+    """Return the factory for custom SSL contexts, or None for the default context."""
+    if ssl_system_trust_store:
+        return functools.partial(
+            create_system_trust_store_context, verify_strict=ssl_verify_strict
+        )
+    if not ssl_verify_strict:
+        return _create_non_strict_ssl_context
+    return None
 
 
 def _sdk_configuration():
@@ -233,6 +340,7 @@ def create_requests_session(
     maxsize=4,
     ssl_verify=None,
     ssl_verify_strict=None,
+    ssl_system_trust_store=None,
     ssl_cert=None,
     proxy=None,
     session=None,
@@ -266,6 +374,9 @@ def create_requests_session(
     if ssl_verify_strict is None:
         verify_strict = getattr(config, "ssl_verify_strict", None)
         ssl_verify_strict = verify_strict if verify_strict is not None else True
+
+    if ssl_system_trust_store is None:
+        ssl_system_trust_store = bool(getattr(config, "ssl_system_trust_store", False))
 
     if ssl_cert is None and config is not None:
         if config.cert_file and config.key_file:
@@ -304,8 +415,8 @@ def create_requests_session(
         pool_connections=pools_size,
         pool_maxsize=maxsize,
         pool_block=True,
-        ssl_context_factory=(
-            None if ssl_verify_strict else _create_non_strict_ssl_context
+        ssl_context_factory=_ssl_context_factory(
+            ssl_verify_strict, ssl_system_trust_store
         ),
     )
 

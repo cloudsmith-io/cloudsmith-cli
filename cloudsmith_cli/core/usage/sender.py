@@ -37,7 +37,7 @@ def _no_auth(request):
 
 
 def _session(ssl_verify_strict=None):
-    from ..session import create_requests_session, get_default_proxy
+    from ..session import create_requests_session, get_default_proxy, get_default_tls
 
     # Certificates are always verified; only X.509 strictness follows the
     # command (--without-ssl-verify-strict, for TLS-intercepting proxies).
@@ -45,6 +45,7 @@ def _session(ssl_verify_strict=None):
         retries=0,
         ssl_verify=True,
         ssl_verify_strict=ssl_verify_strict,
+        ssl_system_trust_store=get_default_tls()["ssl_system_trust_store"],
         proxy=get_default_proxy(),
         user_agent=USER_AGENT,
     )

@@ -48,6 +48,14 @@ class TestDescribeCertificateError:
         )
         assert "REQUESTS_CA_BUNDLE" in failure.fix
 
+    def test_untrusted_ca_names_the_system_trust_store_setting(self):
+        failure = classify_certificate_error(
+            certificate_error(20, "unable to get local issuer certificate")
+        )
+
+        assert "--ssl-system-trust-store" in failure.fix
+        assert "CLOUDSMITH_SSL_SYSTEM_TRUST_STORE=1" in failure.fix
+
     def test_other_failures_give_only_the_reason(self):
         exc = certificate_error(10, "certificate has expired")
 
