@@ -313,7 +313,8 @@ class TestMCPHiddenToolsWarning:
         [
             (
                 start,
-                "Fix: run `cloudsmith mcp configure --allow-destructive-tools`, "
+                "Fix: add `--allow-destructive-tools` to the `cloudsmith mcp start` "
+                "arguments in your MCP client configuration, "
                 "then restart the MCP client",
             ),
             (

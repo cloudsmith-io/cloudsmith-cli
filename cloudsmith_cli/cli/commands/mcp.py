@@ -66,7 +66,8 @@ def start(
         mcp_server.run(
             on_tools_loaded=lambda: warn_hidden_tools(
                 mcp_server,
-                "run `cloudsmith mcp configure --allow-destructive-tools`, "
+                "add `--allow-destructive-tools` to the `cloudsmith mcp start` "
+                "arguments in your MCP client configuration, "
                 "then restart the MCP client",
             )
         )
