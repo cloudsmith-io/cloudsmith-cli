@@ -15,6 +15,8 @@ concurrency:
 env:
   # Single source of truth for binary targets (also update the binaries.yml matrix).
   BINARY_TARGETS: "linux-x86_64-gnu linux-x86_64-musl linux-aarch64-gnu linux-aarch64-musl macos-arm64 macos-x86_64 windows-x86_64"
+  # Release and smoke-test runs are not user usage: keep them out of CLI telemetry.
+  CLOUDSMITH_NO_TELEMETRY: "1"
 
 jobs:
   validate:

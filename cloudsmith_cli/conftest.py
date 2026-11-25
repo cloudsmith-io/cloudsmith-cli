@@ -1,6 +1,9 @@
+import json
+
 import cloudsmith_api
 import pytest
 
+from cloudsmith_cli.cli.config import OPTIONS
 from cloudsmith_cli.core import keyring as core_keyring
 from cloudsmith_cli.core import session, telemetry
 
@@ -10,11 +13,28 @@ FAKE_DSN = "https://publickey@o0.ingest.sentry.invalid/0"
 
 
 @pytest.fixture(autouse=True)
+def reset_cli_options(monkeypatch):
+    """Discard the thread-local Options object between tests.
+
+    ``config.get_or_create_options`` caches the Options object in a
+    thread-local, so state such as ``--debug`` (which is sticky by design)
+    would otherwise leak from one test's CLI invocation into the next.
+    Telemetry in ``core`` reads it too (``telemetry_common.config_mode``).
+    """
+    monkeypatch.delattr(OPTIONS, "value", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def no_real_error_reports(monkeypatch):
     """Never send a real error report from the test suite.
 
     Tests that exercise reporting opt back in with ``sentry_events``.
     """
+    from cloudsmith_cli.core import telemetry_common
+
+    # These win over CLOUDSMITH_NO_TELEMETRY, so a developer's own must go.
+    for name in telemetry_common.MODE_ENVS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(telemetry.NO_TELEMETRY_ENV, "1")
     monkeypatch.setenv(telemetry.DSN_ENV, "")
     monkeypatch.setattr(telemetry, "_transport", None)
@@ -46,6 +66,7 @@ def telemetry_config_dir(monkeypatch, tmp_path_factory):
         monkeypatch.setattr(reader, "config_files", [name])
         monkeypatch.setattr(reader, "config_searchpath", [str(path)])
     monkeypatch.delenv(telemetry.PROFILE_ENV, raising=False)
+    monkeypatch.delenv("CLOUDSMITH_CONFIG_FILE", raising=False)
     return path
 
 
@@ -88,3 +109,100 @@ def restore_default_proxy():
     """Clear the process-wide proxy that ``initialise_session`` sets."""
     yield
     session.set_default_proxy(None)
+
+
+@pytest.fixture(autouse=True)
+def reset_wait_budget():
+    """Give every test a full shared exit-wait budget."""
+    from cloudsmith_cli.core import telemetry_common
+
+    telemetry_common.WaitBudget.shared().reset(1.0)
+
+
+@pytest.fixture(autouse=True)
+def usage_state_dir(monkeypatch, tmp_path_factory):
+    """Keep usage telemetry state out of the developer's real config dir."""
+    path = tmp_path_factory.mktemp("usage-state")
+    monkeypatch.setattr("cloudsmith_cli.core.usage.state.config_dir", lambda: str(path))
+    return path
+
+
+@pytest.fixture(autouse=True)
+def blocked_usage_posts(monkeypatch):
+    """Never send a real usage event from the test suite.
+
+    Removes the developer's usage settings (AGENTS.md tells them to export a
+    test key) and replaces the POST with one that records the call and fails.
+    The sender swallows that failure in its thread, so the fixture fails the
+    test at teardown if any call was recorded. A test that expects a refused
+    call asserts on the returned list and clears it. Tests that exercise
+    sending opt back in with ``usage_events``.
+    """
+    from cloudsmith_cli.core.usage import sender, settings
+
+    calls = []
+
+    def refuse(*args, **kwargs):  # pylint: disable=unused-argument
+        calls.append(args)
+        raise AssertionError("unit tests must not send usage telemetry")
+
+    for name in (
+        settings.KEY_ENV,
+        settings.HOST_ENV,
+        settings.MODE_ENV,
+        settings.INSTALL_ID_ENV,
+        settings.INTERNAL_ENV,
+        settings.SAMPLE_RATE_ENV,
+    ):
+        monkeypatch.delenv(name, raising=False)
+    # Tests run as if no key were built in; usage_events supplies a test key.
+    monkeypatch.setattr(settings, "POSTHOG_PROJECT_KEY", "")
+    monkeypatch.setattr(sender, "_post", refuse)
+    yield calls
+    if calls:
+        pytest.fail(f"unit test attempted {len(calls)} usage telemetry send(s)")
+
+
+@pytest.fixture()
+def usage_events(monkeypatch, telemetry_config_dir, blocked_usage_posts):  # pylint: disable=unused-argument
+    """Enable usage telemetry into a list instead of the network."""
+    from cloudsmith_cli.core import telemetry_common
+    from cloudsmith_cli.core.usage import environment, sender
+
+    events = []
+    for name in telemetry.OPT_OUT_ENVS:
+        monkeypatch.delenv(name, raising=False)
+    ci_names = [name for _, names in environment._CI_PROVIDERS for name in names] + [
+        "KUBERNETES_SERVICE_HOST"
+    ]
+    # Tests may themselves run under an AI agent, which sets these.
+    agent_names = [
+        name for _, names in environment._AGENT_MARKERS for name in names
+    ] + [environment.AI_AGENT_ENV]
+    for name in (
+        ci_names
+        + agent_names
+        + [
+            "CLOUDSMITH_TELEMETRY",
+            "CLOUDSMITH_TELEMETRY_CI_SAMPLE_RATE",
+            "CLOUDSMITH_TELEMETRY_INSTALL_ID",
+            "CLOUDSMITH_TELEMETRY_POSTHOG_HOST",
+            "CLOUDSMITH_TELEMETRY_INTERNAL",
+            "CLOUDSMITH_API_HOST",
+            "CLOUDSMITH_SSL_VERIFY",
+            "CLOUDSMITH_WITHOUT_API_SSL_VERIFY",
+        ]
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY_POSTHOG_KEY", "phc_test")
+    # Later tests that call the real main() must never run the update check's
+    # network fetch.
+    monkeypatch.setenv("CLOUDSMITH_NO_UPDATE_CHECK", "1")
+    monkeypatch.setattr(environment, "is_container", lambda: False)
+    monkeypatch.setattr(
+        sender,
+        "_post",
+        lambda session, url, body, timeout: events.append(json.loads(body)) or True,
+    )
+    telemetry_common.WaitBudget.shared().reset(1.0)
+    return events

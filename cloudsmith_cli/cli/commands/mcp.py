@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ...core.mcp.data import OpenAPITool
     from ..config import Options
 
-from .. import command, decorators, utils
+from .. import command, decorators, telemetry, utils
 from ..exceptions import handle_api_exceptions
 from .main import main
 
@@ -48,6 +48,8 @@ def mcp_(ctx, opts):  # pylint: disable=unused-argument
 
 
 @mcp_.command(name="start")
+# Long-running: report crashes, not usage.
+@telemetry.send(telemetry.ERRORS)
 @decorators.initialise_api
 @decorators.initialise_mcp
 @click.pass_context

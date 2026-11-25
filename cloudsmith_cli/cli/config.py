@@ -92,7 +92,15 @@ class ConfigSchema:
         oidc_disabled_detectors = ConfigParam(name="oidc_disabled_detectors", type=str)
         metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
         check_for_update = ConfigParam(name="check_for_update", type=bool, default=True)
-        telemetry = ConfigParam(name="telemetry", type=bool, default=True)
+        # Strings, not bools: they also take `log` (see telemetry_common).
+        telemetry = ConfigParam(name="telemetry", type=str)
+        telemetry_usage_reporting = ConfigParam(
+            name="telemetry_usage_reporting", type=str
+        )
+        telemetry_error_reporting = ConfigParam(
+            name="telemetry_error_reporting", type=str
+        )
+        telemetry_install_id = ConfigParam(name="telemetry_install_id", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
@@ -105,7 +113,6 @@ class ConfigSchema:
         api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool)
         ssl_verify_strict = ConfigParam(name="ssl_verify_strict", type=bool)
         check_for_update = ConfigParam(name="check_for_update", type=bool)
-        telemetry = ConfigParam(name="telemetry", type=bool)
 
 
 class ConfigReader(ConfigFileReader):
@@ -505,6 +512,9 @@ class Options:  # pylint: disable=too-many-public-methods
 
     def load_config_file(self, path, profile=None):
         """Load the standard config file."""
+        # Telemetry reads config.ini again at the end of the run, and must read
+        # the same file and profile (see telemetry_common.read_config_file).
+        self.loaded_config = (path, profile)
         config_cls = self.get_config_reader()
         return config_cls.load_config(self, path, profile=profile)
 
@@ -835,15 +845,54 @@ class Options:  # pylint: disable=too-many-public-methods
 
     @property
     def telemetry(self):
-        """Get value for the telemetry (anonymous error reporting) toggle."""
-        return self._get_option("telemetry", default=True)
+        """Get the telemetry mode for error and usage reporting, as written.
+
+        `telemetry_common.parse_mode` reads it; None when it is not set.
+        """
+        return self._get_option("telemetry")
 
     @telemetry.setter
     def telemetry(self, value):
-        """Set value for the telemetry (anonymous error reporting) toggle."""
+        """Set the telemetry mode for error and usage reporting."""
         if value is None:
             return
-        self._set_option("telemetry", bool(value))
+        self._set_option("telemetry", value)
+
+    @property
+    def telemetry_usage_reporting(self):
+        """Get the usage reporting mode, as written; None when it is not set."""
+        return self._get_option("telemetry_usage_reporting")
+
+    @telemetry_usage_reporting.setter
+    def telemetry_usage_reporting(self, value):
+        """Set the usage reporting mode."""
+        if value is None:
+            return
+        self._set_option("telemetry_usage_reporting", value)
+
+    @property
+    def telemetry_error_reporting(self):
+        """Get the error reporting mode, as written; None when it is not set."""
+        return self._get_option("telemetry_error_reporting")
+
+    @telemetry_error_reporting.setter
+    def telemetry_error_reporting(self, value):
+        """Set the error reporting mode."""
+        if value is None:
+            return
+        self._set_option("telemetry_error_reporting", value)
+
+    @property
+    def telemetry_install_id(self):
+        """Get the install ID switch, as written; None when it is not set."""
+        return self._get_option("telemetry_install_id")
+
+    @telemetry_install_id.setter
+    def telemetry_install_id(self, value):
+        """Set the install ID switch."""
+        if value is None:
+            return
+        self._set_option("telemetry_install_id", value)
 
     @property
     def output(self):
