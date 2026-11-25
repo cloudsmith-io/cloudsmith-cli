@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - The CLI now shows the API error when the field errors of the error contain objects, for example `{"non_field_errors": [{"code": 1}]}` or nested serializer errors. Previously, the CLI stopped with `TypeError: sequence item 0: expected str instance, dict found` and did not show the API error.
 
 ## [1.31.4] - 2026-11-23
