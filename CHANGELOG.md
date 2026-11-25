@@ -30,12 +30,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The matching `telemetry_usage_reporting` and `telemetry_error_reporting` keys in `config.ini` control each one separately. The `telemetry` key now takes the same values, including `log`. `telemetry = false` and `telemetry = true` work as before.
   - For each kind, the first of these settings that is set decides: `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` or `CLOUDSMITH_TELEMETRY_ERROR_REPORTING`, then `CLOUDSMITH_TELEMETRY`, then `CLOUDSMITH_NO_TELEMETRY`, then `DO_NOT_TRACK`, then `telemetry_usage_reporting` or `telemetry_error_reporting` in `config.ini`, then `telemetry` in `config.ini`. So `CLOUDSMITH_TELEMETRY=enable` turns telemetry on for this CLI when `DO_NOT_TRACK=1` turns it off for every tool. `CLOUDSMITH_NO_TELEMETRY` and `DO_NOT_TRACK` still count only when set to `1`, `true`, or `yes`.
   - If one of these variables or keys, or `CLOUDSMITH_TELEMETRY_INSTALL_ID` or `telemetry_install_id`, has a value that the CLI does not recognise, the CLI prints a warning to stderr and ignores it.
+- When a new major version is available, the update notice and `cloudsmith update` tell you, and link to its release notes. `cloudsmith update` never installs a new major version. With `-F json`, `cloudsmith update` shows the version in the new `new_major_version` field.
 
 ### Changed
 
 - The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
 - When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
 - The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
+- `cloudsmith update` and the update check now read the install manifest of the running major version. A 1.x installation updates only to a later 1.x release.
+- The upgrade commands that the CLI shows for pip, pipx, uv and Docker now stay in the running major version, for example `pip install --upgrade "cloudsmith-cli<2"` and `docker pull cloudsmith/cloudsmith-cli:1`.
 
 ### Fixed
 

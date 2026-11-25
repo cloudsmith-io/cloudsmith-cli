@@ -3,8 +3,11 @@
 
 import os
 import platform
+import re
 import sys
 from importlib import metadata
+
+from . import version
 
 CHANNEL_STANDALONE = "standalone"
 CHANNEL_HOMEBREW = "homebrew"
@@ -18,7 +21,7 @@ CHANNEL_UNKNOWN = "unknown"
 
 _DISTRIBUTION_NAME = "cloudsmith-cli"
 
-#: Where a user downloads a fresh standalone build when self-update cannot run.
+#: The page of the latest release, for a changelog link without a version.
 RELEASES_LATEST_URL = "https://github.com/cloudsmith-io/cloudsmith-cli/releases/latest"
 
 #: Base for a version's changelog entry on cloudsmith.com. Each entry's slug is
@@ -40,19 +43,62 @@ def changelog_url(version=None):
     return _CHANGELOG_URL_TEMPLATE.format(version=slug)
 
 
+#: The pip, pipx, uv and Docker commands stay in the running major version:
+#: ``{major}`` is that major, and ``{next_major}`` is the first version that the
+#: command must not install.
 _UPGRADE_INSTRUCTIONS = {
-    CHANNEL_PIP: "pip install --upgrade cloudsmith-cli",
-    CHANNEL_PIPX: "pipx upgrade cloudsmith-cli",
-    CHANNEL_UV_TOOL: "uv tool upgrade cloudsmith-cli",
-    CHANNEL_UV_PIP: "uv pip install --upgrade cloudsmith-cli",
+    CHANNEL_PIP: 'pip install --upgrade "cloudsmith-cli<{next_major}"',
+    CHANNEL_PIPX: (
+        "pipx install --force --pip-args=--upgrade "
+        '"cloudsmith-cli{extras}<{next_major}"'
+    ),
+    CHANNEL_UV_TOOL: 'uv tool upgrade "cloudsmith-cli<{next_major}"',
+    CHANNEL_UV_PIP: 'uv pip install --upgrade "cloudsmith-cli<{next_major}"',
     CHANNEL_HOMEBREW: "brew update && brew upgrade cloudsmith-cli",
-    CHANNEL_DOCKER: "docker pull cloudsmith/cloudsmith-cli:latest",
+    CHANNEL_DOCKER: "docker pull cloudsmith/cloudsmith-cli:{major}",
     CHANNEL_AQUA: (
         "update the cloudsmith-io/cloudsmith-cli version in your aqua "
         "configuration, then run `aqua install`"
     ),
-    CHANNEL_UNKNOWN: "pip install --upgrade cloudsmith-cli",
+    CHANNEL_UNKNOWN: 'pip install --upgrade "cloudsmith-cli<{next_major}"',
 }
+
+_EXTRA_MARKER = re.compile(r"""extra\s*==\s*["']([^"']+)["']""")
+_REQUIREMENT_NAME = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _is_installed(distribution_name):
+    try:
+        metadata.distribution(distribution_name)
+    except metadata.PackageNotFoundError:
+        return False
+    return True
+
+
+def _installed_extras():
+    """Return the installed extras, without an extra that a larger one includes."""
+    names_by_extra = {}
+    for requirement in metadata.requires(_DISTRIBUTION_NAME) or []:
+        extra = _EXTRA_MARKER.search(requirement)
+        if extra:
+            names = names_by_extra.setdefault(extra.group(1), set())
+            names.add(_REQUIREMENT_NAME.match(requirement).group(0))
+    installed = {
+        extra: names
+        for extra, names in names_by_extra.items()
+        if all(_is_installed(name) for name in names)
+    }
+    return sorted(
+        extra
+        for extra, names in installed.items()
+        if not any(names < other for other in installed.values())
+    )
+
+
+def _pipx_extras():
+    """Return the extras for the pipx spec, because ``--force`` drops the rest."""
+    extras = _installed_extras()
+    return f"[{','.join(extras)}]" if extras else ""
 
 
 def running_in_container():
@@ -143,7 +189,11 @@ def upgrade_instruction(channel):
     """Return the upgrade command for a channel, or None for self-update."""
     if channel == CHANNEL_STANDALONE:
         return None
-    return _UPGRADE_INSTRUCTIONS[channel]
+    major = version.get_version_info().major
+    extras = _pipx_extras() if channel == CHANNEL_PIPX else ""
+    return _UPGRADE_INSTRUCTIONS[channel].format(
+        major=major, next_major=major + 1, extras=extras
+    )
 
 
 def self_update_supported():
