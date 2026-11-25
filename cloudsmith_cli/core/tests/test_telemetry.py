@@ -14,35 +14,108 @@ from unittest import mock
 import pytest
 
 from cloudsmith_cli.cli import config
-from cloudsmith_cli.core import telemetry
+from cloudsmith_cli.core import telemetry, telemetry_common
 from cloudsmith_cli.core.session import set_default_proxy
 
 # --- Opt-out controls -------------------------------------------------------
 
 
+def env_disabled(env=None):
+    """Whether the env vars turn error reporting off."""
+    mode, _ = telemetry_common.env_mode(telemetry.Kind.ERRORS, env)
+    return mode is telemetry.Mode.DISABLED
+
+
+def config_disabled():
+    """Whether config.ini turns error reporting off."""
+    mode, _ = telemetry_common.config_mode(telemetry.Kind.ERRORS)
+    return mode is telemetry.Mode.DISABLED
+
+
 def test_enabled_when_nothing_set():
-    assert telemetry.telemetry_disabled({}) is False
+    assert env_disabled({}) is False
 
 
 @pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "True", "yes", " yes "])
 def test_truthy_value_disables(name, value):
-    assert telemetry.telemetry_disabled({name: value}) is True
+    assert env_disabled({name: value}) is True
 
 
 @pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
 @pytest.mark.parametrize("value", ["0", "", "no", "false", "off"])
 def test_other_values_leave_reporting_on(name, value):
-    assert telemetry.telemetry_disabled({name: value}) is False
+    assert env_disabled({name: value}) is False
+
+
+@pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
+def test_enable_wins_over_an_opt_out(sentry_events, monkeypatch, name):
+    monkeypatch.setenv(name, "1")
+    monkeypatch.setenv(telemetry.MODE_ENV, "enable")
+
+    assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is True
+    assert len(sentry_events) == 1
+
+
+def test_enable_wins_over_config_opt_out(
+    sentry_events, telemetry_config_dir, monkeypatch
+):
+    (telemetry_config_dir / "config.ini").write_text("[default]\ntelemetry = false\n")
+    monkeypatch.setenv(telemetry.MODE_ENV, "enable")
+
+    assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is True
+
+
+def test_error_reporting_enable_wins_over_the_rest(
+    sentry_events, telemetry_config_dir, monkeypatch
+):
+    (telemetry_config_dir / "config.ini").write_text("[default]\ntelemetry = false\n")
+    monkeypatch.setenv(telemetry.DO_NOT_TRACK_ENV, "1")
+    monkeypatch.setenv(telemetry.MODE_ENV, "disable")
+    monkeypatch.setenv(telemetry.ERROR_REPORTING_ENV, "enable")
+
+    assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is True
+
+
+@pytest.mark.parametrize(
+    "name", [telemetry.ERROR_REPORTING_ENV, telemetry_common.USAGE_REPORTING_ENV]
+)
+def test_only_the_error_reporting_variable_turns_reports_off(
+    sentry_events, monkeypatch, name
+):
+    monkeypatch.setenv(name, "disable")
+    sent = telemetry.report_exception(raise_and_catch(RuntimeError("boom")))
+    assert sent is (name != telemetry.ERROR_REPORTING_ENV)
+
+
+@pytest.mark.parametrize(
+    "content,sent",
+    [
+        ("telemetry_error_reporting = disable\n", False),
+        ("telemetry = disable\ntelemetry_error_reporting = enable\n", True),
+        ("telemetry_usage_reporting = disable\n", True),
+    ],
+)
+def test_error_reporting_config_key(sentry_events, telemetry_config_dir, content, sent):
+    (telemetry_config_dir / "config.ini").write_text(f"[default]\n{content}")
+    assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is sent
+
+
+@pytest.mark.parametrize("value", ["disable", "off", "0", "false"])
+def test_disable_sends_nothing(sentry_events, monkeypatch, value):
+    monkeypatch.setenv(telemetry.MODE_ENV, value)
+
+    assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is False
+    assert sentry_events == []
 
 
 def test_ci_does_not_disable():
-    assert telemetry.telemetry_disabled({"CI": "true"}) is False
+    assert env_disabled({"CI": "true"}) is False
 
 
 def test_defaults_to_os_environ(monkeypatch):
     monkeypatch.setenv(telemetry.DO_NOT_TRACK_ENV, "1")
-    assert telemetry.telemetry_disabled() is True
+    assert env_disabled() is True
 
 
 def test_default_dsn_is_a_public_ingest_key():
@@ -164,7 +237,7 @@ def test_config_key_off_sends_nothing(sentry_events, telemetry_config_dir, value
         f"[default]\ntelemetry = {value}\n"
     )
 
-    assert telemetry.config_disabled() is True
+    assert config_disabled() is True
     assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is False
     assert sentry_events == []
 
@@ -178,7 +251,7 @@ def test_config_key_default_or_true_reports(
 ):
     (telemetry_config_dir / "config.ini").write_text(content)
 
-    assert telemetry.config_disabled() is False
+    assert config_disabled() is False
     assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is True
 
 
@@ -200,9 +273,9 @@ def test_config_key_in_env_selected_profile(
         "[default]\n[profile:work]\ntelemetry = false\n"
     )
 
-    assert telemetry.config_disabled() is False
+    assert config_disabled() is False
     monkeypatch.setenv(telemetry.PROFILE_ENV, "work")
-    assert telemetry.config_disabled() is True
+    assert config_disabled() is True
 
 
 @pytest.mark.parametrize("profile_body", ["", "workspace = acme\n", "telemetry =\n"])
@@ -214,7 +287,7 @@ def test_default_opt_out_applies_to_env_selected_profile(
     )
     monkeypatch.setenv(telemetry.PROFILE_ENV, "work")
 
-    assert telemetry.config_disabled() is True
+    assert config_disabled() is True
     assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is False
     assert sentry_events == []
 
@@ -225,14 +298,14 @@ def test_loaded_options_opt_out_wins(sentry_events, telemetry_config_dir, monkey
     opts.telemetry = False
     monkeypatch.setattr(config.OPTIONS, "value", opts, raising=False)
 
-    assert telemetry.config_disabled() is True
+    assert config_disabled() is True
     assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is False
 
 
 def test_unreadable_config_fails_closed(sentry_events, telemetry_config_dir):
     (telemetry_config_dir / "config.ini").write_text("not ini\n")
 
-    assert telemetry.config_disabled() is True
+    assert config_disabled() is True
     assert telemetry.report_exception(raise_and_catch(RuntimeError("boom"))) is False
     assert sentry_events == []
 
