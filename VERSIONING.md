@@ -263,7 +263,7 @@ Some bugs are in the contract itself. Examples are an exit code that reports suc
 
 ## Security fixes
 
-If a security fix must break the public contract, Cloudsmith releases it in a minor or patch release.
+If a security fix must break the public contract, Cloudsmith releases it in a minor release. An emergency security fix can also break the public contract in a patch release.
 
 ## Distribution
 
