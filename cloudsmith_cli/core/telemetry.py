@@ -3,13 +3,21 @@
 
 Only exceptions that escape every other handler reach here: click's own
 errors and handled API errors never do. Reporting is on by default (including
-in CI) and is turned off by any of:
+in CI). The first of these that is set decides:
 
+* ``CLOUDSMITH_TELEMETRY_ERROR_REPORTING`` - error reports only: ``enable``,
+  ``disable`` or ``log``, which prints the scrubbed report instead of
+  sending it.
+* ``CLOUDSMITH_TELEMETRY`` - the same, for error reports and usage events.
+* ``CLOUDSMITH_NO_TELEMETRY`` - the older tool-specific opt-out.
 * ``DO_NOT_TRACK`` - the cross-tool convention (https://consoledonottrack.com).
-* ``CLOUDSMITH_NO_TELEMETRY`` - the tool-specific variable.
-* ``telemetry = false`` in config.ini - so the choice survives a new shell.
+* ``telemetry_error_reporting``, then ``telemetry``, in config.ini - so the
+  choice survives a new shell.
 
-Any one opt-out wins; ``telemetry = true`` does not override the env vars.
+So ``CLOUDSMITH_TELEMETRY_ERROR_REPORTING=enable`` keeps error reports on
+under a global ``DO_NOT_TRACK``, but config.ini never overrides the env vars.
+A command whose ``@telemetry.send`` policy leaves out ERRORS never reports
+(checked by the caller, ``AliasGroup.main``).
 
 Anonymisation is enforced by :func:`scrub_event`, which *rebuilds* the event
 from an allowlist rather than deleting known-bad fields, so anything new the
@@ -22,6 +30,7 @@ Keep this module's imports light: it is loaded on the error path only, and
 ``sentry_sdk`` must only ever be imported inside :func:`_send`.
 """
 
+import errno
 import os
 import platform
 import re
@@ -30,6 +39,19 @@ import sys
 import click
 
 from .certificate_errors import find_certificate_error
+from .telemetry_common import CLOUDSMITH_HOST_SUFFIXES as _ALLOWED_HOST_SUFFIXES
+from .telemetry_common import (  # noqa: F401  (re-exported for callers and tests)
+    DO_NOT_TRACK_ENV,
+    ERROR_REPORTING_ENV,
+    MODE_ENV,
+    NO_TELEMETRY_ENV,
+    OPT_OUT_ENVS,
+    PROFILE_ENV,
+    Kind,
+    Mode,
+    get_environment,
+    resolve_mode,
+)
 
 #: Production ingest DSN for the dedicated ``cloudsmith-cli`` Sentry project.
 #: Not a secret: a DSN is a public, write-only ingest key, and every client
@@ -41,18 +63,14 @@ DSN = "https://0a93d7eb45c68ec0116ff0938d94002e@o89590.ingest.us.sentry.io/45121
 #: Set it empty to disable sending.
 DSN_ENV = "CLOUDSMITH_TELEMETRY_DSN"
 
-NO_TELEMETRY_ENV = "CLOUDSMITH_NO_TELEMETRY"
-DO_NOT_TRACK_ENV = "DO_NOT_TRACK"
-OPT_OUT_ENVS = (DO_NOT_TRACK_ENV, NO_TELEMETRY_ENV)
-_TRUTHY_ENV_VALUES = ("1", "true", "yes")
-
 #: Upper bound on how long a failing command waits for the report to send.
 FLUSH_TIMEOUT_SECONDS = 2.0
 MAX_MESSAGE_LENGTH = 1024
 
-#: Hosts that may appear in reports; any other host (custom/self-hosted API,
-#: proxies, internal registries) is replaced.
-_ALLOWED_HOST_SUFFIXES = ("cloudsmith.io", "cloudsmith.com")
+# Hosts that may appear in reports are ``_ALLOWED_HOST_SUFFIXES`` (imported
+# above); any other host (custom/self-hosted API, proxies, internal
+# registries) is replaced.
+
 #: Env vars whose values are treated as secrets wherever they appear.
 _SECRET_ENV_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.IGNORECASE)
 _MIN_SECRET_LENGTH = 8
@@ -87,48 +105,6 @@ def format_exception_summary(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
-def telemetry_disabled(env: "os._Environ[str] | dict[str, str] | None" = None) -> bool:
-    """Tell whether the user has opted out of error reporting.
-
-    Either opt-out variable set to ``1``/``true``/``yes`` (case-insensitive)
-    disables reporting. Any other value, or unset, leaves it on.
-    """
-    env = os.environ if env is None else env
-    return any(
-        env.get(name, "").strip().lower() in _TRUTHY_ENV_VALUES for name in OPT_OUT_ENVS
-    )
-
-
-PROFILE_ENV = "CLOUDSMITH_PROFILE"
-
-
-def config_disabled() -> bool:
-    """Tell whether ``telemetry = false`` is set in config.ini.
-
-    Checked two ways, and either one saying ``false`` wins:
-
-    * the options the command loaded, which honour ``--config-file`` and
-      ``--profile`` - but only exist if the command loads config at all;
-    * a fresh read of config.ini (``[default]`` plus ``$CLOUDSMITH_PROFILE``),
-      which covers commands that never load config or failed before doing so.
-
-    Fails closed: if the config cannot be read we cannot confirm the user has
-    not opted out, so we do not report.
-    """
-    try:
-        from ..cli import config
-
-        opts = getattr(config.OPTIONS, "value", None)
-        if opts is not None and opts.telemetry is False:
-            return True
-
-        probe = config.Options()
-        config.ConfigReader.load_config(probe, profile=os.environ.get(PROFILE_ENV))
-        return probe.telemetry is False
-    except Exception:  # pylint: disable=broad-exception-caught
-        return True
-
-
 def get_dsn(env: "os._Environ[str] | dict[str, str] | None" = None) -> str:
     """Return the DSN to report to; empty means do not report."""
     env = os.environ if env is None else env
@@ -149,15 +125,20 @@ def is_reportable(exc: BaseException) -> bool:
     ``report_to_telemetry = False``. Checked by attribute rather than by
     importing the types, so this module stays light on the error path. A failed
     TLS certificate check is a problem with the network, not with the CLI.
+    An EIO error comes from the device, such as a terminal that hung up.
     """
     return (
         getattr(exc, REPORTABLE_ATTR, True) is not False
         and find_certificate_error(exc) is None
+        and not (isinstance(exc, OSError) and exc.errno == errno.EIO)
     )
 
 
 def report_exception(exc: BaseException) -> bool:
     """Report ``exc`` unless opted out; return whether an event was sent.
+
+    In log mode (``CLOUDSMITH_TELEMETRY=log``) the scrubbed event is printed
+    to stderr instead and nothing is sent, even without a DSN.
 
     Never raises - not even ``KeyboardInterrupt`` during the flush wait - and
     never waits longer than :data:`FLUSH_TIMEOUT_SECONDS`: a failure while
@@ -166,7 +147,12 @@ def report_exception(exc: BaseException) -> bool:
     try:
         if not is_reportable(exc):
             return False
-        if telemetry_disabled() or config_disabled():
+        mode, _ = resolve_mode(Kind.ERRORS)
+        if mode is Mode.DISABLED:
+            return False
+        if mode is Mode.LOG:
+            # The DSN is only parsed here: the log transport never sends.
+            _send(exc, get_dsn() or DSN, log=True)
             return False
         dsn = get_dsn()
         if not dsn:
@@ -176,7 +162,26 @@ def report_exception(exc: BaseException) -> bool:
         return False
 
 
-def _send(exc: BaseException, dsn: str) -> bool:
+def _log_transport():
+    """A transport that prints each event to stderr and sends nothing."""
+    import json
+
+    from sentry_sdk.transport import Transport
+
+    class LogTransport(Transport):
+        def capture_envelope(self, envelope):
+            for item in envelope.items:
+                if item.type == "event":
+                    click.echo(
+                        "[telemetry] would send error report (log mode, nothing sent):\n"
+                        + json.dumps(item.payload.json, indent=2, sort_keys=True),
+                        err=True,
+                    )
+
+    return LogTransport()
+
+
+def _send(exc: BaseException, dsn: str, log: bool = False) -> bool:
     """Build a locked-down, single-use Sentry client and send one event."""
     import sentry_sdk
 
@@ -187,7 +192,7 @@ def _send(exc: BaseException, dsn: str) -> bool:
     proxy = get_default_proxy()
     client = sentry_sdk.Client(
         dsn=dsn,
-        transport=_transport,
+        transport=_log_transport() if log else _transport,
         # Both: the SDK prefers https_proxy (and $HTTPS_PROXY) for HTTPS DSNs.
         http_proxy=proxy,
         https_proxy=proxy,
@@ -233,21 +238,6 @@ def _send(exc: BaseException, dsn: str) -> bool:
     finally:
         client.close(timeout=FLUSH_TIMEOUT_SECONDS)
     return event_id is not None
-
-
-def get_environment(package_file=None, frozen=None):
-    """Return ``development`` for a source checkout, else ``production``.
-
-    Frozen builds and wheels installed into site-/dist-packages are releases;
-    anything imported from elsewhere is an editable install or a checkout, so
-    developers' errors stay out of production triage.
-    """
-    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
-    if frozen:
-        return "production"
-    path = (package_file or os.path.abspath(__file__)).replace("\\", "/")
-    installed = "/site-packages/" in path or "/dist-packages/" in path
-    return "production" if installed else "development"
 
 
 def _safe(func, default):
