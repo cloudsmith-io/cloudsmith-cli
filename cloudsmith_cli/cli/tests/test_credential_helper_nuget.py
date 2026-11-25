@@ -461,12 +461,16 @@ def test_plugin_resolves_again_after_a_failed_resolution(credential):
 
 
 @pytest.mark.parametrize(
-    "workspace,discover",
-    [("acme", False), (None, True)],
-    ids=["no-discover", "no-workspace"],
+    "workspace,discover,uri",
+    [
+        ("acme", False, CUSTOM_FEED),
+        (None, True, CUSTOM_FEED),
+        ("acme", True, CUSTOM_FEED.replace("https:", "http:")),
+    ],
+    ids=["no-discover", "no-workspace", "http"],
 )
 def test_plugin_declines_a_feed_it_cannot_match_before_it_resolves(
-    credential, workspace, discover
+    credential, workspace, discover, uri
 ):
     """The feed of another provider does not wait for a credential."""
     resolve = Mock(return_value=credential)
@@ -477,7 +481,7 @@ def test_plugin_declines_a_feed_it_cannot_match_before_it_resolves(
         workspace=workspace,
         discover=discover,
     )
-    payload = _credentials_request(CUSTOM_FEED)["Payload"]
+    payload = _credentials_request(uri)["Payload"]
 
     response = session.handle_request("GetAuthenticationCredentials", payload)
 

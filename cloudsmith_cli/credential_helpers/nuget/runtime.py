@@ -61,6 +61,19 @@ def is_plugin_mode(args) -> bool:
     return any(arg.lstrip("-/").lower() == "plugin" for arg in args)
 
 
+def _feed_host(uri) -> str | None:
+    """Return the host of an ``https`` feed URI, or None for any other URI."""
+    if not isinstance(uri, str) or "\\" in uri:
+        return None
+    try:
+        parts = urlsplit(uri)
+    except ValueError:
+        return None
+    if parts.scheme.lower() != "https":
+        return None
+    return parts.hostname or None
+
+
 def is_supported_source(
     uri,
     credential=None,
@@ -81,21 +94,16 @@ def is_supported_source(
     *discover* is False, no other custom domain matches and the API is not
     called.
     """
-    if not isinstance(uri, str) or "\\" in uri:
+    hostname = _feed_host(uri)
+    if hostname is None:
         return False
-    try:
-        parts = urlsplit(uri)
-    except ValueError:
-        return False
-    if parts.scheme.lower() != "https" or not parts.hostname:
-        return False
-    if parts.hostname in domains:
+    if hostname in domains:
         return True
     if not discover:
-        return is_standard_cloudsmith_domain(parts.hostname)
+        return is_standard_cloudsmith_domain(hostname)
 
     return is_cloudsmith_domain(
-        parts.hostname,
+        hostname,
         credential=credential,
         api_host=api_host,
         backend_kind=BackendKind.NUGET,
@@ -235,10 +243,12 @@ class PluginSession:
     def _handle_get_credentials(self, payload) -> dict:
         payload = payload if isinstance(payload, dict) else {}
         uri = payload.get("Uri")
-        # Without discovery or a Workspace the host check needs no credential,
-        # so another provider's feed does not wait for one.
-        if not (self.discover and self.workspace) and not is_supported_source(
-            uri, domains=self.domains, discover=False
+        # A URI that is not https never matches. Without discovery or a
+        # Workspace, the host check needs no credential. So the feed of another
+        # provider does not wait for a credential.
+        if _feed_host(uri) is None or (
+            not (self.discover and self.workspace)
+            and not is_supported_source(uri, domains=self.domains, discover=False)
         ):
             return {"ResponseCode": "NotFound", "Message": _NOT_APPLICABLE_MESSAGE}
         if self.refresh_credential and (
