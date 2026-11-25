@@ -22,7 +22,7 @@ Python `>=3.11` is required (CI tests 3.11–3.14). Use at least the patched rel
 - Run the live-service tests: `pytest -m integration` (requires the `PYTEST_CLOUDSMITH_*` environment variables). Mark each test that calls the live Cloudsmith service with `@pytest.mark.integration`.
 - Run a single test: `pytest cloudsmith_cli/cli/tests/test_push.py::TestClass::test_name` or by node id / `-k <expr>`.
 - Lint/format (all run via pre-commit): `pre-commit run --all-files`. Individual tools: `black .`, `isort .`, `flake8 --config=.flake8`, `pylint --rcfile=.pylintrc <path>`, `pyupgrade --py310-plus <files>`.
-- Release: `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
+- Release: use the breaking change reference in `VERSIONING.md` to choose a major, minor or patch release for the changes since the last tag. Then run `bumpversion <major|minor|revision>` then `git push origin <tag>`. The `VERSION` symlink in repo root points at `cloudsmith_cli/data/VERSION`.
 
 ## Architecture
 
