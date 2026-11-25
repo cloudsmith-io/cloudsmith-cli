@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
 - An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
+- `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
+- `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
 - `cloudsmith mcp start` now exposes only read-only tools by default. Tools that change data or return credentials need `--allow-destructive-tools` (`-D`). A tool changes data when it uses POST, PUT, PATCH or DELETE, or when its name contains `delete`, `destroy` or `remove`. `--all-tools` (`-a`) enables every tool group and ignores `mcp_allowed_tools` and `mcp_allowed_tool_groups`. It no longer enables these tools without `-D`. When your allowlist matches tools that need `-D`, `mcp start`, `mcp list_tools` and `mcp list_groups` show a warning. `mcp configure` now accepts `-a` and `-D` and keeps them in the client configuration. Tools that change data now have `destructiveHint` set to `true`. (#620)
 
 ## [1.31.4] - 2026-11-23
