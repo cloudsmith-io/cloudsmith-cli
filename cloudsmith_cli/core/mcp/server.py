@@ -4,6 +4,7 @@ import inspect
 import json
 import os
 import ssl
+from collections.abc import Callable
 from typing import Any
 from urllib import parse
 
@@ -26,10 +27,6 @@ API_VERSIONS_TO_DISCOVER = {
     "v1": "swagger/?format=openapi",
     "v2": "openapi/?format=json",
 }
-TOOL_DELETE_SUFFIXES = ["delete", "destroy", "remove"]
-
-TOOL_READ_ONLY_SUFFIXES = ["read", "list", "retrieve"]
-
 # Common action suffixes in OpenAPI operation IDs
 # These should not be considered as part of the resource group hierarchy
 TOOL_ACTION_SUFFIXES = [
@@ -74,6 +71,15 @@ DEFAULT_DISABLED_CATEGORIES = [
     "orgs_teams",
     "repo_retention",
 ]
+
+# Read tools in these groups return API keys, entitlement tokens or upstream secrets.
+CREDENTIAL_GROUPS = {
+    "entitlements",
+    "orgs_services",
+    "repos_upstream",
+    "user_token",
+    "user_tokens",
+}
 
 SERVER_NAME = "Cloudsmith MCP Server"
 
@@ -326,6 +332,7 @@ class DynamicMCPServer:
         self.allowed_tools = set(allowed_tools or [])
         self.force_all_tools = force_all_tools
         self.tools: dict[str, OpenAPITool] = {}
+        self.hidden_allowlisted_tools: list[str] = []
         self.spec = {}
         self._ssl_context: ssl.SSLContext | bool | None = None
 
@@ -399,28 +406,25 @@ class DynamicMCPServer:
 
         return groups
 
-    def _is_tool_destructive(self, tool_name: str) -> bool:
-        return any(suffix in tool_name for suffix in TOOL_DELETE_SUFFIXES)
-
-    def _is_tool_read_only(self, tool_name: str) -> bool:
-        return any(suffix in tool_name for suffix in TOOL_READ_ONLY_SUFFIXES)
-
-    def _is_tool_allowed(self, tool_name: str) -> bool:
+    def _is_tool_allowed(self, tool: OpenAPITool) -> bool:
         """Check if a tool is allowed based on user configuration"""
+
+        tool_groups = self._get_tool_groups(tool.name)
+        allowed_tool_group = bool(set(tool_groups) & set(self.allowed_tool_groups))
+        allowed_tool = tool.name in self.allowed_tools
+
+        if not self.allow_destructive_tools and (
+            tool.is_destructive or CREDENTIAL_GROUPS.intersection(tool_groups)
+        ):
+            if allowed_tool or allowed_tool_group:
+                self.hidden_allowlisted_tools.append(tool.name)
+            return False
 
         if self.force_all_tools:
             return True
 
-        # Check if tool is destructive and destructive tools are disabled
-        if not self.allow_destructive_tools and self._is_tool_destructive(tool_name):
-            return False
-
-        tool_groups = self._get_tool_groups(tool_name)
-
         # If user provided their own list of allowed tools or tool groups
         if len(self.allowed_tools) > 0 or len(self.allowed_tool_groups) > 0:
-            allowed_tool_group = bool(set(tool_groups) & set(self.allowed_tool_groups))
-            allowed_tool = tool_name in self.allowed_tools
             return allowed_tool or allowed_tool_group
 
         # Otherwise disable all categories in the default list
@@ -445,7 +449,7 @@ class DynamicMCPServer:
                         path_parameters,
                         base_url,
                     )
-                    if tool and self._is_tool_allowed(tool.name):
+                    if tool and self._is_tool_allowed(tool):
                         self.tools[tool.name] = tool
                         self._register_dynamic_tool(tool)
 
@@ -819,8 +823,6 @@ class DynamicMCPServer:
             parameters=parameter_schema,
             base_url=base_url,
             query_filter=simplified_query,
-            is_destructive=self._is_tool_destructive(tool_name),
-            is_read_only=self._is_tool_read_only(tool_name),
         )
 
     def _format_enum_description(
@@ -902,9 +904,11 @@ class DynamicMCPServer:
 
         return resolved_schema
 
-    def run(self):
+    def run(self, on_tools_loaded: Callable[[], None] | None = None):
         """Initialize and run the server"""
         asyncio.run(self.load_openapi_spec())
+        if on_tools_loaded:
+            on_tools_loaded()
         try:
             try:
                 self.mcp.run(transport="stdio")

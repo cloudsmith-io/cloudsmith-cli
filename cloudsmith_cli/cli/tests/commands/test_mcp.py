@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import stat
@@ -25,7 +26,7 @@ from ....cli.commands.mcp import (
 )
 from ....core.api.exceptions import ApiException
 from ....core.mcp.data import OpenAPITool
-from ....core.mcp.server import DynamicMCPServer
+from ....core.mcp.server import CustomFastMCP, DynamicMCPServer
 from ....core.version import get_version as get_cli_version
 
 
@@ -42,8 +43,6 @@ class TestMCPListToolsCommand:
                 parameters={"type": "object", "properties": {}, "required": []},
                 base_url="https://api.cloudsmith.io",
                 query_filter=None,
-                is_destructive=False,
-                is_read_only=True,
             ),
             "packages_list": OpenAPITool(
                 name="packages_list",
@@ -53,8 +52,6 @@ class TestMCPListToolsCommand:
                 parameters={"type": "object", "properties": {}, "required": []},
                 base_url="https://api.cloudsmith.io",
                 query_filter=None,
-                is_destructive=False,
-                is_read_only=True,
             ),
         }
 
@@ -69,6 +66,7 @@ class TestMCPListToolsCommand:
         assert "packages_list" in result.output
         assert "List repositories" in result.output
         assert "List packages" in result.output
+        assert "Warning" not in result.stderr
         list_tools_mock.assert_called_once()
 
     def test_list_tools_command_with_filtering(self, runner):
@@ -83,8 +81,6 @@ class TestMCPListToolsCommand:
                 parameters={"type": "object", "properties": {}, "required": []},
                 base_url="https://api.cloudsmith.io",
                 query_filter=None,
-                is_destructive=False,
-                is_read_only=True,
             ),
         }
 
@@ -111,8 +107,6 @@ class TestMCPListToolsCommand:
                 parameters={"type": "object", "properties": {}, "required": []},
                 base_url="https://api.cloudsmith.io",
                 query_filter=None,
-                is_destructive=False,
-                is_read_only=True,
             ),
         }
 
@@ -313,6 +307,105 @@ class TestMCPSpecLoadErrors:
         assert exc_info.value.detail == "ConnectError: Connection refused"
 
 
+class TestMCPHiddenToolsWarning:
+    @pytest.mark.parametrize(
+        ("command", "fix"),
+        [
+            (
+                start,
+                "Fix: add `--allow-destructive-tools` to the `cloudsmith mcp start` "
+                "arguments in your MCP client configuration, "
+                "then restart the MCP client",
+            ),
+            (
+                list_tools,
+                "Fix: run `cloudsmith mcp list_tools --allow-destructive-tools`",
+            ),
+            (
+                list_groups,
+                "Fix: run `cloudsmith mcp list_groups --allow-destructive-tools`",
+            ),
+        ],
+    )
+    def test_warns_on_stderr_about_hidden_allowlisted_tools(self, runner, command, fix):
+        def hide_tools(server):
+            server.hidden_allowlisted_tools.extend(["repos_create", "user_tokens_list"])
+
+        with (
+            patch.object(
+                DynamicMCPServer,
+                "load_openapi_spec",
+                autospec=True,
+                side_effect=hide_tools,
+            ),
+            patch.object(CustomFastMCP, "run"),
+        ):
+            result = runner.invoke(command, catch_exceptions=False)
+
+        warning = (
+            "Warning: 2 tools in your MCP allowlist are hidden without "
+            "--allow-destructive-tools: repos_create, user_tokens_list"
+        )
+        assert f"{warning}\n{fix}\n" in result.stderr
+        assert "allowlist" not in result.stdout
+
+
+MUTATING_SPEC = {
+    "paths": {
+        "/repos/": {
+            "get": {"operationId": "repos_list"},
+            "post": {"operationId": "repos_create"},
+        },
+        "/user/self/": {"get": {"operationId": "user_self"}},
+        "/repos/{owner}/{identifier}/privileges": {
+            "put": {"operationId": "repos_privileges_update"},
+            "patch": {"operationId": "repos_privileges_partial_update"},
+        },
+        "/packages/{owner}/{repo}/{identifier}/": {
+            "delete": {"operationId": "packages_delete"},
+        },
+        "/orgs/{org}/members/{member}/remove/": {
+            "get": {"operationId": "orgs_members_remove"},
+        },
+        "/webhooks/{owner}/{repo}/": {
+            "get": {"operationId": "webhooks_list"},
+            "post": {"operationId": "webhooks_create"},
+        },
+        "/user/tokens/": {"get": {"operationId": "user_tokens_list"}},
+    }
+}
+READ_ONLY_TOOLS = {"repos_list", "user_self"}
+DISABLED_GROUP_TOOLS = {"webhooks_list", "webhooks_create", "user_tokens_list"}
+WRITE_TOOLS = {
+    "repos_create",
+    "repos_privileges_update",
+    "repos_privileges_partial_update",
+    "packages_delete",
+    "orgs_members_remove",
+}
+
+
+def _server_from_spec(spec: dict, **server_kwargs) -> DynamicMCPServer:
+    api_config = cloudsmith_api.Configuration()
+    api_config.host = "https://api.cloudsmith.io"
+    api_config.headers = {}
+    server = DynamicMCPServer(api_config=api_config, **server_kwargs)
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        is_v2 = "/v2/" in str(request.url)
+        return httpx2.Response(200, json={"paths": {}} if is_v2 else spec)
+
+    with (
+        patch("cloudsmith_cli.core.mcp.server.create_ssl_context", return_value=True),
+        patch(
+            "cloudsmith_cli.core.mcp.server.create_http_client",
+            return_value=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        ),
+    ):
+        asyncio.run(server.load_openapi_spec())
+    return server
+
+
 class TestMCPServerDynamicToolGeneration:
     def test_server_generates_tools_from_openapi_spec(self):
         """Test that MCP server dynamically creates tools from OpenAPI spec."""
@@ -352,41 +445,16 @@ class TestMCPServerDynamicToolGeneration:
                         "operationId": "repos_read",
                         "summary": "Get a specific repository",
                     },
-                    "delete": {
-                        "operationId": "repos_delete",
-                        "summary": "Delete a repository",
-                    },
                 },
             }
         }
 
-        import cloudsmith_api
-
-        # Create API config
-        api_config = cloudsmith_api.Configuration()
-        api_config.host = "https://api.cloudsmith.io"
-        api_config.api_key = {"X-Api-Key": "test-key"}
-
-        # Create MCP server instance
-        server = DynamicMCPServer(api_config=api_config, force_all_tools=True)
-
-        # Mock the spec loading directly
-        server.spec = mock_openapi_spec
-
-        # Call the synchronous tool generation method
-        import asyncio
-
-        asyncio.run(
-            server._generate_tools_from_spec(  # pylint: disable=protected-access
-                "https://api.cloudsmith.io/v1"
-            )
-        )
+        server = _server_from_spec(mock_openapi_spec, force_all_tools=True)
 
         # Verify tools were created
-        assert len(server.tools) == 3
+        assert len(server.tools) == 2
         assert "repos_list" in server.tools
         assert "repos_read" in server.tools
-        assert "repos_delete" in server.tools
 
         # Verify tool details
         repos_list_tool = server.tools["repos_list"]
@@ -394,13 +462,6 @@ class TestMCPServerDynamicToolGeneration:
         assert repos_list_tool.description == "List all repositories"
         assert repos_list_tool.method == "GET"
         assert repos_list_tool.path == "/repos/"
-        assert repos_list_tool.is_read_only is True
-        assert repos_list_tool.is_destructive is False
-
-        # Verify delete tool is marked as destructive
-        repos_delete_tool = server.tools["repos_delete"]
-        assert repos_delete_tool.is_destructive is True
-        assert repos_delete_tool.is_read_only is False
 
     def test_server_respects_tool_filtering(self):
         """Test that MCP server filters tools based on configuration."""
@@ -422,31 +483,52 @@ class TestMCPServerDynamicToolGeneration:
             }
         }
 
-        import cloudsmith_api
-
-        api_config = cloudsmith_api.Configuration()
-        api_config.host = "https://api.cloudsmith.io"
-        api_config.api_key = {"X-Api-Key": "test-key"}
-
         # Create server with filtering - only allow repos group
-        server = DynamicMCPServer(api_config=api_config, allowed_tool_groups=["repos"])
-
-        # Mock the spec loading directly
-        server.spec = mock_openapi_spec
-
-        # Call the tool generation method
-        import asyncio
-
-        asyncio.run(
-            server._generate_tools_from_spec(  # pylint: disable=protected-access
-                "https://api.cloudsmith.io/v1"
-            )
-        )
+        server = _server_from_spec(mock_openapi_spec, allowed_tool_groups=["repos"])
 
         # Verify only repos tools were created
         assert len(server.tools) == 1
         assert "repos_list" in server.tools
         assert "packages_list" not in server.tools
+
+    @pytest.mark.parametrize(
+        ("server_kwargs", "expected_tools", "expected_hidden"),
+        [
+            ({}, READ_ONLY_TOOLS, set()),
+            (
+                {"allowed_tool_groups": ["repos"]},
+                {"repos_list"},
+                {
+                    "repos_create",
+                    "repos_privileges_update",
+                    "repos_privileges_partial_update",
+                },
+            ),
+            ({"allowed_tools": ["user_tokens_list"]}, set(), {"user_tokens_list"}),
+            ({"force_all_tools": True}, READ_ONLY_TOOLS | {"webhooks_list"}, set()),
+            (
+                {"force_all_tools": True, "allow_destructive_tools": True},
+                READ_ONLY_TOOLS | WRITE_TOOLS | DISABLED_GROUP_TOOLS,
+                set(),
+            ),
+        ],
+    )
+    def test_tool_flags_select_listed_and_hidden_tools(
+        self, server_kwargs, expected_tools, expected_hidden
+    ):
+        server = _server_from_spec(MUTATING_SPEC, **server_kwargs)
+
+        assert set(server.tools) == expected_tools
+        assert set(server.hidden_allowlisted_tools) == expected_hidden
+
+    def test_destructive_opt_in_marks_write_tools_destructive(self):
+        server = _server_from_spec(MUTATING_SPEC, allow_destructive_tools=True)
+
+        tools = asyncio.run(server.mcp.list_tools())
+        destructive = {tool.name for tool in tools if tool.annotations.destructive_hint}
+        read_only = {tool.name for tool in tools if tool.annotations.read_only_hint}
+        assert destructive == WRITE_TOOLS
+        assert read_only == READ_ONLY_TOOLS
 
     def test_server_reports_cli_version(self):
         import cloudsmith_api
@@ -462,11 +544,6 @@ class TestMCPServerDynamicToolGeneration:
 
 class TestMCPServerLoadOpenAPISpec:
     def test_tool_urls_include_api_version(self):
-        import asyncio
-
-        import cloudsmith_api
-        import httpx2
-
         api_config = cloudsmith_api.Configuration()
         api_config.host = "https://api.cloudsmith.io"
         api_config.headers = {}
@@ -555,6 +632,27 @@ class TestMCPServerConfig:
                 "command": "/opt/cloudsmith/cloudsmith",
                 "args": ["-P", "staging", "mcp", "start"],
             }
+
+    def test_configure_keeps_tool_flags_in_start_args(self, runner, tmp_path):
+        config_path = tmp_path / "mcp.json"
+        with patch(
+            "cloudsmith_cli.cli.commands.mcp.get_config_path",
+            return_value=config_path,
+        ):
+            result = runner.invoke(
+                configure, ["--client", "cursor", "-k", "x", "-a", "-D"]
+            )
+
+        assert result.exit_code == 0, result.output
+        server_args = json.loads(config_path.read_text())["mcpServers"]["cloudsmith"][
+            "args"
+        ]
+        assert server_args[-4:] == [
+            "mcp",
+            "start",
+            "--all-tools",
+            "--allow-destructive-tools",
+        ]
 
 
 class TestMCPConfigureClaudeCode:
