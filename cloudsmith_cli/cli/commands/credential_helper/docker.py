@@ -12,10 +12,14 @@ import sys
 import click
 
 from ....credential_helpers.docker import execute
+from ... import telemetry
 from ...decorators import common_api_auth_options, resolve_credentials
+from ...usage_capture import TrackedCommand
 
 
-@click.command()
+# Run by package managers on every request: report crashes, not usage.
+@click.command(cls=TrackedCommand)
+@telemetry.send(telemetry.ERRORS)
 @click.argument("operation", required=False, default="get")
 @common_api_auth_options
 @resolve_credentials
@@ -30,7 +34,7 @@ def docker(opts, operation):
     Provides credentials for all Cloudsmith Docker registries: ``*.cloudsmith.io``,
     ``*.cloudsmith.com``, and any custom domains configured for the Workspace
     (requires a Workspace - ``--workspace``, CLOUDSMITH_WORKSPACE, or
-    ``workspace`` in ``config.ini``; legacy aliases are also accepted - and a
+    ``workspace`` in ``config.ini``; deprecated aliases still work - and a
     valid API key/token).
 
     \b
@@ -59,7 +63,7 @@ def docker(opts, operation):
     \b
     Environment variables:
         CLOUDSMITH_API_KEY: API key for authentication (optional)
-        CLOUDSMITH_WORKSPACE: Workspace slug (CLOUDSMITH_ORG is also accepted)
+        CLOUDSMITH_WORKSPACE: Workspace slug (the deprecated CLOUDSMITH_ORG still works)
     """
     exit_code, stdout, stderr = execute(
         operation,

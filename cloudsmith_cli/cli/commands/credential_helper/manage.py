@@ -9,6 +9,7 @@ Provides ``credential-helper install``, ``credential-helper uninstall``, and
 from __future__ import annotations
 
 import sys
+from functools import partial
 from urllib.parse import urlsplit
 
 import click
@@ -17,8 +18,20 @@ from click.core import ParameterSource
 from cloudsmith_cli.core.cache_utils import ConfigFileParseError
 from cloudsmith_cli.credential_helpers.cargo.installer import CargoInstaller
 from cloudsmith_cli.credential_helpers.generic import PartialInstallError
+from cloudsmith_cli.credential_helpers.gradle.installer import GradleInstaller
 from cloudsmith_cli.credential_helpers.launchers import UnsafeLauncherValue
+from cloudsmith_cli.credential_helpers.maven.extensions import ExtensionsFileError
+from cloudsmith_cli.credential_helpers.maven.installer import (
+    MavenInstaller,
+    MavenrcNotSupported,
+)
+from cloudsmith_cli.credential_helpers.maven_tools import (
+    BuildToolError,
+    ConfigFileConflict,
+    ProjectNotFound,
+)
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
+from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
     TerraformHelperExeNotFound,
     TerraformInstaller,
@@ -29,6 +42,7 @@ from cloudsmith_cli.credential_helpers.terraform.terraformrc import (
     TerraformrcConflictError,
 )
 
+from ....core.session import create_requests_session
 from ....credential_helpers.docker.installer import DockerInstaller
 from ... import utils
 from ...decorators import (
@@ -37,6 +51,7 @@ from ...decorators import (
     common_cli_output_options,
     resolve_credentials,
 )
+from ...usage_capture import TrackedCommand
 
 # ---------------------------------------------------------------------------
 # Helper registry — extend here when new helpers are added
@@ -47,6 +62,9 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "maven": MavenInstaller,
+    "gradle": GradleInstaller,
+    "sbt": SbtInstaller,
 }
 
 
@@ -77,6 +95,42 @@ def _get_installer(name: str):
         )
         sys.exit(1)
     return cls()
+
+
+class HelperOption(click.Option):
+    """A flag that only the helpers in *helpers* accept."""
+
+    def __init__(self, *args, helpers: tuple[str, ...], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helpers = helpers
+
+
+def _helper_options(ctx: click.Context, helper: str) -> dict[str, bool]:
+    """Return the helper flags that were given, or fail if *helper* does not accept one."""
+    given = {}
+    for param in ctx.command.params:
+        if not isinstance(param, HelperOption) or not ctx.params[param.name]:
+            continue
+        if helper not in param.helpers:
+            raise click.UsageError(
+                f"{param.opts[0]} applies only to {' and '.join(param.helpers)}.", ctx
+            )
+        given[param.name] = True
+    return given
+
+
+def _download_session(opts):
+    """Return a session with the proxy and TLS settings of the command.
+
+    The session goes to the public maven-tools repository, so it does not get
+    the --api-headers that are for the API host.
+    """
+    return create_requests_session(
+        proxy=opts.proxy,
+        ssl_verify=opts.ssl_verify,
+        ssl_verify_strict=opts.ssl_verify_strict,
+        user_agent=opts.api_user_agent,
+    )
 
 
 def _terraform_helper_args(ctx, opts, repo: str | None = None) -> tuple[str, ...]:
@@ -141,8 +195,6 @@ def _terraform_proxy_next_steps(opts) -> list[str]:
 # hold credentials.
 _NEVER_KEPT = ("api_key", "api_headers", "keyring_key", "proxy")
 
-_TLS_ENVVARS = ("CLOUDSMITH_SSL_VERIFY", "CLOUDSMITH_WITHOUT_API_SSL_VERIFY")
-
 
 def _main_envvar(option) -> str:
     """Return the main environment variable of *option*."""
@@ -150,13 +202,15 @@ def _main_envvar(option) -> str:
     return names if isinstance(names, str) else names[0]
 
 
-def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
+def _launcher_settings_from_cli(ctx: click.Context) -> dict[str, str]:
     """Return the ``CLOUDSMITH_*`` settings that a launcher keeps.
 
     An option with a ``CLOUDSMITH_*`` environment variable is kept when its
     value came from a flag or from the environment.  A value from a config
     file is not kept, because the helper reads that file itself.  An option
-    of this command replaces the same option of a parent command.
+    of this command replaces the same option of a parent command.  A
+    deprecated spelling is kept under the environment variable of the option
+    that replaces it.
     """
     contexts = []
     while ctx is not None:
@@ -167,7 +221,11 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
     settings = {}
     for context in contexts:
         for option in context.command.params:
-            if option.name in _NEVER_KEPT or not option.envvar:
+            if (
+                option.name in _NEVER_KEPT
+                or option.name not in context.params
+                or not option.envvar
+            ):
                 continue
             envvar = _main_envvar(option)
             source = context.get_parameter_source(option.name)
@@ -176,10 +234,6 @@ def _launcher_settings_from_cli(ctx, opts) -> dict[str, str]:
                 settings[envvar] = (
                     str(value).lower() if isinstance(value, bool) else value
                 )
-    # A -S flag overrides CLOUDSMITH_SSL_VERIFY.  Two environment variables do
-    # not keep that precedence, so the launcher keeps only the resolved value.
-    if [settings.pop(name) for name in _TLS_ENVVARS if name in settings]:
-        settings["CLOUDSMITH_SSL_VERIFY"] = str(opts.ssl_verify).lower()
     return settings
 
 
@@ -248,7 +302,7 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@click.command("install")
+@click.command("install", cls=TrackedCommand)
 @click.argument("helper")
 @click.option(
     "--bin-dir",
@@ -290,6 +344,24 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
     "list (as `-r <repo>`) so `terraform init` needs no CLOUDSMITH_REPO env "
     "var. Terraform does not pass the repository to a credentials helper.",
 )
+@click.option(
+    "--local",
+    cls=HelperOption,
+    helpers=("maven", "sbt"),
+    is_flag=True,
+    default=False,
+    help="Maven and sbt only: set up the project in the current directory "
+    "instead of every build of the user.",
+)
+@click.option(
+    "--mavenrc",
+    cls=HelperOption,
+    helpers=("maven",),
+    is_flag=True,
+    default=False,
+    help="Maven only: load the extension through ~/.mavenrc instead of "
+    "~/.m2/extensions.xml. Use it for Maven 3.9 and earlier.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @common_api_auth_options
@@ -305,10 +377,13 @@ def install_cmd(
     no_discover: bool,
     refresh: bool,
     repo: str | None,
+    local: bool,
+    mavenrc: bool,
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``, ``pnpm``).
+    HELPER is the name of the credential helper to install: one of ``cargo``,
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Important for pnpm: The tokenHelper directive is only honored in the
     user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
@@ -337,8 +412,15 @@ def install_cmd(
         # Terraform: bake the repository into the terraformrc args so
         # `terraform init` needs no CLOUDSMITH_REPO env var
         $ cloudsmith credential-helper install terraform -w acme --repo my-repo
+
+    \b
+        # Install the Maven extension
+        $ cloudsmith credential-helper install maven
     """
     installer = _get_installer(helper)
+    helper_options = _helper_options(ctx, helper)
+    if local and mavenrc:
+        raise click.UsageError("Use --local or --mavenrc, not both.", ctx)
 
     install_kwargs = {
         "bin_dir": bin_dir,
@@ -349,7 +431,10 @@ def install_cmd(
         "org": opts.org,
         "credential": opts.credential,
         "api_host": opts.api_host,
+        **helper_options,
     }
+    if getattr(installer, "downloads_files", False):
+        install_kwargs["session"] = _download_session(opts)
 
     # Terraform bakes the resolved org/profile into the terraformrc `args` list
     # so `terraform init` needs neither env vars nor a hand-edited config. The
@@ -360,7 +445,8 @@ def install_cmd(
         install_kwargs["helper_args"] = helper_args
 
     if getattr(installer, "KEEPS_INSTALL_TIME_SETTINGS", False):
-        install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx, opts)
+        install_kwargs["launcher_env"] = _launcher_settings_from_cli(ctx)
+    install_kwargs.update(_progress_option(installer))
 
     try:
         actions = installer.install(**install_kwargs)
@@ -369,7 +455,12 @@ def install_cmd(
         TerraformrcConflictError,
         TerraformHelperExeNotFound,
         TerraformPluginDirError,
+        ProjectNotFound,
+        ExtensionsFileError,
+        ConfigFileConflict,
         UnsafeLauncherValue,
+        MavenrcNotSupported,
+        BuildToolError,
     ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
@@ -420,7 +511,7 @@ def install_cmd(
 # ---------------------------------------------------------------------------
 
 
-@click.command("uninstall")
+@click.command("uninstall", cls=TrackedCommand)
 @click.argument("helper")
 @click.option(
     "--bin-dir",
@@ -434,13 +525,25 @@ def install_cmd(
     default=False,
     help="Show what would be done without making any changes.",
 )
+@click.option(
+    "--local",
+    cls=HelperOption,
+    helpers=("maven", "sbt"),
+    is_flag=True,
+    default=False,
+    help="Maven and sbt only: remove the setup of the project in the current "
+    "directory.",
+)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
-def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) -> None:
+def uninstall_cmd(
+    ctx, opts, helper: str, bin_dir: str | None, dry_run: bool, local: bool
+) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
-    HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
+    HELPER is the name of the credential helper to uninstall: one of ``cargo``,
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Examples:
 
@@ -451,11 +554,25 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
     \b
         # Preview without making changes
         $ cloudsmith credential-helper uninstall docker --dry-run
+
+    \b
+        # Uninstall the Maven extension
+        $ cloudsmith credential-helper uninstall maven
     """
     installer = _get_installer(helper)
     try:
-        actions = installer.uninstall(bin_dir=bin_dir, dry_run=dry_run)
-    except ConfigFileParseError as exc:
+        actions = installer.uninstall(
+            bin_dir=bin_dir,
+            dry_run=dry_run,
+            **_helper_options(ctx, helper),
+            **_progress_option(installer),
+        )
+    except (
+        ConfigFileParseError,
+        ProjectNotFound,
+        ConfigFileConflict,
+        BuildToolError,
+    ) as exc:
         raise click.ClickException(str(exc))
     except OSError as exc:
         raise click.ClickException(
@@ -482,12 +599,19 @@ def uninstall_cmd(ctx, opts, helper: str, bin_dir: str | None, dry_run: bool) ->
         click.secho(f"  {warning}" if dry_run else warning, err=True, fg="yellow")
 
 
+def _progress_option(installer) -> dict:
+    """Return the callback that says why the command waits, for an installer that asks a build tool."""
+    if getattr(installer, "ASKS_BUILD_TOOL", False):
+        return {"progress": partial(click.echo, err=True)}
+    return {}
+
+
 # ---------------------------------------------------------------------------
 # list
 # ---------------------------------------------------------------------------
 
 
-@click.command("list")
+@click.command("list", cls=TrackedCommand)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context
@@ -496,6 +620,11 @@ def list_cmd(ctx, opts) -> None:
 
     Shows which helpers are available, whether their launcher binary is
     present on PATH, and which registry hosts they are configured for.
+
+    For gradle and sbt, list checks only the default locations: init.d in
+    $GRADLE_USER_HOME or ~/.gradle, and ~/.sbt/1.0/plugins. Install and
+    uninstall ask Gradle and sbt where they read plugins. If gradle.user.home
+    or sbt.global.base moves that location, list shows "not installed".
 
     Example:
 

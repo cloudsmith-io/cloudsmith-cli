@@ -10,8 +10,11 @@ from ..exceptions import handle_api_exceptions
 from .main import main
 
 
-def _get_active_method(api_config):
-    """Inspect API config to determine SAML, API key, or no auth."""
+def _get_active_method(api_config, credential=None):
+    """Inspect the credential and API config to determine OIDC, SAML, API key, or no auth."""
+    # An exchanged OIDC token is sent as a bearer token, like a SAML session.
+    if credential is not None and credential.source_name == "oidc":
+        return "oidc"
     headers = getattr(api_config, "headers", {}) or {}
     if headers.get("Authorization", "").startswith("Bearer "):
         return "sso_token"
@@ -34,6 +37,17 @@ def _get_api_key_source(opts):
         }
 
     return {"configured": False, "source": None, "source_key": None}
+
+
+def _get_oidc_source(opts):
+    """Return where the OIDC token came from, such as the CI vendor."""
+    credential = getattr(opts, "credential", None)
+    if credential and credential.source_name == "oidc":
+        return {
+            "configured": True,
+            "source": credential.source_detail or credential.source_name,
+        }
+    return {"configured": False, "source": None}
 
 
 def _get_sso_status(api_host, profile=None):
@@ -72,8 +86,11 @@ def _get_verbose_auth_data(opts, api_host, profile=None):
     api_key_info["created"] = utils.fmt_datetime(created) if created else None
 
     return {
-        "active_method": _get_active_method(opts.api_config),
+        "active_method": _get_active_method(
+            opts.api_config, getattr(opts, "credential", None)
+        ),
         "api_key": api_key_info,
+        "oidc": _get_oidc_source(opts),
         "sso": sso_info,
     }
 
@@ -111,13 +128,11 @@ def _print_verbose_text(data):
             if ak.get("source"):
                 click.echo(f"  Source: {ak['source']}")
             click.echo("  Note: SAML token is being used instead")
+    elif active == "oidc":
+        click.secho("Authentication Method: OIDC Auto-Discovery", fg="cyan", bold=True)
+        click.echo(f"  Source: {auth['oidc']['source']}")
     elif active == "api_key":
-        if ak.get("source_key") == "oidc":
-            click.secho(
-                "Authentication Method: OIDC Auto-Discovery", fg="cyan", bold=True
-            )
-        else:
-            click.secho("Authentication Method: API Key", fg="cyan", bold=True)
+        click.secho("Authentication Method: API Key", fg="cyan", bold=True)
         for label, field in [
             ("Source", "source"),
             ("Token Slug", "slug"),

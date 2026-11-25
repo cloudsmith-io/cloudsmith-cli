@@ -15,7 +15,6 @@ from ...core import keyring as core_keyring
 from ...core.credentials.models import CredentialResult
 from ...credential_helpers.backends import BackendKind
 from ...credential_helpers.cargo.installer import CargoInstaller
-from ...credential_helpers.common import REFUSAL_MESSAGE
 from ...credential_helpers.cargo.runtime import (
     SUPPORTED_VERSIONS,
     execute,
@@ -23,6 +22,7 @@ from ...credential_helpers.cargo.runtime import (
     handle_request,
     hello,
 )
+from ...credential_helpers.common import REFUSAL_MESSAGE
 from ..commands.credential_helper.cargo import cargo
 
 CLOUDSMITH_INDEX = "sparse+https://cargo.cloudsmith.io/acme/repo/"
@@ -416,7 +416,7 @@ def test_installer_writes_a_launcher_cargo_can_discover(cargo_home, bin_dir):
     launcher = bin_dir / "cargo-credential-cloudsmith"
     assert launcher.name.startswith("cargo-credential-")
     assert launcher.read_text() == (
-        '#!/bin/sh\nexec cloudsmith credential-helper cargo "$@"\n'
+        '#!/usr/bin/env sh\nexec cloudsmith credential-helper cargo "$@"\n'
     )
 
 

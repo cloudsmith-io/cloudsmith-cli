@@ -107,10 +107,13 @@ class OidcProvider(CredentialProvider):
         cached = get_cached_token(context.api_host, org, service_slug)
         if cached:
             logger.debug("OidcProvider: Using cached OIDC token")
+            vendor = f" via {cached.detector}" if cached.detector else ""
             return CredentialResult(
-                api_key=cached,
+                api_key=cached.token,
                 source_name="oidc",
-                source_detail=f"OIDC [cached] (org: {org}, service: {service_slug})",
+                source_detail=(
+                    f"OIDC{vendor} [cached] (org: {org}, service: {service_slug})"
+                ),
                 auth_type="bearer",
             )
 
@@ -184,7 +187,13 @@ class OidcProvider(CredentialProvider):
         if not cloudsmith_token:
             return None
 
-        store_cached_token(context.api_host, org, service_slug, cloudsmith_token)
+        store_cached_token(
+            context.api_host,
+            org,
+            service_slug,
+            cloudsmith_token,
+            detector=detector.name,
+        )
 
         return CredentialResult(
             api_key=cloudsmith_token,
