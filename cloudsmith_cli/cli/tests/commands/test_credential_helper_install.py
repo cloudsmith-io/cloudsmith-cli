@@ -403,15 +403,17 @@ def test_list_finds_a_launcher_installed_to_the_default_dir(
 
 
 def test_list_shows_each_docker_helper_by_name(runner, tmp_path, monkeypatch):
-    """A scoped launcher stays in `list` after another install takes its hosts."""
+    """A launcher stays in `list` after another install takes its hosts."""
     from ....cli.commands.credential_helper.manage import list_cmd
 
     monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / ".docker"))
-    for workspace in ("acme", "beta"):
-        DockerInstaller().install(
-            discover=False, launcher_env={"CLOUDSMITH_WORKSPACE": workspace}
-        )
+    for launcher_env in (
+        {},
+        {"CLOUDSMITH_WORKSPACE": "acme"},
+        {"CLOUDSMITH_WORKSPACE": "beta"},
+    ):
+        DockerInstaller().install(discover=False, launcher_env=launcher_env)
 
     result = runner.invoke(list_cmd, ["-F", "json"], catch_exceptions=False)
 
@@ -426,6 +428,7 @@ def test_list_shows_each_docker_helper_by_name(runner, tmp_path, monkeypatch):
             str(bin_dir / "docker-credential-cloudsmith-beta"),
             ["docker.cloudsmith.io"],
         ),
+        ("cloudsmith", str(bin_dir / "docker-credential-cloudsmith"), []),
         ("cloudsmith-acme", str(bin_dir / "docker-credential-cloudsmith-acme"), []),
     ]
 

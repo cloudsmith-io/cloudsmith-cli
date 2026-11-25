@@ -449,7 +449,7 @@ class DockerInstaller:
         -------
         list[dict]
             One dict for each ``cloudsmith`` or ``cloudsmith-*`` helper, in the
-            order of the ``credHelpers`` block, then one for each other scoped
+            order of the ``credHelpers`` block, then one for each other
             launcher in the default bin directory, with keys:
 
             ``"name"``
@@ -468,7 +468,9 @@ class DockerInstaller:
                 hosts_by_helper.setdefault(helper, []).append(host)
 
         target_dir = resolve_bin_dir()
-        # A scoped launcher stays when a later install moves all of its hosts.
+        # A launcher stays when a later install moves all of its hosts.
+        if _launcher_path(target_dir, "cloudsmith").exists():
+            hosts_by_helper.setdefault("cloudsmith", [])
         pattern = _launcher_path(target_dir, "cloudsmith-*")
         for launcher_path in sorted(target_dir.glob(pattern.name)):
             name = launcher_path.name.removesuffix(pattern.suffix)
