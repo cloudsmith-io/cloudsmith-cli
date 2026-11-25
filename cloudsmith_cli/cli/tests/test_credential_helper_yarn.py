@@ -139,7 +139,9 @@ def test_uninstall_removes_a_hand_written_entry_and_keeps_other_plugins(home):
 def test_install_and_uninstall_change_only_the_plugins_list(home, key):
     """Each spelling of the key is the same key, and the path under another setting is not an entry."""
     rc_file = home / ".yarnrc.yml"
-    other_setting = f"changesetIgnorePatterns:\n  {ENTRY}"
+    other_setting = (
+        f"changesetIgnorePatterns:\n  {ENTRY}npmScopes:\n  2026-02-30: {{}}\n"
+    )
     rc_file.write_text(f"{key}\n  - path: other.cjs\n{other_setting}")
 
     YarnInstaller().install()

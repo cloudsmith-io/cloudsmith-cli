@@ -95,7 +95,8 @@ def _load_yaml(text: str) -> object:
             keys = [key.value for key, _ in root.value]
             if len(keys) != len(set(keys)):
                 return _INVALID
-        return yaml.safe_load(text)
+        # Yarn reads each scalar as a string, so 2026-02-30 is a scope, not a date.
+        return yaml.load(text, Loader=yaml.BaseLoader)
     except yaml.YAMLError:
         return _INVALID
 
