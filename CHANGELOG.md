@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - `cloudsmith push` now sends the full file again when it retries an upload after a server error. It also sends the full file again after a 307 or 308 redirect from the upload host. Before, the second request sent an empty body and the upload failed with a read timeout or stopped responding.
 - A `cloudsmith push` upload attempt now times out when the upload host sends or accepts no data for 120 seconds. The CLI then retries the upload. Before, a stalled upload host made the command wait forever. A slow upload that continues to move does not time out.
 
