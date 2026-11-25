@@ -90,6 +90,8 @@ def _load_yaml(text: str) -> object:
     try:
         root = yaml.compose(text, Loader=yaml.SafeLoader)
         if isinstance(root, yaml.MappingNode):
+            if not all(isinstance(key, yaml.ScalarNode) for key, _ in root.value):
+                return _INVALID
             keys = [key.value for key, _ in root.value]
             if len(keys) != len(set(keys)):
                 return _INVALID
@@ -220,7 +222,18 @@ def _download(session: requests.Session | None) -> tuple[bytes, str]:
     return response.content, version.group(1) if version else "latest"
 
 
-def _yarn(*args: str) -> str:
+def _network_settings(session: requests.Session | None) -> dict[str, str]:
+    """Return the Yarn settings for the proxy and the TLS check of *session*."""
+    settings = {}
+    proxy = session.proxies.get("https") if session else None
+    if proxy:
+        settings["YARN_HTTPS_PROXY"] = proxy
+    if session is not None and session.verify is False:
+        settings["YARN_ENABLE_STRICT_SSL"] = "false"
+    return settings
+
+
+def _yarn(*args: str, settings: dict[str, str] | None = None) -> str:
     """Run Yarn in the current directory, and raise BuildToolError when it fails."""
     executable = shutil.which("yarn")
     if executable is None:
@@ -229,7 +242,12 @@ def _yarn(*args: str) -> str:
             "Then run the command again."
         )
     try:
-        return maven_tools.tool_output([executable, *args], current_dir(), check=True)
+        return maven_tools.tool_output(
+            [executable, *args],
+            current_dir(),
+            check=True,
+            env={**os.environ, **settings} if settings else None,
+        )
     except BuildToolError as exc:
         raise BuildToolError(_STACK_FRAME.sub("", str(exc))) from exc
 
@@ -257,7 +275,7 @@ class YarnInstaller:
         **_options,
     ) -> list[str]:
         if local:
-            return self._import_into_project(dry_run)
+            return self._import_into_project(dry_run, session)
         rc_file = _rc_file()
         plugin_file = Path.home() / PLUGIN_PATH
         text = _read(rc_file)
@@ -327,12 +345,14 @@ class YarnInstaller:
                 _remove_with_empty_parents(plugin_file)
         return actions
 
-    def _import_into_project(self, dry_run: bool) -> list[str]:
+    def _import_into_project(
+        self, dry_run: bool, session: requests.Session | None
+    ) -> list[str]:
         project_dir = current_dir()
         if dry_run:
             return [f"would run `yarn plugin import {PLUGIN_URL}` in {project_dir}"]
         try:
-            _yarn("plugin", "import", PLUGIN_URL)
+            _yarn("plugin", "import", PLUGIN_URL, settings=_network_settings(session))
         except BuildToolError as exc:
             if _NO_PLUGIN_COMMAND not in str(exc):
                 raise

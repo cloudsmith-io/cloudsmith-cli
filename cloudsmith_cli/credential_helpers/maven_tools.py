@@ -75,7 +75,10 @@ def _stop(process: subprocess.Popen[str]) -> None:
 
 
 def tool_output(
-    command: list[str], cwd: Path | None = None, check: bool = False
+    command: list[str],
+    cwd: Path | None = None,
+    check: bool = False,
+    env: dict[str, str] | None = None,
 ) -> str:
     """Return what the build tool prints, without colors, or an empty string when it does not run.
 
@@ -86,6 +89,7 @@ def tool_output(
             # PATH can have a relative directory, and the tool runs in another one.
             [os.path.abspath(command[0]), *command[1:]],
             cwd=cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

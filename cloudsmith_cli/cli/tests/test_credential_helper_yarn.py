@@ -41,8 +41,8 @@ def yarn_runs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(installer.shutil, "which", lambda name: f"/bin/{name}")
 
-    def fake_output(command, cwd=None, check=False):
-        commands.append((command, cwd))
+    def fake_output(command, cwd=None, check=False, env=None):
+        commands.append((command, cwd, env))
         return ""
 
     monkeypatch.setattr(maven_tools, "tool_output", fake_output)
@@ -81,6 +81,7 @@ def test_install_adds_the_entry_to_the_plugins_of_the_user(home, indent):
         "  plugins:\n    - path: other.cjs\n",
         "plugins:\n  - a\n - b\n",
         '"plugin\\x73": []\n',
+        "[plugins]: []\n",
     ],
 )
 def test_install_refuses_a_layout_that_it_cannot_change_safely(home, rc_text):
@@ -218,9 +219,15 @@ def test_list_with_an_unreadable_yarnrc_shows_no_plugin(home):
 
 
 def test_install_local_hands_off_to_yarn(home, yarn_runs, tmp_path):
-    YarnInstaller().install(local=True)
+    """Yarn downloads the plugin with the proxy and TLS settings of the command."""
+    session = Mock(proxies={"https": "http://proxy:3128"}, verify=False)
 
-    assert yarn_runs == [(["/bin/yarn", "plugin", "import", PLUGIN_URL], tmp_path)]
+    YarnInstaller().install(local=True, session=session)
+
+    ((command, cwd, env),) = yarn_runs
+    assert (command, cwd) == (["/bin/yarn", "plugin", "import", PLUGIN_URL], tmp_path)
+    assert env["YARN_HTTPS_PROXY"] == "http://proxy:3128"
+    assert env["YARN_ENABLE_STRICT_SSL"] == "false"
 
 
 @pytest.mark.parametrize(
@@ -234,7 +241,7 @@ def test_install_local_hands_off_to_yarn(home, yarn_runs, tmp_path):
 def test_uninstall_local_with_no_plugin_has_nothing_to_remove(
     home, yarn_runs, monkeypatch, yarn_answer
 ):
-    def answer(command, cwd=None, check=False):
+    def answer(command, cwd=None, check=False, env=None):
         if isinstance(yarn_answer, Exception):
             raise yarn_answer
         return yarn_answer
@@ -245,7 +252,7 @@ def test_uninstall_local_with_no_plugin_has_nothing_to_remove(
 
 
 def test_install_local_in_a_yarn_1_project_names_the_fix(home, yarn_runs, monkeypatch):
-    def yarn_1(command, cwd=None, check=False):
+    def yarn_1(command, cwd=None, check=False, env=None):
         raise BuildToolError('error Command "plugin" not found.')
 
     monkeypatch.setattr(maven_tools, "tool_output", yarn_1)
@@ -255,7 +262,7 @@ def test_install_local_in_a_yarn_1_project_names_the_fix(home, yarn_runs, monkey
 
 
 def test_local_error_has_no_javascript_stack(home, yarn_runs, monkeypatch):
-    def no_project(command, cwd=None, check=False):
+    def no_project(command, cwd=None, check=False, env=None):
         raise BuildToolError("UsageError: No project found\n    at Ft (yarn.js:1:2)\n")
 
     monkeypatch.setattr(maven_tools, "tool_output", no_project)
