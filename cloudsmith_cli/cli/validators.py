@@ -121,7 +121,10 @@ def host_matches_suffixes(url, suffixes):
     Parsing the hostname (rather than substring-matching the URL) ensures
     userinfo, port, and path components cannot smuggle a host past the check.
     """
-    hostname = (urlsplit(url).hostname or "").lower()
+    try:
+        hostname = (urlsplit(url).hostname or "").lower()
+    except ValueError:
+        return False
     return bool(hostname) and any(
         hostname == suffix or hostname.endswith(f".{suffix}") for suffix in suffixes
     )
@@ -130,6 +133,20 @@ def host_matches_suffixes(url, suffixes):
 def is_trusted_api_host(host, extra_suffixes=()):
     """True if host is an allowed Cloudsmith host (or matches an extra suffix)."""
     return host_matches_suffixes(host, PUBLIC_API_HOST_SUFFIXES + tuple(extra_suffixes))
+
+
+def validate_url(name: str, url: str | None) -> None:
+    """Raise a usage error if the host or port of ``url`` cannot be parsed."""
+    from urllib3.util import parse_url
+
+    if not url:
+        return
+    try:
+        parse_url(url)
+    except ValueError as error:
+        raise click.UsageError(
+            f'{name} "{url}" is not a valid URL. Check the host and the port.'
+        ) from error
 
 
 def validate_untrusted_api_host(host, extra_suffixes=()):
