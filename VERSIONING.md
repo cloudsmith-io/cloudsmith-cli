@@ -90,7 +90,7 @@ We recommend that you:
 
 This policy covers the following items. An incompatible change to them requires a major version, except where the [breaking change reference](#breaking-change-reference) lists a minor release. A command or option in [early access](#early-access) joins the contract when Cloudsmith removes its early access label.
 
-"Documented" means described in `--help` or in the [CLI documentation](https://docs.cloudsmith.com/developer-tools/cli). Hidden commands, options, and environment variables aren't part of the contract.
+"Documented" means described in `--help` or in the [CLI documentation](https://docs.cloudsmith.com/developer-tools/cli). Commands, options, and environment variables that have never been documented aren't part of the contract. Previously documented features remain covered during [deprecation](#deprecation), even when hidden from `--help`.
 
 ### Commands and subcommands
 
