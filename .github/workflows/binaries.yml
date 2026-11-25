@@ -48,6 +48,10 @@ concurrency:
   group: binaries-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Smoke tests are development noise: keep them out of CLI telemetry.
+  CLOUDSMITH_NO_TELEMETRY: "1"
+
 jobs:
   inputs:
     runs-on: ubuntu-24.04
@@ -324,6 +328,7 @@ jobs:
             docker run --rm \
               -e ASSERT_NO_PYTHON="${ASSERT_NO_PYTHON}" \
               -e EXPECTED_VERSION \
+              -e CLOUDSMITH_NO_TELEMETRY \
               -v "${PWD}:/w" -w /w \
               "${IMAGE}" sh -c '
                 if [ "${ASSERT_NO_PYTHON}" = 1 ]; then
@@ -343,6 +348,7 @@ jobs:
             docker run --rm \
               -e CLOUDSMITH_API_KEY \
               -e CLOUDSMITH_NAMESPACE \
+              -e CLOUDSMITH_NO_TELEMETRY \
               -v "${PWD}:/w" -w /w \
               "${IMAGE}" sh -c '
                 sh packaging/smoketest.sh cloudsmith/cloudsmith online
@@ -357,7 +363,8 @@ jobs:
           export EXPECTED_VERSION
           EXPECTED_VERSION=$(cat cloudsmith_cli/data/VERSION)
           tar -xzf "dl/${ART}" -C .
-          env -i HOME="${HOME}" TMPDIR="${TMPDIR:-/tmp}" \
+          # env -i drops the workflow's CLOUDSMITH_NO_TELEMETRY; pass it again.
+          env -i HOME="${HOME}" TMPDIR="${TMPDIR:-/tmp}" CLOUDSMITH_NO_TELEMETRY=1 \
             "${PWD}/cloudsmith/cloudsmith" --version
           sh packaging/smoketest.sh cloudsmith/cloudsmith offline
           if [ -n "${ONLINE}" ] && [ -n "${CLOUDSMITH_API_KEY:-}" ]; then
