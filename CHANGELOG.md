@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
 - `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- The CLI now shows the API error when the field errors of the error contain objects, for example `{"non_field_errors": [{"code": 1}]}` or nested serializer errors. Previously, the CLI stopped with `TypeError: sequence item 0: expected str instance, dict found` and did not show the API error.
 
 ## [1.31.4] - 2026-11-23
 
