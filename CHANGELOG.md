@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it. This also applies to the POST request that uploads a file.
 
 ## [1.31.4] - 2026-11-23
