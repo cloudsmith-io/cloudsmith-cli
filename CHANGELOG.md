@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
 - Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
+- Added pseudonymous usage telemetry. After each command, the CLI sends one event to Cloudsmith through PostHog (EU). Usage telemetry is on by default, also in CI. For more information, see <https://docs.cloudsmith.com/developer-tools/cli-telemetry>.
+  - An event contains the command name, the names of the options and of the environment variables that you set, the output format, how the command ended (exit code and API status), and how long it took. It also contains where the credential came from (for example, an option, an environment variable, `credentials.ini`, the keyring, or OIDC, not the credential), where each setting came from (an option, an environment variable, or a config file, not the value), the CLI version and install method, the operating system and its version, the CPU architecture, and the Python version. It also shows whether the command ran in CI and which CI provider, or from an AI coding agent and which agent. It also lists the names of the keys that are set in `config.ini` and `credentials.ini`, as written (for example, `org` or `workspace`), but never their values.
+  - The CLI never sends option or argument values, file names, credentials, workspace, repository, or package names, or host names. PostHog discards the IP address.
+  - The CLI stores a random install ID in `telemetry.json` in its config directory, so that repeat use from the same machine can be counted. In CI, in containers, and in the Docker image, the CLI uses a new random ID for each command and stores nothing. To not store an ID, set `CLOUDSMITH_TELEMETRY_INSTALL_ID=disable`, or `telemetry_install_id = disable` in `config.ini`. The variable wins over the key.
+  - The first time you run a command in a terminal, the CLI shows a notice and sends nothing for that command. In CI, in containers, in the Docker image, when input or output is not a terminal (for example, in a script), or when the CLI cannot write `telemetry.json`, the CLI does not show the notice and sends an event from the first command.
+  - The CLI does not send an event for the credential helpers, `cloudsmith mcp start`, the `cloudsmith telemetry` commands, shell completion, an API host that is not a Cloudsmith host, or when certificate verification is off.
+  - The CLI waits a maximum of 1 second for the event to send, shared with the update check. After a failed send, the CLI sends nothing for 24 hours.
+  - PostHog deletes the events 12 to 13 months after the CLI sends them. The events are not linked to your account, so Cloudsmith cannot delete them on request before then.
+  - To turn it off, set `CLOUDSMITH_TELEMETRY_USAGE_REPORTING=disable`, or use the settings that also turn off error reports (see `CLOUDSMITH_TELEMETRY` below). When you turn it off, the CLI deletes the stored install ID.
+- Added the `cloudsmith telemetry` command group for usage telemetry.
+  - `cloudsmith telemetry status` shows whether usage reporting and error reporting are each `enabled`, `disabled`, or `log`, and the reason. The reason is the setting that decided, such as `CLOUDSMITH_TELEMETRY_USAGE_REPORTING`, `DO_NOT_TRACK`, `telemetry in config.ini`, or `default`. For usage reporting, it can also be an API host that is not a Cloudsmith host, or certificate verification that is off.
+  - `cloudsmith telemetry id` shows the install ID that the CLI stores in `telemetry.json` in its config directory, or `none`.
+  - `cloudsmith telemetry reset` deletes the stored install ID. The CLI creates a new, unrelated ID on the next command.
+  - All three commands support `-F json` and `-F pretty_json`.
+- Added `CLOUDSMITH_TELEMETRY` to control error reports and usage telemetry together, and `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` and `CLOUDSMITH_TELEMETRY_ERROR_REPORTING` to control each one separately. Set them to `enable`, `disable`, or `log`. They also accept `enabled`, `on`, `true`, `yes`, and `1`, or `disabled`, `off`, `false`, `no`, and `0`.
+  - With `log`, the CLI writes what it would send to stderr, and sends nothing. When a command fails with an unexpected error, the CLI writes the error report after it removes the private data. The CLI also writes the usage event.
+  - The matching `telemetry_usage_reporting` and `telemetry_error_reporting` keys in `config.ini` control each one separately. The `telemetry` key now takes the same values, including `log`. `telemetry = false` and `telemetry = true` work as before.
+  - For each kind, the first of these settings that is set decides: `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` or `CLOUDSMITH_TELEMETRY_ERROR_REPORTING`, then `CLOUDSMITH_TELEMETRY`, then `CLOUDSMITH_NO_TELEMETRY`, then `DO_NOT_TRACK`, then `telemetry_usage_reporting` or `telemetry_error_reporting` in `config.ini`, then `telemetry` in `config.ini`. So `CLOUDSMITH_TELEMETRY=enable` turns telemetry on for this CLI when `DO_NOT_TRACK=1` turns it off for every tool. `CLOUDSMITH_NO_TELEMETRY` and `DO_NOT_TRACK` still count only when set to `1`, `true`, or `yes`.
+  - If one of these variables or keys, or `CLOUDSMITH_TELEMETRY_INSTALL_ID` or `telemetry_install_id`, has a value that the CLI does not recognise, the CLI prints a warning to stderr and ignores it.
 
 ### Changed
 
@@ -21,6 +40,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - When the API host returns an HTML page instead of an API response, the CLI now shows an error and exits with code 1. Examples are a proxy login page, a captive portal, or an `--api-host` that points to a website. Before, commands such as `entitlements list`, `check service`, and `metadata list` stopped with an unexpected error and sent an error report.
+- The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
 
 ## [1.31.4] - 2026-11-23
 
@@ -37,6 +57,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `cloudsmith mcp start` now percent-encodes each path parameter before it adds the value to the request URL. The MCP server rejects a path parameter that is empty, `.` or `..`, or that contains `/`. A tool argument can no longer send the request to a different API endpoint. The package name of a badge can contain `/`, for example `@scope/name`, but each part must not be empty, `.` or `..`. (#621)
 - `cloudsmith auth` now erases what you enter at the 2FA prompt once you submit it, so a password or token pasted there by mistake no longer stays in the terminal. The input is still visible while you type. (#618)
 - The 2FA prompt of `cloudsmith auth` is shorter: `Enter the code from your authenticator app, or press Ctrl+C to cancel:`. When the code is rejected, the CLI now shows `That code was rejected. Please try again.` without the HTTP status code. (#618)
 - `--color`, `-F/--output-format` and `-v/--verbose` given to a group, such as `cloudsmith --color=never list repos` or `cloudsmith -F json list repos`, now apply to its subcommands too. Before, a subcommand used its own default, so the output still had colour, or was not JSON. (#623)
@@ -70,8 +91,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 - The credential-helper launchers on Linux and macOS now start with `#!/usr/bin/env sh` instead of `#!/bin/sh`, so they also work on systems that have no `/bin/sh`. (#586)
 - The minimum version of `cloudsmith-api` is now 2.0.43. (#575, #608)
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
 
 ### Deprecated
 
