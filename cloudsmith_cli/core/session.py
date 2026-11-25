@@ -271,10 +271,13 @@ class SSLContextAdapter(HTTPAdapter):
         ca_bundle = (
             extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH) if verify is True else verify
         )
-        if os.path.isdir(ca_bundle):
-            context.load_verify_locations(capath=ca_bundle)
-        else:
-            context.load_verify_locations(cafile=ca_bundle)
+        try:
+            if os.path.isdir(ca_bundle):
+                context.load_verify_locations(capath=ca_bundle)
+            else:
+                context.load_verify_locations(cafile=ca_bundle)
+        except OSError as error:
+            raise requests.exceptions.SSLError(error) from error
         return context
 
     def close(self):

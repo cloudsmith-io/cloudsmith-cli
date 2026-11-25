@@ -262,6 +262,16 @@ class TestSSLSystemTrustStore:
         proxy_context = conn.proxy_config.ssl_context
         assert isinstance(proxy_context, truststore.SSLContext) is uses_truststore
 
+    def test_https_proxy_with_a_bad_ca_bundle_raises_a_requests_error(self, tmp_path):
+        bad_bundle = tmp_path / "bad.pem"
+        bad_bundle.write_text("not a certificate\n")
+        session = create_requests_session(
+            ssl_system_trust_store=True, proxy="https://proxy.example:3128"
+        )
+
+        with pytest.raises(requests.exceptions.SSLError):
+            session.get("https://api.example/", verify=str(bad_bundle), timeout=10)
+
     def test_falls_back_to_the_sdk_configuration(self):
         initialise_api(ssl_system_trust_store=True)
 
