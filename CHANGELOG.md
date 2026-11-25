@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
 - When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
 - The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
+- `cloudsmith credential-helper install docker` now keeps the `CLOUDSMITH_*` settings of the install, such as the profile, Workspace and API host, in the launcher. Docker then gets the same credentials from Docker Desktop, an IDE or a new shell. The launcher never contains API keys, custom headers or the proxy URL. An install with a profile or a Workspace writes its own helper, for example `docker-credential-cloudsmith-<profile>-<workspace>`. To remove it, run `cloudsmith credential-helper uninstall docker -P <profile> -w <workspace>`. An install without them writes `docker-credential-cloudsmith`, as before.
 
 ### Fixed
 
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
 - `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- A `-P` flag before the command, for example `cloudsmith -P meta whoami`, now overrides `CLOUDSMITH_PROFILE`. Before, the environment variable took precedence.
 
 ## [1.31.4] - 2026-11-23
 
