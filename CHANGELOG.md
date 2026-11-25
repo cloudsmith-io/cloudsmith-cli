@@ -33,9 +33,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
 - The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
 - When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
+- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
+
+### Fixed
+
+- `cloudsmith metadata add` and `update`, and the `--metadata-*` file options of `push`, no longer crash with a `UnicodeDecodeError` when the metadata file starts with a UTF-16 byte order mark, as Windows PowerShell 5 writes when you redirect output with `>`. The CLI now reads UTF-8 (with or without a BOM) and UTF-16 files. Other unreadable files fail with a clear error that asks you to re-save the file as UTF-8.
 
 ### Fixed
 
@@ -49,7 +53,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cloudsmith auth` no longer crashes with `ValueError: MAC check failed` when the encrypted keyring file holds a saved token that the keyring key cannot decrypt, for example a token written under another key. The CLI now treats the token as missing and starts a new login, which replaces it.
 - `auth --request-api-key --save-config`, `tokens create --save-config` and `tokens refresh --save-config` now update the `credentials.ini` file that the CLI found, and show its path. Previously they updated `./credentials.ini`. When the file was only in another folder, such as `~/.cloudsmith`, the update failed with "No such file or directory" and the CLI did not write the new key. After a refresh, the previous key had already stopped working. A file in the current directory still takes precedence.
 - `repos create`/`update`, `upstream <format> create`/`update` and `policy deny|license|vulnerability create`/`update` now report a usage error when the config file isn't valid JSON or doesn't hold a JSON object, for example a file with a trailing comma. Previously the command crashed with a `JSONDecodeError` or `AttributeError` traceback.
-- Fixed `cloudsmith download` choosing a package that can't be downloaded. The command also found packages that failed to sync or haven't finished, such as a failed duplicate upload of the same version. With `--yes`, it then chose the failed package, because it was uploaded last, and the download failed with HTTP 404. The command now searches only packages that have finished syncing.
 - Fixed commands hanging with no output when Cloudsmith throttled the renewal of a stored SAML session. The CLI now waits at most 60 seconds for a throttled renewal, SAML login, or OIDC token exchange, and prints a message before each wait. When the server asks for a longer wait, `cloudsmith auth` starts a new SAML login.
 
 ## [1.31.3] - 2026-11-17
