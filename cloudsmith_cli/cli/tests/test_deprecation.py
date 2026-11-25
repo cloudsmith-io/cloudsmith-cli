@@ -27,6 +27,14 @@ ENVVARS = (
     "CLOUDSMITH_ALLOWED_API_PROXY_SUFFIXES",
     "CLOUDSMITH_CONFIG_FILE",
     "CLOUDSMITH_PROFILE",
+    deprecation.SUPPRESS_ENVVAR,
+)
+
+EXAMPLE = deprecation.Deprecation(
+    id="example-flag",
+    what="`--example`",
+    use="`--replacement`",
+    since="1.32.0",
 )
 
 
@@ -79,6 +87,173 @@ def test_format_warning():
         "Warning: `--org` is deprecated and will be removed in version "
         f"{deprecation.REMOVAL_VERSION}. Use `--workspace` instead."
     )
+
+
+def _warn_command(*deprecation_ids):
+    @click.command()
+    @common_cli_output_options
+    @click.pass_context
+    def warns(ctx, opts):  # pylint: disable=unused-argument
+        for deprecation_id in deprecation_ids:
+            deprecation.warn(deprecation_id, ctx=ctx)
+        click.echo("done")
+
+    return warns
+
+
+@pytest.fixture
+def registry(monkeypatch):
+    entries = [EXAMPLE]
+    monkeypatch.setattr(deprecation, "DEPRECATIONS", entries)
+    return entries
+
+
+def test_every_deprecation_id_is_unique():
+    ids = [entry.id for entry in deprecation.DEPRECATIONS]
+
+    assert len(ids) == len(set(ids))
+
+
+def test_every_deprecation_names_what_and_since():
+    for entry in deprecation.DEPRECATIONS:
+        assert entry.id and entry.what and entry.since, entry
+
+
+def test_deprecation_is_removed_in_the_next_major_by_default():
+    assert EXAMPLE.removed_in == deprecation.REMOVAL_VERSION
+
+
+def test_deprecation_is_immutable():
+    with pytest.raises(AttributeError):
+        EXAMPLE.what = "`--other`"
+
+
+def test_get_finds_the_entry(registry):  # pylint: disable=unused-argument
+    assert deprecation.get("example-flag") is EXAMPLE
+
+
+def test_get_rejects_an_unknown_id(registry):  # pylint: disable=unused-argument
+    with pytest.raises(KeyError, match="no-such-thing"):
+        deprecation.get("no-such-thing")
+
+
+def test_warn_prints_the_entry_to_stderr(registry):  # pylint: disable=unused-argument
+    result = invoke(command=_warn_command("example-flag"))
+
+    assert result.stdout == "done\n"
+    assert result.stderr == (
+        "Warning: `--example` is deprecated and will be removed in version "
+        f"{deprecation.REMOVAL_VERSION}. Use `--replacement` instead.\n"
+    )
+
+
+def test_warn_names_the_entry_removal_version(registry):
+    registry[0] = deprecation.Deprecation(
+        id="example-flag",
+        what="`--example`",
+        use=None,
+        since="1.32.0",
+        removed_in="3.0.0",
+    )
+
+    result = invoke(command=_warn_command("example-flag"))
+
+    assert result.stderr == (
+        "Warning: `--example` is deprecated and will be removed in version 3.0.0.\n"
+    )
+
+
+def test_warn_prints_once_per_run(registry):  # pylint: disable=unused-argument
+    result = invoke(command=_warn_command("example-flag", "example-flag"))
+
+    assert result.stderr.count("is deprecated") == 1
+
+
+@pytest.mark.parametrize(
+    "args", [["-F", "json"], ["-F", "pretty_json"], ["--output-format=json"]]
+)
+def test_warn_is_silent_with_json_output(registry, args):  # pylint: disable=unused-argument
+    result = invoke(args, command=_warn_command("example-flag"))
+
+    assert result.stdout == "done\n"
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize("value", ["1", "true", "YES"])
+def test_warn_is_silent_when_suppressed(registry, value):  # pylint: disable=unused-argument
+    result = invoke(
+        env={deprecation.SUPPRESS_ENVVAR: value},
+        command=_warn_command("example-flag"),
+    )
+
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize("value", ["", "0", "false"])
+def test_warn_prints_when_suppression_is_off(registry, value):  # pylint: disable=unused-argument
+    result = invoke(
+        env={deprecation.SUPPRESS_ENVVAR: value},
+        command=_warn_command("example-flag"),
+    )
+
+    assert "`--example` is deprecated" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "argv,warns",
+    [
+        (["cloudsmith", "example", "-F", "json"], False),
+        (["cloudsmith", "example"], True),
+    ],
+)
+def test_warn_reads_the_command_line_before_options_are_parsed(
+    registry, monkeypatch, capsys, argv, warns
+):  # pylint: disable=unused-argument
+    """Like `cloudsmith login`, which warns while Click parses its options."""
+    monkeypatch.setattr("sys.argv", argv)
+
+    with click.Context(click.Command("example")) as ctx:
+        deprecation.warn("example-flag", ctx=ctx)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert ("`--example` is deprecated" in captured.err) is warns
+
+
+@pytest.mark.parametrize(
+    "args,env",
+    [
+        (["--org", "acme", "-F", "json"], {}),
+        (["--org", "acme"], {deprecation.SUPPRESS_ENVVAR: "1"}),
+    ],
+)
+def test_alias_warnings_are_silenced_too(args, env):
+    result = invoke(args, env=env)
+
+    assert values(result)["org"] == "acme"
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    "args,warns",
+    [
+        (["-F", "json", "report", "--org", "acme"], False),
+        (["-F", "json", "report", "-F", "pretty", "--org", "acme"], True),
+        (["report", "-F", "json", "--org", "acme"], False),
+    ],
+)
+def test_subcommand_inherits_the_group_output_format(args, warns):
+    @click.group()
+    @common_cli_output_options
+    def group(opts):  # pylint: disable=unused-argument
+        pass
+
+    group.add_command(_report_command(), name="report")
+
+    result = invoke(args, command=group)
+
+    assert values(result)["org"] == "acme"
+    assert ("`--org` is deprecated" in result.stderr) is warns
 
 
 @pytest.mark.parametrize(
@@ -382,7 +557,9 @@ def test_each_warning_prints_once_per_run(isolated):
 
 
 def test_credential_helper_runtimes_do_not_warn(isolated):
-    (isolated / "config.ini").write_text("[default]\norg = acme\n")
+    (isolated / "config.ini").write_text(
+        "[default]\norg = acme\ntelemetry_usage_reporting = nope\n"
+    )
 
     @click.group(name="credential-helper")
     def credential_helper():
@@ -393,7 +570,11 @@ def test_credential_helper_runtimes_do_not_warn(isolated):
 
     result = invoke(
         ["credential-helper", "terraform", "--org", "acme"],
-        env={"CLOUDSMITH_API_PROXY": "http://proxy:3128"},
+        env={
+            "CLOUDSMITH_API_PROXY": "http://proxy:3128",
+            "CLOUDSMITH_TELEMETRY": "nope",
+            "CLOUDSMITH_TELEMETRY_ERROR_REPORTING": "nope",
+        },
         command=command,
     )
 

@@ -1,0 +1,68 @@
+# Copyright 2026 Cloudsmith Ltd
+"""Switches and endpoints for usage telemetry.
+
+Released builds send to the "CLI" PostHog EU project (336063). Development
+builds (source checkouts, editable installs) send nothing unless a developer
+sets ``CLOUDSMITH_TELEMETRY_POSTHOG_KEY``, which also replaces the key.
+"""
+
+import os
+
+from .. import telemetry_common
+from ..telemetry_common import INSTALL_ID_ENV, MODE_ENV  # noqa: F401
+
+#: Project key of the dedicated "CLI" PostHog EU project (336063). Not a
+#: secret: a PostHog project key can only send events, and every client that
+#: reports to PostHog ships one (like the Sentry DSN in core/telemetry.py).
+POSTHOG_PROJECT_KEY = (
+    "phc_p989pbFFZ98a4eDbLc4yxAjSPWF8en2fjodbrhtMc2yY"  # gitleaks:allow
+)
+POSTHOG_HOST = "https://eu.i.posthog.com"
+
+KEY_ENV = "CLOUDSMITH_TELEMETRY_POSTHOG_KEY"
+HOST_ENV = "CLOUDSMITH_TELEMETRY_POSTHOG_HOST"
+INTERNAL_ENV = "CLOUDSMITH_TELEMETRY_INTERNAL"
+SAMPLE_RATE_ENV = "CLOUDSMITH_TELEMETRY_CI_SAMPLE_RATE"
+
+_TRUTHY = ("1", "true", "yes")
+
+
+def _env(env):
+    return os.environ if env is None else env
+
+
+def _truthy(env, name):
+    return _env(env).get(name, "").strip().lower() in _TRUTHY
+
+
+def override_set(env=None):
+    return bool(_env(env).get(KEY_ENV, "").strip())
+
+
+def project_key(env=None):
+    return _env(env).get(KEY_ENV, "").strip() or POSTHOG_PROJECT_KEY
+
+
+def host(env=None):
+    return (_env(env).get(HOST_ENV, "").strip() or POSTHOG_HOST).rstrip("/")
+
+
+def internal(env=None):
+    return _truthy(env, INTERNAL_ENV)
+
+
+def install_id_enabled(env=None, read_config=None):
+    # On by default for laptops; only an off value disables it, from the env
+    # var or config.ini. The CLI warns about an unrecognised value and keeps
+    # the default.
+    return telemetry_common.install_id_mode(
+        env, read_config or telemetry_common.read_config_file
+    )[0]
+
+
+def ci_sample_rate(env=None):
+    try:
+        rate = int(_env(env).get(SAMPLE_RATE_ENV, "100"))
+    except ValueError:
+        return 100
+    return rate if 0 <= rate <= 100 else 100

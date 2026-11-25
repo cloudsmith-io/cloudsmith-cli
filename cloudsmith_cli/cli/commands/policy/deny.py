@@ -104,10 +104,10 @@ def list_deny_policies(ctx, opts, owner, page, page_size, page_all):
 @click.pass_context
 def create_deny_policy(ctx, opts, owner, policy_config_file):
     """Create a deny policy for an organization."""
-    import json
-
     use_stderr = utils.should_use_stderr(opts)
-    policy_config = json.load(policy_config_file)
+    policy_config = utils.load_json_config_file(
+        policy_config_file, param_hint="'POLICY_CONFIG_FILE'"
+    )
 
     policy_name = policy_config.get("name")
     if not policy_name:
@@ -176,10 +176,10 @@ def get_deny_policy(ctx, opts, owner, identifier):
 @click.pass_context
 def update_deny_policy(ctx, opts, owner, identifier, policy_config_file):
     """Update a deny policy for an organization."""
-    import json
-
     use_stderr = utils.should_use_stderr(opts)
-    policy_config = json.load(policy_config_file)
+    policy_config = utils.load_json_config_file(
+        policy_config_file, param_hint="'POLICY_CONFIG_FILE'"
+    )
 
     click.secho(
         f"Updating {click.style(identifier, bold=True)} deny policy in the {click.style(owner, bold=True)} namespace ...",
