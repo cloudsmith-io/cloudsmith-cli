@@ -1,5 +1,9 @@
 import html
+import os
+import secrets
 import socket
+import sys
+import unicodedata
 from functools import cached_property
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qsl, unquote, urlparse
@@ -14,6 +18,47 @@ from ..core.keyring import store_sso_tokens
 from .saml import exchange_2fa_token
 
 REJECTED_TWO_FACTOR_STATUSES = frozenset({400, 401, 403, 422})
+TWO_FACTOR_PROMPT = (
+    "Enter the code from your authenticator app, or press Ctrl+C to cancel"
+)
+
+
+def _display_rows(text, width):
+    """Count the terminal rows that echoed text takes up at the given width."""
+    rows, column = 1, 0
+    for char in text:
+        if char == "\t":
+            # A tab moves to the next stop but never wraps onto the next row.
+            column = min(column + 8 - column % 8, width - 1)
+            continue
+        if unicodedata.combining(char) or unicodedata.category(char) in ("Cc", "Cf"):
+            continue
+        char_width = 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+        if column + char_width > width:
+            rows += 1
+            column = 0
+        column += char_width
+    return rows
+
+
+def _clear_echoed_input(prompt, value):
+    """Erase the echoed prompt line so the entered value isn't left on screen.
+
+    The input stays visible while typing so typos can be seen, but a wrong paste
+    (e.g. a password) would otherwise stay in the terminal and its scrollback.
+    """
+    if not (sys.stdin.isatty() and sys.stderr.isatty()):
+        return
+
+    try:
+        width = os.get_terminal_size(sys.stderr.fileno()).columns
+    except (OSError, ValueError):
+        width = 80
+
+    # Written straight to stderr: click.echo strips escape codes when colour is
+    # off (--color never, NO_COLOR or a redirected stdout).
+    sys.stderr.write("\x1b[1A\x1b[2K" * _display_rows(f"{prompt}: {value}", width))
+    sys.stderr.flush()
 
 
 def get_template_path(template_name):
@@ -36,6 +81,9 @@ class AuthenticationWebServer(HTTPServer):
         self.refresh_api_on_success = kwargs.get("refresh_api_on_success", False)
         self.api_opts = kwargs.get("api_opts")
         self.profile = kwargs.get("profile")
+        self.state = secrets.token_urlsafe(32)
+        self.callback_received = False
+        self.callback_rejected = False
         self.sso_access_token = None
         self.exception = None
 
@@ -49,6 +97,14 @@ class AuthenticationWebServer(HTTPServer):
     def api_host(self):
         """Get the API host from api_opts."""
         return self.api_opts.host if self.api_opts else None
+
+    def is_expected_state(self, received_state):
+        return secrets.compare_digest(received_state.encode(), self.state.encode())
+
+    def wait_for_callback(self):
+        """Handle requests until a callback with the expected state arrives."""
+        while not self.callback_received:
+            self.handle_request()
 
     def refresh_api_config_after_auth(self):
         """Refresh the API configuration to pick up newly stored SAML tokens."""
@@ -101,7 +157,8 @@ class AuthenticationWebServer(HTTPServer):
                 ApiException,
             ) as exc:
                 self.handle_error(request, client_address)
-                self.exception = exc
+                if self.callback_received:
+                    self.exception = exc
                 self.shutdown_request(request)
             except BaseException:
                 self.shutdown_request(request)
@@ -125,6 +182,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
     # Set once a response is written, so a later failure doesn't write a
     # second one onto a request the browser already considers finished.
     responded = False
+    timeout = 10
 
     def __init__(self, request, client_address, server, **kwargs):
         self.owner = kwargs.get("owner")
@@ -154,15 +212,10 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
             bold=True,
             err=True,
         )
-        click.echo(
-            "Enter the code from your authenticator app to finish signing in.",
-            err=True,
-        )
-
-        click.echo("Press Ctrl-C to give up.", err=True)
 
         while True:
-            totp_token = click.prompt("Please enter your 2FA code", type=str, err=True)
+            totp_token = click.prompt(TWO_FACTOR_PROMPT, type=str, err=True)
+            _clear_echoed_input(TWO_FACTOR_PROMPT, totp_token)
 
             try:
                 return exchange_2fa_token(
@@ -173,7 +226,7 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
                     raise
 
                 click.secho(
-                    f"\nThat 2FA code was rejected ({exc}). Please try again.",
+                    "That code was rejected. Please try again.",
                     fg="red",
                     err=True,
                 )
@@ -258,6 +311,20 @@ class AuthenticationWebRequestHandler(BaseHTTPRequestHandler):
             self.server_instance.refresh_api_config_after_auth()
 
     def do_GET(self):
+        if not self.server_instance.is_expected_state(self.query_data.get("state", "")):
+            if not self.server_instance.callback_rejected:
+                click.secho(
+                    "\nRejected an authentication callback that did not come from "
+                    "this login. Waiting for the correct callback ...",
+                    fg="yellow",
+                    err=True,
+                )
+                self.server_instance.callback_rejected = True
+            self._return_error_response("The callback does not match this login.")
+            return
+
+        self.server_instance.callback_received = True
+
         access_token = self.query_data.get("access_token")
         refresh_token = self.query_data.get("refresh_token")
         two_factor_token = self.query_data.get("two_factor_token")

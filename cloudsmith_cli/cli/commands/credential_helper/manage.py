@@ -51,6 +51,7 @@ from ...decorators import (
     common_cli_output_options,
     resolve_credentials,
 )
+from ...usage_capture import TrackedCommand
 
 # ---------------------------------------------------------------------------
 # Helper registry — extend here when new helpers are added
@@ -301,7 +302,7 @@ def _terraform_workspace_next_steps(helper_args: tuple[str, ...]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@click.command("install")
+@click.command("install", cls=TrackedCommand)
 @click.argument("helper")
 @click.option(
     "--bin-dir",
@@ -381,7 +382,8 @@ def install_cmd(
 ) -> None:
     """Install a credential helper launcher and configure the package manager.
 
-    HELPER is the name of the credential helper to install (e.g. ``docker``, ``pnpm``).
+    HELPER is the name of the credential helper to install: one of ``cargo``,
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Important for pnpm: The tokenHelper directive is only honored in the
     user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
@@ -410,6 +412,10 @@ def install_cmd(
         # Terraform: bake the repository into the terraformrc args so
         # `terraform init` needs no CLOUDSMITH_REPO env var
         $ cloudsmith credential-helper install terraform -w acme --repo my-repo
+
+    \b
+        # Install the Maven extension
+        $ cloudsmith credential-helper install maven
     """
     installer = _get_installer(helper)
     helper_options = _helper_options(ctx, helper)
@@ -505,7 +511,7 @@ def install_cmd(
 # ---------------------------------------------------------------------------
 
 
-@click.command("uninstall")
+@click.command("uninstall", cls=TrackedCommand)
 @click.argument("helper")
 @click.option(
     "--bin-dir",
@@ -536,7 +542,8 @@ def uninstall_cmd(
 ) -> None:
     """Uninstall a credential helper launcher and remove its config entries.
 
-    HELPER is the name of the credential helper to uninstall (e.g. ``docker``).
+    HELPER is the name of the credential helper to uninstall: one of ``cargo``,
+    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Examples:
 
@@ -547,6 +554,10 @@ def uninstall_cmd(
     \b
         # Preview without making changes
         $ cloudsmith credential-helper uninstall docker --dry-run
+
+    \b
+        # Uninstall the Maven extension
+        $ cloudsmith credential-helper uninstall maven
     """
     installer = _get_installer(helper)
     try:
@@ -600,7 +611,7 @@ def _progress_option(installer) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@click.command("list")
+@click.command("list", cls=TrackedCommand)
 @common_cli_config_options
 @common_cli_output_options
 @click.pass_context

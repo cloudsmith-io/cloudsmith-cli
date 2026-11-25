@@ -958,6 +958,40 @@ class TestNonInteractivePasswordPrompt:
             assert get_oidc_token(*OIDC_ARGS) is None
             assert delete_oidc_token(*OIDC_ARGS) is False
 
+    def test_undecryptable_entry_reports_not_found(self, tmp_path, mock_get_user):
+        """An entry that the unlocked file cannot decrypt reads as missing.
+
+        keyrings.cryptfile raises ValueError ("MAC check failed") for an entry
+        written under another key, for example one copied in from another
+        keyring file, even though the key unlocks the file itself.
+        """
+        import configparser
+
+        access_key = core_keyring.ACCESS_TOKEN_KEY.format(api_host=OIDC_ARGS[0])
+        other_env = _keyring_env(tmp_path / "other")
+        with patch.dict(os.environ, other_env, clear=True):
+            other = CryptFileKeyring()
+            other.keyring_key = "other-password"
+            other.set_password(access_key, "test_user", "token-data")
+        _write_oidc_entry(CryptFileKeyring(), tmp_path)
+        backend = CryptFileKeyring()
+        with patch.dict(os.environ, _keyring_env(tmp_path), clear=True):
+            target_path = backend.file_path
+        with patch.dict(os.environ, other_env, clear=True):
+            source_path = CryptFileKeyring().file_path
+        source, target = configparser.RawConfigParser(), configparser.RawConfigParser()
+        source.read(source_path)
+        target.read(target_path)
+        (section,) = (name for name in source.sections() if "access_5Ftoken" in name)
+        target.read_dict({section: dict(source.items(section))})
+        with open(target_path, "w", encoding="utf-8") as config_file:
+            target.write(config_file)
+
+        core_keyring.configure(KeyringSettings(key="earlier-password"))
+        with _keyring_session(backend, _keyring_env(tmp_path)):
+            assert get_oidc_token(*OIDC_ARGS) == "token-data"
+            assert get_access_token(OIDC_ARGS[0]) is None
+
     def test_key_unlocks_once_per_process(self, tmp_path, mock_get_user):
         _write_oidc_entry(CryptFileKeyring(), tmp_path)
         backend = CryptFileKeyring()

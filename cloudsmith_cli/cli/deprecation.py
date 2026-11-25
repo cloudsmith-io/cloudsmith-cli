@@ -1,12 +1,53 @@
 """CLI - Deprecation warnings for old command, option and setting names."""
 
 import os
+from dataclasses import dataclass
 
 import click
 from click.core import ParameterSource
 
+from ..core.utils import (
+    JSON_OUTPUT_FORMATS,
+    json_output_in_argv,
+    output_format_in_argv,
+)
+
 #: The release that removes the deprecated aliases.
 REMOVAL_VERSION = "2.0.0"
+
+#: Set to 1, true or yes to turn off every deprecation warning.
+SUPPRESS_ENVVAR = "CLOUDSMITH_SUPPRESS_DEPRECATIONS"
+_TRUTHY_ENV_VALUES = ("1", "true", "yes")
+
+
+@dataclass(frozen=True, kw_only=True)
+class Deprecation:
+    """A deprecated command, option or setting, and what replaces it.
+
+    `what` and `use` are written as they appear in the warning, for example
+    "`--token`" and "`--request-api-key`". `use` is None when nothing replaces
+    `what`. `since` is the release that first deprecated it.
+    """
+
+    id: str
+    what: str
+    use: str | None
+    since: str
+    removed_in: str = REMOVAL_VERSION
+
+
+#: Every deprecation that `warn` can report, so the warnings, the help output,
+#: the tests and the usage data read from the same list.
+DEPRECATIONS: list[Deprecation] = []
+
+
+def get(deprecation_id):
+    """Return the entry in `DEPRECATIONS` with the id `deprecation_id`."""
+    for entry in DEPRECATIONS:
+        if entry.id == deprecation_id:
+            return entry
+    raise KeyError(f"No deprecation with id {deprecation_id!r}")
+
 
 #: Credential helper commands that package managers run. Their users cannot act
 #: on a warning in the middle of a `docker pull` or `terraform init`, so these
@@ -63,9 +104,73 @@ def _is_credential_helper_runtime(ctx):
     )
 
 
-def warn(subject, replacement=None, *, removal=None, detail=None, ctx=None):
-    """Print the deprecation warning for `subject` to stderr, once per run."""
-    message = format_warning(subject, replacement, removal=removal, detail=detail)
+def _has_output_format(ctx):
+    return any(param.name == "output_format" for param in ctx.command.params)
+
+
+def _given_output_format(ctx, args):
+    """Return the `--output-format` given to `ctx`, or None if it was left unset.
+
+    If Click has not parsed the option yet, the value comes from `args`, the
+    arguments of the command, or else from `sys.argv`.
+    """
+    if "output_format" not in ctx.params:
+        return output_format_in_argv(args)
+    if ctx.get_parameter_source("output_format") in (ParameterSource.DEFAULT, None):
+        return None
+    return ctx.params["output_format"]
+
+
+def _json_output_requested(ctx, args=None):
+    """Return True if the command prints JSON.
+
+    As in `decorators.common_cli_output_options`, the nearest command that
+    is given `--output-format` decides; one left unset inherits it from its
+    group. Only the command that Click is parsing reads `args`.
+    """
+    has_option = False
+    pending_args = args
+    while ctx is not None:
+        if _has_output_format(ctx):
+            has_option = True
+            output_format = _given_output_format(ctx, pending_args)
+            if output_format is not None:
+                return output_format in JSON_OUTPUT_FORMATS
+        pending_args = ()
+        ctx = ctx.parent
+    return False if has_option else json_output_in_argv(args)
+
+
+def _suppressed(ctx, args=None):
+    """Return True if deprecation warnings are turned off for this run."""
+    if os.environ.get(SUPPRESS_ENVVAR, "").strip().lower() in _TRUTHY_ENV_VALUES:
+        return True
+    return _json_output_requested(ctx, args)
+
+
+def warn_message(
+    subject, replacement=None, *, removal=None, detail=None, ctx=None, args=None
+):
+    """Print the deprecation warning for `subject` to stderr, once per run.
+
+    Prints nothing with JSON output or when `SUPPRESS_ENVVAR` is set. Pass
+    `args` when warning while Click parses the arguments of `ctx`.
+    """
+    if _suppressed(ctx or click.get_current_context(silent=True), args):
+        return
+    warn_once(
+        format_warning(subject, replacement, removal=removal, detail=detail), ctx=ctx
+    )
+
+
+def warn_once(message, ctx=None):
+    """Print the warning `message` to stderr, once per run.
+
+    Silent for shell completion and for the credential helpers. Unlike
+    `warn_message`, it also prints with JSON output and `SUPPRESS_ENVVAR`:
+    for warnings that are not deprecations, such as an ignored telemetry
+    setting.
+    """
     ctx = ctx or click.get_current_context(silent=True)
     if ctx is not None:
         if ctx.resilient_parsing or _is_credential_helper_runtime(ctx):
@@ -77,14 +182,25 @@ def warn(subject, replacement=None, *, removal=None, detail=None, ctx=None):
     click.secho(message, fg="yellow", err=True)
 
 
+def warn(deprecation_id, ctx=None):
+    """Print the warning for the `DEPRECATIONS` entry `deprecation_id`."""
+    entry = get(deprecation_id)
+    warn_message(
+        entry.what,
+        entry.use,
+        removal=f"will be removed in version {entry.removed_in}",
+        ctx=ctx,
+    )
+
+
 def warn_option(spelling, replacement, ctx=None):
     """Warn that the option `spelling` is deprecated."""
-    warn(f"`{spelling}`", f"`{replacement}`", ctx=ctx)
+    warn_message(f"`{spelling}`", f"`{replacement}`", ctx=ctx)
 
 
 def warn_config_key(key, ctx=None):
     """Warn that the config.ini key `key` is deprecated."""
-    warn(
+    warn_message(
         f"The `{key}` key in config.ini",
         f"`{CONFIG_KEY_REPLACEMENTS[key]}`",
         ctx=ctx,
@@ -93,7 +209,7 @@ def warn_config_key(key, ctx=None):
 
 def warn_envvar(name, replacement, ctx=None):
     """Warn that the environment variable `name` is deprecated."""
-    warn(f"`{name}`", f"`{replacement}`", ctx=ctx)
+    warn_message(f"`{name}`", f"`{replacement}`", ctx=ctx)
 
 
 def warn_deprecated_envvar(ctx, param_name, envvars):
