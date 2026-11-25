@@ -6,6 +6,7 @@ summarised on stderr, and exits 1 instead of surfacing a raw traceback.
 """
 
 import json
+import locale
 import os
 import runpy
 import subprocess
@@ -188,16 +189,20 @@ def test_opted_out_sends_nothing_and_prints_the_same_line(
     assert sentry_events == []
 
 
-@pytest.mark.parametrize("profile", [None, "work"])
+@pytest.mark.parametrize(
+    "profile,content",
+    [
+        (None, "[default]\ntelemetry = false\n"),
+        ("work", "[default]\n[profile:work]\ntelemetry = false\n"),
+        ("work", "[default]\ntelemetry = false\n[profile:work]\nworkspace = acme\n"),
+    ],
+)
 def test_config_key_off_sends_nothing_and_prints_the_same_line(
-    runner, tmp_path, sentry_events, profile
+    runner, tmp_path, sentry_events, profile, content
 ):
     """telemetry = false in the file passed with --config-file (and --profile)."""
     config = tmp_path / "config.ini"
-    if profile:
-        config.write_text(f"[default]\n[profile:{profile}]\ntelemetry = false\n")
-    else:
-        config.write_text("[default]\ntelemetry = false\n")
+    config.write_text(content)
     args = ["whoami", "--config-file", str(config), "--api-key", API_KEY]
     if profile:
         args += ["--profile", profile]
@@ -346,6 +351,18 @@ with whoami_raises(KeyboardInterrupt()):
     assert result.returncode == 1
 
 
+def test_command_module_imports_on_click_before_8_2():
+    """Click before 8.2 names the flush wrapper without the underscore."""
+    code = """
+import click.utils
+click.utils.PacifyFlushWrapper = click.utils.__dict__.pop("_PacifyFlushWrapper")
+import cloudsmith_cli.cli.command
+"""
+    result = subprocess.run([sys.executable, "-c", code], check=False)
+
+    assert result.returncode == 0
+
+
 STRICT_HINT = "Hint: The TLS certificate failed a strict X.509 check"
 
 
@@ -398,7 +415,6 @@ MALFORMED_INI = {
     ),
     "duplicate-section": (b"[default]\n[default]\n", "DuplicateSectionError"),
     "unparsable-line": (b"[default]\n=ap\n", "ParsingError"),
-    "not-utf8": (b"\xff\xfe\x00garbage", "UnicodeDecodeError"),
 }
 
 
@@ -456,6 +472,21 @@ def test_parsing_error_message_is_unchanged(runner, tmp_path, sentry_events):
 
 
 @pytest.mark.usefixtures("isolated_config_readers")
+def test_undecodable_ini_names_the_file(runner, tmp_path, sentry_events, monkeypatch):
+    # Byte 0x81 is valid in some locale encodings, such as cp1251.
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda *_: "utf-8")
+    bad = tmp_path / "config.ini"
+    bad.write_bytes(b"[default]\napi_host = \x81\n")
+
+    result = runner.invoke(main, ["whoami", "--config-file", str(bad)])
+
+    assert result.exit_code == 1
+    assert f"Error: Cannot read {bad} as " in result.stderr
+    assert "Save the file as UTF-8." in result.stderr
+    assert sentry_events == []
+
+
+@pytest.mark.usefixtures("isolated_config_readers")
 def test_valid_ini_still_loads(runner, tmp_path, sentry_events):
     config = tmp_path / "config.ini"
     config.write_text("[default]\napi_host = https://api.example.invalid\n")
@@ -493,3 +524,87 @@ def test_python_m_exits_1_on_unexpected_exception(tmp_path, monkeypatch, capsys)
 
     assert exc_info.value.code == 1
     assert "Error: RuntimeError: boom" in capsys.readouterr().err
+
+
+# --- Per-command policy (@telemetry.send) and log mode ----------------------
+
+
+def _crashing_app():
+    from cloudsmith_cli.cli import telemetry as policy
+    from cloudsmith_cli.cli.command import AliasGroup
+
+    @click.group(cls=AliasGroup)
+    def app():
+        pass
+
+    def crash():
+        raise RuntimeError("boom")
+
+    for name, level in [
+        ("default", None),
+        ("errors", policy.ERRORS),
+        ("usage", policy.USAGE),
+        ("none", policy.NONE),
+    ]:
+        callback = crash if level is None else policy.send(level)(lambda: crash())
+        app.command(name=name)(callback)
+    return app
+
+
+@pytest.mark.parametrize(
+    "command, reported", [("default", 1), ("errors", 1), ("usage", 0), ("none", 0)]
+)
+def test_only_commands_whose_policy_has_errors_report(
+    runner, sentry_events, command, reported
+):
+    result = runner.invoke(_crashing_app(), [command])
+    # The user sees the same thing either way.
+    assert result.exit_code == 1
+    assert result.stderr.strip().endswith("Error: RuntimeError: boom")
+    assert len(sentry_events) == reported
+
+
+def test_log_mode_prints_the_scrubbed_report_and_sends_nothing(
+    runner, tmp_path, sentry_events, monkeypatch
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+
+    assert result.exit_code == 1
+    assert sentry_events == []
+    assert "would send error report (log mode, nothing sent)" in result.stderr
+    printed = result.stderr.split("nothing sent):\n", 1)[1]
+    logged, _ = json.JSONDecoder().raw_decode(printed)
+    assert logged["tags"]["command"] == "whoami"
+    assert logged["exception"]["values"][-1]["type"] == "RuntimeError"
+    # Scrubbed exactly as a sent report would be.
+    assert API_KEY not in result.stderr
+
+
+def test_log_mode_prints_without_a_dsn(runner, tmp_path, sentry_events, monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    monkeypatch.setenv(telemetry.DSN_ENV, "")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+    assert "would send error report" in result.stderr
+
+
+@pytest.mark.parametrize("name", telemetry.OPT_OUT_ENVS)
+def test_log_mode_wins_over_the_opt_outs(
+    runner, tmp_path, sentry_events, monkeypatch, name
+):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "log")
+    monkeypatch.setenv(name, "1")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+    assert "would send error report" in result.stderr
+    assert sentry_events == []
+
+
+def test_disable_sends_nothing(runner, tmp_path, sentry_events, monkeypatch):
+    monkeypatch.setenv("CLOUDSMITH_TELEMETRY", "disable")
+    with whoami_raises(RuntimeError("boom")):
+        result = runner.invoke(main, whoami_args(tmp_path))
+    assert result.exit_code == 1
+    assert sentry_events == []

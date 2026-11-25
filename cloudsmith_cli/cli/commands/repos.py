@@ -254,7 +254,9 @@ def create(ctx, opts, owner, repo_config_file):
     """
     # Use stderr for messages if the output is something else (e.g. JSON)
     use_stderr = utils.should_use_stderr(opts)
-    repo_config = json.load(repo_config_file)
+    repo_config = utils.load_json_config_file(
+        repo_config_file, param_hint="'REPO_CONFIG_FILE'"
+    )
 
     repo_name = repo_config.get("name", None)
     if repo_name is None:
@@ -322,7 +324,9 @@ def update(ctx, opts, owner_repo, repo_config_file):
     use_stderr = opts.output != "pretty"
 
     owner, repo = owner_repo
-    repo_config = json.load(repo_config_file)
+    repo_config = utils.load_json_config_file(
+        repo_config_file, param_hint="'REPO_CONFIG_FILE'"
+    )
 
     click.secho(
         f"Updating {click.style(repo, bold=True)} repository in the {click.style(owner, bold=True)} namespace ...",
