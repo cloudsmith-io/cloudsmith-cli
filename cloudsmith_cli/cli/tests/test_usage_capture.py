@@ -1,0 +1,486 @@
+from types import SimpleNamespace
+
+import click
+import pytest
+from click.testing import CliRunner
+
+from cloudsmith_cli.cli import option_names, usage_capture
+from cloudsmith_cli.cli import telemetry as cli_telemetry
+from cloudsmith_cli.cli.command import AliasGroup
+
+CAPTURED = {}
+
+
+@click.group(cls=AliasGroup)
+def app():
+    pass
+
+
+@app.command(aliases=["ls"])
+@click.option("-w", "--workspace", "--org", "workspace", envvar="CLOUDSMITH_WORKSPACE")
+@click.option("-F", "--output-format", "output")
+@click.argument("name", required=False)
+@click.pass_context
+def listing(ctx, workspace, output, name):
+    # Collect inside the run: env vars and contexts are live here.
+    CAPTURED["facts"] = usage_capture.collect_facts(
+        ctx.meta, outcome="success", exit_code=0, duration_ms=5, nested=False
+    )
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(telemetry_config_dir):  # pylint: disable=unused-argument
+    CAPTURED.clear()
+
+
+def _run(args, env=None):
+    CliRunner().invoke(app, args, env=env or {}, catch_exceptions=False)
+    return CAPTURED["facts"]
+
+
+def test_typed_spellings_not_values():
+    tokens = ["-w", "acme", "-Fjson", "--org=x", "--", "-w"]
+    assert usage_capture.match_typed_flags(listing.params, tokens) == [
+        "--org",
+        "-F",
+        "-w",
+    ]
+
+
+@click.command()
+@click.option("-v", "--verbose", is_flag=True)
+@click.option("-c", "--count", count=True)
+@click.option("-S", "--without-api-ssl-verify", is_flag=True)
+@click.option("-P", "--profile")
+def clustered(verbose, count, without_api_ssl_verify, profile):
+    pass
+
+
+@pytest.mark.parametrize(
+    "token, expected",
+    [
+        # Flags in a cluster are all seen, as Click applies them all.
+        ("-vS", ["-S", "-v"]),
+        ("-cvc", ["-c", "-v"]),
+        # An option that takes a value consumes the rest of the token.
+        ("-vPprivate", ["-P", "-v"]),
+        ("-PvS", ["-P"]),
+        # An undeclared character stops the expansion (Click rejects it).
+        ("-vxS", ["-v"]),
+    ],
+)
+def test_short_option_clusters_are_expanded(token, expected):
+    assert usage_capture.match_typed_flags(clustered.params, [token]) == expected
+
+
+def _whoami_params():
+    from cloudsmith_cli.cli.commands.main import main
+
+    whoami = main.get_command(click.Context(main), "whoami")
+    return whoami.get_params(click.Context(whoami))
+
+
+@pytest.mark.parametrize(
+    "tokens,expected",
+    [
+        # Click takes "--" as the key, then reads --profile and --help.
+        (
+            ["--api-key", "--", "--profile", "private", "--help"],
+            ["--api-key", "--help", "--profile"],
+        ),
+        (["--api-key", "-S"], ["--api-key"]),  # -S is the key, not SSL off
+        (["--api-key", "--help"], ["--api-key"]),  # --help is the key
+        (["--api-key=--help", "-S"], ["--api-key", "-S"]),  # attached value
+        (["-P", "--help"], ["-P"]),  # the profile is named --help
+        (["-SP", "-S"], ["-P", "-S"]),  # -P ends the cluster; the next is its value
+        (["-SPprivate", "--help"], ["--help", "-P", "-S"]),
+    ],
+)
+def test_option_values_are_not_taken_for_options(tokens, expected):
+    assert usage_capture.match_typed_flags(_whoami_params(), tokens) == expected
+
+
+def test_a_group_scan_stops_at_its_subcommand():
+    group = click.Group("g", params=[click.Option(["-v", "--verbose"], is_flag=True)])
+    params = group.get_params(click.Context(group))
+    tokens = ["-v", "sub", "--verbose", "--help"]
+    assert usage_capture.match_typed_flags(params, tokens, interspersed=False) == ["-v"]
+    # A plain command reads options after its arguments too.
+    assert usage_capture.match_typed_flags(params, tokens) == [
+        "--help",
+        "--verbose",
+        "-v",
+    ]
+
+
+def test_clustered_profile_and_ssl_off_reach_the_gates():
+    typed = usage_capture.match_typed_flags(clustered.params, ["-vPprivate", "-vS"])
+    assert usage_capture.CONFIG_SPELLINGS & set(typed)
+    assert usage_capture.resolve_ssl_verify(None, typed) is False
+
+
+def test_facts_from_a_run():
+    facts = _run(["ls", "-w", "secret-ws", "-F", "json", "pkg-name"])
+    assert facts.command == "listing"
+    assert facts.aliases_used == ["ls"]
+    assert set(facts.flags) == {"workspace", "output"}
+    assert facts.flags_typed == ["-F", "-w"]
+    assert "name" not in facts.setting_sources  # arguments are not settings
+    assert "secret-ws" not in repr(facts) and "pkg-name" not in repr(facts)
+
+
+def test_env_sources_report_names_only():
+    facts = _run(["listing"], env={"CLOUDSMITH_WORKSPACE": "secret-ws"})
+    assert facts.envvars == ["CLOUDSMITH_WORKSPACE"]
+    assert facts.setting_sources.get("workspace") == "env"
+    assert "secret-ws" not in repr(facts)
+
+
+@app.command()
+@click.option("--proxy", envvar=["CLOUDSMITH_PROXY", "CLOUDSMITH_API_PROXY"])
+@click.pass_context
+def proxied(ctx, proxy):
+    CAPTURED["facts"] = usage_capture.collect_facts(
+        ctx.meta, outcome="success", exit_code=0, duration_ms=5, nested=False
+    )
+
+
+def test_an_empty_env_var_is_not_reported_as_the_source():
+    # Click skips the empty CLOUDSMITH_PROXY and uses CLOUDSMITH_API_PROXY.
+    facts = _run(
+        ["proxied"], env={"CLOUDSMITH_PROXY": "", "CLOUDSMITH_API_PROXY": "secret"}
+    )
+    assert facts.envvars == ["CLOUDSMITH_API_PROXY"]
+    assert "secret" not in repr(facts)
+
+
+def _facts_with_typed(typed, outcome, exit_code):
+    meta = {usage_capture.META_KEY: {"contexts": [], "typed": typed, "aliases": []}}
+    return usage_capture.collect_facts(
+        meta, outcome=outcome, exit_code=exit_code, duration_ms=1, nested=False
+    )
+
+
+def test_typed_help_after_a_successful_exit_is_help():
+    assert _facts_with_typed(["--help"], "success", 0).outcome == "help"
+
+
+@pytest.mark.parametrize("outcome", ["usage_error", "click_error", "api_error"])
+def test_typed_help_never_hides_a_failure(outcome):
+    # e.g. `whoami --no-such-flag --help` fails parsing before help is shown.
+    assert _facts_with_typed(["--help"], outcome, 2).outcome == outcome
+
+
+def test_help_spelling_is_seen():
+    tokens = ["--help"]
+    params = listing.get_params(click.Context(listing))
+    assert usage_capture.match_typed_flags(params, tokens) == ["--help"]
+
+
+def test_every_command_in_the_cli_is_tracked():
+    import importlib
+    import pkgutil
+
+    from cloudsmith_cli.cli import commands
+    from cloudsmith_cli.cli.commands.main import main
+
+    for info in pkgutil.walk_packages(
+        commands.__path__, prefix=commands.__name__ + "."
+    ):
+        importlib.import_module(info.name)
+
+    def walk(cmd, path):
+        assert isinstance(cmd, usage_capture.TrackingMixin), " ".join(path)
+        for name, sub in getattr(cmd, "commands", {}).items():
+            walk(sub, path + [name])
+
+    walk(main, [])
+
+
+def test_collect_facts_does_not_read_config_files(monkeypatch):
+    from cloudsmith_cli.cli import config_sources
+
+    def explode(**_):
+        raise AssertionError("config files read before the telemetry gates")
+
+    monkeypatch.setattr(config_sources, "detect", explode)
+    facts = _run(["listing"], env={"CLOUDSMITH_WORKSPACE": "x"})
+    assert facts.setting_sources == {"workspace": "env"}
+
+
+def test_deferred_sources_return_the_config_file_sources(monkeypatch):
+    from cloudsmith_cli.cli import config_sources
+
+    monkeypatch.setattr(
+        config_sources, "detect", lambda **_: {"workspace": "config_file"}
+    )
+    facts = _run(["listing"])
+    assert facts.deferred_sources() == {"workspace": "config_file"}
+
+
+def test_a_parse_outside_a_run_pins_nothing():
+    assert usage_capture._RUN["depth"] == 0  # pylint: disable=protected-access
+    CliRunner().invoke(app, ["listing"], catch_exceptions=False)
+    assert usage_capture.current_root_meta() is None
+
+
+def test_session_env_names_match_the_option_declarations():
+    from cloudsmith_cli.cli.commands import list_
+
+    envvars = {p.name: p.envvar for p in list_.repos.params}
+    assert envvars["api_host"] == option_names.API_HOST_ENV
+    assert envvars["ssl_verify"] == option_names.SSL_VERIFY_ENV
+    assert (
+        envvars["deprecated_without_api_ssl_verify"]
+        == option_names.WITHOUT_SSL_VERIFY_LEGACY_ENV
+    )
+    spellings = {s for p in list_.repos.params for s in p.opts + p.secondary_opts}
+    assert usage_capture.API_HOST_SPELLINGS <= spellings
+    assert usage_capture.SSL_OFF_SPELLINGS <= spellings
+
+
+def test_session_resolved_only_for_the_leaf_or_its_descendants():
+    root = click.Context(click.Group("root"))
+    group = click.Context(click.Group("list"), parent=root)
+    leaf = click.Context(click.Command("repos"), parent=group)
+    forwarded = click.Context(click.Command("get"), parent=leaf)
+    unrelated = click.Context(click.Command("other"), parent=root)
+    contexts = [root, group, leaf]
+
+    def resolved(session):
+        store = {"contexts": contexts, "session": session}
+        return usage_capture._session_resolved(store)  # pylint: disable=protected-access
+
+    assert resolved(leaf) is True
+    assert resolved(forwarded) is True  # ctx.forward / ctx.invoke sub-context
+    assert resolved(group) is False  # set up before the leaf parsed its flags
+    assert resolved(root) is False
+    assert resolved(unrelated) is False
+    assert resolved(None) is False
+    assert usage_capture._session_resolved({"session": leaf}) is False  # pylint: disable=protected-access
+
+
+def test_config_resolved_only_for_the_leaf_or_its_descendants():
+    root = click.Context(click.Group("root"))
+    group = click.Context(click.Group("list"), parent=root)
+    leaf = click.Context(click.Command("repos"), parent=group)
+    forwarded = click.Context(click.Command("get"), parent=leaf)
+    contexts = [root, group, leaf]
+
+    def resolved(config_ctx):
+        store = {"contexts": contexts, "config": config_ctx}
+        return usage_capture._config_resolved(store)  # pylint: disable=protected-access
+
+    assert resolved(leaf) is True
+    assert resolved(forwarded) is True
+    assert resolved(group) is False  # loaded before the leaf parsed its flags
+    assert resolved(root) is False
+    assert resolved(None) is False
+
+
+def test_config_spellings_match_the_option_declarations():
+    from cloudsmith_cli.cli.commands import list_
+
+    spellings = {
+        s
+        for p in list_.repos.params
+        if p.name in ("config_file", "profile")
+        for s in p.opts + p.secondary_opts
+    }
+    assert usage_capture.CONFIG_SPELLINGS == spellings
+
+
+#: Options of the shared decorators that are not settings, so they have no
+#: ``source_<setting>``. Every other option must alias onto ALLOWED_SETTINGS.
+NOT_SETTINGS = frozenset(
+    {
+        "debug",  # per-run output switches
+        "verbose",
+        "no_color_env",  # env plumbing for colour; the names land in envvars
+        "force_color_env",
+        "term_env",
+        "allowed_api_host_suffixes",  # hidden, internal trust lists
+        "allowed_proxy_suffixes",
+        "deprecated_allowed_api_proxy_suffixes",
+        "oidc_discovery_disabled",  # no config.ini key
+        "without_rate_limit",  # API client tuning, no config.ini key
+        "rate_limit_warning",
+        "error_retry_max",
+        "error_retry_backoff",
+        "error_retry_codes",
+    }
+)
+
+
+#: The decorators that declare the options shared by every command.
+SHARED_DECORATORS = [
+    "common_cli_config_options",
+    "common_cli_output_options",
+    "common_api_auth_options",
+    "initialise_session",
+    "resolve_credentials",  # holds -w/--workspace (``org``)
+    "initialise_api",
+]
+
+
+def _shared_params(name):
+    from cloudsmith_cli.cli import decorators
+
+    decorator = getattr(decorators, name)
+    return click.command()(decorator(lambda **kwargs: None)).params
+
+
+@pytest.mark.parametrize("name", SHARED_DECORATORS)
+def test_every_shared_option_is_a_setting_or_explicitly_not(name):
+    from cloudsmith_cli.core.usage import event
+
+    for param in _shared_params(name):
+        setting = usage_capture.SETTING_ALIASES.get(param.name, param.name)
+        assert setting in event.ALLOWED_SETTINGS or param.name in NOT_SETTINGS, (
+            param.name
+        )
+
+
+def test_every_allowed_setting_is_still_an_option_or_config_key():
+    # The other direction: an option or ini key that is renamed or dropped
+    # must also leave ALLOWED_SETTINGS, so no stale name stays allowed.
+    from cloudsmith_cli.cli import config
+    from cloudsmith_cli.core.usage import event
+
+    names = {p.name for name in SHARED_DECORATORS for p in _shared_params(name)}
+    for schema in (config.ConfigSchema.Default, config.CredentialsSchema.Default):
+        names.update(
+            param.name
+            for param in vars(schema).values()
+            if isinstance(param, config.ConfigParam)
+        )
+    settings = {usage_capture.SETTING_ALIASES.get(n, n) for n in names}
+    assert event.ALLOWED_SETTINGS - settings == set()
+
+
+def test_setting_aliases_point_at_allowed_settings():
+    from cloudsmith_cli.core.usage import event
+
+    assert set(usage_capture.SETTING_ALIASES.values()) <= event.ALLOWED_SETTINGS
+
+
+def test_record_credential_keeps_the_last_resolved_source():
+    store_ctx = click.Context(click.Command("x"))
+    usage_capture.record_credential(store_ctx, SimpleNamespace(source_name="env_var"))
+    usage_capture.record_credential(store_ctx, None)
+    assert store_ctx.meta[usage_capture.META_KEY]["auth_source"] == "env_var"
+    usage_capture.record_credential(
+        store_ctx, SimpleNamespace(source_name="credentials_file")
+    )
+    assert store_ctx.meta[usage_capture.META_KEY]["auth_source"] == "credentials_file"
+
+
+def _every_command():
+    """Yield (path, command, parent path) for the whole real CLI."""
+    import importlib
+    import pkgutil
+
+    from cloudsmith_cli.cli import commands
+    from cloudsmith_cli.cli.commands.main import main
+
+    for info in pkgutil.walk_packages(
+        commands.__path__, prefix=commands.__name__ + "."
+    ):
+        importlib.import_module(info.name)
+
+    def walk(cmd, path):
+        yield path, cmd
+        for name, sub in getattr(cmd, "commands", {}).items():
+            yield from walk(sub, (*path, name))
+
+    yield from walk(main, ())
+
+
+def test_every_command_that_sends_less_than_all_is_listed_here():
+    from cloudsmith_cli.cli.telemetry import ALL, ERRORS
+
+    # Change this only on purpose: it is the reviewed list of what does not
+    # send everything.
+    expected = {
+        "credential-helper cargo": ERRORS,
+        "credential-helper docker": ERRORS,
+        "credential-helper generic": ERRORS,
+        "credential-helper pnpm": ERRORS,
+        "credential-helper terraform": ERRORS,
+        "mcp start": ERRORS,
+        "telemetry": ERRORS,
+        "telemetry id": ERRORS,
+        "telemetry reset": ERRORS,
+        "telemetry status": ERRORS,
+    }
+    assert {p: v for p, v in _effective_policies().items() if v is not ALL} == expected
+
+
+def _effective_policies():
+    """Each command's policy: its own, else the nearest parent's, else ALL."""
+    from cloudsmith_cli.cli.telemetry import ALL
+    from cloudsmith_cli.core.telemetry_common import declared_policy
+
+    effective = {}
+    for path, cmd in _every_command():
+        inherited = effective.get(" ".join(path[:-1]), ALL) if path else ALL
+        # Not `or`: NONE is a zero-valued, falsy flag, as in resolve_policy.
+        declared = declared_policy(cmd)
+        effective[" ".join(path)] = inherited if declared is None else declared
+    return effective
+
+
+def test_a_declared_none_policy_is_not_read_as_all(monkeypatch):
+    from cloudsmith_cli.cli.commands.main import main
+    from cloudsmith_cli.cli.telemetry import NONE
+    from cloudsmith_cli.core import telemetry_common
+
+    whoami = main.get_command(click.Context(main), "whoami")
+    real = telemetry_common.declared_policy
+    monkeypatch.setattr(
+        telemetry_common,
+        "declared_policy",
+        lambda cmd: NONE if cmd is whoami else real(cmd),
+    )
+    assert _effective_policies()["whoami"] is NONE
+
+
+@click.group(cls=AliasGroup)
+def policy_app():
+    pass
+
+
+@policy_app.group(cls=AliasGroup)
+@cli_telemetry.send(cli_telemetry.ERRORS)
+def quiet():
+    pass
+
+
+@quiet.command()
+@click.pass_context
+def inherits(ctx):
+    CAPTURED["facts"] = usage_capture.collect_facts(
+        ctx.meta, outcome="success", exit_code=0, duration_ms=1, nested=False
+    )
+
+
+@quiet.command()
+@cli_telemetry.send(cli_telemetry.ALL)
+@click.pass_context
+def overrides(ctx):
+    CAPTURED["facts"] = usage_capture.collect_facts(
+        ctx.meta, outcome="success", exit_code=0, duration_ms=1, nested=False
+    )
+
+
+@pytest.mark.parametrize(
+    "args, allowed",
+    [(["quiet", "inherits"], False), (["quiet", "overrides"], True)],
+)
+def test_the_command_policy_reaches_the_run_facts(args, allowed):
+    CliRunner().invoke(policy_app, args, catch_exceptions=False)
+    assert CAPTURED["facts"].usage_allowed is allowed
+
+
+def test_a_command_without_a_policy_sends_usage():
+    assert _run(["listing"]).usage_allowed is True
