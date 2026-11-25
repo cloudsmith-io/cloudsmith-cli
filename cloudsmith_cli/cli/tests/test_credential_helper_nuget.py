@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import collections
 import io
+import itertools
 import json
 import os
 import sys
@@ -363,6 +364,36 @@ def test_plugin_answers_a_cancel_while_a_request_runs(credential):
         )
 
     assert [(m["RequestId"], m["Type"]) for m in sent[1:]] == [("c", "Cancel")]
+
+
+def test_plugin_answers_a_cancel_that_waits_behind_another_request(credential):
+    """A request that NuGet cancels while it waits does not run."""
+    queued = threading.Event()
+    first = _message("a", "GetAuthenticationCredentials", {"Uri": CUSTOM_FEED})
+    cancel = _message("c", "GetAuthenticationCredentials", message_type="Cancel")
+    feed = _NuGetFeed([first, _credentials_request(CUSTOM_FEED), cancel])
+
+    def lines():
+        source = feed.lines()
+        yield from itertools.islice(source, 3)
+        queued.set()
+        yield from source
+
+    stdout = io.StringIO()
+    with (
+        patch.object(PluginSession, "_send", feed.record(PluginSession._send)),
+        patch(
+            "cloudsmith_cli.credential_helpers.nuget.runtime.is_cloudsmith_domain",
+            lambda *args, **kwargs: queued.wait(timeout=1),
+        ),
+    ):
+        PluginSession(lines(), stdout, credential=credential, workspace="acme").run()
+
+    sent = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert [(m["RequestId"], m["Type"]) for m in sent[1:]] == [
+        ("a", "Response"),
+        ("c", "Cancel"),
+    ]
 
 
 def _lines_then(lines, error):

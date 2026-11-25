@@ -311,6 +311,9 @@ class PluginSession:
         A Cancel for the request ends the wait. Other messages wait in the backlog.
         Close, end of input or a stdin error ends the session at once.
         """
+        if any(_is_cancel(item, request_id) for item in self._backlog):
+            self._send(request_id, "Cancel", method)
+            return
         answer = _Answer()
         threading.Thread(
             target=self._work, args=(answer, method, payload), daemon=True
