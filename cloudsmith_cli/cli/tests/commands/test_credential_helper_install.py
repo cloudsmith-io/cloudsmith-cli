@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -145,17 +146,10 @@ def test_windows_launcher_refuses_a_value_a_batch_file_cannot_hold(monkeypatch, 
         _launcher_content("cmd", windows=True, env={"CLOUDSMITH_PROFILE": value})
 
 
-def test_install_passes_flag_and_environment_settings_to_the_launcher(
-    runner, monkeypatch, tmp_path
-):
-    """Settings from flags and CLOUDSMITH_* variables go to the launcher.
-
-    A value read from a config file does not, because the helper reads that
-    file itself.  Secrets and the proxy never go to the launcher.  A flag on
-    the parent command also counts.
-    """
+@pytest.fixture()
+def launcher_env(monkeypatch):
+    """Register a `settings` helper that keeps install-time settings, and return them."""
     from ....cli.commands.credential_helper import manage
-    from ....cli.commands.main import main
 
     launcher_env = {}
 
@@ -167,6 +161,20 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
             return []
 
     monkeypatch.setitem(manage._INSTALLERS, "settings", SettingsInstaller)
+    return launcher_env
+
+
+def test_install_passes_flag_and_environment_settings_to_the_launcher(
+    runner, launcher_env, tmp_path
+):
+    """Settings from flags and CLOUDSMITH_* variables go to the launcher.
+
+    A value read from a config file does not, because the helper reads that
+    file itself.  Secrets and the proxy never go to the launcher.  A flag on
+    the parent command also counts.
+    """
+    from ....cli.commands.main import main
+
     config = tmp_path / "config.ini"
     config.write_text("[default]\nssl_verify_strict = false\n")
     result = runner.invoke(
@@ -210,6 +218,33 @@ def test_install_passes_flag_and_environment_settings_to_the_launcher(
         "CLOUDSMITH_SERVICE_SLUG": "ci-bot",
         "CLOUDSMITH_KEYRING_DIR": "/var/keyring",
     }
+
+
+@pytest.mark.parametrize(
+    "args, env, expected",
+    [
+        (["--org", "acme"], {}, {"CLOUDSMITH_WORKSPACE": "acme"}),
+        (
+            [],
+            {"CLOUDSMITH_WITHOUT_API_SSL_VERIFY": "1"},
+            {"CLOUDSMITH_SSL_VERIFY": "false"},
+        ),
+    ],
+)
+def test_install_keeps_a_deprecated_setting_under_its_new_name(
+    runner, launcher_env, args, env, expected
+):
+    from ....cli.commands.main import main
+
+    result = runner.invoke(
+        main,
+        args=["credential-helper", "install", "settings", *args],
+        env=env,
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert launcher_env == expected
 
 
 # ---------------------------------------------------------------------------
@@ -1084,6 +1119,30 @@ def test_manage_cli_unknown_helper_exits_nonzero(runner):
     for cmd in (install_cmd, uninstall_cmd):
         result = runner.invoke(cmd, ["badhelper"])
         assert result.exit_code != 0
+
+
+@pytest.mark.parametrize(
+    "args,listing",
+    [
+        ([], "Helpers:"),
+        (["install"], "HELPER is the name"),
+        (["uninstall"], "HELPER is the name"),
+    ],
+)
+def test_help_lists_every_helper(runner, args, listing):
+    """The helper list in the help of the group, install and uninstall names every helper."""
+    from ....cli.commands.credential_helper.manage import _INSTALLERS
+
+    result = runner.invoke(
+        credential_helper, [*args, "--help"], terminal_width=200, catch_exceptions=False
+    )
+
+    assert result.exit_code == 0
+    paragraphs = [p for p in result.output.split("\n\n") if listing in p]
+    assert len(paragraphs) == 1, f"--help has no single {listing!r} paragraph"
+    listed = set(re.findall(r"[a-z]+", paragraphs[0]))
+    missing = sorted(set(_INSTALLERS) - listed)
+    assert not missing, f"the {listing!r} list in --help does not name: {missing}"
 
 
 # ---------------------------------------------------------------------------

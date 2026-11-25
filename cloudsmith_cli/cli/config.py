@@ -1,6 +1,8 @@
 """CLI - Configuration."""
 
+import codecs
 import configparser
+import locale
 import os
 import re
 import stat
@@ -8,10 +10,17 @@ import threading
 from typing import ClassVar
 
 import click
-from click_configfile import ConfigFileReader, Param, SectionSchema, matches_section
+from click_configfile import (
+    ConfigFileReader,
+    Param,
+    SectionSchema,
+    generate_configfile_names,
+    matches_section,
+    select_config_sections,
+)
 
 from ..core.utils import get_data_path, read_file
-from . import utils, validators
+from . import deprecation, utils, validators
 
 OPTIONS = threading.local()
 
@@ -83,11 +92,27 @@ class ConfigSchema:
         oidc_disabled_detectors = ConfigParam(name="oidc_disabled_detectors", type=str)
         metadata_failure_mode = ConfigParam(name="metadata_failure_mode", type=str)
         check_for_update = ConfigParam(name="check_for_update", type=bool, default=True)
-        telemetry = ConfigParam(name="telemetry", type=bool, default=True)
+        # Strings, not bools: they also take `log` (see telemetry_common).
+        telemetry = ConfigParam(name="telemetry", type=str)
+        telemetry_usage_reporting = ConfigParam(
+            name="telemetry_usage_reporting", type=str
+        )
+        telemetry_error_reporting = ConfigParam(
+            name="telemetry_error_reporting", type=str
+        )
+        telemetry_install_id = ConfigParam(name="telemetry_install_id", type=str)
 
     @matches_section("profile:*")
     class Profile(Default):
-        """Profile-specific configuration schema."""
+        """Profile-specific configuration schema.
+
+        Has no defaults, so a key that a profile leaves out keeps its
+        [default] value instead of being reset to the schema default.
+        """
+
+        api_ssl_verify = ConfigParam(name="api_ssl_verify", type=bool)
+        ssl_verify_strict = ConfigParam(name="ssl_verify_strict", type=bool)
+        check_for_update = ConfigParam(name="check_for_update", type=bool)
 
 
 class ConfigReader(ConfigFileReader):
@@ -105,6 +130,30 @@ class ConfigReader(ConfigFileReader):
             if isinstance(v, ConfigParam):
                 v.ctx = cls
         return section_schema
+
+    @classmethod
+    def read_config(cls) -> dict[str, dict[str, object]]:
+        """Read the config files, each with its own text encoding."""
+        # click_configfile reads all files with the locale encoding only.
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        for path in generate_configfile_names(cls.config_files, cls.config_searchpath):
+            encoding = _get_file_encoding(path)
+            try:
+                parser.read(path, encoding=encoding)
+            except UnicodeDecodeError as exc:
+                raise click.ClickException(
+                    f"Cannot read {path} as {encoding} text. Save the file as UTF-8."
+                ) from exc
+
+        if not cls.config_sections:
+            cls.config_sections = cls.collect_config_sections_from_schemas()
+        storage: dict[str, dict[str, object]] = {}
+        for section_name in select_config_sections(
+            parser.sections(), cls.config_sections
+        ):
+            cls.process_config_section(parser[section_name], storage)
+        return storage
 
     @classmethod
     def get_storage_name_for(cls, section_name):
@@ -173,13 +222,15 @@ class ConfigReader(ConfigFileReader):
         return (existing_paths or user_paths)[0]
 
     @classmethod
-    def save_workspace(cls, workspace, profile=None, path=None):
+    def save_workspace(
+        cls, workspace: str, profile: str | None = None, path: str | None = None
+    ) -> str | None:
         """Write the Workspace to the profile section; return the path if it changed."""
         if path and os.path.isdir(path):
             path = os.path.join(path, "config.ini")
         path = path or cls.get_user_filepath()
         if os.path.exists(path):
-            with open(path) as config_file:
+            with open(path, encoding=_get_file_encoding(path)) as config_file:
                 content = config_file.read()
         else:
             content = read_file(get_data_path(), "config.ini")
@@ -194,20 +245,25 @@ class ConfigReader(ConfigFileReader):
             raise ValueError(f"the CLI cannot change the [{section}] section of {path}")
 
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as config_file:
+        with open(path, "w", encoding=_get_file_encoding(path)) as config_file:
             config_file.write(updated)
         return path
 
     @classmethod
-    def has_default_file(cls):
-        """Check if a configuration file exists."""
+    def find_default_file(cls) -> str | None:
+        """Return the first configuration file that exists, or None."""
         for filename in cls.config_files:
             for searchpath in cls.config_searchpath:
                 path = os.path.join(searchpath, filename)
                 if os.path.exists(path):
-                    return True
+                    return path
 
-        return False
+        return None
+
+    @classmethod
+    def has_default_file(cls):
+        """Check if a configuration file exists."""
+        return cls.find_default_file() is not None
 
     @classmethod
     def read_relative_config_value(cls, key, profile=None):
@@ -289,7 +345,30 @@ class ConfigReader(ConfigFileReader):
             else:
                 if v is None:
                     continue
+            setting = deprecation.CONFIG_KEY_REPLACEMENTS.get(k, k)
+            if setting in deprecation.CONFIG_KEY_REPLACEMENTS.values():
+                # Record which key set the value last, so a profile that sets
+                # the new key clears a deprecated key from [default]. The
+                # schema defaults api_ssl_verify to true, so only false shows
+                # that the key is set, and only false changes the result.
+                is_alias = k != setting and v is not True
+                opts.config_keys_in_effect[setting] = k if is_alias else None
             setattr(opts, k, v)
+
+
+def _get_file_encoding(path: str | os.PathLike[str]) -> str:
+    """Get the text encoding of a config file; a new file is UTF-8."""
+    try:
+        with open(path, "rb") as config_file:
+            data = config_file.read()
+    except OSError:
+        return "utf-8"
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        # A file in the locale encoding (for example cp1252 on Windows) must still load.
+        return locale.getpreferredencoding(False)
+    return "utf-8-sig" if data.startswith(codecs.BOM_UTF8) else "utf-8"
 
 
 def _get_section_value(content, section, key):
@@ -364,7 +443,7 @@ class CredentialsReader(ConfigReader):
     def _set_api_key(cls, path: str | os.PathLike[str], api_key: str = "") -> None:
         """Write api_key value in a credentials file, preserving structure."""
         # Text mode reads CRLF as LF, so no "\r" reaches the pattern.
-        with open(path) as f:
+        with open(path, encoding=_get_file_encoding(path)) as f:
             content = f.read()
         line = f"api_key = {api_key}" if api_key else "api_key ="
         # "[ \t]" and not "\s": "\s" also matches a newline, so an empty
@@ -381,7 +460,7 @@ class CredentialsReader(ConfigReader):
             content = _set_section_value(content, "default", "api_key", api_key)
         # "r+" keeps a read-only file unchanged. The mode changes through the open
         # file, so it applies to the file that gets the key.
-        with open(path, "r+") as f:
+        with open(path, "r+", encoding=_get_file_encoding(path)) as f:
             # Restrict the mode before the write, so the new key is never readable
             # under the old mode.
             if hasattr(os, "fchmod"):
@@ -412,8 +491,14 @@ class Options:  # pylint: disable=too-many-public-methods
         """Initialise a new Options object."""
         super().__init__(*args, **kwargs)
         self.opts = {}
+        self.config_keys_in_effect = {}
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    @property
+    def deprecated_config_keys(self):
+        """The deprecated config.ini keys whose values are in effect."""
+        return [key for key in self.config_keys_in_effect.values() if key]
 
     @staticmethod
     def get_config_reader():
@@ -427,6 +512,9 @@ class Options:  # pylint: disable=too-many-public-methods
 
     def load_config_file(self, path, profile=None):
         """Load the standard config file."""
+        # Telemetry reads config.ini again at the end of the run, and must read
+        # the same file and profile (see telemetry_common.read_config_file).
+        self.loaded_config = (path, profile)
         config_cls = self.get_config_reader()
         return config_cls.load_config(self, path, profile=profile)
 
@@ -757,15 +845,54 @@ class Options:  # pylint: disable=too-many-public-methods
 
     @property
     def telemetry(self):
-        """Get value for the telemetry (anonymous error reporting) toggle."""
-        return self._get_option("telemetry", default=True)
+        """Get the telemetry mode for error and usage reporting, as written.
+
+        `telemetry_common.parse_mode` reads it; None when it is not set.
+        """
+        return self._get_option("telemetry")
 
     @telemetry.setter
     def telemetry(self, value):
-        """Set value for the telemetry (anonymous error reporting) toggle."""
+        """Set the telemetry mode for error and usage reporting."""
         if value is None:
             return
-        self._set_option("telemetry", bool(value))
+        self._set_option("telemetry", value)
+
+    @property
+    def telemetry_usage_reporting(self):
+        """Get the usage reporting mode, as written; None when it is not set."""
+        return self._get_option("telemetry_usage_reporting")
+
+    @telemetry_usage_reporting.setter
+    def telemetry_usage_reporting(self, value):
+        """Set the usage reporting mode."""
+        if value is None:
+            return
+        self._set_option("telemetry_usage_reporting", value)
+
+    @property
+    def telemetry_error_reporting(self):
+        """Get the error reporting mode, as written; None when it is not set."""
+        return self._get_option("telemetry_error_reporting")
+
+    @telemetry_error_reporting.setter
+    def telemetry_error_reporting(self, value):
+        """Set the error reporting mode."""
+        if value is None:
+            return
+        self._set_option("telemetry_error_reporting", value)
+
+    @property
+    def telemetry_install_id(self):
+        """Get the install ID switch, as written; None when it is not set."""
+        return self._get_option("telemetry_install_id")
+
+    @telemetry_install_id.setter
+    def telemetry_install_id(self, value):
+        """Set the install ID switch."""
+        if value is None:
+            return
+        self._set_option("telemetry_install_id", value)
 
     @property
     def output(self):
