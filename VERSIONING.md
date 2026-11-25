@@ -194,7 +194,7 @@ Only a major version can remove a source. A minor release can add a source, or c
 
 ### What the contract doesn't cover
 
-The following can change in any release, including a patch:
+The following aren't part of the public contract. They can change in any release, including a patch, unless a release type is specified below or in the linked section:
 
 - The content of `stderr`, such as warnings, notices, log lines, and `--debug` output
 - Help text and the wording of error messages
