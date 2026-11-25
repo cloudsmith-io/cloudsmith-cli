@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
 - `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- A POST request to the API no longer waits without a limit when the API does not reply. A POST or PATCH request now fails after 120 seconds without data. The CLI does not retry a POST or PATCH request after a read timeout or a dropped connection, because the API can have processed it. This also applies to the POST request that uploads a file.
 
 ## [1.31.4] - 2026-11-23
 

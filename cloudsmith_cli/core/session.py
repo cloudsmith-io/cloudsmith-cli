@@ -39,6 +39,9 @@ def get_default_proxy():
     return _default_proxy["url"]
 
 
+NON_IDEMPOTENT_METHODS = frozenset({"POST", "PATCH"})
+
+
 class ApiKeySafeSession(requests.Session):
     """A session that drops the API key on a redirect to another host."""
 
@@ -118,6 +121,8 @@ class RetryWithCallback(Retry):
             find_certificate_error(error) is not None or _is_unknown_host_error(error)
         ):
             raise MaxRetryError(_pool, url, error) from error
+        if self._can_repeat_processed_request(method, error):
+            raise error
         if self.retry_after_budget is None or response is None:
             return super().increment(method, url, response, error, _pool, _stacktrace)
 
@@ -146,6 +151,16 @@ class RetryWithCallback(Retry):
             raise MaxRetryError(_pool, url, reason) from exc
         retry.retry_after_waited = waited
         return retry
+
+    def _can_repeat_processed_request(
+        self, method: str | None, error: Exception | None
+    ) -> bool:
+        """Return True when a retry can send a request that the server processed."""
+        return (
+            isinstance(method, str)
+            and method.upper() in NON_IDEMPOTENT_METHODS
+            and self._is_read_error(error)
+        )
 
     def sleep_for_retry(self, response=None):
         retry_after = self.get_retry_after(response)
