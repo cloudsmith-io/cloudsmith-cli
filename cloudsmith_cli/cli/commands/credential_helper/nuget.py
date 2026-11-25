@@ -16,7 +16,9 @@ import click
 from ....core import keyring
 from ....core.credentials.chain import CredentialProviderChain
 from ....credential_helpers.nuget import execute
+from ... import telemetry
 from ...decorators import common_api_auth_options, initialise_api
+from ...usage_capture import TrackedCommand
 
 
 def _utf8(stream, **kwargs):
@@ -36,9 +38,12 @@ def _resolve_credential(opts, non_interactive):
     return opts.credential
 
 
+# Run by package managers on every request: report crashes, not usage.
 @click.command(
-    context_settings={"ignore_unknown_options": True, "allow_interspersed_args": False}
+    cls=TrackedCommand,
+    context_settings={"ignore_unknown_options": True, "allow_interspersed_args": False},
 )
+@telemetry.send(telemetry.ERRORS)
 @click.option(
     "--domain",
     "domains",

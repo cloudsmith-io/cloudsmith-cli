@@ -7,10 +7,33 @@ from enum import Enum, auto
 
 import click
 
+JSON_OUTPUT_FORMATS = ("json", "pretty_json")
+
 
 def should_use_stderr(opts):
     """Check if stdout should be avoided for informational messages."""
-    return getattr(opts, "output", None) in ("json", "pretty_json")
+    return getattr(opts, "output", None) in JSON_OUTPUT_FORMATS
+
+
+def output_format_in_argv(argv=None):
+    """Return the output format that `argv` (default `sys.argv`) gives, or None.
+
+    For code that runs before or without the parsed `--output-format`. As in
+    Click, the last output format given wins.
+    """
+    argv = sys.argv if argv is None else argv
+    output_format = None
+    for idx, arg in enumerate(argv):
+        if arg.startswith("--output-format="):
+            output_format = arg.partition("=")[2]
+        elif arg in ("-F", "--output-format") and idx + 1 < len(argv):
+            output_format = argv[idx + 1]
+    return output_format
+
+
+def json_output_in_argv(argv=None):
+    """Return True if `argv` (default `sys.argv`) asks for JSON output."""
+    return output_format_in_argv(argv) in JSON_OUTPUT_FORMATS
 
 
 def get_help_website():

@@ -8,10 +8,11 @@ from ...core import keyring as core_keyring
 from ...core.api.exceptions import ApiException
 from ...core.mcp.server import create_ssl_context
 from ...core.session import create_requests_session
+from ...core.telemetry_common import Mode, parse_mode
 from ...core.tests.test_certificate_errors import certificate_error
 from ...core.utils import get_data_path, read_file
 from ..commands.main import main
-from ..config import Options
+from ..config import ConfigParam, ConfigSchema, Options
 from ..decorators import (
     common_cli_output_options,
     common_package_action_options,
@@ -33,6 +34,16 @@ def test_report_retry_writes_to_stderr():
 
     assert result.stdout == '{"data": []}\n'
     assert "Request was throttled (429)" in result.stderr
+
+
+def test_report_retry_names_the_status_of_a_retry_after_wait():
+    @click.command()
+    def command():
+        report_retry(30, context="retry-after", status=503)
+
+    result = click.testing.CliRunner().invoke(command, catch_exceptions=False)
+
+    assert "Request failed (503): Retrying after 30 second(s)" in result.stderr
 
 
 def test_report_retry_announces_backoff_on_stderr():
@@ -203,15 +214,105 @@ def test_ssl_verify_config_alias(body, expected, telemetry_config_dir):
     assert opts.ssl_verify is expected
 
 
-def test_profile_resets_ssl_settings(telemetry_config_dir):
+PROFILE_BOOLEAN_KEYS = [
+    ("ssl_verify", "ssl_verify"),
+    ("api_ssl_verify", "ssl_verify"),
+    ("ssl_verify_strict", "ssl_verify_strict"),
+    ("check_for_update", "check_for_update"),
+]
+
+
+@pytest.mark.parametrize("key,option", PROFILE_BOOLEAN_KEYS)
+@pytest.mark.parametrize("profile_body", ["", "api_user_agent=test\n"])
+def test_profile_keeps_default_setting_it_leaves_out(
+    key, option, profile_body, telemetry_config_dir
+):
     (telemetry_config_dir / "config.ini").write_text(
-        "[default]\nssl_verify=false\nssl_verify_strict=false\n"
-        "[profile:test]\napi_user_agent=test\n"
+        f"[default]\n{key}=false\n[profile:test]\n{profile_body}"
     )
     opts = Options()
     opts.load_config_file(None, profile="test")
-    assert opts.ssl_verify is True
-    assert opts.ssl_verify_strict is True
+    assert getattr(opts, option) is False
+
+
+@pytest.mark.parametrize("key,option", PROFILE_BOOLEAN_KEYS)
+def test_profile_overrides_default_setting(key, option, telemetry_config_dir):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\n{key}=false\n[profile:test]\n{key}=true\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert getattr(opts, option) is True
+
+
+@pytest.mark.parametrize("key,option", PROFILE_BOOLEAN_KEYS)
+@pytest.mark.parametrize("default_body", ["", "[default]\n", "[default]\n{key}=\n"])
+def test_profile_setting_unset_everywhere_is_true(
+    key, option, default_body, telemetry_config_dir
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        default_body.format(key=key) + "[profile:test]\napi_user_agent=test\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert getattr(opts, option) is True
+
+
+#: Telemetry keys hold a mode as written (they also take `log`), not a bool.
+PROFILE_TELEMETRY_KEYS = [
+    "telemetry",
+    "telemetry_usage_reporting",
+    "telemetry_error_reporting",
+]
+
+
+@pytest.mark.parametrize("key", PROFILE_TELEMETRY_KEYS)
+@pytest.mark.parametrize("profile_body", ["", "api_user_agent=test\n"])
+def test_profile_keeps_default_telemetry_mode_it_leaves_out(
+    key, profile_body, telemetry_config_dir
+):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\n{key}=false\n[profile:test]\n{profile_body}"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert parse_mode(getattr(opts, key)) is Mode.DISABLED
+
+
+@pytest.mark.parametrize("key", PROFILE_TELEMETRY_KEYS)
+def test_profile_overrides_default_telemetry_mode(key, telemetry_config_dir):
+    (telemetry_config_dir / "config.ini").write_text(
+        f"[default]\n{key}=false\n[profile:test]\n{key}=log\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert parse_mode(getattr(opts, key)) is Mode.LOG
+
+
+@pytest.mark.parametrize("key", PROFILE_TELEMETRY_KEYS)
+@pytest.mark.parametrize("default_body", ["", "[default]\n", "[default]\n{key}=\n"])
+def test_profile_telemetry_mode_unset_everywhere_is_unset(
+    key, default_body, telemetry_config_dir
+):
+    # Unset means config.ini does not decide, so telemetry is enabled.
+    (telemetry_config_dir / "config.ini").write_text(
+        default_body.format(key=key) + "[profile:test]\napi_user_agent=test\n"
+    )
+    opts = Options()
+    opts.load_config_file(None, profile="test")
+    assert getattr(opts, key) is None
+
+
+def test_profile_schema_has_no_defaults():
+    """A schema default would replace the [default] value in every profile."""
+    params = [getattr(ConfigSchema.Profile, name) for name in dir(ConfigSchema.Profile)]
+    defaulted = [
+        param.name
+        for param in params
+        if isinstance(param, ConfigParam) and param.default is not None
+    ]
+
+    assert defaulted == []
 
 
 def test_default_config_keeps_api_ssl_verify_alias(telemetry_config_dir):
@@ -388,3 +489,114 @@ def test_color_choices_are_text_for_click_before_8_2():
 
     assert all(isinstance(choice, str) for choice in color_option.type.choices)
     assert result.output == "False\n"
+
+
+@pytest.fixture
+def nested_output_commands():
+    """Return a three-level command tree that reports its output options."""
+
+    def report(level, opts):
+        ctx = click.get_current_context()
+        click.echo(
+            f"{level} color={ctx.color} output={opts.output} verbose={opts.verbose}"
+        )
+
+    @click.group()
+    @common_cli_output_options
+    def top(opts):
+        report("top", opts)
+
+    @top.group()
+    @common_cli_output_options
+    def middle(opts):
+        report("middle", opts)
+
+    @middle.command()
+    @common_cli_output_options
+    def leaf(opts):
+        report("leaf", opts)
+
+    @click.command()
+    @common_cli_output_options
+    def forwarded(opts):
+        report("forwarded", opts)
+
+    @middle.command()
+    @common_cli_output_options
+    @click.pass_context
+    def forwarder(ctx, opts):
+        ctx.forward(forwarded)
+
+    def invoke(args, env=None):
+        result = click.testing.CliRunner().invoke(
+            top, args, env={"CLOUDSMITH_FORCE_COLOR": "true", **(env or {})}
+        )
+        assert result.exit_code == 0, result.output
+        return result.output.splitlines()
+
+    return invoke
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--color", "never", "-F", "json", "-v", "middle", "leaf"],
+        ["middle", "--color", "never", "-F", "json", "-v", "leaf"],
+        ["middle", "leaf", "--color", "never", "-F", "json", "-v"],
+    ],
+)
+def test_output_options_reach_nested_commands(nested_output_commands, args):
+    lines = nested_output_commands(args)
+
+    assert lines[-1] == "leaf color=False output=json verbose=True"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--color", "never", "-F", "json", "-v", "middle", "forwarder"],
+        ["middle", "forwarder", "--color", "never", "-F", "json", "-v"],
+    ],
+)
+def test_output_options_reach_forwarded_commands(nested_output_commands, args):
+    lines = nested_output_commands(args)
+
+    assert lines[-1] == "forwarded color=False output=json verbose=True"
+
+
+def test_output_options_given_to_a_group_apply_to_every_level_below_it(
+    nested_output_commands,
+):
+    lines = nested_output_commands(["--color", "never", "-F", "json", "middle", "leaf"])
+
+    assert lines == [
+        "top color=False output=json verbose=False",
+        "middle color=False output=json verbose=False",
+        "leaf color=False output=json verbose=False",
+    ]
+
+
+def test_nested_output_options_override_outer_ones(nested_output_commands):
+    lines = nested_output_commands(
+        "--color never -F json middle leaf --color always -F pretty".split()
+    )
+
+    assert lines == [
+        "top color=False output=json verbose=False",
+        "middle color=False output=json verbose=False",
+        "leaf color=True output=pretty verbose=False",
+    ]
+
+
+def test_output_options_default_without_any_flags(nested_output_commands):
+    lines = nested_output_commands(["middle", "leaf"])
+
+    assert lines[-1] == "leaf color=True output=pretty verbose=False"
+
+
+def test_color_env_var_reaches_nested_commands(nested_output_commands):
+    lines = nested_output_commands(
+        ["middle", "leaf"], env={"CLOUDSMITH_COLOR": "never"}
+    )
+
+    assert lines[-1] == "leaf color=False output=pretty verbose=False"
