@@ -139,6 +139,7 @@ class FailOnceHandler(BaseHTTPRequestHandler):
     timeout = 1
     first_status = 503
     bodies = []
+    paths = []
 
     def do_POST(self):
         expected = int(self.headers["Content-Length"])
@@ -147,6 +148,7 @@ class FailOnceHandler(BaseHTTPRequestHandler):
         except TimeoutError:
             body = b""
         self.bodies.append((expected, body))
+        self.paths.append(self.path)
         status = self.first_status if len(self.bodies) == 1 else 204
         if len(body) < expected:
             status = 400
@@ -154,6 +156,8 @@ class FailOnceHandler(BaseHTTPRequestHandler):
         self.send_header("Location", "/")
         self.send_header("Content-Length", "0")
         self.end_headers()
+
+    do_PUT = do_POST
 
     def log_message(self, *args):
         pass
@@ -184,6 +188,44 @@ class TestUploadRetry:
 
         assert FailOnceHandler.bodies[1] == FailOnceHandler.bodies[0]
         assert b"payload" * 1000 in FailOnceHandler.bodies[1][1]
+
+    def test_part_retry_resends_the_whole_chunk(self, tmp_path):
+        filepath = tmp_path / "package.raw"
+        filepath.write_bytes(b"part-one" + b"part-two")
+        FailOnceHandler.first_status = 503
+        FailOnceHandler.bodies = []
+        FailOnceHandler.paths = []
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FailOnceHandler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        files_api = Mock()
+        try:
+            with (
+                patch("cloudsmith_cli.core.api.files.CHUNK_SIZE", len(b"part-one")),
+                patch(
+                    "cloudsmith_cli.core.api.files.get_files_api",
+                    return_value=files_api,
+                ),
+            ):
+                multi_part_upload_file(
+                    Mock(credential=None),
+                    upload_url=f"http://127.0.0.1:{server.server_port}/",
+                    owner="owner",
+                    repo="repo",
+                    filepath=str(filepath),
+                    callback=lambda: None,
+                    upload_id="upload-id",
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        assert [body for _, body in FailOnceHandler.bodies] == [
+            b"part-one",
+            b"part-one",
+            b"part-two",
+        ]
+        assert [path[-1] for path in FailOnceHandler.paths] == ["1", "1", "2"]
+        files_api.files_complete.assert_called_once()
 
     def test_body_rewinds_only_to_the_start(self, tmp_path):
         filepath = tmp_path / "package.raw"
