@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - The credential helpers now use `--ssl-verify`, `--ssl-verify-strict`, and their environment variables and `config.ini` keys when they look up the custom domains of a Workspace. Previously, the lookup always verified certificates with the strict X.509 checks, so it failed behind a TLS-intercepting proxy even with `--without-ssl-verify-strict`. (#603)
 
 ## [1.31.4] - 2026-11-23
