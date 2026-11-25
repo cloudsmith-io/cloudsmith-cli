@@ -10,16 +10,22 @@ import json
 import os
 import sys
 import threading
+import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import click.testing
 import cloudsmith_api
+import jwt
 import pytest
 
 from ...core import keyring as core_keyring
 from ...core.api.exceptions import ApiException
-from ...core.credentials.models import CredentialResult
+from ...core.credentials.chain import CredentialProviderChain
+from ...core.credentials.models import CredentialContext, CredentialResult
+from ...core.credentials.oidc import cache as oidc_cache
+from ...core.credentials.providers import OidcProvider
 from ...credential_helpers.common import REFUSAL_MESSAGE
 from ...credential_helpers.nuget.installer import NuGetInstaller
 from ...credential_helpers.nuget.runtime import (
@@ -30,7 +36,7 @@ from ...credential_helpers.nuget.runtime import (
     parse_timespan,
 )
 from ..commands.credential_helper.manage import install_cmd, list_cmd
-from ..commands.credential_helper.nuget import nuget
+from ..commands.credential_helper.nuget import _resolve_credential, nuget
 from ..commands.main import main
 from ..config import OPTIONS
 
@@ -454,11 +460,22 @@ def test_plugin_resolves_again_after_a_failed_resolution(credential):
     assert second["Password"] == "k_abc"
 
 
-def test_plugin_without_discovery_declines_a_feed_before_it_resolves(credential):
+@pytest.mark.parametrize(
+    "workspace,discover",
+    [("acme", False), (None, True)],
+    ids=["no-discover", "no-workspace"],
+)
+def test_plugin_declines_a_feed_it_cannot_match_before_it_resolves(
+    credential, workspace, discover
+):
     """The feed of another provider does not wait for a credential."""
     resolve = Mock(return_value=credential)
     session = PluginSession(
-        io.StringIO(), io.StringIO(), refresh_credential=resolve, discover=False
+        io.StringIO(),
+        io.StringIO(),
+        refresh_credential=resolve,
+        workspace=workspace,
+        discover=discover,
     )
     payload = _credentials_request(CUSTOM_FEED)["Payload"]
 
@@ -590,6 +607,34 @@ def test_cli_retries_with_a_freshly_resolved_credential(runner, credential):
 
     assert _responses(sent)["c"]["Payload"]["Password"] == "k_abc"
     assert _responses(sent)["r"]["Payload"]["Password"] == "k_renewed"
+
+
+def test_retry_does_not_reuse_the_cached_oidc_token(tmp_path):
+    """NuGet retries after the feed rejected the token, so the cached token goes."""
+    token = jwt.encode({"exp": time.time() + 3600}, key="", algorithm="none")
+    context = CredentialContext(org="acme", oidc_service_slug="ci-service")
+    opts = SimpleNamespace(credential=None, credential_context=context)
+    core_keyring.configure(core_keyring.KeyringSettings(no_keyring=True))
+    with (
+        patch(
+            "cloudsmith_cli.cli.config.get_default_config_path",
+            return_value=str(tmp_path),
+        ),
+        patch(
+            "cloudsmith_cli.cli.commands.credential_helper.nuget.CredentialProviderChain",
+            lambda: CredentialProviderChain([OidcProvider()]),
+        ),
+        patch(
+            "cloudsmith_cli.core.credentials.oidc.detectors.detect_environment",
+            return_value=None,
+        ),
+    ):
+        oidc_cache.store_cached_token(context.api_host, "acme", "ci-service", token)
+        first = _resolve_credential(opts, non_interactive=False)
+        retry = _resolve_credential(opts, non_interactive=False)
+
+    assert first.api_key == token
+    assert retry is None
 
 
 def test_cli_resolves_the_credential_at_the_first_credentials_request(runner):

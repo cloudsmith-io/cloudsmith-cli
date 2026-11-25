@@ -425,5 +425,8 @@ def get_oidc_token(api_host, org, service_slug):
 
 def delete_oidc_token(api_host, org, service_slug):
     """Delete OIDC token from keyring."""
+    if not should_use_keyring():
+        return False
+
     key = OIDC_TOKEN_KEY.format(api_host=api_host, org=org, service_slug=service_slug)
     return _delete_value(key)

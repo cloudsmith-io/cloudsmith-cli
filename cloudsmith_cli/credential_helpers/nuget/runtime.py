@@ -235,9 +235,9 @@ class PluginSession:
     def _handle_get_credentials(self, payload) -> dict:
         payload = payload if isinstance(payload, dict) else {}
         uri = payload.get("Uri")
-        # Without discovery the host check needs no credential, so another
-        # provider's feed does not wait for one.
-        if not self.discover and not is_supported_source(
+        # Without discovery or a Workspace the host check needs no credential,
+        # so another provider's feed does not wait for one.
+        if not (self.discover and self.workspace) and not is_supported_source(
             uri, domains=self.domains, discover=False
         ):
             return {"ResponseCode": "NotFound", "Message": _NOT_APPLICABLE_MESSAGE}

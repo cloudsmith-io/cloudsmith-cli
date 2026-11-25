@@ -882,6 +882,13 @@ class TestDeleteSsoTokens:
         assert has_sso_tokens(self.api_host) is False
         mock_get_password.assert_not_called()
 
+    def test_delete_oidc_token_returns_false_when_keyring_disabled(
+        self, mock_get_user, mock_delete_password
+    ):
+        core_keyring.configure(KeyringSettings(no_keyring=True))
+        assert delete_oidc_token(*OIDC_ARGS) is False
+        mock_delete_password.assert_not_called()
+
 
 OIDC_ARGS = ("https://example.com", "my-org", "my-service")
 

@@ -15,6 +15,7 @@ import click
 
 from ....core import keyring
 from ....core.credentials.chain import CredentialProviderChain
+from ....core.credentials.oidc.cache import invalidate_cached_token
 from ....credential_helpers.nuget import execute
 from ... import telemetry
 from ...decorators import common_api_auth_options, initialise_api
@@ -34,7 +35,13 @@ def _resolve_credential(opts, non_interactive):
     """Resolve the credential and keep it on *opts*, where telemetry redacts it."""
     if non_interactive:
         keyring.forbid_password_prompts()
-    opts.credential = CredentialProviderChain().resolve(opts.credential_context)
+    context = opts.credential_context
+    if getattr(opts.credential, "source_name", None) == "oidc":
+        # NuGet asks again after the feed rejected the token, so the cache is stale.
+        invalidate_cached_token(
+            context.api_host, context.org, context.oidc_service_slug
+        )
+    opts.credential = CredentialProviderChain().resolve(context)
     return opts.credential
 
 
