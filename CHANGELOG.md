@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-11-26
+
 ### Added
 
-- Added `VERSIONING.md`, the versioning policy of the CLI. It explains what each type of release can change, which behaviors scripts can depend on, and how early access and deprecation work.
+- Added `VERSIONING.md`, the versioning policy of the CLI. It explains what each type of release can change, which behaviors scripts can depend on, and how early access and deprecation work. (#640)
 - Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
-- Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
-- Added pseudonymous usage telemetry. After each command, the CLI sends one event to Cloudsmith through PostHog (EU). Usage telemetry is on by default, also in CI. For more information, see <https://docs.cloudsmith.com/developer-tools/cli-telemetry>.
+- Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version. (#627)
+- Added pseudonymous usage telemetry. After each command, the CLI sends one event to Cloudsmith through PostHog (EU). Usage telemetry is on by default, also in CI. For more information, see <https://docs.cloudsmith.com/developer-tools/cli-telemetry>. (#568, #569, #570, #571, #573, #584, #585)
   - An event contains the command name, the names of the options and of the environment variables that you set, the output format, how the command ended (exit code and API status), and how long it took. It also contains where the credential came from (for example, an option, an environment variable, `credentials.ini`, the keyring, or OIDC, not the credential), where each setting came from (an option, an environment variable, or a config file, not the value), the CLI version and install method, the operating system and its version, the CPU architecture, and the Python version. It also shows whether the command ran in CI and which CI provider, or from an AI coding agent and which agent. It also lists the names of the keys that are set in `config.ini` and `credentials.ini`, as written (for example, `org` or `workspace`), but never their values.
   - The CLI never sends option or argument values, file names, credentials, workspace, repository, or package names, or host names. PostHog discards the IP address.
   - The CLI stores a random install ID in `telemetry.json` in its config directory, so that repeat use from the same machine can be counted. In CI, in containers, and in the Docker image, the CLI uses a new random ID for each command and stores nothing. To not store an ID, set `CLOUDSMITH_TELEMETRY_INSTALL_ID=disable`, or `telemetry_install_id = disable` in `config.ini`. The variable wins over the key.
@@ -21,12 +23,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The CLI waits a maximum of 1 second for the event to send, shared with the update check. After a failed send, the CLI sends nothing for 24 hours.
   - PostHog deletes the events 12 to 13 months after the CLI sends them. The events are not linked to your account, so Cloudsmith cannot delete them on request before then.
   - To turn it off, set `CLOUDSMITH_TELEMETRY_USAGE_REPORTING=disable`, or use the settings that also turn off error reports (see `CLOUDSMITH_TELEMETRY` below). When you turn it off, the CLI deletes the stored install ID.
-- Added the `cloudsmith telemetry` command group for usage telemetry.
+- Added the `cloudsmith telemetry` command group for usage telemetry. (#572, #585)
   - `cloudsmith telemetry status` shows whether usage reporting and error reporting are each `enabled`, `disabled`, or `log`, and the reason. The reason is the setting that decided, such as `CLOUDSMITH_TELEMETRY_USAGE_REPORTING`, `DO_NOT_TRACK`, `telemetry in config.ini`, or `default`. For usage reporting, it can also be an API host that is not a Cloudsmith host, or certificate verification that is off.
   - `cloudsmith telemetry id` shows the install ID that the CLI stores in `telemetry.json` in its config directory, or `none`.
   - `cloudsmith telemetry reset` deletes the stored install ID. The CLI creates a new, unrelated ID on the next command.
   - All three commands support `-F json` and `-F pretty_json`.
-- Added `CLOUDSMITH_TELEMETRY` to control error reports and usage telemetry together, and `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` and `CLOUDSMITH_TELEMETRY_ERROR_REPORTING` to control each one separately. Set them to `enable`, `disable`, or `log`. They also accept `enabled`, `on`, `true`, `yes`, and `1`, or `disabled`, `off`, `false`, `no`, and `0`.
+- Added `CLOUDSMITH_TELEMETRY` to control error reports and usage telemetry together, and `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` and `CLOUDSMITH_TELEMETRY_ERROR_REPORTING` to control each one separately. Set them to `enable`, `disable`, or `log`. They also accept `enabled`, `on`, `true`, `yes`, and `1`, or `disabled`, `off`, `false`, `no`, and `0`. (#584, #585)
   - With `log`, the CLI writes what it would send to stderr, and sends nothing. When a command fails with an unexpected error, the CLI writes the error report after it removes the private data. The CLI also writes the usage event.
   - The matching `telemetry_usage_reporting` and `telemetry_error_reporting` keys in `config.ini` control each one separately. The `telemetry` key now takes the same values, including `log`. `telemetry = false` and `telemetry = true` work as before.
   - For each kind, the first of these settings that is set decides: `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` or `CLOUDSMITH_TELEMETRY_ERROR_REPORTING`, then `CLOUDSMITH_TELEMETRY`, then `CLOUDSMITH_NO_TELEMETRY`, then `DO_NOT_TRACK`, then `telemetry_usage_reporting` or `telemetry_error_reporting` in `config.ini`, then `telemetry` in `config.ini`. So `CLOUDSMITH_TELEMETRY=enable` turns telemetry on for this CLI when `DO_NOT_TRACK=1` turns it off for every tool. `CLOUDSMITH_NO_TELEMETRY` and `DO_NOT_TRACK` still count only when set to `1`, `true`, or `yes`.
@@ -36,18 +38,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The CLI no longer prints deprecation warnings with `-F json` or `-F pretty_json`. The warnings went to stderr, so the JSON on stdout was not affected, but scripts that read both streams saw them. (#617)
 - When a command line gives `-F`/`--output-format` more than one time, a usage error now uses the last value to decide whether to print the error as JSON, as Click does for the command. Previously, a `json` value anywhere on the command line printed the error as JSON. (#617)
-- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`.
+- The `latest`, `MAJOR` and `MAJOR.MINOR` tags on Docker Hub, and the GitHub "Latest" release, now move only for the highest release. A 1.x release after 2.0.0 moves `1` and `1.N`, but not `latest`. (#627)
+- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page. (#609)
 
 ### Fixed
 
-- `cloudsmith metadata add` and `update`, and the `--metadata-*` file options of `push`, no longer crash with a `UnicodeDecodeError` when the metadata file starts with a UTF-16 byte order mark, as Windows PowerShell 5 writes when you redirect output with `>`. The CLI now reads UTF-8 (with or without a BOM) and UTF-16 files. Other unreadable files fail with a clear error that asks you to re-save the file as UTF-8.
-
-### Fixed
-
-- The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before.
-- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
-- `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
-- `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- `cloudsmith metadata add` and `update`, and the `--metadata-*` file options of `push`, no longer crash with a `UnicodeDecodeError` when the metadata file starts with a UTF-16 byte order mark, as Windows PowerShell 5 writes when you redirect output with `>`. The CLI now reads UTF-8 (with or without a BOM) and UTF-16 files. Other unreadable files fail with a clear error that asks you to re-save the file as UTF-8. (#613)
+- The CLI no longer sends an error report when a write fails with an input/output error (EIO). For example, this occurs when the terminal closes or the SSH session drops while a command runs. The CLI handles the error in the same way as before. (#588)
+- An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report. (#589)
+- `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download. (#523)
+- `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit. (#523)
 
 ## [1.31.4] - 2026-11-23
 
@@ -100,7 +100,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - After a SAML login, `cloudsmith auth` saves the Workspace to `config.ini`. It writes to the `[profile:NAME]` section of the selected profile, or to `[default]` when you do not select a profile. The CLI writes to the file or directory that `--config-file` gives, or else to your user-level `config.ini`. If the `config.ini` does not exist, the CLI creates it.
 - The credential-helper launchers on Linux and macOS now start with `#!/usr/bin/env sh` instead of `#!/bin/sh`, so they also work on systems that have no `/bin/sh`. (#586)
 - The minimum version of `cloudsmith-api` is now 2.0.43. (#575, #608)
-- The update notice and `cloudsmith update` now link to the version's entry in the Cloudsmith changelog (`https://cloudsmith.com/changelog/cli-v<major>-<minor>-<patch>`) instead of its GitHub release page.
 
 ### Deprecated
 
