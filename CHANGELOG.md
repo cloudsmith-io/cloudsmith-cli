@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - An `api_host` or `proxy` with a host or port that is not valid, such as `http://[bad` or `https://host:99999`, now gives a usage error. Before, the CLI stopped with `ValueError` or `LocationParseError` and sent an error report.
 - `cloudsmith download` now stops with an error when the server stops sending the file. Before, the command waited without a limit. Each connection attempt has a 30-second limit. Each read from the server has a 60-second limit, so large files still download.
 - `cloudsmith download` no longer stops responding after four files fail with an HTTP error. Before, the next file waited for a free connection without a limit.
+- When the API host returns an HTML page instead of an API response, the CLI now shows an error and exits with code 1. Examples are a proxy login page, a captive portal, or an `--api-host` that points to a website. Before, commands such as `entitlements list`, `check service`, and `metadata list` stopped with an unexpected error and sent an error report.
 
 ## [1.31.4] - 2026-11-23
 
