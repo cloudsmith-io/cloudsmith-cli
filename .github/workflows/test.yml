@@ -31,10 +31,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Set up Python and uv
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
-          enable-cache: true
+          install_args: python uv
 
       - name: Install dependencies
         run: uv sync --locked --group dev --managed-python --python ${{ matrix.python-version }}
@@ -64,18 +64,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set up Python and uv
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
-          python-version: "3.14"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          enable-cache: true
+          install_args: python uv
 
       - name: Install dependencies
-        run: uv sync --locked --group dev --python 3.14
+        run: uv sync --locked --group dev
 
       - name: Run pytest
         run: uv run pytest cloudsmith_cli -m "windows and not integration"
@@ -112,13 +107,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Set up Python and uv
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
-          enable-cache: true
+          install_args: python uv
 
       - name: Install dependencies
-        run: uv sync --locked --group dev --managed-python --python 3.14.10
+        run: uv sync --locked --group dev
 
       - name: Run live integration tests
         id: pytest

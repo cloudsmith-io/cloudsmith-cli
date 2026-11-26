@@ -4,16 +4,19 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Development setup
 
-The repo uses `direnv` (`.envrc`) to bootstrap a `.venv` via `uv`, install the project plus dev deps from the lockfile, and `pre-commit install`. If you don't use direnv, the equivalent is:
+The repo uses `mise` (`mise.toml`, `mise.lock`) to pin Python, `uv` and the Entire CLI. mise creates `.venv` with the pinned Python. `direnv` (`.envrc`) runs `mise install`, installs the project plus dev deps from the lockfile, and runs `pre-commit install`. If you don't use direnv, activate mise in your shell, then run:
 
 ```
-uv sync --group dev
+mise install
+uv sync --locked --group dev
 pre-commit install
 ```
 
+Entire records Claude Code sessions as checkpoints (`.entire/settings.json`, `.claude/settings.json`). This repository is public, so `.entire/settings.json` turns Entire off. When you can read the private `cloudsmith-io/cloudsmith-cli-checkpoints` repository, `.envrc` turns Entire on in the untracked `.entire/settings.local.json`. Entire then pushes checkpoints only to that repository on `git push`. The first Claude Code session installs Entire's git hooks.
+
 All dependencies live in `pyproject.toml` (production under `[project.dependencies]`, tooling under the `dev`, `binary`, and `release` dependency groups); exact versions are pinned in `uv.lock`, which is what CI uses. Regenerate the lock with `uv lock` after editing deps.
 
-Python `>=3.11` is required (CI tests 3.11–3.14). Use at least the patched releases 3.11.18, 3.12.16, 3.13.18 or 3.14.10: earlier patch levels still trust the compromised eMudhra CA keys (CVE-2026-115557). CI and `.envrc` pin these exactly.
+Python `>=3.11` is required (CI tests 3.11–3.14). Use at least the patched releases 3.11.18, 3.12.16, 3.13.18 or 3.14.10: earlier patch levels still trust the compromised eMudhra CA keys (CVE-2026-115557). CI pins these exactly, and `mise.toml` pins 3.14.10. To use a different version, run `export MISE_PYTHON_VERSION=3.12.16`, then `direnv reload`.
 
 ## Common commands
 

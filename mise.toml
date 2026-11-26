@@ -1,0 +1,14 @@
+min_version = "2026.8.9"
+
+[settings]
+lockfile = true
+
+[tools]
+# Entire's git and agent hooks call `entire` from PATH, and skip silently when it is missing.
+entire = "0.13.4"
+# 3.14.10 is the oldest 3.14 with the eMudhra CA fix (CVE-2026-115557).
+python = "3.14.10"
+uv = "0.13.9"
+
+[env]
+_.python.venv = { path = ".venv", create = true }
