@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added `VERSIONING.md`, the versioning policy of the CLI. It explains what each type of release can change, which behaviors scripts can depend on, and how early access and deprecation work.
 - Added `CLOUDSMITH_SUPPRESS_DEPRECATIONS`. Set it to `1`, `true`, or `yes` to turn off the deprecation warnings. (#617)
 - Each release now also publishes the install manifest of its major version, `cloudsmith-cli-v<MAJOR>-manifest-<target>`. It holds the highest release of that major version. The `cloudsmith-cli-manifest-<target>` manifest stays the highest release of any major version.
 - Added pseudonymous usage telemetry. After each command, the CLI sends one event to Cloudsmith through PostHog (EU). Usage telemetry is on by default, also in CI. For more information, see <https://docs.cloudsmith.com/developer-tools/cli-telemetry>.

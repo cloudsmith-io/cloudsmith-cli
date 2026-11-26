@@ -19,7 +19,7 @@ You can also read our [blog article](https://blog.cloudsmith.io/2017/11/25/autom
 
 ## Changelog
 
-Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CHANGELOG.md) for the list of changes by version. The current version is displayed in the PyPi badge at the top.
+Please see the [changelog](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/CHANGELOG.md) for the list of changes by version. The current version is displayed in the PyPi badge at the top. Please see the [versioning policy](https://github.com/cloudsmith-io/cloudsmith-cli/blob/master/VERSIONING.md) for what each type of release can change.
 
 
 ## Features
