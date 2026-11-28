@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - The matching `telemetry_usage_reporting` and `telemetry_error_reporting` keys in `config.ini` control each one separately. The `telemetry` key now takes the same values, including `log`. `telemetry = false` and `telemetry = true` work as before.
   - For each kind, the first of these settings that is set decides: `CLOUDSMITH_TELEMETRY_USAGE_REPORTING` or `CLOUDSMITH_TELEMETRY_ERROR_REPORTING`, then `CLOUDSMITH_TELEMETRY`, then `CLOUDSMITH_NO_TELEMETRY`, then `DO_NOT_TRACK`, then `telemetry_usage_reporting` or `telemetry_error_reporting` in `config.ini`, then `telemetry` in `config.ini`. So `CLOUDSMITH_TELEMETRY=enable` turns telemetry on for this CLI when `DO_NOT_TRACK=1` turns it off for every tool. `CLOUDSMITH_NO_TELEMETRY` and `DO_NOT_TRACK` still count only when set to `1`, `true`, or `yes`.
   - If one of these variables or keys, or `CLOUDSMITH_TELEMETRY_INSTALL_ID` or `telemetry_install_id`, has a value that the CLI does not recognise, the CLI prints a warning to stderr and ignores it.
+- Added `cloudsmith credential-helper install yarn` and `uninstall yarn`. The command adds the Cloudsmith Yarn plugin, [`yarn-plugin-cloudsmith-auth`](https://github.com/cloudsmith-labs/yarn-plugin-cloudsmith-auth), to `~/.yarnrc.yml`, so Yarn 3.1 or later gets credentials from the CLI in every project. Use `--local` to import the plugin into the project in the current directory with `yarn plugin import`. The plugin still works when you install it by hand.
 
 ### Changed
 
