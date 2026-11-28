@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: "3.14.10"
 
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.1.0 # zizmor: ignore[cache-poisoning]
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.1.0 # zizmor: ignore[cache-poisoning]
         with:
           enable-cache: true
 
@@ -665,7 +665,7 @@ jobs:
               -u "${DOCKERHUB_USER}" \
               --password-stdin
 
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           enable-cache: false
 
