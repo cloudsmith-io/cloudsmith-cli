@@ -405,6 +405,7 @@ def test_every_command_that_sends_less_than_all_is_listed_here():
         "credential-helper cargo": ERRORS,
         "credential-helper docker": ERRORS,
         "credential-helper generic": ERRORS,
+        "credential-helper nuget": ERRORS,
         "credential-helper pnpm": ERRORS,
         "credential-helper terraform": ERRORS,
         "mcp start": ERRORS,

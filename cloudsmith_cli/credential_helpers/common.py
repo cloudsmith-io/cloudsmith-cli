@@ -92,7 +92,7 @@ def is_standard_cloudsmith_domain(url):
 
 
 def is_cloudsmith_domain(
-    url, credential=None, api_host=None, backend_kind=None, org=None
+    url, credential=None, api_host=None, backend_kind=None, org=None, configure_api=True
 ):
     """
     Check if a URL points to a Cloudsmith service.
@@ -110,6 +110,8 @@ def is_cloudsmith_domain(
         org: Workspace slug whose custom domains to match against, as the CLI
             resolved it from --workspace, CLOUDSMITH_WORKSPACE,
             CLOUDSMITH_ORG, workspace in config.ini, or a legacy config alias
+        configure_api: Passed to the domain lookup. Pass ``False`` when the
+            caller has already configured the SDK.
 
     Returns:
         bool: True if this is a Cloudsmith domain
@@ -137,13 +139,17 @@ def is_cloudsmith_domain(
                 backend_kind,
                 credential=credential,
                 api_host=api_host,
+                configure_api=configure_api,
             )
         }
     else:
         hosts = {
             d.host.lower()
             for d in get_workspace_domains(
-                org, credential=credential, api_host=api_host
+                org,
+                credential=credential,
+                api_host=api_host,
+                configure_api=configure_api,
             )
         }
     return hostname in hosts

@@ -30,6 +30,7 @@ from cloudsmith_cli.credential_helpers.maven_tools import (
     ConfigFileConflict,
     ProjectNotFound,
 )
+from cloudsmith_cli.credential_helpers.nuget.installer import NuGetInstaller
 from cloudsmith_cli.credential_helpers.pnpm.installer import PNPMInstaller
 from cloudsmith_cli.credential_helpers.sbt.installer import SbtInstaller
 from cloudsmith_cli.credential_helpers.terraform.installer import (
@@ -62,6 +63,7 @@ _INSTALLERS: dict[str, type] = {
     "pnpm": PNPMInstaller,
     "cargo": CargoInstaller,
     "terraform": TerraformInstaller,
+    "nuget": NuGetInstaller,
     "maven": MavenInstaller,
     "gradle": GradleInstaller,
     "sbt": SbtInstaller,
@@ -383,7 +385,7 @@ def install_cmd(
     """Install a credential helper launcher and configure the package manager.
 
     HELPER is the name of the credential helper to install: one of ``cargo``,
-    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
+    ``docker``, ``gradle``, ``maven``, ``nuget``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Important for pnpm: The tokenHelper directive is only honored in the
     user-level ~/.npmrc file, not in a project-level .npmrc. This is a pnpm
@@ -543,7 +545,7 @@ def uninstall_cmd(
     """Uninstall a credential helper launcher and remove its config entries.
 
     HELPER is the name of the credential helper to uninstall: one of ``cargo``,
-    ``docker``, ``gradle``, ``maven``, ``pnpm``, ``sbt`` or ``terraform``.
+    ``docker``, ``gradle``, ``maven``, ``nuget``, ``pnpm``, ``sbt`` or ``terraform``.
 
     Examples:
 
